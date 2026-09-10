@@ -27,7 +27,7 @@ function createState(
     staticGrid[row][col] = StaticCellType.Obstacle;
   }
 
-  return { rows, cols, staticGrid, movables };
+  return { rows, cols, staticGrid, movables, portals: [], zone: null };
 }
 
 function positionsOf(state: GameState) {

@@ -2,7 +2,15 @@ import React, { useMemo } from 'react';
 import { Group } from '@shopify/react-native-skia';
 import { GameState, StaticCellType } from '../engine';
 import { BoardLayout, computeBoardLayout, getCellCenter, getCellOrigin } from './layout';
-import { AnchoredPiece, CellBackground, MovablePiece, ObstacleBlock, TargetMarker } from './shapes';
+import {
+  AnchoredPiece,
+  CellBackground,
+  GravityZoneOverlay,
+  MovablePiece,
+  ObstacleBlock,
+  PortalMark,
+  TargetMarker,
+} from './shapes';
 import { theme } from '../../theme';
 
 export interface BoardViewProps {
@@ -24,6 +32,8 @@ const EMPTY_IDS: ReadonlySet<string> = new Set();
 
 interface StaticGridLayerProps {
   staticGrid: GameState['staticGrid'];
+  portals: GameState['portals'];
+  zone: GameState['zone'];
   layout: BoardLayout;
   cellInset: number;
   cellCornerRadius: number;
@@ -31,18 +41,25 @@ interface StaticGridLayerProps {
   obstacleCornerRadius: number;
   targetRadius: number;
   targetStrokeWidth: number;
+  portalOuterRadius: number;
+  portalInnerRadius: number;
+  portalStrokeWidth: number;
 }
 
 /**
- * The non-moving half of the board: cell backgrounds, obstacles, targets.
- * Split out and memoized because `applyGravity` never touches
- * `state.staticGrid` (it only replaces `movables`), so this whole layer is
+ * The non-moving half of the board: cell backgrounds, the gravity-zone
+ * overlay, obstacles, targets, portal endpoints. Split out and memoized
+ * because `applyGravity` never touches `state.staticGrid`, `state.portals`
+ * or `state.zone` (it only replaces `movables`), so this whole layer is
  * identical across every frame of a gravity slide animation - recomputing
  * dozens of shapes ~60 times a second for content that never changes would
- * be pure waste.
+ * be pure waste. The zone tint is drawn on top of the cell backgrounds but
+ * under obstacles/targets so those stay legible.
  */
 const StaticGridLayer = React.memo(function StaticGridLayerImpl({
   staticGrid,
+  portals,
+  zone,
   layout,
   cellInset,
   cellCornerRadius,
@@ -50,25 +67,53 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
   obstacleCornerRadius,
   targetRadius,
   targetStrokeWidth,
+  portalOuterRadius,
+  portalInnerRadius,
+  portalStrokeWidth,
 }: StaticGridLayerProps) {
   return (
     <Group>
       {staticGrid.map((row, rowIndex) =>
+        row.map((_cellType, colIndex) => {
+          const origin = getCellOrigin(layout, rowIndex, colIndex);
+          return (
+            <CellBackground
+              key={`bg-${rowIndex}-${colIndex}`}
+              x={origin.x + cellInset}
+              y={origin.y + cellInset}
+              size={layout.cellSize - cellInset * 2}
+              fill={theme.colors.surface}
+              stroke={theme.colors.border}
+              cornerRadius={cellCornerRadius}
+            />
+          );
+        }),
+      )}
+
+      {zone && (
+        <GravityZoneOverlay
+          x={getCellOrigin(layout, zone.minRow, zone.minCol).x}
+          y={getCellOrigin(layout, zone.minRow, zone.minCol).y}
+          width={(zone.maxCol - zone.minCol + 1) * layout.cellSize}
+          height={(zone.maxRow - zone.minRow + 1) * layout.cellSize}
+          rows={zone.maxRow - zone.minRow + 1}
+          cols={zone.maxCol - zone.minCol + 1}
+          cellSize={layout.cellSize}
+          cornerRadius={cellCornerRadius}
+          direction={zone.direction}
+          fill={theme.colors.zoneFill}
+          border={theme.colors.zoneBorder}
+          arrow={theme.colors.zoneArrow}
+        />
+      )}
+
+      {staticGrid.map((row, rowIndex) =>
         row.map((cellType, colIndex) => {
+          if (cellType === StaticCellType.Empty) return null;
           const origin = getCellOrigin(layout, rowIndex, colIndex);
           const center = getCellCenter(layout, rowIndex, colIndex);
-
           return (
-            <Group key={`static-${rowIndex}-${colIndex}`}>
-              <CellBackground
-                x={origin.x + cellInset}
-                y={origin.y + cellInset}
-                size={layout.cellSize - cellInset * 2}
-                fill={theme.colors.surface}
-                stroke={theme.colors.border}
-                cornerRadius={cellCornerRadius}
-              />
-
+            <Group key={`cell-${rowIndex}-${colIndex}`}>
               {cellType === StaticCellType.Obstacle && (
                 <ObstacleBlock
                   x={origin.x + obstacleInset}
@@ -78,7 +123,6 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
                   cornerRadius={obstacleCornerRadius}
                 />
               )}
-
               {cellType === StaticCellType.Target && (
                 <TargetMarker
                   cx={center.x}
@@ -89,6 +133,23 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
                 />
               )}
             </Group>
+          );
+        }),
+      )}
+
+      {portals.map(([a, b], pairIndex) =>
+        [a, b].map((endpoint, endIndex) => {
+          const center = getCellCenter(layout, endpoint.row, endpoint.col);
+          return (
+            <PortalMark
+              key={`portal-${pairIndex}-${endIndex}`}
+              cx={center.x}
+              cy={center.y}
+              outerRadius={portalOuterRadius}
+              innerRadius={portalInnerRadius}
+              strokeWidth={portalStrokeWidth}
+              color={theme.colors.secondary}
+            />
           );
         }),
       )}
@@ -106,8 +167,9 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
  * presentation hints) it is given.
  *
  * Two layers are drawn:
- *   1. The static grid (cell backgrounds, obstacles, targets) - memoized,
- *      never re-drawn just because a piece is mid-slide.
+ *   1. The static grid (cell backgrounds, gravity-zone overlay, obstacles,
+ *      targets, portal endpoints) - memoized, never re-drawn just because a
+ *      piece is mid-slide.
  *   2. The objects, positioned from `state.movables`: normal pieces (filled
  *      circle, blue, or green on target) and anchored pieces (a muted,
  *      ringed core that reads as "pinned in place"). Only this layer changes
@@ -127,11 +189,16 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
   const anchoredRadius = layout.cellSize * 0.24;
   const anchoredRingRadius = layout.cellSize * 0.36;
   const anchoredStrokeWidth = Math.max(2, layout.cellSize * 0.06);
+  const portalOuterRadius = layout.cellSize * 0.34;
+  const portalInnerRadius = layout.cellSize * 0.19;
+  const portalStrokeWidth = Math.max(2, layout.cellSize * 0.055);
 
   return (
     <Group>
       <StaticGridLayer
         staticGrid={state.staticGrid}
+        portals={state.portals}
+        zone={state.zone}
         layout={layout}
         cellInset={cellInset}
         cellCornerRadius={cellCornerRadius}
@@ -139,6 +206,9 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
         obstacleCornerRadius={obstacleCornerRadius}
         targetRadius={targetRadius}
         targetStrokeWidth={targetStrokeWidth}
+        portalOuterRadius={portalOuterRadius}
+        portalInnerRadius={portalInnerRadius}
+        portalStrokeWidth={portalStrokeWidth}
       />
 
       {state.movables.map(movable => {

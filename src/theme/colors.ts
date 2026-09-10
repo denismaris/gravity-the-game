@@ -25,6 +25,12 @@ export const colors = {
   border: '#242C40',
   overlay: 'rgba(0, 0, 0, 0.55)',
   transparent: 'transparent',
+
+  // Gravity zone: a faint tint + border + directional chevrons. Kept low
+  // opacity so it reads as "different area" without hiding pieces or targets.
+  zoneFill: 'rgba(91, 140, 255, 0.09)',
+  zoneBorder: 'rgba(91, 140, 255, 0.38)',
+  zoneArrow: 'rgba(140, 170, 255, 0.42)',
 } as const;
 
 export type ThemeColors = typeof colors;

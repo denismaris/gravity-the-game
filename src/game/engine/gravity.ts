@@ -1,4 +1,4 @@
-import { Direction, GameState, MovableObject, StaticCellType } from './types';
+import { Cell, Direction, GameState, GravityZone, MovableObject, StaticCellType } from './types';
 
 interface Step {
   readonly dRow: number;
@@ -53,6 +53,29 @@ function positionKey(row: number, col: number): string {
 }
 
 /**
+ * Builds a cell -> linked-cell lookup from a state's portal pairs. If a cell
+ * is a portal endpoint, `get(key)` returns the cell an object emerges at.
+ */
+function buildPortalMap(state: GameState): Map<string, Cell> {
+  const map = new Map<string, Cell>();
+  for (const [a, b] of state.portals) {
+    map.set(positionKey(a.row, a.col), b);
+    map.set(positionKey(b.row, b.col), a);
+  }
+  return map;
+}
+
+function isInZone(zone: GravityZone | null, row: number, col: number): boolean {
+  return (
+    zone !== null &&
+    row >= zone.minRow &&
+    row <= zone.maxRow &&
+    col >= zone.minCol &&
+    col <= zone.maxCol
+  );
+}
+
+/**
  * Applies gravity to every movable object in `state`, sliding each one as
  * far as possible in `direction` until it is stopped by the board edge, an
  * obstacle, an anchored object, or another movable object.
@@ -61,19 +84,43 @@ function positionKey(row: number, col: number): string {
  * into the board as fixed occupants before anything slides, so every other
  * object treats them as permanent blockers - identical to an obstacle.
  *
+ * Portals: while an object is sliding, if its next cell is a portal endpoint
+ * it is moved to the linked endpoint and continues sliding in the SAME
+ * direction from there. This happens at most once per object per gravity
+ * action (so a portal can never chain into another portal on the same
+ * slide). If the linked endpoint is already occupied, the portal is
+ * impassable and the object stops in the cell before it, exactly as if the
+ * endpoint were a wall.
+ *
+ * Gravity zone: `direction` is the GLOBAL pull the player pressed. If the
+ * state has a `zone`, an object's pull is re-decided every step from the
+ * cell it currently occupies - the zone's direction while inside the
+ * rectangle, the global direction while outside. So an object can turn a
+ * corner on the zone boundary. Each object also remembers the cells it has
+ * visited this slide; if the next step would re-enter one (which happens
+ * when the zone pushes back against the way the object came in) it stops
+ * there instead of oscillating forever. The visited set can hold at most
+ * one entry per board cell, so every slide terminates.
+ *
  * Contract:
  * - Pure function: `state` is never mutated; a new `GameState` is returned.
  * - Deterministic: the same `(state, direction)` pair always produces the
- *   same result.
+ *   same result. Objects resolve in a fixed order (lane by lane, each lane
+ *   sorted toward the destination edge); portal traversal, the "exit
+ *   occupied" check and the visited-cell check all use per-object /
+ *   filled-so-far state, so the outcome is stable even when several objects
+ *   use portals or zones in one action.
  * - Safe: movable objects can never end up overlapping each other, an
  *   obstacle, or an anchored object, and never leave the board.
  */
 export function applyGravity(state: GameState, direction: Direction): GameState {
-  const { dRow, dCol } = stepFor(direction);
+  const globalStep = stepFor(direction);
+  const zoneStep = state.zone ? stepFor(state.zone.direction) : globalStep;
 
   const compare = sortOrderFor(direction);
   const occupied = new Set<string>();
   const resolvedById = new Map<string, MovableObject>();
+  const portalMap = buildPortalMap(state);
 
   // Anchored objects are fixed: they stay exactly where they are and their
   // cells count as occupied for everything that slides afterwards.
@@ -101,8 +148,12 @@ export function applyGravity(state: GameState, direction: Direction): GameState 
 
     for (const movable of ordered) {
       let { row, col } = movable;
+      let teleported = false;
+      const visited = new Set<string>([positionKey(row, col)]);
 
       while (true) {
+        // The pull is re-decided from the current cell every step.
+        const { dRow, dCol } = isInZone(state.zone, row, col) ? zoneStep : globalStep;
         const nextRow = row + dRow;
         const nextCol = col + dCol;
 
@@ -110,8 +161,32 @@ export function applyGravity(state: GameState, direction: Direction): GameState 
         if (isObstacle(state, nextRow, nextCol)) break;
         if (occupied.has(positionKey(nextRow, nextCol))) break;
 
+        // Entering a portal endpoint (only the first time this slide).
+        if (!teleported) {
+          const exit = portalMap.get(positionKey(nextRow, nextCol));
+          if (exit) {
+            const exitKey = positionKey(exit.row, exit.col);
+            // Exit blocked, or already walked over this slide -> stop here.
+            if (occupied.has(exitKey) || visited.has(exitKey)) break;
+            row = exit.row;
+            col = exit.col;
+            teleported = true;
+            visited.add(exitKey);
+            // Keep sliding from the exit. Any further portal endpoint is an
+            // ordinary cell for the rest of this slide (no chaining).
+            continue;
+          }
+        }
+
+        // Re-entering a cell already walked this slide means the zone is
+        // pushing back the way we came - stop at the boundary rather than
+        // oscillate.
+        const nextKey = positionKey(nextRow, nextCol);
+        if (visited.has(nextKey)) break;
+
         row = nextRow;
         col = nextCol;
+        visited.add(nextKey);
       }
 
       occupied.add(positionKey(row, col));

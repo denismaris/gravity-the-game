@@ -15,7 +15,9 @@ export type MechanicId =
   | 'targets'
   | 'obstacles'
   | 'multi-object'
-  | 'anchored';
+  | 'anchored'
+  | 'portals'
+  | 'gravity-zone';
 
 /**
  * A world: an ordered group of levels sharing a theme and a mechanic set.

@@ -14,27 +14,30 @@ import {
 } from '..';
 
 describe('WORLDS', () => {
-  test('there are two worlds: 1 - Gravity, 2 - Anchors', () => {
-    expect(WORLDS).toHaveLength(2);
-    expect(FIRST_WORLD.id).toBe('world-1');
-    expect(FIRST_WORLD.order).toBe(1);
-    expect(FIRST_WORLD.name).toBe('Gravity');
-    expect(WORLDS[1].id).toBe('world-2');
-    expect(WORLDS[1].order).toBe(2);
-    expect(WORLDS[1].name).toBe('Anchors');
+  test('there are five worlds, in order', () => {
+    expect(WORLDS.map(w => [w.id, w.order, w.name])).toEqual([
+      ['world-1', 1, 'Gravity'],
+      ['world-2', 2, 'Anchors'],
+      ['world-3', 3, 'Portals'],
+      ['world-4', 4, 'Portals & Anchors'],
+      ['world-5', 5, 'Gravity Zones'],
+    ]);
+    expect(FIRST_WORLD).toBe(WORLDS[0]);
   });
 
-  test('World 1 is levels 1-20, World 2 is levels 21-60, in play order', () => {
+  test('worlds map to level ranges 1-20, 21-60, 61-80, 81-100, 101-140 in play order', () => {
     const idsInRange = (from: number, to: number) =>
       [...LEVELS]
         .filter(l => l.order >= from && l.order <= to)
         .sort((a, b) => a.order - b.order)
         .map(l => l.id);
 
-    expect(FIRST_WORLD.levelIds).toEqual(idsInRange(1, 20));
-    expect(FIRST_WORLD.levelIds).toHaveLength(20);
+    expect(WORLDS[0].levelIds).toEqual(idsInRange(1, 20));
     expect(WORLDS[1].levelIds).toEqual(idsInRange(21, 60));
-    expect(WORLDS[1].levelIds).toHaveLength(40);
+    expect(WORLDS[2].levelIds).toEqual(idsInRange(61, 80));
+    expect(WORLDS[3].levelIds).toEqual(idsInRange(81, 100));
+    expect(WORLDS[4].levelIds).toEqual(idsInRange(101, 140));
+    expect(WORLDS.map(w => w.levelIds.length)).toEqual([20, 40, 20, 20, 40]);
   });
 
   test('every world level id resolves and no level belongs to two worlds', () => {
@@ -49,15 +52,35 @@ describe('WORLDS', () => {
   });
 
   test('worlds only declare mechanics that exist in the engine today', () => {
-    const known: MechanicId[] = ['gravity', 'targets', 'obstacles', 'multi-object', 'anchored'];
+    const known: MechanicId[] = [
+      'gravity',
+      'targets',
+      'obstacles',
+      'multi-object',
+      'anchored',
+      'portals',
+      'gravity-zone',
+    ];
     for (const world of WORLDS) {
       for (const mechanic of world.mechanics) {
         expect(known).toContain(mechanic);
       }
     }
-    // Only World 2 uses the new anchored mechanic.
-    expect(FIRST_WORLD.mechanics).not.toContain('anchored');
+    // Each new mechanic is declared only by the world that introduces it.
+    expect(WORLDS[0].mechanics).not.toContain('anchored');
+    expect(WORLDS[0].mechanics).not.toContain('portals');
     expect(WORLDS[1].mechanics).toContain('anchored');
+    expect(WORLDS[1].mechanics).not.toContain('portals');
+    expect(WORLDS[2].mechanics).toContain('portals');
+    expect(WORLDS[2].mechanics).not.toContain('anchored');
+    // World 4 is the first to declare both.
+    expect(WORLDS[3].mechanics).toContain('portals');
+    expect(WORLDS[3].mechanics).toContain('anchored');
+    // World 5 introduces gravity zones; its later bands (131-140) fold in
+    // anchored objects and portals as combination content.
+    expect(WORLDS[4].mechanics).toContain('gravity-zone');
+    expect(WORLDS[4].mechanics).toContain('anchored');
+    expect(WORLDS[4].mechanics).toContain('portals');
   });
 
   test('every world passes structural validation', () => {

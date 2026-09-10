@@ -1,4 +1,4 @@
-export type { Direction, GameState, MovableObject } from './types';
+export type { Cell, Direction, GameState, GravityZone, MovableObject, PortalPair } from './types';
 export { ALL_DIRECTIONS, StaticCellType } from './types';
 export { applyGravity, gravityChangesState } from './gravity';
 export { createGameStateFromBoard } from './fromBoard';

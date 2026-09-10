@@ -1,6 +1,12 @@
 import { GridPosition } from '../models';
-import type { GameState, MovableObject } from '../engine/types';
-import { StaticCellType } from '../engine/types';
+import type { GameState, GravityZone, MovableObject, PortalPair } from '../engine/types';
+import { ALL_DIRECTIONS, StaticCellType } from '../engine/types';
+
+/** A portal link in level data: exactly two distinct board cells. */
+export type LevelPortal = readonly [GridPosition, GridPosition];
+
+/** A gravity zone in level data - same shape the engine uses at runtime. */
+export type LevelZone = GravityZone;
 
 /**
  * Coarse difficulty bucket used for grouping/filtering levels in the level
@@ -77,6 +83,23 @@ export interface LevelDefinition {
    * `assertValidLevel`).
    */
   readonly anchors?: ReadonlyArray<GridPosition>;
+  /**
+   * Portal links: each entry is a pair of distinct cells. An object sliding
+   * onto either cell is teleported to the other and keeps moving in the
+   * current gravity direction. Optional. Endpoints never coincide with an
+   * obstacle, a target, an anchor, or another portal endpoint (all rejected
+   * by `assertValidLevel`).
+   */
+  readonly portals?: ReadonlyArray<LevelPortal>;
+  /**
+   * A single gravity zone: a rectangle (inclusive bounds) inside which
+   * gravity always pulls in `direction`, whatever the player pressed.
+   * Optional - a level without it plays exactly as before. The rectangle
+   * must be in bounds and well-formed; it may freely overlap obstacles,
+   * targets and object starts (the zone is a property of cells, not a
+   * blocker).
+   */
+  readonly zone?: LevelZone;
   readonly difficulty: Difficulty;
   readonly metadata?: LevelMetadata;
 }
@@ -122,11 +145,13 @@ export function assertValidLevel(level: LevelDefinition): void {
   };
 
   const anchors = level.anchors ?? [];
+  const portals = level.portals ?? [];
 
   level.objects.forEach(position => checkBounds('object', position));
   level.targets.forEach(position => checkBounds('target', position));
   level.obstacles.forEach(position => checkBounds('obstacle', position));
   anchors.forEach(position => checkBounds('anchor', position));
+  portals.forEach(pair => pair.forEach(position => checkBounds('portal endpoint', position)));
 
   const objectKeys = new Set(level.objects.map(keyOf));
   if (objectKeys.size !== level.objects.length) {
@@ -169,6 +194,57 @@ export function assertValidLevel(level: LevelDefinition): void {
     }
     if (obstacleKeys.has(key)) {
       throw new Error(`Level ${level.id}: an anchored object overlaps an obstacle at (${key}).`);
+    }
+  }
+
+  // A portal endpoint must be a plain cell that an object can slide onto: not
+  // an obstacle/target/anchor (which would break traversal or the win
+  // check), not another portal endpoint (a cell links to exactly one place),
+  // and the two ends of a pair must be different cells. Starting an object on
+  // a portal endpoint is allowed - on the first move it just slides off.
+  const portalKeys = new Set<string>();
+  for (const pair of portals) {
+    if (pair.length !== 2) {
+      throw new Error(`Level ${level.id}: a portal must link exactly two cells.`);
+    }
+    const [a, b] = pair;
+    if (keyOf(a) === keyOf(b)) {
+      throw new Error(`Level ${level.id}: a portal links a cell (${keyOf(a)}) to itself.`);
+    }
+    for (const key of [keyOf(a), keyOf(b)]) {
+      if (portalKeys.has(key)) {
+        throw new Error(`Level ${level.id}: cell (${key}) is used by more than one portal endpoint.`);
+      }
+      portalKeys.add(key);
+      if (obstacleKeys.has(key)) {
+        throw new Error(`Level ${level.id}: a portal endpoint overlaps an obstacle at (${key}).`);
+      }
+      if (targetKeys.has(key)) {
+        throw new Error(`Level ${level.id}: a portal endpoint overlaps a target at (${key}).`);
+      }
+      if (anchorKeys.has(key)) {
+        throw new Error(`Level ${level.id}: a portal endpoint overlaps an anchored object at (${key}).`);
+      }
+    }
+  }
+
+  // The gravity zone is a well-formed rectangle inside the board. It is a
+  // property of the cells it covers, so it may overlap anything else.
+  if (level.zone) {
+    const { minRow, maxRow, minCol, maxCol, direction } = level.zone;
+    if (minRow > maxRow || minCol > maxCol) {
+      throw new Error(`Level ${level.id}: gravity zone bounds are inverted.`);
+    }
+    if (
+      minRow < 0 ||
+      maxRow >= level.rows ||
+      minCol < 0 ||
+      maxCol >= level.cols
+    ) {
+      throw new Error(`Level ${level.id}: gravity zone extends outside the ${level.rows}x${level.cols} board.`);
+    }
+    if (!ALL_DIRECTIONS.includes(direction)) {
+      throw new Error(`Level ${level.id}: gravity zone direction "${direction}" is not a valid direction.`);
     }
   }
 
@@ -228,5 +304,17 @@ export function createGameStateFromLevel(level: LevelDefinition): GameState {
     })),
   ];
 
-  return { rows: level.rows, cols: level.cols, staticGrid, movables };
+  const portals: PortalPair[] = (level.portals ?? []).map(([a, b]) => [
+    { row: a.row, col: a.col },
+    { row: b.row, col: b.col },
+  ]);
+
+  return {
+    rows: level.rows,
+    cols: level.cols,
+    staticGrid,
+    movables,
+    portals,
+    zone: level.zone ? { ...level.zone } : null,
+  };
 }

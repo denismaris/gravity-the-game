@@ -22,5 +22,6 @@ module.exports = {
   Circle: makeStub('SkiaCircleMock'),
   Rect: makeStub('SkiaRectMock'),
   RoundedRect: makeStub('SkiaRoundedRectMock'),
+  Path: makeStub('SkiaPathMock'),
   vec: (x, y) => ({ x, y }),
 };

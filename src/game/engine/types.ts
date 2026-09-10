@@ -49,15 +49,52 @@ export interface MovableObject {
   readonly anchored?: boolean;
 }
 
+/** One cell on the board. */
+export interface Cell {
+  readonly row: number;
+  readonly col: number;
+}
+
+/**
+ * A linked pair of portal cells. An object that would slide *onto* either
+ * endpoint is instead moved to the other endpoint and keeps sliding in the
+ * current gravity direction (see `applyGravity`). Portals are static level
+ * geometry - like obstacles, they never change and are carried unchanged
+ * through every `GameState` snapshot, so undo/restart need no portal-specific
+ * handling. The pair is symmetric: `[0] -> [1]` and `[1] -> [0]`.
+ */
+export type PortalPair = readonly [Cell, Cell];
+
+/**
+ * A rectangular region of the board (rows `minRow..maxRow`, cols
+ * `minCol..maxCol`, all inclusive) inside which gravity always pulls in
+ * `direction`, regardless of the global direction the player pressed. An
+ * object's direction is decided cell by cell as it slides: inside the
+ * rectangle it uses `direction`, outside it uses the global direction (see
+ * `applyGravity`). Static level geometry - carried unchanged through every
+ * snapshot, so undo/restart need no zone-specific handling.
+ */
+export interface GravityZone {
+  readonly minRow: number;
+  readonly maxRow: number;
+  readonly minCol: number;
+  readonly maxCol: number;
+  readonly direction: Direction;
+}
+
 /**
  * A full snapshot of the puzzle board at a point in time.
  *
- * `staticGrid` never changes as a result of gravity - only `movables` does.
- * `staticGrid` is indexed as `staticGrid[row][col]`.
+ * `staticGrid` and `portals` never change as a result of gravity - only
+ * `movables` does. `staticGrid` is indexed as `staticGrid[row][col]`.
  */
 export interface GameState {
   readonly rows: number;
   readonly cols: number;
   readonly staticGrid: ReadonlyArray<ReadonlyArray<StaticCellType>>;
   readonly movables: ReadonlyArray<MovableObject>;
+  /** Linked portal-cell pairs. Empty when a level has no portals. */
+  readonly portals: ReadonlyArray<PortalPair>;
+  /** The single gravity zone, or `null` when the level has none. */
+  readonly zone: GravityZone | null;
 }

@@ -86,3 +86,137 @@ describe('assertValidLevel - anchor rules', () => {
     ).not.toThrow();
   });
 });
+
+describe('portals', () => {
+  const portalBase: LevelDefinition = {
+    id: 'portal-level',
+    order: 999,
+    name: 'Portal Test',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 0, col: 0 }],
+    targets: [{ row: 5, col: 5 }],
+    obstacles: [],
+    difficulty: 'easy',
+    portals: [[{ row: 0, col: 3 }, { row: 5, col: 0 }]],
+  };
+
+  test('a well-formed portal level validates and builds portal geometry', () => {
+    expect(() => assertValidLevel(portalBase)).not.toThrow();
+    const state = createGameStateFromLevel(portalBase);
+    expect(state.portals).toEqual([[{ row: 0, col: 3 }, { row: 5, col: 0 }]]);
+  });
+
+  test('a level with no `portals` field has an empty portal list', () => {
+    const noPortals: LevelDefinition = { ...portalBase, portals: undefined };
+    expect(createGameStateFromLevel(noPortals).portals).toEqual([]);
+  });
+
+  test('rejects a portal endpoint out of bounds', () => {
+    expect(() =>
+      assertValidLevel({ ...portalBase, portals: [[{ row: 0, col: 0 }, { row: 9, col: 9 }]] }),
+    ).toThrow(/portal endpoint at/);
+  });
+
+  test('rejects a portal that links a cell to itself', () => {
+    expect(() =>
+      assertValidLevel({ ...portalBase, portals: [[{ row: 1, col: 1 }, { row: 1, col: 1 }]] }),
+    ).toThrow(/links a cell .* to itself/);
+  });
+
+  test('rejects a portal endpoint on an obstacle / target / anchor', () => {
+    expect(() =>
+      assertValidLevel({
+        ...portalBase,
+        obstacles: [{ row: 2, col: 2 }],
+        portals: [[{ row: 2, col: 2 }, { row: 4, col: 4 }]],
+      }),
+    ).toThrow(/portal endpoint overlaps an obstacle/);
+
+    expect(() =>
+      assertValidLevel({ ...portalBase, portals: [[{ row: 5, col: 5 }, { row: 4, col: 4 }]] }),
+    ).toThrow(/portal endpoint overlaps a target/);
+
+    expect(() =>
+      assertValidLevel({
+        ...portalBase,
+        anchors: [{ row: 3, col: 3 }],
+        portals: [[{ row: 3, col: 3 }, { row: 4, col: 4 }]],
+      }),
+    ).toThrow(/portal endpoint overlaps an anchored object/);
+  });
+
+  test('rejects a cell used by two portal endpoints', () => {
+    expect(() =>
+      assertValidLevel({
+        ...portalBase,
+        portals: [
+          [{ row: 1, col: 1 }, { row: 2, col: 2 }],
+          [{ row: 2, col: 2 }, { row: 3, col: 3 }],
+        ],
+      }),
+    ).toThrow(/more than one portal endpoint/);
+  });
+
+  test('the built state actually teleports an object through applyGravity', () => {
+    const state = createGameStateFromLevel(portalBase);
+    // Right from (0,0): enter (0,3), emerge at (5,0), slide right to (5,5).
+    const after = applyGravity(state, 'right');
+    expect(after.movables[0]).toMatchObject({ row: 5, col: 5 });
+    expect(isPuzzleSolved(after)).toBe(true);
+  });
+});
+
+describe('gravity zone', () => {
+  const zoneBase: LevelDefinition = {
+    id: 'zone-level',
+    order: 999,
+    name: 'Zone Test',
+    rows: 7,
+    cols: 7,
+    objects: [{ row: 0, col: 0 }],
+    targets: [{ row: 4, col: 6 }],
+    obstacles: [],
+    difficulty: 'easy',
+    zone: { minRow: 4, maxRow: 6, minCol: 0, maxCol: 6, direction: 'right' },
+  };
+
+  test('a well-formed zone validates and is copied onto the state', () => {
+    expect(() => assertValidLevel(zoneBase)).not.toThrow();
+    const state = createGameStateFromLevel(zoneBase);
+    expect(state.zone).toEqual({ minRow: 4, maxRow: 6, minCol: 0, maxCol: 6, direction: 'right' });
+    // and it plays: "down" deflects the object right to the target.
+    const after = applyGravity(state, 'down');
+    expect(after.movables[0]).toMatchObject({ row: 4, col: 6 });
+    expect(isPuzzleSolved(after)).toBe(true);
+  });
+
+  test('a level with no `zone` field has zone null', () => {
+    const noZone: LevelDefinition = { ...zoneBase, zone: undefined };
+    expect(createGameStateFromLevel(noZone).zone).toBeNull();
+  });
+
+  test('rejects inverted zone bounds', () => {
+    expect(() =>
+      assertValidLevel({ ...zoneBase, zone: { minRow: 5, maxRow: 2, minCol: 0, maxCol: 4, direction: 'up' } }),
+    ).toThrow(/bounds are inverted/);
+  });
+
+  test('rejects a zone that extends outside the board', () => {
+    expect(() =>
+      assertValidLevel({ ...zoneBase, zone: { minRow: 0, maxRow: 9, minCol: 0, maxCol: 4, direction: 'up' } }),
+    ).toThrow(/outside the 7x7 board/);
+  });
+
+  test('the zone may freely overlap obstacles, targets and object starts', () => {
+    expect(() =>
+      assertValidLevel({
+        ...zoneBase,
+        obstacles: [{ row: 5, col: 2 }],
+        targets: [{ row: 5, col: 5 }],
+        objects: [{ row: 5, col: 0 }],
+        zone: { minRow: 3, maxRow: 6, minCol: 0, maxCol: 6, direction: 'left' },
+      }),
+    ).not.toThrow();
+  });
+});

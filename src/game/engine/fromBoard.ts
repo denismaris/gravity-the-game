@@ -38,5 +38,7 @@ export function createGameStateFromBoard(board: Board): GameState {
     });
   });
 
-  return { rows: board.rows, cols: board.cols, staticGrid, movables };
+  // The `Board`/`CellType` model has no concept of portals or gravity zones;
+  // boards built this way never have any.
+  return { rows: board.rows, cols: board.cols, staticGrid, movables, portals: [], zone: null };
 }

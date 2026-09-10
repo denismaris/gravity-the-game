@@ -3,7 +3,7 @@ import { assertValidLevel, createGameStateFromLevel } from '../../levels/level';
 import { LEVELS, getLevelById, getLevelByOrder } from '../../levels/levelData';
 import { isPuzzleSolved } from '../completion';
 
-const LEVEL_COUNT = 60;
+const LEVEL_COUNT = 140;
 
 /**
  * Validates the entire hand-authored level pack: structural integrity of
@@ -93,23 +93,48 @@ describe('LEVELS (the hand-authored level pack)', () => {
     expect(rank[sorted[sorted.length - 1].difficulty]).toBe(rank.expert);
   });
 
-  test('World 1 (1-20) has no anchors; every World 2 level (21-60) has at least one', () => {
+  test('mechanic use tracks the world it belongs to', () => {
     for (const level of LEVELS) {
       const anchorCount = level.anchors?.length ?? 0;
+      const portalCount = level.portals?.length ?? 0;
       if (level.order <= 20) {
+        // World 1 - Gravity: no anchors, no portals.
+        expect(anchorCount).toBe(0);
+        expect(portalCount).toBe(0);
+      } else if (level.order <= 60) {
+        // World 2 - Anchors: at least one anchor, no portals.
+        expect(anchorCount).toBeGreaterThanOrEqual(1);
+        expect(portalCount).toBe(0);
+      } else if (level.order <= 80) {
+        // World 3 - Portals: at least one portal, no anchors.
+        expect(portalCount).toBeGreaterThanOrEqual(1);
+        expect(anchorCount).toBe(0);
+      } else if (level.order <= 100) {
+        // World 4 - Portals & Anchors: every level has a portal, and the
+        // combination band always uses at least one anchor too.
+        expect(portalCount).toBeGreaterThanOrEqual(1);
+        expect(anchorCount).toBeGreaterThanOrEqual(1);
+      } else if (level.order <= 130) {
+        // World 5 - Gravity Zones (101-130): a zone on its own, still no
+        // portals or anchors.
+        expect(level.zone).toBeDefined();
+        expect(portalCount).toBe(0);
         expect(anchorCount).toBe(0);
       } else {
-        expect(anchorCount).toBeGreaterThanOrEqual(1);
+        // World 5 combination band (131-140): a zone, plus at least one of
+        // anchored objects or portals.
+        expect(level.zone).toBeDefined();
+        expect(portalCount + anchorCount).toBeGreaterThanOrEqual(1);
       }
     }
   });
 
-  test('the single longest solution in the pack is the last level', () => {
+  test('the longest solution in the pack (7 moves) is the anchor-world finale', () => {
     const hardest = Math.max(...LEVELS.map(level => level.metadata?.minMoves ?? 0));
     const hardestLevels = LEVELS.filter(level => level.metadata?.minMoves === hardest);
-    expect(hardestLevels).toHaveLength(1);
-    expect(hardestLevels[0].order).toBe(LEVEL_COUNT);
     expect(hardest).toBe(7);
+    expect(hardestLevels).toHaveLength(1);
+    expect(hardestLevels[0].order).toBe(60);
   });
 
   // ---- World 1 tiers ---------------------------------------------------
@@ -272,5 +297,170 @@ describe('LEVELS (the hand-authored level pack)', () => {
     const band = LEVELS.filter(level => level.order >= 31 && level.order <= 60);
     const lengths = new Set(band.map(l => l.metadata?.minMoves));
     expect(lengths.size).toBeGreaterThanOrEqual(5);
+  });
+
+  // ---- World 3 tiers (portals) -----------------------------------
+
+  describe.each([
+    ['tier 14 (61-63): teach portals', 61, 63, 3],
+    ['tier 15 (64-67): gravity + portals', 64, 67, 4],
+    ['tier 16 (68-70): advanced portal positioning', 68, 70, 3],
+  ] as const)('%s', (_label, from, to, count) => {
+    const tier = LEVELS.filter(level => level.order >= from && level.order <= to);
+
+    test(`has exactly ${count} levels`, () => {
+      expect(tier).toHaveLength(count);
+    });
+
+    test('every level has at least one portal and no anchored objects', () => {
+      for (const level of tier) {
+        expect(level.portals?.length ?? 0).toBeGreaterThanOrEqual(1);
+        expect(level.anchors?.length ?? 0).toBe(0);
+      }
+    });
+  });
+
+  test('World 3 escalates from 1-move teaches to a multi-move finale', () => {
+    const world3 = LEVELS.filter(level => level.order >= 61 && level.order <= 70);
+    const moves = world3.map(l => l.metadata?.minMoves ?? 0);
+    expect(Math.min(...moves)).toBe(1);
+    expect(Math.max(...moves)).toBe(4);
+    expect(world3.find(l => l.order === 70)?.metadata?.minMoves).toBe(4);
+  });
+
+  // ---- Portal expansion 71-80 + Portals & Anchors 81-100 -----------
+
+  describe.each([
+    ['tier 17 (71-80): deeper portal positioning', 71, 80, 1, 3, false],
+    ['tier 18 (81-90): introduce anchors + portals', 81, 90, 1, 4, true],
+    ['tier 19 (91-100): advanced, everything', 91, 100, 2, 5, true],
+  ] as const)('%s', (_label, from, to, minLo, minHi, needsAnchor) => {
+    const tier = LEVELS.filter(level => level.order >= from && level.order <= to);
+
+    test('has exactly 10 levels', () => {
+      expect(tier).toHaveLength(10);
+    });
+
+    test('every level uses a portal (and an anchor where the band requires it)', () => {
+      for (const level of tier) {
+        expect(level.portals?.length ?? 0).toBeGreaterThanOrEqual(1);
+        if (needsAnchor) expect(level.anchors?.length ?? 0).toBeGreaterThanOrEqual(1);
+        else expect(level.anchors?.length ?? 0).toBe(0);
+      }
+    });
+
+    test(`solution lengths stay within [${minLo}, ${minHi}]`, () => {
+      for (const level of tier) {
+        const m = level.metadata?.minMoves ?? 0;
+        expect(m).toBeGreaterThanOrEqual(minLo);
+        expect(m).toBeLessThanOrEqual(minHi);
+      }
+    });
+
+    test('the band spans more than one solution length', () => {
+      const lengths = new Set(tier.map(l => l.metadata?.minMoves));
+      expect(lengths.size).toBeGreaterThanOrEqual(3);
+    });
+  });
+
+  test('level 100 is a five-move Portals & Anchors puzzle', () => {
+    const finale = LEVELS.find(level => level.order === 100);
+    expect(finale?.metadata?.minMoves).toBe(5);
+    expect(finale?.portals?.length ?? 0).toBeGreaterThanOrEqual(1);
+    expect(finale?.anchors?.length ?? 0).toBeGreaterThanOrEqual(1);
+    expect(finale?.difficulty).toBe('expert');
+  });
+
+  // ---- World 5 tiers (gravity zones) -----------------------------
+
+  describe.each([
+    ['tier 20 (101-103): teach gravity zones', 101, 103],
+    ['tier 21 (104-106): global gravity + zone', 104, 106],
+    ['tier 22 (107-110): advanced planning', 107, 110],
+  ] as const)('%s', (_label, from, to) => {
+    const tier = LEVELS.filter(level => level.order >= from && level.order <= to);
+
+    test(`has ${to - from + 1} levels`, () => {
+      expect(tier).toHaveLength(to - from + 1);
+    });
+
+    test('every level has a gravity zone and no portals or anchors', () => {
+      for (const level of tier) {
+        expect(level.zone).toBeDefined();
+        expect(level.portals?.length ?? 0).toBe(0);
+        expect(level.anchors?.length ?? 0).toBe(0);
+        // the zone rectangle is well-formed and in bounds
+        const z = level.zone!;
+        expect(z.minRow).toBeLessThanOrEqual(z.maxRow);
+        expect(z.minCol).toBeLessThanOrEqual(z.maxCol);
+        expect(z.maxRow).toBeLessThan(level.rows);
+        expect(z.maxCol).toBeLessThan(level.cols);
+      }
+    });
+  });
+
+  test('World 5 stays within a 1..4 move band and ends on a four-move finale', () => {
+    const world5 = LEVELS.filter(level => level.order >= 101 && level.order <= 140);
+    expect(world5).toHaveLength(40);
+    const moves = world5.map(l => l.metadata?.minMoves ?? 0);
+    expect(Math.min(...moves)).toBe(1);
+    expect(Math.max(...moves)).toBe(4);
+    // the original teaching band still opens the world at a one-move puzzle
+    expect(Math.min(...LEVELS.filter(l => l.order >= 101 && l.order <= 110).map(l => l.metadata?.minMoves ?? 0))).toBe(1);
+    const finale = world5.find(l => l.order === 140);
+    expect(finale?.metadata?.minMoves).toBe(4);
+    expect(finale?.difficulty).toBe('expert');
+  });
+
+  // ---- World 5 expansion bands (111-140) --------------------------
+
+  describe.each([
+    ['tier 23 (111-120): zone mastery, one object', 111, 120, 2, 4, 'solo'],
+    ['tier 24 (121-130): zone + obstacles + multi-object', 121, 130, 2, 4, 'solo'],
+    ['tier 25 (131-140): zone + anchors and/or portals', 131, 140, 1, 4, 'combo'],
+  ] as const)('%s', (_label, from, to, minLo, minHi, kind) => {
+    const tier = LEVELS.filter(level => level.order >= from && level.order <= to);
+
+    test('has exactly 10 levels', () => {
+      expect(tier).toHaveLength(10);
+    });
+
+    test('every level has a well-formed in-bounds gravity zone', () => {
+      for (const level of tier) {
+        expect(level.zone).toBeDefined();
+        const z = level.zone!;
+        expect(z.minRow).toBeLessThanOrEqual(z.maxRow);
+        expect(z.minCol).toBeLessThanOrEqual(z.maxCol);
+        expect(z.maxRow).toBeLessThan(level.rows);
+        expect(z.maxCol).toBeLessThan(level.cols);
+      }
+    });
+
+    test(
+      kind === 'combo'
+        ? 'every level combines the zone with an anchor or a portal'
+        : 'no level uses anchors or portals',
+      () => {
+        for (const level of tier) {
+          const a = level.anchors?.length ?? 0;
+          const p = level.portals?.length ?? 0;
+          if (kind === 'combo') expect(a + p).toBeGreaterThanOrEqual(1);
+          else expect(a + p).toBe(0);
+        }
+      },
+    );
+
+    test(`solution lengths stay within [${minLo}, ${minHi}]`, () => {
+      for (const level of tier) {
+        const m = level.metadata?.minMoves ?? 0;
+        expect(m).toBeGreaterThanOrEqual(minLo);
+        expect(m).toBeLessThanOrEqual(minHi);
+      }
+    });
+
+    test('the band spans more than one solution length', () => {
+      const lengths = new Set(tier.map(l => l.metadata?.minMoves));
+      expect(lengths.size).toBeGreaterThanOrEqual(2);
+    });
   });
 });

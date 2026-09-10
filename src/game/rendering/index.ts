@@ -5,8 +5,10 @@ export type { BoardLayout } from './layout';
 export {
   AnchoredPiece,
   CellBackground,
+  GravityZoneOverlay,
   MovablePiece,
   ObstacleBlock,
+  PortalMark,
   TargetMarker,
 } from './shapes';
 export { useAnimatedMovables } from './useAnimatedMovables';

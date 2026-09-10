@@ -1,5 +1,5 @@
 import { applyGravity, gravityChangesState } from '../gravity';
-import { GameState, MovableObject, StaticCellType } from '../types';
+import { GameState, GravityZone, MovableObject, PortalPair, StaticCellType } from '../types';
 
 /** Builds a minimal GameState for testing without needing level data. */
 function createState(
@@ -7,6 +7,8 @@ function createState(
   cols: number,
   movables: MovableObject[],
   obstacles: Array<{ row: number; col: number }> = [],
+  portals: PortalPair[] = [],
+  zone: GravityZone | null = null,
 ): GameState {
   const staticGrid: StaticCellType[][] = Array.from({ length: rows }, () =>
     Array.from({ length: cols }, () => StaticCellType.Empty),
@@ -16,7 +18,7 @@ function createState(
     staticGrid[row][col] = StaticCellType.Obstacle;
   }
 
-  return { rows, cols, staticGrid, movables };
+  return { rows, cols, staticGrid, movables, portals, zone };
 }
 
 function positionsOf(state: GameState) {
@@ -242,6 +244,229 @@ describe('applyGravity with anchored objects', () => {
       { id: 'anchor', row: 4, col: 4, anchored: true },
     ]);
     expect(gravityChangesState(mixed, 'down')).toBe(true);
+  });
+});
+
+describe('applyGravity with portals', () => {
+  test('an object slides into a portal and emerges at the linked cell, still moving', () => {
+    // Portal (0,2) <-> (4,0). Slide right from (0,0): enter (0,2), emerge at
+    // (4,0), keep sliding right to the wall.
+    const state = createState(5, 5, [{ id: 'a', row: 0, col: 0 }], [], [
+      [{ row: 0, col: 2 }, { row: 4, col: 0 }],
+    ]);
+
+    const result = applyGravity(state, 'right');
+
+    expect(positionsOf(result)).toEqual([{ id: 'a', row: 4, col: 4 }]);
+  });
+
+  test('the portal is symmetric: entering the "B" endpoint emerges at "A"', () => {
+    // Portal A=(3,4), B=(3,0). Object enters B by falling down column 0.
+    const state = createState(6, 6, [{ id: 'a', row: 0, col: 0 }], [], [
+      [{ row: 3, col: 4 }, { row: 3, col: 0 }],
+    ]);
+
+    // Falls to (3,0), enters that endpoint, emerges at (3,4), keeps falling.
+    expect(positionsOf(applyGravity(state, 'down'))).toEqual([{ id: 'a', row: 5, col: 4 }]);
+  });
+
+  test('teleports at most once per gravity action (no chaining / infinite loop)', () => {
+    // Two portal endpoints adjacent in the travel direction: without a cap
+    // the object would bounce between them forever.
+    const state = createState(5, 5, [{ id: 'a', row: 2, col: 0 }], [], [
+      [{ row: 2, col: 2 }, { row: 2, col: 1 }],
+    ]);
+
+    const result = applyGravity(state, 'right');
+
+    // Enter (2,2) -> emerge at (2,1) -> keep going right; (2,2) is now inert
+    // -> slide over it to the wall.
+    expect(positionsOf(result)).toEqual([{ id: 'a', row: 2, col: 4 }]);
+  });
+
+  test('if the portal exit is occupied, the portal acts as a wall', () => {
+    // Exit (4,0) is filled by an obstacle-equivalent: another object at rest.
+    const state = createState(5, 5, [
+      { id: 'blocker', row: 4, col: 0, anchored: true },
+      { id: 'a', row: 0, col: 0 },
+    ], [], [
+      [{ row: 0, col: 2 }, { row: 4, col: 0 }],
+    ]);
+
+    const result = applyGravity(state, 'right');
+
+    // 'a' cannot emerge, so it stops in the cell before the portal mouth.
+    expect(result.movables.find(m => m.id === 'a')).toMatchObject({ row: 0, col: 1 });
+  });
+
+  test('an object resting on a portal endpoint just slides off it (no teleport)', () => {
+    const state = createState(5, 5, [{ id: 'a', row: 2, col: 2 }], [], [
+      [{ row: 2, col: 2 }, { row: 0, col: 4 }],
+    ]);
+
+    // 'a' is on an endpoint; moving down leaves it and it never re-enters.
+    expect(positionsOf(applyGravity(state, 'down'))).toEqual([{ id: 'a', row: 4, col: 2 }]);
+  });
+
+  test('multiple objects through one portal in a single action: first through, rest stack behind', () => {
+    // Two objects in column 2 falling toward a portal at (3,2) -> (3,4).
+    const state = createState(6, 6, [
+      { id: 'a', row: 0, col: 2 },
+      { id: 'b', row: 1, col: 2 },
+    ], [], [
+      [{ row: 3, col: 2 }, { row: 3, col: 4 }],
+    ]);
+
+    const result = applyGravity(state, 'down');
+
+    // 'b' (nearer the exit edge) resolves first: enters (3,2), emerges (3,4),
+    // falls to (5,4). 'a' follows and stacks at (4,4).
+    expect(positionsOf(result)).toEqual([
+      { id: 'a', row: 4, col: 4 },
+      { id: 'b', row: 5, col: 4 },
+    ]);
+  });
+
+  test('an anchored object next to a portal exit stops emerging objects at the mouth', () => {
+    const state = createState(5, 5, [
+      { id: 'anchor', row: 3, col: 4, anchored: true },
+      { id: 'a', row: 0, col: 0 },
+    ], [], [
+      [{ row: 0, col: 2 }, { row: 2, col: 4 }],
+    ]);
+
+    // 'a' slides right, enters (0,2), emerges at (2,4); the next cell down/right
+    // ... direction is 'right', so from (2,4) it would leave the board -> rests
+    // at (2,4). (The anchor at (3,4) is simply nearby, no special rule.)
+    expect(applyGravity(state, 'right').movables.find(m => m.id === 'a')).toMatchObject({
+      row: 2,
+      col: 4,
+    });
+  });
+
+  test('a level with no portals behaves exactly as before', () => {
+    const state = createState(5, 5, [{ id: 'a', row: 0, col: 2 }]);
+    expect(positionsOf(applyGravity(state, 'down'))).toEqual([{ id: 'a', row: 4, col: 2 }]);
+  });
+});
+
+describe('applyGravity with a gravity zone', () => {
+  const bottomBandRight = {
+    minRow: 3,
+    maxRow: 4,
+    minCol: 0,
+    maxCol: 4,
+    direction: 'right' as const,
+  };
+
+  test('outside the zone the object uses the global direction', () => {
+    const state = createState(5, 5, [{ id: 'a', row: 0, col: 2 }], [], [], {
+      minRow: 3,
+      maxRow: 4,
+      minCol: 0,
+      maxCol: 4,
+      direction: 'left',
+    });
+    // Starts and stays above the zone -> falls straight down to the zone's
+    // top edge, where it turns...
+    // (checked more precisely below) - here just confirm it left column 2.
+    const after = applyGravity(state, 'down');
+    expect(after.movables[0].row).toBe(3); // entered the zone's top row
+  });
+
+  test('the object turns a corner on the zone boundary (perpendicular zone)', () => {
+    // Global "down", zone pulls "right". Fall into it, then slide right.
+    const state = createState(5, 5, [{ id: 'a', row: 0, col: 0 }], [], [], bottomBandRight);
+    expect(positionsOf(applyGravity(state, 'down'))).toEqual([{ id: 'a', row: 3, col: 4 }]);
+  });
+
+  test('a zone whose pull opposes the entry direction halts the object at the edge (no oscillation)', () => {
+    // Global "down", zone pulls "up". The object cannot get past the zone's
+    // top row - it stops there rather than bouncing forever.
+    const state = createState(6, 5, [{ id: 'a', row: 0, col: 2 }], [], [], {
+      minRow: 3,
+      maxRow: 5,
+      minCol: 0,
+      maxCol: 4,
+      direction: 'up',
+    });
+    expect(positionsOf(applyGravity(state, 'down'))).toEqual([{ id: 'a', row: 3, col: 2 }]);
+  });
+
+  test('an object inside the zone ignores the pressed direction and uses the zone direction', () => {
+    const state = createState(5, 5, [{ id: 'a', row: 3, col: 0 }], [], [], bottomBandRight);
+    // Pressed "up", but inside the zone gravity is "right".
+    expect(positionsOf(applyGravity(state, 'up'))).toEqual([{ id: 'a', row: 3, col: 4 }]);
+    // ...and "left" does nothing new either - still pulled right.
+    expect(positionsOf(applyGravity(state, 'left'))).toEqual([{ id: 'a', row: 3, col: 4 }]);
+  });
+
+  test('when the zone direction equals the global direction nothing changes', () => {
+    const state = createState(5, 5, [{ id: 'a', row: 0, col: 2 }], [], [], {
+      minRow: 3,
+      maxRow: 4,
+      minCol: 0,
+      maxCol: 4,
+      direction: 'down',
+    });
+    expect(positionsOf(applyGravity(state, 'down'))).toEqual([{ id: 'a', row: 4, col: 2 }]);
+  });
+
+  test('the object rides the zone out the far side and then falls again (Z path)', () => {
+    // One-row zone: fall in, get carried right past the right edge, drop.
+    const state = createState(6, 6, [{ id: 'a', row: 0, col: 0 }], [], [], {
+      minRow: 3,
+      maxRow: 3,
+      minCol: 0,
+      maxCol: 3,
+      direction: 'right',
+    });
+    // down -> (3,0) enter zone -> right along row 3 -> (3,4) exits zone
+    // -> global "down" again -> floor (5,4).
+    expect(positionsOf(applyGravity(state, 'down'))).toEqual([{ id: 'a', row: 5, col: 4 }]);
+  });
+
+  test('two objects, one in the zone and one out, resolve independently', () => {
+    const zone = { minRow: 2, maxRow: 4, minCol: 3, maxCol: 5, direction: 'left' as const };
+    const state = createState(6, 6, [
+      { id: 'out', row: 0, col: 1 },
+      { id: 'in', row: 0, col: 4 },
+    ], [], [], zone);
+
+    const result = applyGravity(state, 'down');
+
+    // 'out' falls straight down its column. 'in' falls to (2,4), enters the
+    // zone, is pushed left just until it clears the zone's left edge (col 2),
+    // then falls the rest of the way from there.
+    expect(result.movables.find(m => m.id === 'out')).toMatchObject({ row: 5, col: 1 });
+    expect(result.movables.find(m => m.id === 'in')).toMatchObject({ row: 5, col: 2 });
+  });
+
+  test('every slide terminates even when the zone points every object back at a wall', () => {
+    // Zone fills the board and pulls right; every object jams against the
+    // right wall in one step and the function returns.
+    const state = createState(4, 4, [
+      { id: 'a', row: 0, col: 0 },
+      { id: 'b', row: 3, col: 1 },
+    ], [], [], { minRow: 0, maxRow: 3, minCol: 0, maxCol: 3, direction: 'right' });
+
+    const result = applyGravity(state, 'up');
+    expect(result.movables.find(m => m.id === 'a')).toMatchObject({ row: 0, col: 3 });
+    expect(result.movables.find(m => m.id === 'b')).toMatchObject({ row: 3, col: 3 });
+  });
+
+  test('gravityChangesState respects the zone', () => {
+    // 'top' sits at the top row inside an "up" zone that reaches the board
+    // edge -> nothing can move it. 'mid' is lower in the same zone and will
+    // be pulled up to the edge.
+    const zone = { minRow: 0, maxRow: 4, minCol: 0, maxCol: 4, direction: 'up' as const };
+    const pinned = createState(5, 5, [{ id: 'top', row: 0, col: 2 }], [], [], zone);
+    expect(gravityChangesState(pinned, 'down')).toBe(false);
+    expect(gravityChangesState(pinned, 'left')).toBe(false);
+
+    const canRise = createState(5, 5, [{ id: 'mid', row: 3, col: 2 }], [], [], zone);
+    expect(gravityChangesState(canRise, 'down')).toBe(true);
+    expect(positionsOf(applyGravity(canRise, 'down'))).toEqual([{ id: 'mid', row: 0, col: 2 }]);
   });
 });
 
