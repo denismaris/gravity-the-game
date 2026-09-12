@@ -15,8 +15,8 @@ const CAPTURE_THRESHOLD = 10;
  * Detects a single directional swipe gesture on whatever View spreads the
  * returned handlers onto its props. Reports at most one `Direction` per
  * gesture and contains no game logic - it only translates a touch gesture
- * into user intent, exactly like pressing one of the `DirectionControls`
- * buttons would.
+ * into user intent - a swipe is the sole way to trigger gravity, there is no
+ * on-screen direction pad any more.
  *
  * `disabled` (e.g. while the board is still animating a previous move)
  * makes swipes a no-op without tearing down/recreating the responder, so

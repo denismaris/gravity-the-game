@@ -11,8 +11,8 @@ export interface SessionControlsProps {
 /**
  * Small row of session-management buttons (Undo / Restart).
  *
- * Purely presentational, like `DirectionControls`: it only reports which
- * button was pressed. All history bookkeeping (what "undo" or "restart"
+ * Purely presentational: it only reports which button was pressed. All
+ * history bookkeeping (what "undo" or "restart"
  * actually does to the puzzle state) lives in the engine's
  * `gameSessionReducer` - this component never touches game state.
  */
@@ -31,8 +31,8 @@ function SessionControlsImpl({
 }
 
 /**
- * Memoized for the same reason as `DirectionControls`: its props are stable
- * across the animation frames that re-render GameScreen during a slide.
+ * Memoized because GameScreen re-renders on every frame of a gravity slide,
+ * but this row's props are stable across those frames.
  */
 export const SessionControls = React.memo(SessionControlsImpl);
 

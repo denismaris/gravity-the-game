@@ -13,6 +13,19 @@ export interface ProgressCursor {
 }
 
 /**
+ * The Daily puzzle's streak bookkeeping. `lastCompletedKey` is the
+ * `dailyKeyOf` (UTC `YYYY-MM-DD`) of the last day the Daily was solved, or
+ * `null` if it never has been - that is the only state needed to derive
+ * both "is today already done" and "does today extend the streak".
+ */
+export interface DailyStatus {
+  readonly streak: number;
+  readonly lastCompletedKey: string | null;
+}
+
+export const EMPTY_DAILY: DailyStatus = { streak: 0, lastCompletedKey: null };
+
+/**
  * Everything the game remembers about a player between sessions.
  *
  * Kept deliberately small and flat:
@@ -24,19 +37,21 @@ export interface ProgressCursor {
  *    stars are all *derived* from it (see `worldProgress.ts`), never stored,
  *    so they can never drift.
  *  - `cursor` - the last world+level the player opened (a resume hint only).
+ *  - `daily` - the Daily puzzle's streak state (see `DailyStatus`).
  *
  * This module is pure - it never talks to storage (see `playerProgressStore`).
  */
 export interface PlayerProgress {
-  readonly version: 2;
+  readonly version: 3;
   readonly levels: Readonly<Record<string, LevelResult>>;
   readonly cursor: ProgressCursor | null;
+  readonly daily: DailyStatus;
 }
 
-export const PLAYER_PROGRESS_VERSION = 2 as const;
+export const PLAYER_PROGRESS_VERSION = 3 as const;
 
 export function emptyProgress(): PlayerProgress {
-  return { version: PLAYER_PROGRESS_VERSION, levels: {}, cursor: null };
+  return { version: PLAYER_PROGRESS_VERSION, levels: {}, cursor: null, daily: EMPTY_DAILY };
 }
 
 /** The player's best result for a level, or `undefined` if never completed. */
@@ -101,4 +116,45 @@ export function setCursor(
     return progress;
   }
   return { ...progress, cursor: { worldId, levelId } };
+}
+
+/** `todayKey`'s calendar day minus one, as the same `YYYY-MM-DD` (UTC) shape. */
+function dayBefore(todayKey: string): string {
+  const d = new Date(`${todayKey}T00:00:00.000Z`);
+  d.setUTCDate(d.getUTCDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
+export function isDailyCompleted(progress: PlayerProgress, todayKey: string): boolean {
+  return progress.daily.lastCompletedKey === todayKey;
+}
+
+/**
+ * Records today's Daily as solved. Idempotent - completing the same day's
+ * Daily again (a replay) leaves the streak untouched. The streak extends by
+ * one when yesterday was the last completed day, and restarts at one
+ * otherwise (a fresh start, or a missed day breaking the chain). Pure.
+ */
+export function recordDaily(progress: PlayerProgress, todayKey: string): PlayerProgress {
+  if (isDailyCompleted(progress, todayKey)) return progress;
+
+  const continuesStreak = progress.daily.lastCompletedKey === dayBefore(todayKey);
+  const streak = continuesStreak ? progress.daily.streak + 1 : 1;
+
+  return { ...progress, daily: { streak, lastCompletedKey: todayKey } };
+}
+
+/**
+ * The streak to *show* right now, as of `todayKey`. The stored `daily.streak`
+ * is only ever touched by `recordDaily`, so a player who stops playing would
+ * otherwise carry a stale streak number forever; this reads as broken (0)
+ * once a full calendar day has passed with the Daily unplayed, while still
+ * showing the live count on the day it was earned and the day after (not
+ * yet played today, but the chain isn't broken yet either).
+ */
+export function getDisplayDailyStreak(progress: PlayerProgress, todayKey: string): number {
+  const last = progress.daily.lastCompletedKey;
+  if (last === null) return 0;
+  if (last === todayKey || last === dayBefore(todayKey)) return progress.daily.streak;
+  return 0;
 }

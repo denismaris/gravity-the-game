@@ -24,15 +24,16 @@ describe('parseProgress', () => {
     expect(parseProgress(JSON.stringify({ version: 'nope', levels: {} }))).toEqual(emptyProgress());
   });
 
-  test('migrates a v1 record forward to v2, keeping stars and defaulting the cursor', () => {
+  test('migrates a v1 record forward, keeping stars and defaulting the cursor and daily streak', () => {
     const v1 = JSON.stringify({
       version: 1,
       levels: { 'level-001': { completed: true, stars: 3, bestMoves: 1 } },
     });
     const parsed = parseProgress(v1);
-    expect(parsed.version).toBe(2);
+    expect(parsed.version).toBe(3);
     expect(parsed.levels['level-001']).toEqual({ completed: true, stars: 3, bestMoves: 1 });
     expect(parsed.cursor).toBeNull();
+    expect(parsed.daily).toEqual({ streak: 0, lastCompletedKey: null });
   });
 
   test('reads a v2 cursor, and rejects a malformed one', () => {
@@ -40,9 +41,22 @@ describe('parseProgress', () => {
       JSON.stringify({ version: 2, levels: {}, cursor: { worldId: 'world-1', levelId: 'level-003' } }),
     );
     expect(good.cursor).toEqual({ worldId: 'world-1', levelId: 'level-003' });
+    expect(good.daily).toEqual({ streak: 0, lastCompletedKey: null }); // v2 has no daily yet
 
     const bad = parseProgress(JSON.stringify({ version: 2, levels: {}, cursor: { worldId: 5 } }));
     expect(bad.cursor).toBeNull();
+  });
+
+  test('reads a v3 daily streak, and rejects a malformed one', () => {
+    const good = parseProgress(
+      JSON.stringify({ version: 3, levels: {}, daily: { streak: 4, lastCompletedKey: '2026-01-05' } }),
+    );
+    expect(good.daily).toEqual({ streak: 4, lastCompletedKey: '2026-01-05' });
+
+    const bad = parseProgress(
+      JSON.stringify({ version: 3, levels: {}, daily: { streak: -1, lastCompletedKey: '2026-01-05' } }),
+    );
+    expect(bad.daily).toEqual({ streak: 0, lastCompletedKey: null });
   });
 
   test('drops individual corrupt level entries but keeps valid ones', () => {

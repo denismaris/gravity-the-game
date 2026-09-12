@@ -1,7 +1,9 @@
 import { FIRST_WORLD, WORLDS } from '../../game/worlds';
 import { getStarThresholds, getLevelById } from '../../game/levels';
+import { JOURNEY } from '../../game/journey';
 import { emptyProgress, recordCompletion, setCursor } from '../playerProgress';
 import {
+  getJourneyPoint,
   getNextPlayableLevel,
   getResumePoint,
   getUnlockedWorlds,
@@ -17,6 +19,13 @@ const W1 = FIRST_WORLD;
 function complete(progress: ReturnType<typeof emptyProgress>, levelId: string) {
   const level = getLevelById(levelId)!;
   return recordCompletion(progress, levelId, getStarThresholds(level).three, getStarThresholds(level));
+}
+
+/** Completes any puzzle id (gravity, constellation or trajectory). */
+function completeAny(progress: ReturnType<typeof emptyProgress>, puzzleId: string) {
+  const level = getLevelById(puzzleId);
+  const thresholds = level ? getStarThresholds(level) : { two: 3, three: 1 };
+  return recordCompletion(progress, puzzleId, thresholds.three, thresholds);
 }
 
 describe('level unlocking within a world', () => {
@@ -131,6 +140,42 @@ describe('getResumePoint', () => {
   test('a stale cursor pointing at a locked level is ignored', () => {
     const p = setCursor(emptyProgress(), W1.id, W1.levelIds[10]); // locked from fresh
     expect(getResumePoint(p).levelId).toBe(W1.levelIds[0]);
+  });
+});
+
+describe('getJourneyPoint (the interleaved journey)', () => {
+  test('fresh player is at journey entry 1 - the first gravity puzzle', () => {
+    const jp = getJourneyPoint(emptyProgress());
+    expect(jp.entry).toBe(JOURNEY[0]);
+    expect(jp.entry.kind).toBe('gravity');
+    expect(jp.entry.puzzleId).toBe(W1.levelIds[0]);
+    expect(jp.position).toBe(1);
+    expect(jp.allDone).toBe(false);
+    expect(jp.total).toBe(JOURNEY.length);
+  });
+
+  test('completing the first entry advances to the next entry (a different game)', () => {
+    const p = complete(emptyProgress(), JOURNEY[0].puzzleId);
+    const jp = getJourneyPoint(p);
+    expect(jp.entry).toBe(JOURNEY[1]);
+    expect(jp.position).toBe(2);
+    expect(jp.entry.kind).not.toBe(JOURNEY[0].kind); // 1-1-1, no repeat
+  });
+
+  test('nextGravity points past a non-gravity entry to a playable gravity puzzle', () => {
+    const p = complete(emptyProgress(), JOURNEY[0].puzzleId);
+    const jp = getJourneyPoint(p);
+    expect(jp.entry.kind).not.toBe('gravity');
+    expect(jp.nextGravity?.kind).toBe('gravity');
+    expect(jp.nextGravity!.position).toBeGreaterThan(1);
+  });
+
+  test('completing every entry returns the final one with allDone', () => {
+    let p = emptyProgress();
+    for (const entry of JOURNEY) p = completeAny(p, entry.puzzleId);
+    const jp = getJourneyPoint(p);
+    expect(jp.allDone).toBe(true);
+    expect(jp.position).toBe(JOURNEY.length);
   });
 });
 

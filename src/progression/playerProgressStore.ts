@@ -1,7 +1,9 @@
 import { StorageBackend } from '../storage';
 import { StarRating } from '../game/scoring';
 import {
+  DailyStatus,
   emptyProgress,
+  EMPTY_DAILY,
   PLAYER_PROGRESS_VERSION,
   PlayerProgress,
   ProgressCursor,
@@ -11,8 +13,9 @@ import {
 export const PLAYER_PROGRESS_KEY = 'gravity:player-progress';
 
 /** Schema versions this build knows how to read (newest first). v1 had no
- * `cursor` and is migrated forward by defaulting it to null. */
-const READABLE_VERSIONS = [2, 1];
+ * `cursor`; v2 had no `daily`. Both are migrated forward by defaulting the
+ * missing field. */
+const READABLE_VERSIONS = [3, 2, 1];
 
 function isStarRating(value: unknown): value is StarRating {
   return value === 1 || value === 2 || value === 3;
@@ -51,6 +54,18 @@ function parseCursor(value: unknown): ProgressCursor | null {
   return { worldId: cursor.worldId, levelId: cursor.levelId };
 }
 
+function parseDaily(value: unknown): DailyStatus {
+  if (typeof value !== 'object' || value === null) return EMPTY_DAILY;
+  const daily = value as { streak?: unknown; lastCompletedKey?: unknown };
+  if (typeof daily.streak !== 'number' || !Number.isFinite(daily.streak) || daily.streak < 0) {
+    return EMPTY_DAILY;
+  }
+  if (daily.lastCompletedKey !== null && typeof daily.lastCompletedKey !== 'string') {
+    return EMPTY_DAILY;
+  }
+  return { streak: Math.floor(daily.streak), lastCompletedKey: daily.lastCompletedKey ?? null };
+}
+
 /**
  * Parses whatever came back from storage into a trusted `PlayerProgress`.
  * Anything unexpected - missing key, malformed JSON, unreadable version, a
@@ -71,7 +86,7 @@ export function parseProgress(raw: string | null): PlayerProgress {
 
   if (typeof parsed !== 'object' || parsed === null) return emptyProgress();
 
-  const record = parsed as { version?: unknown; levels?: unknown; cursor?: unknown };
+  const record = parsed as { version?: unknown; levels?: unknown; cursor?: unknown; daily?: unknown };
   if (typeof record.version !== 'number' || !READABLE_VERSIONS.includes(record.version)) {
     return emptyProgress();
   }
@@ -81,6 +96,8 @@ export function parseProgress(raw: string | null): PlayerProgress {
     levels: parseLevels(record.levels),
     // v1 has no cursor; parseCursor handles its absence.
     cursor: parseCursor(record.cursor),
+    // v1/v2 have no daily streak; parseDaily handles its absence.
+    daily: parseDaily(record.daily),
   };
 }
 

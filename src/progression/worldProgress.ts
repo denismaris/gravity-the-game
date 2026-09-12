@@ -1,4 +1,5 @@
 import { getStarThresholds, getLevelById } from '../game/levels';
+import { JOURNEY, JourneyEntry } from '../game/journey';
 import { StarRating } from '../game/scoring';
 import {
   getLevelPositionInWorld,
@@ -164,6 +165,45 @@ export function getResumePoint(progress: PlayerProgress): {
   }
 
   return { world: WORLDS[0], levelId: WORLDS[0].levelIds[0] };
+}
+
+export interface JourneyPoint {
+  /** The journey entry the player should play now (any of the three games). */
+  readonly entry: JourneyEntry;
+  /** 1-based position in the whole journey. */
+  readonly position: number;
+  /** Total entries in the journey. */
+  readonly total: number;
+  /** How many journey entries are completed (across all three games). */
+  readonly completedCount: number;
+  /** True once every entry is completed - `entry` is then the last one, for replay. */
+  readonly allDone: boolean;
+  /** The next entry that is a gravity puzzle at or after `position` - the
+   * fallback target while the other games have no screen yet. */
+  readonly nextGravity: JourneyEntry | null;
+}
+
+/**
+ * The "play next" point for Journey mode (no level select): the first entry
+ * in the interleaved `JOURNEY` that hasn't been completed. Completion is
+ * tracked in the same `progress.levels` map for every game, keyed by puzzle
+ * id. When everything is done it returns the final entry with `allDone`.
+ */
+export function getJourneyPoint(progress: PlayerProgress): JourneyPoint {
+  const total = JOURNEY.length;
+
+  let index = JOURNEY.findIndex(entry => !isLevelCompleted(progress, entry.puzzleId));
+  const allDone = index === -1;
+  if (allDone) index = total - 1;
+
+  const entry = JOURNEY[index];
+  const completedCount = JOURNEY.filter(e => isLevelCompleted(progress, e.puzzleId)).length;
+  const nextGravity =
+    JOURNEY.find(e => e.kind === 'gravity' && e.position >= entry.position && !isLevelCompleted(progress, e.puzzleId)) ??
+    JOURNEY.filter(e => e.kind === 'gravity').slice(-1)[0] ??
+    null;
+
+  return { entry, position: index + 1, total, completedCount, allDone, nextGravity };
 }
 
 /**

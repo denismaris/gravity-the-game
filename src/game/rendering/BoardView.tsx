@@ -237,7 +237,7 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
             cx={center.x}
             cy={center.y}
             radius={pulsing ? pulseRadius : movableRadius}
-            color={onTarget ? theme.colors.success : theme.colors.primary}
+            color={onTarget ? theme.colors.success : theme.colors.pieceBlue}
           />
         );
       })}

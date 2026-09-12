@@ -13,21 +13,25 @@ import {
   isPuzzleSolved,
   StaticCellType,
 } from '../game/engine';
-import { createGameStateFromLevel, getLevelById, LevelDefinition } from '../game/levels';
-import { DirectionControls, LevelCompleteCard, SessionControls, useSwipeGesture } from '../components';
-import { CompletionOutcome, getNextPlayableLevel, usePlayerProgress } from '../progression';
+import { createGameStateFromLevel, getStarThresholds, LevelDefinition } from '../game/levels';
+import { LevelCompleteCard, SessionControls, useSwipeGesture } from '../components';
+import { GameKind, getNextJourneyEntry } from '../game/journey';
+import { CompletionOutcome, getLevelResult, usePlayerProgress } from '../progression';
 import { theme } from '../theme';
 
-/** Approximate height reserved below the board for the direction pad. */
-const CONTROLS_AREA_HEIGHT = 360;
+/** Approximate height reserved below the board for the header text above it
+ * and the Undo/Restart row beneath it - there is no direction pad any more,
+ * gravity is triggered purely by swiping the board (see `useSwipeGesture`),
+ * which made the pad a redundant second control for the same input. */
+const CONTROLS_AREA_HEIGHT = 190;
 
 export interface GameScreenProps {
   /** The level to play. Changing this remounts the board at a fresh state. */
   level: LevelDefinition;
   /** Called when the player wants to return to the level select screen. */
   onExit: () => void;
-  /** Called when the player advances to the next level from the solved banner. */
-  onNextLevel: (level: LevelDefinition) => void;
+  /** Advance to the next entry in the Journey (any of the three games). */
+  onNextPuzzle: (kind: GameKind, puzzleId: string) => void;
 }
 
 /** The most recent action dispatched, used to decide whether the visible
@@ -72,7 +76,7 @@ function computeOnTargetIds(state: ReturnType<typeof getCurrentState>): Readonly
  * changes what the "current state" is, only what is drawn on the way
  * there, so engine determinism/testability is untouched.
  */
-export function GameScreen({ level, onExit, onNextLevel }: GameScreenProps): React.JSX.Element {
+export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): React.JSX.Element {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
 
@@ -90,14 +94,17 @@ export function GameScreen({ level, onExit, onNextLevel }: GameScreenProps): Rea
 
   const { progress, recordCompletion, markLevelOpened } = usePlayerProgress();
 
-  // The next level to offer on completion: the next one in this world, but
-  // only once it is actually unlocked (which the just-recorded completion
-  // does). `undefined` at the end of a world - the card then shows "Back to
-  // Levels" instead of "Next Level".
-  const nextLevel = useMemo(() => {
-    const next = getNextPlayableLevel(progress, level.id);
-    return next ? getLevelById(next.levelId) ?? null : null;
-  }, [progress, level.id]);
+  // Par (the optimal / 3-star move count) shown up front, plus the player's
+  // best so far - reframes each level as a target to beat rather than an
+  // open sandbox.
+  const par = useMemo(() => getStarThresholds(level).three, [level]);
+  const priorBest = getLevelResult(progress, level.id)?.bestMoves ?? null;
+
+  // The next entry to offer on completion: whatever the interleaved Journey
+  // deals after this puzzle - not necessarily another Gravity level. `null`
+  // at the very end of the Journey - the card then shows "Back to Home"
+  // instead of "Next Puzzle".
+  const nextEntry = useMemo(() => getNextJourneyEntry(level.id), [level.id]);
 
   // Keep the resume cursor pointed at whatever level is on screen.
   useEffect(() => {
@@ -209,10 +216,12 @@ export function GameScreen({ level, onExit, onNextLevel }: GameScreenProps): Rea
   }, []);
 
   const handleNext = useCallback(() => {
-    if (!nextLevel) return;
-    markLevelOpened(nextLevel.id);
-    onNextLevel(nextLevel);
-  }, [nextLevel, onNextLevel, markLevelOpened]);
+    if (!nextEntry) return;
+    // A no-op for a non-Gravity entry - `markLevelOpened` only moves the
+    // resume cursor when it can resolve a world for the id.
+    markLevelOpened(nextEntry.puzzleId);
+    onNextPuzzle(nextEntry.kind, nextEntry.puzzleId);
+  }, [nextEntry, onNextPuzzle, markLevelOpened]);
 
   const swipeHandlers = useSwipeGesture(handleDirection, isAnimating);
 
@@ -227,16 +236,22 @@ export function GameScreen({ level, onExit, onNextLevel }: GameScreenProps): Rea
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
         <Pressable
           accessibilityRole="button"
-          accessibilityLabel="Back to level select"
+          accessibilityLabel="Back to home"
           onPress={onExit}
           hitSlop={8}
           style={styles.backButton}
         >
-          <Text style={styles.backButtonLabel}>{'‹ Levels'}</Text>
+          <Text style={styles.backButtonLabel}>{'‹ Home'}</Text>
         </Pressable>
-        <Text style={styles.levelName} numberOfLines={1}>
-          {level.order}. {level.name}
-        </Text>
+        <View style={styles.headerCenter}>
+          <Text style={styles.levelName} numberOfLines={1}>
+            {level.name}
+          </Text>
+          <Text style={styles.levelPar}>
+            PAR {par}
+            {priorBest !== null ? `   ·   BEST ${priorBest}` : ''}
+          </Text>
+        </View>
         <View style={styles.backButtonSpacer} />
       </View>
 
@@ -258,7 +273,7 @@ export function GameScreen({ level, onExit, onNextLevel }: GameScreenProps): Rea
             runStars={outcome.runStars}
             moves={outcome.runMoves}
             bestMoves={outcome.best.bestMoves}
-            hasNextLevel={!!nextLevel}
+            hasNextLevel={nextEntry !== null}
             onReplay={handleRestart}
             onNext={handleNext}
             onExit={onExit}
@@ -272,10 +287,6 @@ export function GameScreen({ level, onExit, onNextLevel }: GameScreenProps): Rea
           onRestart={handleRestart}
           undoDisabled={!canUndo(session)}
         />
-      </View>
-
-      <View style={styles.controls}>
-        <DirectionControls onDirection={handleDirection} disabled={isAnimating} />
       </View>
     </View>
   );
@@ -310,12 +321,22 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
-  levelName: {
+  headerCenter: {
     flex: 1,
+    alignItems: 'center',
+  },
+  levelName: {
     textAlign: 'center',
     color: theme.colors.textPrimary,
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
+  },
+  levelPar: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.micro,
+    letterSpacing: 1,
+    color: theme.colors.textTertiary,
+    marginTop: 2,
   },
   board: {
     borderRadius: theme.radii.md,
@@ -325,9 +346,6 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   sessionControls: {
-    marginTop: theme.spacing.lg,
-  },
-  controls: {
-    marginTop: theme.spacing.md,
+    marginTop: theme.spacing.xl,
   },
 });

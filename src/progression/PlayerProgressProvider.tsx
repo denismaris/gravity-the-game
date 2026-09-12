@@ -8,17 +8,22 @@ import React, {
   useState,
 } from 'react';
 import { getLevelById, getStarThresholds } from '../game/levels';
+import { StarThresholds } from '../game/levels/level';
+import { dailyKeyOf, getDailyEntry } from '../game/journey';
 import { computeStars, LevelResult, StarRating } from '../game/scoring';
 import { getWorldForLevel } from '../game/worlds';
 import { createDefaultBackend, StorageBackend } from '../storage';
 import {
   emptyProgress,
+  getDisplayDailyStreak,
   getLevelResult,
   getLevelStars,
   getTotalStars,
+  isDailyCompleted,
   isLevelCompleted,
   PlayerProgress,
   recordCompletion as recordCompletionPure,
+  recordDaily,
   setCursor as setCursorPure,
 } from './playerProgress';
 import { loadProgress, saveProgress } from './playerProgressStore';
@@ -51,9 +56,24 @@ interface PlayerProgressContextValue {
   levelStars(levelId: string): 0 | StarRating;
   isCompleted(levelId: string): boolean;
   readonly totalStars: number;
+  /** Consecutive days (including today, if already solved) the Daily
+   * puzzle has been completed. Zero once a day is missed. */
+  readonly dailyStreak: number;
+  /** Whether today's Daily has already been solved this run. */
+  readonly dailyCompletedToday: boolean;
 }
 
 const PlayerProgressContext = createContext<PlayerProgressContextValue | null>(null);
+
+/**
+ * Star thresholds for Constellation and Trajectory, whose puzzles have no
+ * authored `StarThresholds` of their own (`getLevelById` only knows Gravity
+ * levels). Both games pass a *hint count* through the `moves` slot instead
+ * of a move count, scored on a fixed tier: 0 hints -> 3 stars, 1 hint -> 2,
+ * 2+ hints -> 1. See `recordCompletion` below for why that count is shifted
+ * up by one before it reaches `computeStars`.
+ */
+const HINT_STAR_THRESHOLDS: StarThresholds = { three: 1, two: 2 };
 
 export interface PlayerProgressProviderProps {
   children: React.ReactNode;
@@ -95,11 +115,26 @@ export function PlayerProgressProvider({
 
   const recordCompletion = useCallback((levelId: string, moves: number): CompletionOutcome => {
     const level = getLevelById(levelId);
-    const thresholds = level
-      ? getStarThresholds(level)
-      : { three: Math.max(1, moves), two: Math.max(1, moves) };
+    const thresholds = level ? getStarThresholds(level) : HINT_STAR_THRESHOLDS;
 
-    const next = recordCompletionPure(progressRef.current, levelId, moves, thresholds);
+    // `computeStars` treats a move count under 1 as a defensive, degenerate
+    // input (a Gravity level can never actually be solved in zero moves).
+    // Constellation/Trajectory's hint count legitimately *is* zero on a
+    // flawless solve, so it is shifted up one tier here before scoring -
+    // 0 hints scores as tier 1 against `HINT_STAR_THRESHOLDS`, 1 hint as
+    // tier 2, and so on. Gravity's own `moves` is untouched.
+    const scored = level ? moves : moves + 1;
+
+    let next = recordCompletionPure(progressRef.current, levelId, scored, thresholds);
+
+    // Any completion - Gravity, Constellation or Trajectory alike - also
+    // extends the Daily streak when it happens to be today's Daily entry.
+    // No screen needs to know it opened the Daily card for this to work:
+    // every completion already funnels through here by puzzle id.
+    if (levelId === getDailyEntry().puzzleId) {
+      next = recordDaily(next, dailyKeyOf(new Date()));
+    }
+
     progressRef.current = next;
     setProgress(next);
     // Fire-and-forget: `saveProgress` never rejects, and in-memory state is
@@ -107,7 +142,9 @@ export function PlayerProgressProvider({
     saveProgress(backendRef.current, next);
 
     return {
-      runStars: computeStars(moves, thresholds),
+      runStars: computeStars(scored, thresholds),
+      // The real, unshifted count - Gravity moves or hints used - is what
+      // the completion screens actually show the player.
       runMoves: moves,
       best: getLevelResult(next, levelId)!,
     };
@@ -135,6 +172,8 @@ export function PlayerProgressProvider({
       levelStars: (levelId: string) => getLevelStars(progress, levelId),
       isCompleted: (levelId: string) => isLevelCompleted(progress, levelId),
       totalStars: getTotalStars(progress),
+      dailyStreak: getDisplayDailyStreak(progress, dailyKeyOf(new Date())),
+      dailyCompletedToday: isDailyCompleted(progress, dailyKeyOf(new Date())),
     }),
     [progress, ready, recordCompletion, markLevelOpened],
   );

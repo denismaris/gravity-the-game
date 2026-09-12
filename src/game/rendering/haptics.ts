@@ -5,7 +5,7 @@ import { Vibration } from 'react-native';
  * closed set (rather than letting callers pass raw durations) so haptics
  * stay consistent and easy to re-tune from one place.
  */
-export type HapticKind = 'gravityChange' | 'targetReached' | 'solved';
+export type HapticKind = 'gravityChange' | 'targetReached' | 'solved' | 'step';
 
 /**
  * Pattern in milliseconds passed to `Vibration.vibrate`. A single number is
@@ -19,6 +19,10 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   targetReached: 14,
   // A quick double-pulse: distinct from the two above without being showy.
   solved: [0, 18, 55, 18],
+  // The faintest possible nudge: one unit of progress in Constellation or
+  // Trajectory (a cell toggled, a path extended by one square) - lighter
+  // than `gravityChange` since these fire far more often, per drag frame.
+  step: 5,
 };
 
 let hapticsEnabled = true;

@@ -1,11 +1,14 @@
 import {
   emptyProgress,
   getCompletedCount,
+  getDisplayDailyStreak,
   getLevelResult,
   getLevelStars,
   getTotalStars,
+  isDailyCompleted,
   isLevelCompleted,
   recordCompletion,
+  recordDaily,
   setCursor,
 } from '../playerProgress';
 
@@ -88,5 +91,70 @@ describe('setCursor', () => {
   test('returns the same object when the cursor is unchanged (no needless re-render)', () => {
     const p = setCursor(emptyProgress(), 'world-1', 'level-003');
     expect(setCursor(p, 'world-1', 'level-003')).toBe(p);
+  });
+});
+
+describe('the Daily streak', () => {
+  const DAY1 = '2026-01-01';
+  const DAY2 = '2026-01-02';
+  const DAY3 = '2026-01-03';
+  const NEXT_WEEK = '2026-01-10';
+
+  test('starts at zero and unset', () => {
+    const p = emptyProgress();
+    expect(p.daily).toEqual({ streak: 0, lastCompletedKey: null });
+    expect(isDailyCompleted(p, DAY1)).toBe(false);
+    expect(getDisplayDailyStreak(p, DAY1)).toBe(0);
+  });
+
+  test('first completion starts a streak of one', () => {
+    const p = recordDaily(emptyProgress(), DAY1);
+    expect(p.daily).toEqual({ streak: 1, lastCompletedKey: DAY1 });
+    expect(isDailyCompleted(p, DAY1)).toBe(true);
+  });
+
+  test('completing on consecutive days extends the streak', () => {
+    let p = recordDaily(emptyProgress(), DAY1);
+    p = recordDaily(p, DAY2);
+    p = recordDaily(p, DAY3);
+    expect(p.daily).toEqual({ streak: 3, lastCompletedKey: DAY3 });
+  });
+
+  test('replaying the same day again is idempotent', () => {
+    let p = recordDaily(emptyProgress(), DAY1);
+    p = recordDaily(p, DAY1);
+    expect(p.daily).toEqual({ streak: 1, lastCompletedKey: DAY1 });
+  });
+
+  test('a missed day restarts the streak at one', () => {
+    let p = recordDaily(emptyProgress(), DAY1);
+    p = recordDaily(p, NEXT_WEEK);
+    expect(p.daily).toEqual({ streak: 1, lastCompletedKey: NEXT_WEEK });
+  });
+
+  test('recordDaily does not mutate the input progress', () => {
+    const p0 = emptyProgress();
+    recordDaily(p0, DAY1);
+    expect(p0.daily.streak).toBe(0);
+  });
+
+  describe('getDisplayDailyStreak', () => {
+    test('shows the live streak on the day it was earned', () => {
+      const p = recordDaily(emptyProgress(), DAY2);
+      expect(getDisplayDailyStreak(p, DAY2)).toBe(1);
+    });
+
+    test('still shows it the day after, before that day is played', () => {
+      const p = recordDaily(emptyProgress(), DAY2);
+      expect(getDisplayDailyStreak(p, DAY3)).toBe(1);
+    });
+
+    test('reads as broken once a full day has been missed', () => {
+      const p = recordDaily(emptyProgress(), DAY1);
+      expect(getDisplayDailyStreak(p, NEXT_WEEK)).toBe(0);
+      // and the stored number is untouched until something actually calls
+      // recordDaily again - display and storage are deliberately separate.
+      expect(p.daily.streak).toBe(1);
+    });
   });
 });

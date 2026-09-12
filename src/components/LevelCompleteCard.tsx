@@ -22,7 +22,7 @@ export interface LevelCompleteCardProps {
   onReplay: () => void;
   /** Advance to the next level (only meaningful when `hasNextLevel`). */
   onNext: () => void;
-  /** Leave to the level select screen (used when there is no next level). */
+  /** Leave to the home hub (used when there is no next level). */
   onExit: () => void;
 }
 
@@ -93,13 +93,13 @@ export function LevelCompleteCard({
 
           <Pressable
             accessibilityRole="button"
-            accessibilityLabel={hasNextLevel ? 'Next level' : 'Back to levels'}
+            accessibilityLabel={hasNextLevel ? 'Next puzzle' : 'Back to home'}
             onPress={hasNextLevel ? onNext : onExit}
             hitSlop={8}
             style={({ pressed }) => [styles.button, styles.buttonPrimary, pressed && styles.pressed]}
           >
             <Text style={styles.buttonPrimaryLabel}>
-              {hasNextLevel ? 'Next Level ›' : 'Back to Levels'}
+              {hasNextLevel ? 'Next Puzzle ›' : 'Back to Home'}
             </Text>
           </Pressable>
         </View>
@@ -173,7 +173,7 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   buttonPrimaryLabel: {
-    color: theme.colors.textPrimary,
+    color: theme.colors.surfaceHi,
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },

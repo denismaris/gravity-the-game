@@ -1,9 +1,15 @@
-export { DirectionControls } from './DirectionControls';
-export type { DirectionControlsProps } from './DirectionControls';
 export { SessionControls } from './SessionControls';
 export type { SessionControlsProps } from './SessionControls';
 export { LevelCompleteCard } from './LevelCompleteCard';
 export type { LevelCompleteCardProps } from './LevelCompleteCard';
 export { StarRow } from './StarRow';
 export type { StarRowProps } from './StarRow';
+export { GameMark } from './GameMark';
+export type { GameMarkName, GameMarkProps } from './GameMark';
+export { PuzzleSolved } from './PuzzleSolved';
+export type { PuzzleSolvedProps } from './PuzzleSolved';
+export { ConstellationBoard } from './ConstellationBoard';
+export type { ConstellationBoardProps } from './ConstellationBoard';
+export { TrajectoryBoard } from './TrajectoryBoard';
+export type { TrajectoryBoardProps } from './TrajectoryBoard';
 export { useSwipeGesture } from './useSwipeGesture';

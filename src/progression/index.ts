@@ -1,13 +1,17 @@
-export type { PlayerProgress, ProgressCursor } from './playerProgress';
+export type { DailyStatus, PlayerProgress, ProgressCursor } from './playerProgress';
 export {
+  EMPTY_DAILY,
   emptyProgress,
   getCompletedCount,
+  getDisplayDailyStreak,
   getLevelResult,
   getLevelStars,
   getTotalStars,
+  isDailyCompleted,
   isLevelCompleted,
   PLAYER_PROGRESS_VERSION,
   recordCompletion,
+  recordDaily,
   setCursor,
 } from './playerProgress';
 export {
@@ -17,9 +21,10 @@ export {
   PLAYER_PROGRESS_KEY,
   saveProgress,
 } from './playerProgressStore';
-export type { WorldLevelSummary, WorldSummary } from './worldProgress';
+export type { JourneyPoint, WorldLevelSummary, WorldSummary } from './worldProgress';
 export {
   getAllWorldSummaries,
+  getJourneyPoint,
   getNextPlayableLevel,
   getResumePoint,
   getUnlockedWorlds,
