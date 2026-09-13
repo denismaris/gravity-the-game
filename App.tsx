@@ -8,18 +8,44 @@
 import React, { useCallback, useState } from 'react';
 import { StatusBar, StyleSheet, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ConstellationScreen, GameScreen, HomeScreen, TrajectoryScreen } from './src/screens';
+import {
+  AchievementsScreen,
+  BinairoScreen,
+  BrowseScreen,
+  ConstellationScreen,
+  GameScreen,
+  HomeScreen,
+  MirrorMazeScreen,
+  SettingsScreen,
+  SudokuScreen,
+  TentsScreen,
+  TowersScreen,
+  TrajectoryScreen,
+} from './src/screens';
+import { ScreenTransition } from './src/components';
 import { getLevelById } from './src/game/levels';
 import { getConstellationById } from './src/game/constellation';
 import { getTrajectoryById } from './src/game/trajectory';
+import { getSudokuById } from './src/game/sudoku';
+import { getMirrorMazeById } from './src/game/mirror';
+import { getTentsTreesById } from './src/game/tents';
+import { getTowersById } from './src/game/towers';
+import { getBinairoById } from './src/game/binairo';
 import { GameKind } from './src/game/journey';
 import { PlayerProgressProvider } from './src/progression';
+import { SettingsProvider } from './src/settings';
 import { theme } from './src/theme';
 
 interface Selected {
   kind: GameKind;
   puzzleId: string;
 }
+
+/** Settings, Browse and Achievements are reachable only from Home, and
+ * opening a puzzle from any of them closes it - so one flag alongside
+ * `selected` is enough; they can never be meaningfully "open" at the same
+ * time as a puzzle. */
+type OverlayRoute = 'settings' | 'browse' | 'achievements' | null;
 
 /**
  * App wires up the global providers and switches between the hub (`Home`)
@@ -28,50 +54,141 @@ interface Selected {
  */
 function App(): React.JSX.Element {
   const [selected, setSelected] = useState<Selected | null>(null);
+  const [overlayRoute, setOverlayRoute] = useState<OverlayRoute>(null);
 
   const exit = useCallback(() => setSelected(null), []);
-  // Shared by all three games' completion screens: advancing to "the next
-  // puzzle" always means the next entry in the interleaved Journey, whatever
-  // game it belongs to - this is what keeps finishing a puzzle rotating
-  // through Gravity/Constellation/Trajectory instead of each game only ever
-  // advancing within itself.
-  const openPuzzle = useCallback(
-    (kind: GameKind, puzzleId: string) => setSelected({ kind, puzzleId }),
-    [],
+  // Shared by all four games' completion screens (as "next puzzle") and by
+  // Browse (as "open this specific puzzle"): advancing/opening always means
+  // going straight to a Journey entry, whatever game it belongs to - this is
+  // what keeps finishing a puzzle rotating through Gravity/Constellation/
+  // Trajectory/Sudoku instead of each game only ever advancing within
+  // itself. Also closes Browse/Settings, in case this came from there.
+  const openPuzzle = useCallback((kind: GameKind, puzzleId: string) => {
+    setOverlayRoute(null);
+    setSelected({ kind, puzzleId });
+  }, []);
+
+  const homeScreen = (
+    <HomeScreen
+      onOpen={setSelected}
+      onOpenSettings={() => setOverlayRoute('settings')}
+      onOpenBrowse={() => setOverlayRoute('browse')}
+      onOpenAchievements={() => setOverlayRoute('achievements')}
+    />
   );
 
   let screen: React.JSX.Element;
-  if (!selected) {
-    screen = <HomeScreen onOpen={setSelected} />;
-  } else if (selected.kind === 'constellation') {
-    const puzzle = getConstellationById(selected.puzzleId);
-    screen = puzzle ? (
-      <ConstellationScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
-    ) : (
-      <HomeScreen onOpen={setSelected} />
-    );
-  } else if (selected.kind === 'trajectory') {
-    const puzzle = getTrajectoryById(selected.puzzleId);
-    screen = puzzle ? (
-      <TrajectoryScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
-    ) : (
-      <HomeScreen onOpen={setSelected} />
-    );
+  let routeKey: string;
+  if (!selected && overlayRoute === 'settings') {
+    screen = <SettingsScreen onExit={() => setOverlayRoute(null)} />;
+    routeKey = 'settings';
+  } else if (!selected && overlayRoute === 'browse') {
+    screen = <BrowseScreen onOpen={openPuzzle} onExit={() => setOverlayRoute(null)} />;
+    routeKey = 'browse';
+  } else if (!selected && overlayRoute === 'achievements') {
+    screen = <AchievementsScreen onExit={() => setOverlayRoute(null)} />;
+    routeKey = 'achievements';
+  } else if (!selected) {
+    screen = homeScreen;
+    routeKey = 'home';
   } else {
-    const level = getLevelById(selected.puzzleId);
-    screen = level ? (
-      <GameScreen key={level.id} level={level} onExit={exit} onNextPuzzle={openPuzzle} />
-    ) : (
-      <HomeScreen onOpen={setSelected} />
-    );
+    // Exhaustive over `GameKind` and deliberately has no `default`: forgetting
+    // a case here is a compile error, not a silent bounce to Home the way an
+    // unmatched if/else-if chain would be.
+    switch (selected.kind) {
+      case 'constellation': {
+        const puzzle = getConstellationById(selected.puzzleId);
+        screen = puzzle ? (
+          <ConstellationScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+        ) : (
+          homeScreen
+        );
+        routeKey = puzzle ? `constellation:${puzzle.id}` : 'home';
+        break;
+      }
+      case 'trajectory': {
+        const puzzle = getTrajectoryById(selected.puzzleId);
+        screen = puzzle ? (
+          <TrajectoryScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+        ) : (
+          homeScreen
+        );
+        routeKey = puzzle ? `trajectory:${puzzle.id}` : 'home';
+        break;
+      }
+      case 'sudoku': {
+        const puzzle = getSudokuById(selected.puzzleId);
+        screen = puzzle ? (
+          <SudokuScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+        ) : (
+          homeScreen
+        );
+        routeKey = puzzle ? `sudoku:${puzzle.id}` : 'home';
+        break;
+      }
+      case 'mirror': {
+        const puzzle = getMirrorMazeById(selected.puzzleId);
+        screen = puzzle ? (
+          <MirrorMazeScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+        ) : (
+          homeScreen
+        );
+        routeKey = puzzle ? `mirror:${puzzle.id}` : 'home';
+        break;
+      }
+      case 'tents': {
+        const puzzle = getTentsTreesById(selected.puzzleId);
+        screen = puzzle ? (
+          <TentsScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+        ) : (
+          homeScreen
+        );
+        routeKey = puzzle ? `tents:${puzzle.id}` : 'home';
+        break;
+      }
+      case 'towers': {
+        const puzzle = getTowersById(selected.puzzleId);
+        screen = puzzle ? (
+          <TowersScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+        ) : (
+          homeScreen
+        );
+        routeKey = puzzle ? `towers:${puzzle.id}` : 'home';
+        break;
+      }
+      case 'binairo': {
+        const puzzle = getBinairoById(selected.puzzleId);
+        screen = puzzle ? (
+          <BinairoScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+        ) : (
+          homeScreen
+        );
+        routeKey = puzzle ? `binairo:${puzzle.id}` : 'home';
+        break;
+      }
+      case 'gravity': {
+        const level = getLevelById(selected.puzzleId);
+        screen = level ? (
+          <GameScreen key={level.id} level={level} onExit={exit} onNextPuzzle={openPuzzle} />
+        ) : (
+          homeScreen
+        );
+        routeKey = level ? `gravity:${level.id}` : 'home';
+        break;
+      }
+    }
   }
 
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" />
-      <PlayerProgressProvider>
-        <View style={styles.root}>{screen}</View>
-      </PlayerProgressProvider>
+      <SettingsProvider>
+        <PlayerProgressProvider>
+          <View style={styles.root}>
+            <ScreenTransition routeKey={routeKey}>{screen}</ScreenTransition>
+          </View>
+        </PlayerProgressProvider>
+      </SettingsProvider>
     </SafeAreaProvider>
   );
 }

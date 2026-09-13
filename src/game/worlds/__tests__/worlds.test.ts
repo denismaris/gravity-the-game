@@ -14,18 +14,19 @@ import {
 } from '..';
 
 describe('WORLDS', () => {
-  test('there are five worlds, in order', () => {
+  test('there are six worlds, in order', () => {
     expect(WORLDS.map(w => [w.id, w.order, w.name])).toEqual([
       ['world-1', 1, 'Gravity'],
       ['world-2', 2, 'Anchors'],
       ['world-3', 3, 'Portals'],
       ['world-4', 4, 'Portals & Anchors'],
       ['world-5', 5, 'Gravity Zones'],
+      ['world-6', 6, 'Hazards'],
     ]);
     expect(FIRST_WORLD).toBe(WORLDS[0]);
   });
 
-  test('worlds map to level ranges 1-20, 21-60, 61-80, 81-100, 101-140 in play order', () => {
+  test('worlds map to level ranges 1-20, 21-60, 61-80, 81-100, 101-140, 141-156 in play order', () => {
     const idsInRange = (from: number, to: number) =>
       [...LEVELS]
         .filter(l => l.order >= from && l.order <= to)
@@ -37,7 +38,8 @@ describe('WORLDS', () => {
     expect(WORLDS[2].levelIds).toEqual(idsInRange(61, 80));
     expect(WORLDS[3].levelIds).toEqual(idsInRange(81, 100));
     expect(WORLDS[4].levelIds).toEqual(idsInRange(101, 140));
-    expect(WORLDS.map(w => w.levelIds.length)).toEqual([20, 40, 20, 20, 40]);
+    expect(WORLDS[5].levelIds).toEqual(idsInRange(141, 156));
+    expect(WORLDS.map(w => w.levelIds.length)).toEqual([20, 40, 20, 20, 40, 16]);
   });
 
   test('every world level id resolves and no level belongs to two worlds', () => {
@@ -60,6 +62,7 @@ describe('WORLDS', () => {
       'anchored',
       'portals',
       'gravity-zone',
+      'hazard',
     ];
     for (const world of WORLDS) {
       for (const mechanic of world.mechanics) {
@@ -81,6 +84,12 @@ describe('WORLDS', () => {
     expect(WORLDS[4].mechanics).toContain('gravity-zone');
     expect(WORLDS[4].mechanics).toContain('anchored');
     expect(WORLDS[4].mechanics).toContain('portals');
+    // World 6 introduces hazards, and its later band (151-156) folds in
+    // gravity zones and portals as combination content, same as World 5.
+    expect(WORLDS[5].mechanics).toContain('hazard');
+    expect(WORLDS[5].mechanics).toContain('gravity-zone');
+    expect(WORLDS[5].mechanics).toContain('portals');
+    expect(WORLDS[0].mechanics).not.toContain('hazard');
   });
 
   test('every world passes structural validation', () => {

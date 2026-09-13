@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   beginPath,
@@ -12,11 +12,15 @@ import {
   TrajectoryCell,
   TrajectoryPuzzle,
 } from '../game/trajectory';
-import { PuzzleSolved, TrajectoryBoard } from '../components';
-import { GameKind, getNextJourneyEntry } from '../game/journey';
-import { triggerHaptic } from '../game/rendering';
+import { PressableScale, PuzzleSolved, TrajectoryBoard, TutorialOverlay } from '../components';
+import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
+import { triggerFeedback } from '../game/rendering';
+import { copyForTutorial, tutorialIdForGame } from '../game/tutorials';
 import { usePlayerProgress } from '../progression';
+import { useSettings } from '../settings';
 import { theme } from '../theme';
+
+const TUTORIAL_ID = tutorialIdForGame('trajectory');
 
 export interface TrajectoryScreenProps {
   puzzle: TrajectoryPuzzle;
@@ -40,6 +44,16 @@ export function TrajectoryScreen({
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { recordCompletion } = usePlayerProgress();
+  const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
+
+  const [showTutorial, setShowTutorial] = useState(false);
+  useEffect(() => {
+    if (settingsReady && !hasSeenTutorial(TUTORIAL_ID)) setShowTutorial(true);
+  }, [settingsReady, hasSeenTutorial]);
+  const dismissTutorial = useCallback(() => {
+    markTutorialSeen(TUTORIAL_ID);
+    setShowTutorial(false);
+  }, [markTutorialSeen]);
 
   const nextEntry = useMemo(() => getNextJourneyEntry(puzzle.id), [puzzle.id]);
   const [state, setState] = useState(() => emptyTrajectoryState(puzzle));
@@ -55,7 +69,7 @@ export function TrajectoryScreen({
       recorded.current = true;
       const outcome = recordCompletion(puzzle.id, hints);
       setStars(outcome.best.stars);
-      triggerHaptic('solved');
+      triggerFeedback('solved');
     }
   }, [solved, hints, puzzle.id, recordCompletion]);
 
@@ -75,9 +89,9 @@ export function TrajectoryScreen({
         const pair = puzzle.pairs.find(p => p.color === color);
         const justConnected = pair && !pairConnected(s, pair) && pairConnected(next, pair);
         if (justConnected) {
-          triggerHaptic('targetReached');
+          triggerFeedback('targetReached');
         } else if ((next.paths[color]?.length ?? 0) !== (s.paths[color]?.length ?? 0)) {
-          triggerHaptic('step');
+          triggerFeedback('step');
         }
         return next;
       }),
@@ -89,7 +103,7 @@ export function TrajectoryScreen({
       const h = revealHint(s, puzzle);
       if (!h) return s;
       setHints(n => n + 1);
-      triggerHaptic('targetReached');
+      triggerFeedback('targetReached');
       return h.state;
     });
   }, [puzzle]);
@@ -113,9 +127,9 @@ export function TrajectoryScreen({
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
+        <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
           <Text style={styles.back}>‹ Home</Text>
-        </Pressable>
+        </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.name} numberOfLines={1}>
             {puzzle.name ?? 'Trajectory'}
@@ -130,22 +144,22 @@ export function TrajectoryScreen({
       </View>
 
       <View style={styles.controls}>
-        <Pressable
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel="Reveal a hint"
           onPress={useHint}
           style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         >
           <Text style={styles.pillText}>Hint</Text>
-        </Pressable>
-        <Pressable
+        </PressableScale>
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel="Restart puzzle"
           onPress={restart}
           style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         >
           <Text style={styles.pillText}>Restart</Text>
-        </Pressable>
+        </PressableScale>
       </View>
 
       {solved && stars && (
@@ -156,6 +170,14 @@ export function TrajectoryScreen({
           onDone={onExit}
           hasNext={nextEntry !== null}
           onNext={goNext}
+        />
+      )}
+
+      {showTutorial && (
+        <TutorialOverlay
+          copy={copyForTutorial(TUTORIAL_ID)}
+          onDismiss={dismissTutorial}
+          accentColor={accentColorForKind('trajectory')}
         />
       )}
     </View>
@@ -191,7 +213,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.micro,
     letterSpacing: 1,
-    color: theme.colors.textTertiary,
+    color: theme.colors.trajectoryAccent,
     marginTop: 2,
   },
   boardArea: { flex: 1, alignItems: 'center', justifyContent: 'center' },

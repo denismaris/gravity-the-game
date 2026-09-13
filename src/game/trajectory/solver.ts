@@ -23,6 +23,14 @@ export function solveTrajectory(puzzle: TrajectoryPuzzle, limit = 1, nodeCap = 4
   const paths = new Map<number, TrajectoryCell[]>();
   const colors = pairs.map(p => p.color).slice().sort((a, b) => a - b);
 
+  // Blocked cells are seeded as permanently non-empty (-2, distinct from any
+  // real colour and from -1/"empty") - every check below already treats
+  // "not -1" as impassable, so this alone keeps paths off them and keeps
+  // them out of `emptyRemaining`/`strands` without touching either.
+  for (const cell of puzzle.blocked ?? []) {
+    grid[cell.row][cell.col] = -2;
+  }
+
   for (const pair of pairs) {
     grid[pair.a.row][pair.a.col] = pair.color;
     grid[pair.b.row][pair.b.col] = pair.color;
@@ -165,6 +173,17 @@ export function assertValidTrajectory(puzzle: TrajectoryPuzzle): void {
     if (pair.a.row === pair.b.row && pair.a.col === pair.b.col) {
       throw new Error(`Trajectory ${id}: colour ${pair.color} has both endpoints on one cell.`);
     }
+  }
+
+  const blockedKeys = new Set<string>();
+  for (const cell of puzzle.blocked ?? []) {
+    if (cell.row < 0 || cell.row >= rows || cell.col < 0 || cell.col >= cols) {
+      throw new Error(`Trajectory ${id}: blocked cell (${cell.row}, ${cell.col}) is off the board.`);
+    }
+    const k = `${cell.row}:${cell.col}`;
+    if (blockedKeys.has(k)) throw new Error(`Trajectory ${id}: cell (${k}) is blocked twice.`);
+    blockedKeys.add(k);
+    if (seen.has(k)) throw new Error(`Trajectory ${id}: a blocked cell overlaps an endpoint at (${k}).`);
   }
 
   if (solveTrajectory(puzzle, 1).length === 0) {

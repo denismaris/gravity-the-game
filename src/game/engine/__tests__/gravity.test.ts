@@ -9,6 +9,7 @@ function createState(
   obstacles: Array<{ row: number; col: number }> = [],
   portals: PortalPair[] = [],
   zone: GravityZone | null = null,
+  hazards: Array<{ row: number; col: number }> = [],
 ): GameState {
   const staticGrid: StaticCellType[][] = Array.from({ length: rows }, () =>
     Array.from({ length: cols }, () => StaticCellType.Empty),
@@ -16,6 +17,9 @@ function createState(
 
   for (const { row, col } of obstacles) {
     staticGrid[row][col] = StaticCellType.Obstacle;
+  }
+  for (const { row, col } of hazards) {
+    staticGrid[row][col] = StaticCellType.Hazard;
   }
 
   return { rows, cols, staticGrid, movables, portals, zone };
@@ -244,6 +248,71 @@ describe('applyGravity with anchored objects', () => {
       { id: 'anchor', row: 4, col: 4, anchored: true },
     ]);
     expect(gravityChangesState(mixed, 'down')).toBe(true);
+  });
+});
+
+describe('applyGravity with hazards', () => {
+  test('an object sliding onto a hazard is destroyed there', () => {
+    const state = createState(5, 5, [{ id: 'a', row: 0, col: 2 }], [], [], null, [{ row: 4, col: 2 }]);
+
+    const result = applyGravity(state, 'down');
+
+    expect(positionsOf(result)).toEqual([{ id: 'a', row: 4, col: 2 }]);
+    expect(result.movables[0].destroyed).toBe(true);
+  });
+
+  test('a hazard stops the slide even when it could otherwise have continued', () => {
+    // Hazard sits mid-board; without it the object would reach row 4.
+    const state = createState(5, 5, [{ id: 'a', row: 0, col: 2 }], [], [], null, [{ row: 2, col: 2 }]);
+
+    const result = applyGravity(state, 'down');
+
+    expect(positionsOf(result)).toEqual([{ id: 'a', row: 2, col: 2 }]);
+    expect(result.movables[0].destroyed).toBe(true);
+  });
+
+  test('an unrelated lane never touches the hazard and is unaffected', () => {
+    const state = createState(5, 5, [{ id: 'a', row: 0, col: 0 }], [], [], null, [{ row: 4, col: 2 }]);
+
+    const result = applyGravity(state, 'down');
+
+    expect(positionsOf(result)).toEqual([{ id: 'a', row: 4, col: 0 }]);
+    expect(result.movables[0].destroyed).toBeFalsy();
+  });
+
+  test('a destroyed object never moves again', () => {
+    let state = createState(6, 6, [{ id: 'a', row: 0, col: 2 }], [], [], null, [{ row: 3, col: 2 }]);
+
+    state = applyGravity(state, 'down');
+    expect(state.movables.find(m => m.id === 'a')).toEqual({ id: 'a', row: 3, col: 2, destroyed: true });
+
+    // Further gravity in any direction leaves the corpse exactly in place.
+    (['up', 'left', 'right', 'down'] as const).forEach(direction => {
+      const next = applyGravity(state, direction);
+      expect(next.movables.find(m => m.id === 'a')).toEqual({ id: 'a', row: 3, col: 2, destroyed: true });
+    });
+  });
+
+  test('a destroyed object still blocks a later object in the same lane, like a corpse', () => {
+    const dead = createState(6, 6, [{ id: 'a', row: 0, col: 2 }], [], [], null, [{ row: 3, col: 2 }]);
+    const afterDeath = applyGravity(dead, 'down');
+
+    const withFollower: GameState = {
+      ...afterDeath,
+      movables: [...afterDeath.movables, { id: 'b', row: 0, col: 2 }],
+    };
+
+    const result = applyGravity(withFollower, 'down');
+
+    expect(result.movables.find(m => m.id === 'a')).toEqual({ id: 'a', row: 3, col: 2, destroyed: true });
+    // 'b' stops one cell short of the corpse, exactly as it would against an
+    // anchor or obstacle at the same cell.
+    expect(result.movables.find(m => m.id === 'b')).toMatchObject({ row: 2, col: 2 });
+  });
+
+  test('gravityChangesState reports true the moment an object is destroyed', () => {
+    const state = createState(5, 5, [{ id: 'a', row: 0, col: 2 }], [], [], null, [{ row: 4, col: 2 }]);
+    expect(gravityChangesState(state, 'down')).toBe(true);
   });
 });
 

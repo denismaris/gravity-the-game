@@ -1,4 +1,5 @@
 import { colors } from './colors';
+import { motion } from './motion';
 import { radii, spacing } from './spacing';
 import { typography } from './typography';
 
@@ -17,8 +18,9 @@ export const theme = {
   spacing,
   radii,
   typography,
+  motion,
 } as const;
 
 export type Theme = typeof theme;
 
-export { colors, radii, spacing, typography };
+export { colors, motion, radii, spacing, typography };

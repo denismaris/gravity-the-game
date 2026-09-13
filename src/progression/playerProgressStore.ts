@@ -13,9 +13,9 @@ import {
 export const PLAYER_PROGRESS_KEY = 'gravity:player-progress';
 
 /** Schema versions this build knows how to read (newest first). v1 had no
- * `cursor`; v2 had no `daily`. Both are migrated forward by defaulting the
- * missing field. */
-const READABLE_VERSIONS = [3, 2, 1];
+ * `cursor`; v2 had no `daily`; v3 had no `bestDailyStreak`. All are migrated
+ * forward by defaulting the missing field. */
+const READABLE_VERSIONS = [4, 3, 2, 1];
 
 function isStarRating(value: unknown): value is StarRating {
   return value === 1 || value === 2 || value === 3;
@@ -67,6 +67,20 @@ function parseDaily(value: unknown): DailyStatus {
 }
 
 /**
+ * `bestDailyStreak` is new in v4. For older data (or a corrupt value) it
+ * backfills from the just-parsed `daily.streak` - not a true historical
+ * peak (the game never recorded one before v4), but a fair, honest floor:
+ * whatever streak a player currently holds, they have necessarily reached
+ * at least that high before.
+ */
+function parseBestDailyStreak(value: unknown, fallback: number): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) {
+    return Math.max(Math.floor(value), fallback);
+  }
+  return fallback;
+}
+
+/**
  * Parses whatever came back from storage into a trusted `PlayerProgress`.
  * Anything unexpected - missing key, malformed JSON, unreadable version, a
  * corrupt entry - degrades to an empty (or partially salvaged) progress
@@ -86,10 +100,18 @@ export function parseProgress(raw: string | null): PlayerProgress {
 
   if (typeof parsed !== 'object' || parsed === null) return emptyProgress();
 
-  const record = parsed as { version?: unknown; levels?: unknown; cursor?: unknown; daily?: unknown };
+  const record = parsed as {
+    version?: unknown;
+    levels?: unknown;
+    cursor?: unknown;
+    daily?: unknown;
+    bestDailyStreak?: unknown;
+  };
   if (typeof record.version !== 'number' || !READABLE_VERSIONS.includes(record.version)) {
     return emptyProgress();
   }
+
+  const daily = parseDaily(record.daily);
 
   return {
     version: PLAYER_PROGRESS_VERSION,
@@ -97,7 +119,9 @@ export function parseProgress(raw: string | null): PlayerProgress {
     // v1 has no cursor; parseCursor handles its absence.
     cursor: parseCursor(record.cursor),
     // v1/v2 have no daily streak; parseDaily handles its absence.
-    daily: parseDaily(record.daily),
+    daily,
+    // v1/v2/v3 have no bestDailyStreak; back-filled from the live streak.
+    bestDailyStreak: parseBestDailyStreak(record.bestDailyStreak, daily.streak),
   };
 }
 

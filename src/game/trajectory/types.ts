@@ -24,6 +24,14 @@ export interface TrajectoryPuzzle {
   readonly rows: number;
   readonly cols: number;
   readonly pairs: ReadonlyArray<TrajectoryPair>;
+  /**
+   * Cells no path may ever enter - unlike an endpoint or another colour's
+   * path (which are merely off-limits to a *different* colour), a blocked
+   * cell is off-limits to everyone, permanently, and doesn't count toward
+   * "every cell covered". Optional - a puzzle without this field plays
+   * exactly as before, covering the full `rows * cols` board.
+   */
+  readonly blocked?: ReadonlyArray<TrajectoryCell>;
 }
 
 /**

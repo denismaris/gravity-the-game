@@ -121,6 +121,73 @@ export function ObstacleBlock({ x, y, size, color, cornerRadius = 0 }: ObstacleB
   return <RoundedRect x={x} y={y} width={size} height={size} r={cornerRadius} color={color} />;
 }
 
+export interface HazardMarkerProps {
+  cx: number;
+  cy: number;
+  /** Half-height of the triangle. */
+  size: number;
+  /** Triangle fill (the danger colour). */
+  color: string;
+  /** The exclamation mark drawn on top (the paper/ground colour, so it
+   * reads as a cut-out rather than a second overlapping shape). */
+  markColor: string;
+}
+
+/**
+ * A hazard cell: a solid warning triangle with a cut-out exclamation mark
+ * (⚠), unlike every other static marker (a hollow ring, a filled square) so
+ * it reads as "different kind of danger" - a target you must reach, an
+ * obstacle you can't pass, a hazard you must never touch.
+ */
+export function HazardMarker({ cx, cy, size, color, markColor }: HazardMarkerProps) {
+  const trianglePath = `M ${cx} ${cy - size} L ${cx + size} ${cy + size * 0.82} L ${cx - size} ${cy + size * 0.82} Z`;
+  const stemWidth = Math.max(1.5, size * 0.18);
+
+  return (
+    <>
+      <Path path={trianglePath} color={color} />
+      <RoundedRect
+        x={cx - stemWidth / 2}
+        y={cy - size * 0.42}
+        width={stemWidth}
+        height={size * 0.62}
+        r={stemWidth / 2}
+        color={markColor}
+      />
+      <Circle cx={cx} cy={cy + size * 0.48} r={stemWidth * 0.65} color={markColor} />
+    </>
+  );
+}
+
+export interface DestroyedPieceMarkProps {
+  cx: number;
+  cy: number;
+  radius: number;
+  /** Fill (the danger colour). */
+  color: string;
+  /** The X drawn on top (the paper/ground colour). */
+  markColor: string;
+}
+
+/**
+ * A destroyed object: what used to be a normal piece, now inert. Drawn in
+ * the same danger colour as the hazard that claimed it, with a cut-out X so
+ * it never gets mistaken for a normal (blue) or on-target (green) piece -
+ * this one isn't going anywhere, and it isn't covering anything.
+ */
+export function DestroyedPieceMark({ cx, cy, radius, color, markColor }: DestroyedPieceMarkProps) {
+  const d = radius * 0.55;
+  const strokeWidth = Math.max(1.5, radius * 0.24);
+  const xPath = `M ${cx - d} ${cy - d} L ${cx + d} ${cy + d} M ${cx + d} ${cy - d} L ${cx - d} ${cy + d}`;
+
+  return (
+    <>
+      <Circle cx={cx} cy={cy} r={radius} color={color} />
+      <Path path={xPath} color={markColor} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />
+    </>
+  );
+}
+
 export interface PortalMarkProps {
   cx: number;
   cy: number;

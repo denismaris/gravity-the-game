@@ -48,6 +48,10 @@ function isObstacle(state: GameState, row: number, col: number): boolean {
   return state.staticGrid[row][col] === StaticCellType.Obstacle;
 }
 
+function isHazard(state: GameState, row: number, col: number): boolean {
+  return state.staticGrid[row][col] === StaticCellType.Hazard;
+}
+
 function positionKey(row: number, col: number): string {
   return `${row}:${col}`;
 }
@@ -83,6 +87,16 @@ function isInZone(zone: GravityZone | null, row: number, col: number): boolean {
  * Anchored objects (`movable.anchored === true`) never move: they are seeded
  * into the board as fixed occupants before anything slides, so every other
  * object treats them as permanent blockers - identical to an obstacle.
+ * Destroyed objects (`movable.destroyed === true`, from a past hazard hit)
+ * are seeded the same way - inert forever after, exactly like an anchor.
+ *
+ * Hazards: unlike an obstacle, a hazard cell never blocks entry - an object
+ * slides onto it same as any empty cell, but stops there immediately and is
+ * marked `destroyed`, cutting its slide short even if it could otherwise
+ * have continued (a hazard is always the last cell an object visits). A
+ * destroyed object still occupies its cell afterwards (a "body" other
+ * objects in the same lane stack up behind), it simply never moves or
+ * counts toward a target again.
  *
  * Portals: while an object is sliding, if its next cell is a portal endpoint
  * it is moved to the linked endpoint and continues sliding in the SAME
@@ -122,10 +136,11 @@ export function applyGravity(state: GameState, direction: Direction): GameState 
   const resolvedById = new Map<string, MovableObject>();
   const portalMap = buildPortalMap(state);
 
-  // Anchored objects are fixed: they stay exactly where they are and their
-  // cells count as occupied for everything that slides afterwards.
+  // Anchored and destroyed objects are fixed: they stay exactly where they
+  // are and their cells count as occupied for everything that slides
+  // afterwards.
   for (const movable of state.movables) {
-    if (movable.anchored) {
+    if (movable.anchored || movable.destroyed) {
       occupied.add(positionKey(movable.row, movable.col));
       resolvedById.set(movable.id, movable);
     }
@@ -133,7 +148,7 @@ export function applyGravity(state: GameState, direction: Direction): GameState 
 
   const lanes = new Map<number, MovableObject[]>();
   for (const movable of state.movables) {
-    if (movable.anchored) continue;
+    if (movable.anchored || movable.destroyed) continue;
     const key = laneKeyFor(direction, movable);
     const lane = lanes.get(key);
     if (lane) {
@@ -149,6 +164,7 @@ export function applyGravity(state: GameState, direction: Direction): GameState 
     for (const movable of ordered) {
       let { row, col } = movable;
       let teleported = false;
+      let destroyed = false;
       const visited = new Set<string>([positionKey(row, col)]);
 
       while (true) {
@@ -187,10 +203,17 @@ export function applyGravity(state: GameState, direction: Direction): GameState 
         row = nextRow;
         col = nextCol;
         visited.add(nextKey);
+
+        // A hazard is always the last cell an object visits - it stops here
+        // destroyed, even if the slide could otherwise have continued.
+        if (isHazard(state, row, col)) {
+          destroyed = true;
+          break;
+        }
       }
 
       occupied.add(positionKey(row, col));
-      resolvedById.set(movable.id, { ...movable, row, col });
+      resolvedById.set(movable.id, destroyed ? { ...movable, row, col, destroyed: true } : { ...movable, row, col });
     }
   }
 

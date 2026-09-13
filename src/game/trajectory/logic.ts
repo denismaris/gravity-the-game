@@ -15,6 +15,17 @@ function inBounds(state: TrajectoryState, c: TrajectoryCell): boolean {
   return c.row >= 0 && c.row < state.rows && c.col >= 0 && c.col < state.cols;
 }
 
+/** Whether `cell` is one of `puzzle`'s permanently-off-limits cells. */
+export function isBlockedCell(puzzle: TrajectoryPuzzle, cell: TrajectoryCell): boolean {
+  return (puzzle.blocked ?? []).some(b => same(b, cell));
+}
+
+/** How many cells a path could ever cover on `puzzle` - the whole board
+ * minus any blocked cells. What "every cell covered" is measured against. */
+export function playableCells(puzzle: TrajectoryPuzzle): number {
+  return puzzle.rows * puzzle.cols - (puzzle.blocked?.length ?? 0);
+}
+
 /** The colour whose endpoint sits on `cell`, or `null`. */
 export function endpointColorAt(puzzle: TrajectoryPuzzle, cell: TrajectoryCell): number | null {
   for (const pair of puzzle.pairs) {
@@ -70,7 +81,7 @@ export function extendPath(
   cell: TrajectoryCell,
 ): TrajectoryState {
   const path = state.paths[color] ?? [];
-  if (path.length === 0 || !inBounds(state, cell)) return state;
+  if (path.length === 0 || !inBounds(state, cell) || isBlockedCell(puzzle, cell)) return state;
 
   const head = path[path.length - 1];
   const existingIndex = path.findIndex(c => same(c, cell));
@@ -111,7 +122,9 @@ export function pairConnected(state: TrajectoryState, pair: TrajectoryPair): boo
 
 /**
  * Solved when every pair is connected, no two paths share a cell, and every
- * board cell is covered by some path (classic flow rules).
+ * playable cell is covered by some path (classic flow rules) - `blocked`
+ * cells are never part of the board a path can occupy, so they're excluded
+ * from "every cell" (see `playableCells`).
  */
 export function isTrajectorySolved(state: TrajectoryState, puzzle: TrajectoryPuzzle): boolean {
   const seen = new Set<string>();
@@ -127,7 +140,7 @@ export function isTrajectorySolved(state: TrajectoryState, puzzle: TrajectoryPuz
     }
   }
 
-  return covered === puzzle.rows * puzzle.cols;
+  return covered === playableCells(puzzle);
 }
 
 /** Cells still not covered by any path - for a progress readout. */
@@ -136,5 +149,5 @@ export function remainingCells(state: TrajectoryState, puzzle: TrajectoryPuzzle)
   for (const path of Object.values(state.paths)) {
     for (const c of path) seen.add(key(c));
   }
-  return puzzle.rows * puzzle.cols - seen.size;
+  return playableCells(puzzle) - seen.size;
 }

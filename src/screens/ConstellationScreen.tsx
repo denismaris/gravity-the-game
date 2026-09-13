@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   cluesEqual,
@@ -14,11 +14,15 @@ import {
   runsOf,
   setMark,
 } from '../game/constellation';
-import { ConstellationBoard, PuzzleSolved } from '../components';
-import { GameKind, getNextJourneyEntry } from '../game/journey';
-import { triggerHaptic } from '../game/rendering';
+import { ConstellationBoard, PressableScale, PuzzleSolved, TutorialOverlay } from '../components';
+import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
+import { triggerFeedback } from '../game/rendering';
+import { copyForTutorial, tutorialIdForGame } from '../game/tutorials';
 import { usePlayerProgress } from '../progression';
+import { useSettings } from '../settings';
 import { theme } from '../theme';
+
+const TUTORIAL_ID = tutorialIdForGame('constellation');
 
 export interface ConstellationScreenProps {
   puzzle: ConstellationPuzzle;
@@ -42,6 +46,16 @@ export function ConstellationScreen({
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const { recordCompletion } = usePlayerProgress();
+  const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
+
+  const [showTutorial, setShowTutorial] = useState(false);
+  useEffect(() => {
+    if (settingsReady && !hasSeenTutorial(TUTORIAL_ID)) setShowTutorial(true);
+  }, [settingsReady, hasSeenTutorial]);
+  const dismissTutorial = useCallback(() => {
+    markTutorialSeen(TUTORIAL_ID);
+    setShowTutorial(false);
+  }, [markTutorialSeen]);
 
   const nextEntry = useMemo(() => getNextJourneyEntry(puzzle.id), [puzzle.id]);
   const [state, setState] = useState(() => emptyConstellationState(puzzle));
@@ -49,6 +63,12 @@ export function ConstellationScreen({
   const [flash, setFlash] = useState<ConstellationCell | null>(null);
   const [stars, setStars] = useState<1 | 2 | 3 | null>(null);
   const recorded = useRef(false);
+  const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+    };
+  }, []);
 
   const solved = useMemo(() => isConstellationSolved(state, puzzle), [state, puzzle]);
   const left = remainingCells(state, puzzle);
@@ -58,7 +78,7 @@ export function ConstellationScreen({
       recorded.current = true;
       const outcome = recordCompletion(puzzle.id, hints);
       setStars(outcome.best.stars);
-      triggerHaptic('solved');
+      triggerFeedback('solved');
     }
   }, [solved, hints, puzzle.id, recordCompletion]);
 
@@ -78,7 +98,7 @@ export function ConstellationScreen({
         const justDone =
           (!rowDone(s.marks[row]) && rowDone(next.marks[row])) ||
           (!colDone(s.marks) && colDone(next.marks));
-        triggerHaptic(justDone ? 'targetReached' : 'step');
+        triggerFeedback(justDone ? 'targetReached' : 'step');
 
         return next;
       });
@@ -92,8 +112,9 @@ export function ConstellationScreen({
       if (!h) return s;
       setHints(n => n + 1);
       setFlash(h.cell);
-      setTimeout(() => setFlash(null), 450);
-      triggerHaptic('targetReached');
+      if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
+      flashTimeoutRef.current = setTimeout(() => setFlash(null), 450);
+      triggerFeedback('targetReached');
       return h.state;
     });
   }, [puzzle]);
@@ -117,9 +138,9 @@ export function ConstellationScreen({
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
-        <Pressable accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
+        <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
           <Text style={styles.back}>‹ Home</Text>
-        </Pressable>
+        </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.name} numberOfLines={1}>
             {puzzle.name ?? 'Constellation'}
@@ -136,26 +157,27 @@ export function ConstellationScreen({
           size={boardSize}
           onToggleCell={toggle}
           flashCell={flash}
+          solved={solved}
         />
       </View>
 
       <View style={styles.controls}>
-        <Pressable
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel="Reveal a hint"
           onPress={useHint}
           style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         >
           <Text style={styles.pillText}>Hint</Text>
-        </Pressable>
-        <Pressable
+        </PressableScale>
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel="Restart puzzle"
           onPress={restart}
           style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         >
           <Text style={styles.pillText}>Restart</Text>
-        </Pressable>
+        </PressableScale>
       </View>
 
       {solved && stars && (
@@ -166,6 +188,14 @@ export function ConstellationScreen({
           onDone={onExit}
           hasNext={nextEntry !== null}
           onNext={goNext}
+        />
+      )}
+
+      {showTutorial && (
+        <TutorialOverlay
+          copy={copyForTutorial(TUTORIAL_ID)}
+          onDismiss={dismissTutorial}
+          accentColor={accentColorForKind('constellation')}
         />
       )}
     </View>
@@ -201,7 +231,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.micro,
     letterSpacing: 1,
-    color: theme.colors.textTertiary,
+    color: theme.colors.constellationAccent,
     marginTop: 2,
   },
   boardArea: {

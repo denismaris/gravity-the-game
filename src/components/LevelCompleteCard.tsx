@@ -1,8 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import { StarRating } from '../game/scoring';
+import { ConfettiBurst } from './ConfettiBurst';
+import { PressableScale } from './PressableScale';
 import { StarRow } from './StarRow';
-import { theme } from '../theme';
+import { motion, theme } from '../theme';
 
 export interface LevelCompleteCardProps {
   /** Best star rating ever earned on this level (this solve merged in). The
@@ -53,21 +55,25 @@ export function LevelCompleteCard({
     progress.setValue(0);
     Animated.timing(progress, {
       toValue: 1,
-      duration: 220,
-      easing: Easing.out(Easing.cubic),
+      duration: motion.cardEnter.duration,
+      easing: motion.cardEnter.easing,
       useNativeDriver: true,
     }).start();
   }, [progress]);
 
   const opacity = progress;
-  const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] });
+  const scale = progress.interpolate({
+    inputRange: [0, 1],
+    outputRange: [motion.cardEnter.scaleFrom, 1],
+  });
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
+      <ConfettiBurst />
       <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
         <Text style={styles.title}>LEVEL COMPLETE</Text>
 
-        <StarRow earned={stars} size={34} style={styles.stars} />
+        <StarRow earned={stars} size={34} style={styles.stars} animateIn />
 
         <View style={styles.rows}>
           <Text style={styles.rowText}>
@@ -81,7 +87,7 @@ export function LevelCompleteCard({
         </View>
 
         <View style={styles.actions}>
-          <Pressable
+          <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Replay level"
             onPress={onReplay}
@@ -89,9 +95,9 @@ export function LevelCompleteCard({
             style={({ pressed }) => [styles.button, styles.buttonSecondary, pressed && styles.pressed]}
           >
             <Text style={styles.buttonSecondaryLabel}>Replay</Text>
-          </Pressable>
+          </PressableScale>
 
-          <Pressable
+          <PressableScale
             accessibilityRole="button"
             accessibilityLabel={hasNextLevel ? 'Next puzzle' : 'Back to home'}
             onPress={hasNextLevel ? onNext : onExit}
@@ -101,7 +107,7 @@ export function LevelCompleteCard({
             <Text style={styles.buttonPrimaryLabel}>
               {hasNextLevel ? 'Next Puzzle ›' : 'Back to Home'}
             </Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </Animated.View>
     </View>

@@ -3,7 +3,7 @@ import { assertValidLevel, createGameStateFromLevel } from '../../levels/level';
 import { LEVELS, getLevelById, getLevelByOrder } from '../../levels/levelData';
 import { isPuzzleSolved } from '../completion';
 
-const LEVEL_COUNT = 140;
+const LEVEL_COUNT = 156;
 
 /**
  * Validates the entire hand-authored level pack: structural integrity of
@@ -120,11 +120,21 @@ describe('LEVELS (the hand-authored level pack)', () => {
         expect(level.zone).toBeDefined();
         expect(portalCount).toBe(0);
         expect(anchorCount).toBe(0);
-      } else {
+      } else if (level.order <= 140) {
         // World 5 combination band (131-140): a zone, plus at least one of
         // anchored objects or portals.
         expect(level.zone).toBeDefined();
         expect(portalCount + anchorCount).toBeGreaterThanOrEqual(1);
+      } else {
+        // World 6 - Hazards: always at least one hazard. 141-150 keep it
+        // isolated (no zone/portal); 151-156 fold in a zone and/or portal.
+        expect(level.hazards?.length ?? 0).toBeGreaterThanOrEqual(1);
+        if (level.order <= 150) {
+          expect(portalCount).toBe(0);
+          expect(level.zone).toBeUndefined();
+        } else {
+          expect(level.zone !== undefined || portalCount >= 1).toBe(true);
+        }
       }
     }
   });
@@ -462,5 +472,109 @@ describe('LEVELS (the hand-authored level pack)', () => {
       const lengths = new Set(tier.map(l => l.metadata?.minMoves));
       expect(lengths.size).toBeGreaterThanOrEqual(2);
     });
+  });
+
+  // ---- World 6 tiers (hazards) -------------------------------------
+
+  describe('tier 26 (141-143): teach hazards', () => {
+    const tier = LEVELS.filter(level => level.order >= 141 && level.order <= 143);
+
+    test('has exactly 3 levels', () => {
+      expect(tier).toHaveLength(3);
+    });
+
+    test('every level has at least one hazard and solves in at most 2 moves', () => {
+      for (const level of tier) {
+        expect(level.hazards?.length ?? 0).toBeGreaterThanOrEqual(1);
+        expect(level.metadata?.minMoves ?? Infinity).toBeLessThanOrEqual(2);
+      }
+    });
+  });
+
+  describe('tier 27 (144-147): hazards combined with obstacles/anchors', () => {
+    const tier = LEVELS.filter(level => level.order >= 144 && level.order <= 147);
+
+    test('has exactly 4 levels', () => {
+      expect(tier).toHaveLength(4);
+    });
+
+    test('every level has a hazard and at least one obstacle or anchor', () => {
+      for (const level of tier) {
+        expect(level.hazards?.length ?? 0).toBeGreaterThanOrEqual(1);
+        const blockers = level.obstacles.length + (level.anchors?.length ?? 0);
+        expect(blockers).toBeGreaterThanOrEqual(1);
+      }
+    });
+
+    test('solution lengths stay within [3, 4]', () => {
+      for (const level of tier) {
+        const m = level.metadata?.minMoves ?? 0;
+        expect(m).toBeGreaterThanOrEqual(3);
+        expect(m).toBeLessThanOrEqual(4);
+      }
+    });
+  });
+
+  describe('tier 28 (148-150): hazard gauntlets', () => {
+    const tier = LEVELS.filter(level => level.order >= 148 && level.order <= 150);
+
+    test('has exactly 3 levels', () => {
+      expect(tier).toHaveLength(3);
+    });
+
+    test('every level has a hazard and needs at least 4 moves to solve', () => {
+      for (const level of tier) {
+        expect(level.hazards?.length ?? 0).toBeGreaterThanOrEqual(1);
+        expect(level.metadata?.minMoves ?? 0).toBeGreaterThanOrEqual(4);
+      }
+    });
+
+    test('level 150 needs at least 4 moves, same as the rest of this tier', () => {
+      const level150 = LEVELS.find(l => l.order === 150);
+      expect(level150?.difficulty).toBe('hard');
+      expect(level150?.hazards?.length ?? 0).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  describe('tier 29 (151-156): hazards fold into gravity zones and portals', () => {
+    const tier = LEVELS.filter(level => level.order >= 151 && level.order <= 156);
+
+    test('has exactly 6 levels', () => {
+      expect(tier).toHaveLength(6);
+    });
+
+    test('every level has a hazard combined with a zone and/or a portal', () => {
+      for (const level of tier) {
+        expect(level.hazards?.length ?? 0).toBeGreaterThanOrEqual(1);
+        expect(level.zone !== undefined || (level.portals?.length ?? 0) >= 1).toBe(true);
+      }
+    });
+
+    test('solution lengths stay within [2, 3]', () => {
+      for (const level of tier) {
+        const m = level.metadata?.minMoves ?? 0;
+        expect(m).toBeGreaterThanOrEqual(2);
+        expect(m).toBeLessThanOrEqual(3);
+      }
+    });
+
+    test('the true finale (level 156) uses every one of the three combinable mechanics', () => {
+      const finale = LEVELS.find(l => l.order === 156);
+      expect(finale?.difficulty).toBe('expert');
+      expect(finale?.hazards?.length ?? 0).toBeGreaterThanOrEqual(1);
+      expect(finale?.zone).toBeDefined();
+      expect(finale?.portals?.length ?? 0).toBeGreaterThanOrEqual(1);
+    });
+  });
+
+  test('World 6 is entirely built around hazards and escalates from 1 to 4 moves', () => {
+    const world6 = LEVELS.filter(level => level.order >= 141 && level.order <= 156);
+    expect(world6).toHaveLength(16);
+    for (const level of world6) {
+      expect(level.hazards?.length ?? 0).toBeGreaterThanOrEqual(1);
+    }
+    const moves = world6.map(l => l.metadata?.minMoves ?? 0);
+    expect(Math.min(...moves)).toBe(1);
+    expect(Math.max(...moves)).toBe(4);
   });
 });

@@ -87,6 +87,74 @@ describe('assertValidLevel - anchor rules', () => {
   });
 });
 
+describe('createGameStateFromLevel with hazards', () => {
+  const withHazard: LevelDefinition = { ...base, anchors: undefined, hazards: [{ row: 2, col: 2 }] };
+
+  test('hazards become Hazard cells on the static grid', () => {
+    const state = createGameStateFromLevel(withHazard);
+    expect(state.staticGrid[2][2]).toBe('hazard');
+  });
+
+  test('a level with no `hazards` field has no hazard cells', () => {
+    const state = createGameStateFromLevel(base);
+    expect(state.staticGrid.flat()).not.toContain('hazard');
+  });
+
+  test('the resulting state plays: the object is destroyed on the hazard and the puzzle fails', () => {
+    const state = createGameStateFromLevel(withHazard);
+    const after = applyGravity(state, 'down');
+    expect(after.movables.find(m => m.id === 'test-level-object-0')).toEqual({
+      id: 'test-level-object-0',
+      row: 2,
+      col: 2,
+      destroyed: true,
+    });
+    expect(isPuzzleSolved(after)).toBe(false);
+  });
+});
+
+describe('assertValidLevel - hazard rules', () => {
+  const withHazard: LevelDefinition = { ...base, anchors: undefined, hazards: [{ row: 2, col: 2 }] };
+
+  test('accepts a well-formed level with a hazard', () => {
+    expect(() => assertValidLevel(withHazard)).not.toThrow();
+  });
+
+  test('rejects a hazard out of bounds', () => {
+    expect(() => assertValidLevel({ ...base, hazards: [{ row: 9, col: 0 }] })).toThrow(/hazard at/);
+  });
+
+  test('rejects two hazards on the same cell', () => {
+    expect(() =>
+      assertValidLevel({ ...base, hazards: [{ row: 2, col: 2 }, { row: 2, col: 2 }] }),
+    ).toThrow(/two hazards overlap/);
+  });
+
+  test('rejects a hazard on a normal object start cell (it would start destroyed)', () => {
+    expect(() => assertValidLevel({ ...base, hazards: [{ row: 0, col: 2 }] })).toThrow(
+      /start destroyed/,
+    );
+  });
+
+  test('rejects a hazard on a target (it could never be safely covered)', () => {
+    expect(() => assertValidLevel({ ...base, hazards: [{ row: 3, col: 2 }] })).toThrow(
+      /could never be safely covered/,
+    );
+  });
+
+  test('rejects a hazard on an obstacle', () => {
+    expect(() =>
+      assertValidLevel({ ...base, obstacles: [{ row: 1, col: 1 }], hazards: [{ row: 1, col: 1 }] }),
+    ).toThrow(/hazard overlaps an obstacle/);
+  });
+
+  test('rejects a hazard on an anchored object', () => {
+    expect(() => assertValidLevel({ ...base, hazards: [{ row: 4, col: 2 }] })).toThrow(
+      /hazard overlaps an anchored object/,
+    );
+  });
+});
+
 describe('portals', () => {
   const portalBase: LevelDefinition = {
     id: 'portal-level',
@@ -144,6 +212,14 @@ describe('portals', () => {
         portals: [[{ row: 3, col: 3 }, { row: 4, col: 4 }]],
       }),
     ).toThrow(/portal endpoint overlaps an anchored object/);
+
+    expect(() =>
+      assertValidLevel({
+        ...portalBase,
+        hazards: [{ row: 3, col: 3 }],
+        portals: [[{ row: 3, col: 3 }, { row: 4, col: 4 }]],
+      }),
+    ).toThrow(/portal endpoint overlaps a hazard/);
   });
 
   test('rejects a cell used by two portal endpoints', () => {

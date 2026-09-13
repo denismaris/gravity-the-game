@@ -1,13 +1,7 @@
 import { getStarThresholds, getLevelById } from '../game/levels';
 import { JOURNEY, JourneyEntry } from '../game/journey';
 import { StarRating } from '../game/scoring';
-import {
-  getLevelPositionInWorld,
-  getNextLevelIdInWorld,
-  getWorldForLevel,
-  WorldDefinition,
-  WORLDS,
-} from '../game/worlds';
+import { getLevelPositionInWorld, WorldDefinition, WORLDS } from '../game/worlds';
 import {
   getLevelStars,
   isLevelCompleted,
@@ -29,6 +23,18 @@ import {
  *  - The first level of an unlocked world is always unlocked. Every later
  *    level unlocks once the level immediately before it in the same world is
  *    completed.
+ *
+ * Since the app moved to the single interleaved Journey (no level-select
+ * screen - see `src/game/journey`), nothing in the app currently calls
+ * `getWorldSummary`, `getAllWorldSummaries`, `isWorldUnlocked`,
+ * `isLevelUnlocked`, `isWorldComplete` or `getUnlockedWorlds` - only
+ * `getJourneyPoint` below is live. They are kept, not deleted: they are
+ * exactly the derived per-world/per-level unlock data a future level-select
+ * or map view would need, already correct and already covered by
+ * `worldProgress.test.ts`. (`getNextPlayableLevel`/`getResumePoint`, which
+ * this file used to also export, were the old *per-world* "what's next"
+ * logic the Journey superseded outright - those were deleted rather than
+ * kept, since `getJourneyPoint`/`getNextJourneyEntry` fill that role now.)
  */
 
 /** Whether every level in `world` has been completed. */
@@ -137,36 +143,6 @@ export function getUnlockedWorlds(progress: PlayerProgress): ReadonlyArray<World
   return WORLDS.filter(world => isWorldUnlocked(progress, world));
 }
 
-/**
- * Where "continue" should take the player: their stored cursor if it still
- * points at an unlocked level, otherwise the first unlocked level they have
- * not completed, otherwise the very first level. Always returns a playable
- * (world, level) pair.
- */
-export function getResumePoint(progress: PlayerProgress): {
-  world: WorldDefinition;
-  levelId: string;
-} {
-  const cursor = progress.cursor;
-  if (cursor) {
-    const world = WORLDS.find(w => w.id === cursor.worldId);
-    if (world && isLevelUnlocked(progress, world, cursor.levelId)) {
-      return { world, levelId: cursor.levelId };
-    }
-  }
-
-  for (const world of WORLDS) {
-    if (!isWorldUnlocked(progress, world)) continue;
-    for (const levelId of world.levelIds) {
-      if (isLevelUnlocked(progress, world, levelId) && !isLevelCompleted(progress, levelId)) {
-        return { world, levelId };
-      }
-    }
-  }
-
-  return { world: WORLDS[0], levelId: WORLDS[0].levelIds[0] };
-}
-
 export interface JourneyPoint {
   /** The journey entry the player should play now (any of the three games). */
   readonly entry: JourneyEntry;
@@ -204,23 +180,4 @@ export function getJourneyPoint(progress: PlayerProgress): JourneyPoint {
     null;
 
   return { entry, position: index + 1, total, completedCount, allDone, nextGravity };
-}
-
-/**
- * The next level to play after finishing `levelId`: the next level in the
- * same world if there is one and it is now unlocked. Returns `undefined` at
- * the end of a world (the UI falls back to "back to levels").
- */
-export function getNextPlayableLevel(
-  progress: PlayerProgress,
-  levelId: string,
-): { world: WorldDefinition; levelId: string } | undefined {
-  const world = getWorldForLevel(levelId);
-  if (!world) return undefined;
-
-  const nextId = getNextLevelIdInWorld(world, levelId);
-  if (!nextId) return undefined;
-  if (!isLevelUnlocked(progress, world, nextId)) return undefined;
-
-  return { world, levelId: nextId };
 }

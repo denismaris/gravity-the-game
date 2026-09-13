@@ -1,11 +1,9 @@
 import { FIRST_WORLD, WORLDS } from '../../game/worlds';
 import { getStarThresholds, getLevelById } from '../../game/levels';
 import { JOURNEY } from '../../game/journey';
-import { emptyProgress, recordCompletion, setCursor } from '../playerProgress';
+import { emptyProgress, recordCompletion } from '../playerProgress';
 import {
   getJourneyPoint,
-  getNextPlayableLevel,
-  getResumePoint,
   getUnlockedWorlds,
   getWorldSummary,
   isLevelUnlocked,
@@ -119,30 +117,6 @@ describe('getWorldSummary', () => {
   });
 });
 
-describe('getResumePoint', () => {
-  test('fresh player resumes at World 1, level 1', () => {
-    expect(getResumePoint(emptyProgress())).toEqual({ world: W1, levelId: W1.levelIds[0] });
-  });
-
-  test('with progress, resumes at the first unlocked, uncompleted level', () => {
-    let p = emptyProgress();
-    for (let i = 0; i < 3; i += 1) p = complete(p, W1.levelIds[i]);
-    expect(getResumePoint(p).levelId).toBe(W1.levelIds[3]);
-  });
-
-  test('a valid cursor wins over the derived point', () => {
-    let p = emptyProgress();
-    for (let i = 0; i < 3; i += 1) p = complete(p, W1.levelIds[i]);
-    p = setCursor(p, W1.id, W1.levelIds[1]); // an unlocked (completed) level
-    expect(getResumePoint(p).levelId).toBe(W1.levelIds[1]);
-  });
-
-  test('a stale cursor pointing at a locked level is ignored', () => {
-    const p = setCursor(emptyProgress(), W1.id, W1.levelIds[10]); // locked from fresh
-    expect(getResumePoint(p).levelId).toBe(W1.levelIds[0]);
-  });
-});
-
 describe('getJourneyPoint (the interleaved journey)', () => {
   test('fresh player is at journey entry 1 - the first gravity puzzle', () => {
     const jp = getJourneyPoint(emptyProgress());
@@ -176,19 +150,5 @@ describe('getJourneyPoint (the interleaved journey)', () => {
     const jp = getJourneyPoint(p);
     expect(jp.allDone).toBe(true);
     expect(jp.position).toBe(JOURNEY.length);
-  });
-});
-
-describe('getNextPlayableLevel', () => {
-  test('after completing a level, the next in the world is playable', () => {
-    let p = emptyProgress();
-    p = complete(p, W1.levelIds[0]);
-    expect(getNextPlayableLevel(p, W1.levelIds[0])).toEqual({ world: W1, levelId: W1.levelIds[1] });
-  });
-
-  test('the last level of a world has no next', () => {
-    let p = emptyProgress();
-    for (const id of W1.levelIds) p = complete(p, id);
-    expect(getNextPlayableLevel(p, W1.levelIds[19])).toBeUndefined();
   });
 });

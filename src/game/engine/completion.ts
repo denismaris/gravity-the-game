@@ -24,6 +24,9 @@ function positionKey(row: number, col: number): string {
  * - A board with zero targets is never considered solved.
  * - Anchored objects are ignored entirely: they never cover a target, and a
  *   normal object still has to reach every target itself.
+ * - A destroyed object (see `isPuzzleFailed`) is ignored the same way - it
+ *   can never cover a target again, so a puzzle with one is never solved
+ *   until the player undoes/restarts past that death.
  */
 export function isPuzzleSolved(state: GameState): boolean {
   const targetPositions = new Set<string>();
@@ -41,7 +44,7 @@ export function isPuzzleSolved(state: GameState): boolean {
   const coveredTargets = new Set<string>();
 
   for (const movable of state.movables) {
-    if (movable.anchored) continue; // anchored objects don't fill targets
+    if (movable.anchored || movable.destroyed) continue; // neither fills a target
 
     const key = positionKey(movable.row, movable.col);
 
@@ -57,4 +60,18 @@ export function isPuzzleSolved(state: GameState): boolean {
   // solved if every target is covered too - otherwise a level with more
   // targets than movables would incorrectly report as solved.
   return coveredTargets.size === targetPositions.size;
+}
+
+/**
+ * Whether the puzzle has been lost: at least one object has been destroyed
+ * by a hazard (see `applyGravity`). Mutually exclusive with `isPuzzleSolved`
+ * - a level always starts with exactly as many objects as targets, so once
+ * one is destroyed the rest can never cover every target.
+ *
+ * The single source of truth for the "you failed" UI, exactly as
+ * `isPuzzleSolved` is for "you won" - the rendering/UI layer never inspects
+ * `movable.destroyed` directly.
+ */
+export function isPuzzleFailed(state: GameState): boolean {
+  return state.movables.some(movable => movable.destroyed);
 }

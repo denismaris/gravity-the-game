@@ -1,8 +1,9 @@
 /* eslint-disable react-native/no-inline-styles -- cell geometry is derived from `size` at render time */
-import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { cluesEqual, ConstellationPuzzle, ConstellationState, runsOf } from '../game/constellation';
 import { theme } from '../theme';
+import { AnimatedMark } from './AnimatedMark';
 
 export interface ConstellationBoardProps {
   puzzle: ConstellationPuzzle;
@@ -12,6 +13,21 @@ export interface ConstellationBoardProps {
   onToggleCell: (row: number, col: number) => void;
   /** Cell to flash briefly (e.g. a hint reveal). */
   flashCell?: { row: number; col: number } | null;
+  /** True once the picture is fully and correctly filled - draws a thin
+   * gold line tracing every filled cell's connections to its filled
+   * neighbours over the top, so the finished grid reads as an actual star
+   * chart for a moment instead of just a block of ink. Fades in once, the
+   * moment this flips true. */
+  solved?: boolean;
+}
+
+/** One segment of the reveal line-art: the shared edge between two
+ * orthogonally-adjacent filled cells. */
+interface Segment {
+  readonly r1: number;
+  readonly c1: number;
+  readonly r2: number;
+  readonly c2: number;
 }
 
 /**
@@ -25,6 +41,7 @@ export function ConstellationBoard({
   size,
   onToggleCell,
   flashCell,
+  solved = false,
 }: ConstellationBoardProps): React.JSX.Element {
   const { cols, rowClues, colClues } = puzzle;
 
@@ -42,6 +59,41 @@ export function ConstellationBoard({
     runsOf(state.marks[r].map(m => m === 'filled'));
   const colFilled = (c: number): number[] =>
     runsOf(state.marks.map(row => row[c] === 'filled'));
+
+  const reveal = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (!solved) {
+      reveal.setValue(0);
+      return;
+    }
+    Animated.timing(reveal, {
+      toValue: 1,
+      duration: 520,
+      delay: 150,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [solved, reveal]);
+
+  // The picture's own connectivity graph - every filled cell linked to its
+  // filled right/down neighbour. Computed only once solved; this is what
+  // makes the finished grid read as a drawn constellation rather than a
+  // block of filled squares.
+  const segments = useMemo<Segment[]>(() => {
+    if (!solved) return [];
+    const marks = state.marks;
+    const segs: Segment[] = [];
+    for (let r = 0; r < marks.length; r += 1) {
+      for (let c = 0; c < cols; c += 1) {
+        if (marks[r][c] !== 'filled') continue;
+        if (c + 1 < cols && marks[r][c + 1] === 'filled') segs.push({ r1: r, c1: c, r2: r, c2: c + 1 });
+        if (r + 1 < marks.length && marks[r + 1][c] === 'filled') {
+          segs.push({ r1: r, c1: c, r2: r + 1, c2: c });
+        }
+      }
+    }
+    return segs;
+  }, [solved, state.marks, cols]);
 
   return (
     <View style={{ width: layout.rowGutter + cols * layout.cell }}>
@@ -103,15 +155,42 @@ export function ConstellationBoard({
                     flash && styles.cellFlash,
                   ]}
                 >
-                  {mark === 'marked' && (
-                    <Text style={[styles.mark, { fontSize: layout.cell * 0.5 }]}>×</Text>
-                  )}
+                  {mark === 'marked' && <AnimatedMark size={layout.cell * 0.5} />}
                 </Pressable>
               );
             })}
           </View>
         );
       })}
+
+      {/* solved reveal - a thin gold line over every filled-to-filled edge,
+          fading in once, echoing an actual star chart. */}
+      {segments.length > 0 && (
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: reveal }]} pointerEvents="none">
+          {segments.map((s, i) => {
+            const thickness = Math.max(2, layout.cell * 0.09);
+            const x1 = layout.rowGutter + s.c1 * layout.cell + layout.cell / 2;
+            const y1 = layout.colGutter + s.r1 * layout.cell + layout.cell / 2;
+            const x2 = layout.rowGutter + s.c2 * layout.cell + layout.cell / 2;
+            const y2 = layout.colGutter + s.r2 * layout.cell + layout.cell / 2;
+            const horizontal = s.r1 === s.r2;
+            return (
+              <View
+                key={i}
+                style={{
+                  position: 'absolute',
+                  left: Math.min(x1, x2) - (horizontal ? 0 : thickness / 2),
+                  top: Math.min(y1, y2) - (horizontal ? thickness / 2 : 0),
+                  width: horizontal ? Math.abs(x2 - x1) : thickness,
+                  height: horizontal ? thickness : Math.abs(y2 - y1),
+                  borderRadius: thickness / 2,
+                  backgroundColor: theme.colors.accent,
+                }}
+              />
+            );
+          })}
+        </Animated.View>
+      )}
     </View>
   );
 }
@@ -148,9 +227,5 @@ const styles = StyleSheet.create({
   },
   cellFlash: {
     backgroundColor: theme.colors.accent,
-  },
-  mark: {
-    color: theme.colors.textTertiary,
-    fontFamily: theme.typography.families.ui,
   },
 });

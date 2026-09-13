@@ -25,8 +25,6 @@ export type { JourneyPoint, WorldLevelSummary, WorldSummary } from './worldProgr
 export {
   getAllWorldSummaries,
   getJourneyPoint,
-  getNextPlayableLevel,
-  getResumePoint,
   getUnlockedWorlds,
   getWorldSummary,
   isLevelUnlocked,
@@ -38,3 +36,5 @@ export type {
   PlayerProgressProviderProps,
 } from './PlayerProgressProvider';
 export { PlayerProgressProvider, usePlayerProgress } from './PlayerProgressProvider';
+export type { Achievement } from './achievements';
+export { ACHIEVEMENTS, getEarnedAchievements } from './achievements';

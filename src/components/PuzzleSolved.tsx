@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, Text, View } from 'react-native';
+import { ConfettiBurst } from './ConfettiBurst';
+import { PressableScale } from './PressableScale';
 import { StarRow } from './StarRow';
-import { theme } from '../theme';
+import { motion, theme } from '../theme';
 
 export interface PuzzleSolvedProps {
   title?: string;
@@ -35,44 +37,51 @@ export function PuzzleSolved({
 }: PuzzleSolvedProps): React.JSX.Element {
   const t = useRef(new Animated.Value(0)).current;
   useEffect(() => {
+    t.setValue(0);
     Animated.timing(t, {
       toValue: 1,
-      duration: 240,
-      easing: Easing.out(Easing.back(1.4)),
+      duration: motion.cardEnter.duration,
+      easing: motion.cardEnter.easing,
       useNativeDriver: true,
     }).start();
   }, [t]);
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
+      <ConfettiBurst />
       <Animated.View
         style={[
           styles.card,
-          { opacity: t, transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [0.88, 1] }) }] },
+          {
+            opacity: t,
+            transform: [
+              { scale: t.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
+            ],
+          },
         ]}
       >
         <Text style={styles.title}>{title}</Text>
-        <StarRow earned={stars} size={30} style={styles.stars} />
+        <StarRow earned={stars} size={30} style={styles.stars} animateIn />
         <Text style={styles.note}>
           {hintsUsed === 0 ? 'No hints used' : `${hintsUsed} hint${hintsUsed > 1 ? 's' : ''} used`}
         </Text>
         <View style={styles.actions}>
-          <Pressable
+          <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Replay puzzle"
             onPress={onReplay}
             style={({ pressed }) => [styles.button, styles.secondary, pressed && styles.pressed]}
           >
             <Text style={styles.secondaryLabel}>Replay</Text>
-          </Pressable>
-          <Pressable
+          </PressableScale>
+          <PressableScale
             accessibilityRole="button"
             accessibilityLabel={hasNext ? 'Next puzzle' : 'Back to home'}
             onPress={hasNext && onNext ? onNext : onDone}
             style={({ pressed }) => [styles.button, styles.primary, pressed && styles.pressed]}
           >
             <Text style={styles.primaryLabel}>{hasNext && onNext ? 'Next ›' : 'Done ›'}</Text>
-          </Pressable>
+          </PressableScale>
         </View>
       </Animated.View>
     </View>
@@ -90,10 +99,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: theme.spacing.xl,
     paddingVertical: theme.spacing.lg,
-    borderRadius: 20,
+    borderRadius: theme.radii.lg,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: theme.colors.borderStrong,
+    borderColor: theme.colors.border,
   },
   title: {
     fontFamily: theme.typography.families.mono,

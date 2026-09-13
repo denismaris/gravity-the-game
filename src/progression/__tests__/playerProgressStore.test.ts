@@ -24,16 +24,17 @@ describe('parseProgress', () => {
     expect(parseProgress(JSON.stringify({ version: 'nope', levels: {} }))).toEqual(emptyProgress());
   });
 
-  test('migrates a v1 record forward, keeping stars and defaulting the cursor and daily streak', () => {
+  test('migrates a v1 record forward, keeping stars and defaulting the cursor, daily streak and best streak', () => {
     const v1 = JSON.stringify({
       version: 1,
       levels: { 'level-001': { completed: true, stars: 3, bestMoves: 1 } },
     });
     const parsed = parseProgress(v1);
-    expect(parsed.version).toBe(3);
+    expect(parsed.version).toBe(4);
     expect(parsed.levels['level-001']).toEqual({ completed: true, stars: 3, bestMoves: 1 });
     expect(parsed.cursor).toBeNull();
     expect(parsed.daily).toEqual({ streak: 0, lastCompletedKey: null });
+    expect(parsed.bestDailyStreak).toBe(0);
   });
 
   test('reads a v2 cursor, and rejects a malformed one', () => {
@@ -57,6 +58,38 @@ describe('parseProgress', () => {
       JSON.stringify({ version: 3, levels: {}, daily: { streak: -1, lastCompletedKey: '2026-01-05' } }),
     );
     expect(bad.daily).toEqual({ streak: 0, lastCompletedKey: null });
+  });
+
+  test('v3 (no bestDailyStreak) backfills it from the live streak', () => {
+    const parsed = parseProgress(
+      JSON.stringify({ version: 3, levels: {}, daily: { streak: 5, lastCompletedKey: '2026-01-05' } }),
+    );
+    expect(parsed.bestDailyStreak).toBe(5);
+  });
+
+  test('reads a real v4 bestDailyStreak, and never lets it read lower than the live streak', () => {
+    const good = parseProgress(
+      JSON.stringify({
+        version: 4,
+        levels: {},
+        daily: { streak: 2, lastCompletedKey: '2026-01-05' },
+        bestDailyStreak: 9,
+      }),
+    );
+    expect(good.bestDailyStreak).toBe(9);
+
+    // A corrupt/stale bestDailyStreak lower than the live streak can't be
+    // right (the live streak proves at least that many days happened) - the
+    // live streak wins.
+    const inconsistent = parseProgress(
+      JSON.stringify({
+        version: 4,
+        levels: {},
+        daily: { streak: 7, lastCompletedKey: '2026-01-05' },
+        bestDailyStreak: 2,
+      }),
+    );
+    expect(inconsistent.bestDailyStreak).toBe(7);
   });
 
   test('drops individual corrupt level entries but keeps valid ones', () => {

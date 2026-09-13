@@ -26,7 +26,7 @@ import {
   recordDaily,
   setCursor as setCursorPure,
 } from './playerProgress';
-import { loadProgress, saveProgress } from './playerProgressStore';
+import { clearProgress, loadProgress, saveProgress } from './playerProgressStore';
 
 /**
  * Outcome of recording a single completion - handed back to the UI so the
@@ -52,6 +52,9 @@ interface PlayerProgressContextValue {
   /** Remember the level the player just opened, so the app can resume here.
    * `worldId` is optional - it is looked up from the level when omitted. */
   markLevelOpened(levelId: string, worldId?: string): void;
+  /** Wipes every star and completion, in memory and on disk. Irreversible -
+   * the Settings screen is expected to confirm with the player first. */
+  resetProgress(): void;
   levelResult(levelId: string): LevelResult | undefined;
   levelStars(levelId: string): 0 | StarRating;
   isCompleted(levelId: string): boolean;
@@ -74,6 +77,10 @@ const PlayerProgressContext = createContext<PlayerProgressContextValue | null>(n
  * up by one before it reaches `computeStars`.
  */
 const HINT_STAR_THRESHOLDS: StarThresholds = { three: 1, two: 2 };
+
+/** A pure `PlayerProgress` update, replayable in order once the real loaded
+ * data is available - see the `pendingRef` note in the provider below. */
+type ProgressMutation = (progress: PlayerProgress) => PlayerProgress;
 
 export interface PlayerProgressProviderProps {
   children: React.ReactNode;
@@ -100,17 +107,59 @@ export function PlayerProgressProvider({
   const progressRef = useRef(progress);
   progressRef.current = progress;
 
+  // `ready` (state) drives the public API; this ref mirrors it so
+  // `applyMutation` can make a synchronous decision without waiting on a
+  // re-render (the same reason `progressRef` mirrors `progress`).
+  const readyRef = useRef(false);
+  // Mutations applied before the initial `loadProgress()` resolves. A write
+  // that happens in that window can't be saved yet - `progressRef.current`
+  // is still `emptyProgress()`, so saving now would overwrite whatever is
+  // actually on disk with a write based on an empty base, and letting the
+  // load's own resolution simply overwrite `progress` afterwards would
+  // instead silently discard the write in memory. Replaying every pending
+  // mutation on top of the real loaded data once it arrives (below) avoids
+  // both: a fast tap right after a cold launch, before storage has finished
+  // reading, can neither be lost nor wipe real progress already on disk.
+  const pendingRef = useRef<ProgressMutation[]>([]);
+
   useEffect(() => {
     let cancelled = false;
     loadProgress(backendRef.current).then(loaded => {
       if (cancelled) return;
-      progressRef.current = loaded;
-      setProgress(loaded);
+
+      const pending = pendingRef.current;
+      pendingRef.current = [];
+      readyRef.current = true;
+
+      const resolved = pending.reduce((p, mutate) => mutate(p), loaded);
+      progressRef.current = resolved;
+      setProgress(resolved);
       setReady(true);
+      if (pending.length > 0) saveProgress(backendRef.current, resolved);
     });
     return () => {
       cancelled = true;
     };
+  }, []);
+
+  // Applies a pure mutation to the current progress, updates in-memory state
+  // immediately either way, and persists it - or, before the initial load
+  // has resolved, defers persisting and queues the same mutation to replay
+  // once it does (see `pendingRef`). Shared by every mutating action so
+  // there is exactly one place that has to get this race right.
+  const applyMutation = useCallback((mutate: ProgressMutation): PlayerProgress => {
+    const current = progressRef.current;
+    const next = mutate(current);
+    if (next === current) return current;
+
+    progressRef.current = next;
+    setProgress(next);
+    if (readyRef.current) {
+      saveProgress(backendRef.current, next);
+    } else {
+      pendingRef.current.push(mutate);
+    }
+    return next;
   }, []);
 
   const recordCompletion = useCallback((levelId: string, moves: number): CompletionOutcome => {
@@ -124,22 +173,18 @@ export function PlayerProgressProvider({
     // 0 hints scores as tier 1 against `HINT_STAR_THRESHOLDS`, 1 hint as
     // tier 2, and so on. Gravity's own `moves` is untouched.
     const scored = level ? moves : moves + 1;
+    const isDaily = levelId === getDailyEntry().puzzleId;
+    const todayKey = dailyKeyOf(new Date());
 
-    let next = recordCompletionPure(progressRef.current, levelId, scored, thresholds);
-
-    // Any completion - Gravity, Constellation or Trajectory alike - also
-    // extends the Daily streak when it happens to be today's Daily entry.
-    // No screen needs to know it opened the Daily card for this to work:
-    // every completion already funnels through here by puzzle id.
-    if (levelId === getDailyEntry().puzzleId) {
-      next = recordDaily(next, dailyKeyOf(new Date()));
-    }
-
-    progressRef.current = next;
-    setProgress(next);
-    // Fire-and-forget: `saveProgress` never rejects, and in-memory state is
-    // the source of truth for the rest of this session regardless.
-    saveProgress(backendRef.current, next);
+    const next = applyMutation(current => {
+      let result = recordCompletionPure(current, levelId, scored, thresholds);
+      // Any completion - Gravity, Constellation or Trajectory alike - also
+      // extends the Daily streak when it happens to be today's Daily entry.
+      // No screen needs to know it opened the Daily card for this to work:
+      // every completion already funnels through here by puzzle id.
+      if (isDaily) result = recordDaily(result, todayKey);
+      return result;
+    });
 
     return {
       runStars: computeStars(scored, thresholds),
@@ -148,18 +193,26 @@ export function PlayerProgressProvider({
       runMoves: moves,
       best: getLevelResult(next, levelId)!,
     };
-  }, []);
+  }, [applyMutation]);
 
   const markLevelOpened = useCallback((levelId: string, worldId?: string): void => {
     const resolvedWorldId = worldId ?? getWorldForLevel(levelId)?.id;
     if (!resolvedWorldId) return;
 
-    const next = setCursorPure(progressRef.current, resolvedWorldId, levelId);
-    if (next === progressRef.current) return; // cursor unchanged
+    applyMutation(current => setCursorPure(current, resolvedWorldId, levelId));
+  }, [applyMutation]);
 
-    progressRef.current = next;
-    setProgress(next);
-    saveProgress(backendRef.current, next);
+  // Bypasses `applyMutation`'s replay queue on purpose: a reset is only ever
+  // triggered from Settings, well after the initial load has resolved (the
+  // screen couldn't render the current progress to reset otherwise), and it
+  // should win outright rather than be treated as one more mutation to
+  // reconcile with whatever `loadProgress` returns.
+  const resetProgress = useCallback((): void => {
+    const fresh = emptyProgress();
+    progressRef.current = fresh;
+    pendingRef.current = [];
+    setProgress(fresh);
+    clearProgress(backendRef.current);
   }, []);
 
   const value = useMemo<PlayerProgressContextValue>(
@@ -168,6 +221,7 @@ export function PlayerProgressProvider({
       ready,
       recordCompletion,
       markLevelOpened,
+      resetProgress,
       levelResult: (levelId: string) => getLevelResult(progress, levelId),
       levelStars: (levelId: string) => getLevelStars(progress, levelId),
       isCompleted: (levelId: string) => isLevelCompleted(progress, levelId),
@@ -175,7 +229,7 @@ export function PlayerProgressProvider({
       dailyStreak: getDisplayDailyStreak(progress, dailyKeyOf(new Date())),
       dailyCompletedToday: isDailyCompleted(progress, dailyKeyOf(new Date())),
     }),
-    [progress, ready, recordCompletion, markLevelOpened],
+    [progress, ready, recordCompletion, markLevelOpened, resetProgress],
   );
 
   return (

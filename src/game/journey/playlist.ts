@@ -1,18 +1,31 @@
 import { LEVELS } from '../levels';
 import { CONSTELLATIONS } from '../constellation';
 import { TRAJECTORIES } from '../trajectory';
+import { SUDOKUS } from '../sudoku';
+import { MIRROR_MAZES } from '../mirror';
+import { TENTS_TREES } from '../tents';
+import { TOWERS } from '../towers';
+import { BINAIRO } from '../binairo';
 import { getWorldForLevel } from '../worlds';
 
 /**
- * The Journey is one interleaved sequence across all three games. It is
- * dealt out in a fixed rotation - gravity, then constellation, then
- * trajectory - taking the next unused puzzle of that game each time, and it
- * never places two puzzles of the same game back to back while more than
+ * The Journey is one interleaved sequence across every game (see
+ * `ROTATION` for the current lineup and order). It is dealt out in that
+ * fixed rotation, taking the next unused puzzle of that game each time, and
+ * it never places two puzzles of the same game back to back while more than
  * one game still has puzzles left. When the shorter pools run dry the rest
  * of the journey is whatever remains (in practice: the tail of the gravity
- * pack).
+ * pack, by far the largest pool).
  */
-export type GameKind = 'gravity' | 'constellation' | 'trajectory';
+export type GameKind =
+  | 'gravity'
+  | 'constellation'
+  | 'trajectory'
+  | 'sudoku'
+  | 'mirror'
+  | 'tents'
+  | 'towers'
+  | 'binairo';
 
 export interface JourneyEntry {
   /** 1-based position in the whole journey. */
@@ -25,7 +38,16 @@ export interface JourneyEntry {
   readonly chapter: string;
 }
 
-const ROTATION: ReadonlyArray<GameKind> = ['gravity', 'constellation', 'trajectory'];
+export const ROTATION: ReadonlyArray<GameKind> = [
+  'gravity',
+  'constellation',
+  'trajectory',
+  'sudoku',
+  'mirror',
+  'tents',
+  'towers',
+  'binairo',
+];
 
 interface PoolItem {
   readonly puzzleId: string;
@@ -54,7 +76,37 @@ function buildPools(): Record<GameKind, PoolItem[]> {
     chapter: 'Trajectory',
   }));
 
-  return { gravity, constellation, trajectory };
+  const sudoku: PoolItem[] = SUDOKUS.map(puzzle => ({
+    puzzleId: puzzle.id,
+    name: puzzle.name ?? puzzle.id,
+    chapter: 'Sudoku',
+  }));
+
+  const mirror: PoolItem[] = MIRROR_MAZES.map(puzzle => ({
+    puzzleId: puzzle.id,
+    name: puzzle.name ?? puzzle.id,
+    chapter: 'Mirror Maze',
+  }));
+
+  const tents: PoolItem[] = TENTS_TREES.map(puzzle => ({
+    puzzleId: puzzle.id,
+    name: puzzle.name ?? puzzle.id,
+    chapter: 'Tents and Trees',
+  }));
+
+  const towers: PoolItem[] = TOWERS.map(puzzle => ({
+    puzzleId: puzzle.id,
+    name: puzzle.name ?? puzzle.id,
+    chapter: 'Skyscrapers',
+  }));
+
+  const binairo: PoolItem[] = BINAIRO.map(puzzle => ({
+    puzzleId: puzzle.id,
+    name: puzzle.name ?? puzzle.id,
+    chapter: 'Binairo',
+  }));
+
+  return { gravity, constellation, trajectory, sudoku, mirror, tents, towers, binairo };
 }
 
 export function buildJourney(): JourneyEntry[] {

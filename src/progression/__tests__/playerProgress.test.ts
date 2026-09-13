@@ -157,4 +157,30 @@ describe('the Daily streak', () => {
       expect(p.daily.streak).toBe(1);
     });
   });
+
+  describe('bestDailyStreak', () => {
+    test('starts at zero and rises with the live streak', () => {
+      let p = emptyProgress();
+      expect(p.bestDailyStreak).toBe(0);
+      p = recordDaily(p, DAY1);
+      p = recordDaily(p, DAY2);
+      p = recordDaily(p, DAY3);
+      expect(p.bestDailyStreak).toBe(3);
+    });
+
+    test('survives a missed day that resets the live streak', () => {
+      let p = recordDaily(emptyProgress(), DAY1);
+      p = recordDaily(p, DAY2);
+      p = recordDaily(p, DAY3); // live streak 3, best 3
+      p = recordDaily(p, NEXT_WEEK); // missed days in between - live streak resets to 1
+      expect(p.daily.streak).toBe(1);
+      expect(p.bestDailyStreak).toBe(3); // the achievement-relevant number never drops
+    });
+
+    test('replaying the same day again does not touch it', () => {
+      let p = recordDaily(emptyProgress(), DAY1);
+      p = recordDaily(p, DAY1);
+      expect(p.bestDailyStreak).toBe(1);
+    });
+  });
 });

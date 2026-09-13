@@ -2,12 +2,15 @@ import { TrajectoryCell, TrajectoryPuzzle } from './types';
 
 /**
  * Builds a puzzle from a character grid: digits `1`-`9` are endpoint pairs
- * (each digit must appear exactly twice), `.` is an open cell.
+ * (each digit must appear exactly twice), `#` is a permanently blocked cell
+ * (same convention as Gravity's obstacles and Constellation's fill), `.` is
+ * an open cell.
  */
 function fromGrid(id: string, name: string, art: string[]): TrajectoryPuzzle {
   const rows = art.length;
   const cols = art[0].length;
   const found = new Map<number, TrajectoryCell[]>();
+  const blocked: TrajectoryCell[] = [];
 
   art.forEach((line, r) => {
     Array.from(line).forEach((ch, c) => {
@@ -16,6 +19,8 @@ function fromGrid(id: string, name: string, art: string[]): TrajectoryPuzzle {
         const list = found.get(color) ?? [];
         list.push({ row: r, col: c });
         found.set(color, list);
+      } else if (ch === '#') {
+        blocked.push({ row: r, col: c });
       }
     });
   });
@@ -29,7 +34,7 @@ function fromGrid(id: string, name: string, art: string[]): TrajectoryPuzzle {
       return { color, a: cells[0], b: cells[1] };
     });
 
-  return { id, name, rows, cols, pairs };
+  return { id, name, rows, cols, pairs, ...(blocked.length > 0 && { blocked }) };
 }
 
 /** Hand-authored Trajectory (flow) puzzles, verified solvable in tests. */
@@ -92,6 +97,32 @@ export const TRAJECTORIES: ReadonlyArray<TrajectoryPuzzle> = [
     '.34....',
     '.54....',
     '......5',
+  ]),
+  // 009-011 introduce blocked cells (`#`) - a hole in the board a path must
+  // route around instead of just filling.
+  fromGrid('traj-009', 'Roadblock', [
+    '1....',
+    '.21..',
+    '.....',
+    '...32',
+    '...3#',
+  ]),
+  fromGrid('traj-010', 'Dead End', [
+    '1.....',
+    '1.....',
+    '2.....',
+    '2.....',
+    '3.....',
+    '##3...',
+  ]),
+  fromGrid('traj-011', 'Detour', [
+    '1......',
+    '.2.....',
+    '.1.....',
+    '...3..4',
+    '...2..#',
+    '......#',
+    '....34#',
   ]),
 ];
 

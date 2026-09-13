@@ -5,7 +5,9 @@ import { BoardLayout, computeBoardLayout, getCellCenter, getCellOrigin } from '.
 import {
   AnchoredPiece,
   CellBackground,
+  DestroyedPieceMark,
   GravityZoneOverlay,
+  HazardMarker,
   MovablePiece,
   ObstacleBlock,
   PortalMark,
@@ -44,6 +46,7 @@ interface StaticGridLayerProps {
   portalOuterRadius: number;
   portalInnerRadius: number;
   portalStrokeWidth: number;
+  hazardSize: number;
 }
 
 /**
@@ -70,6 +73,7 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
   portalOuterRadius,
   portalInnerRadius,
   portalStrokeWidth,
+  hazardSize,
 }: StaticGridLayerProps) {
   return (
     <Group>
@@ -132,6 +136,15 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
                   strokeWidth={targetStrokeWidth}
                 />
               )}
+              {cellType === StaticCellType.Hazard && (
+                <HazardMarker
+                  cx={center.x}
+                  cy={center.y}
+                  size={hazardSize}
+                  color={theme.colors.danger}
+                  markColor={theme.colors.surface}
+                />
+              )}
             </Group>
           );
         }),
@@ -168,12 +181,14 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
  *
  * Two layers are drawn:
  *   1. The static grid (cell backgrounds, gravity-zone overlay, obstacles,
- *      targets, portal endpoints) - memoized, never re-drawn just because a
- *      piece is mid-slide.
+ *      targets, hazards, portal endpoints) - memoized, never re-drawn just
+ *      because a piece is mid-slide.
  *   2. The objects, positioned from `state.movables`: normal pieces (filled
- *      circle, blue, or green on target) and anchored pieces (a muted,
- *      ringed core that reads as "pinned in place"). Only this layer changes
- *      during a slide; anchored pieces never move.
+ *      circle, blue, or green on target), anchored pieces (a muted, ringed
+ *      core that reads as "pinned in place"), and destroyed pieces (a
+ *      danger-coloured core with a cut-out X, drawn wherever a hazard
+ *      claimed them). Only this layer changes during a slide; anchored and
+ *      destroyed pieces never move.
  */
 export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = EMPTY_IDS }: BoardViewProps) {
   const layout = useMemo(() => computeBoardLayout(state.cols, size), [state.cols, size]);
@@ -192,6 +207,7 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
   const portalOuterRadius = layout.cellSize * 0.34;
   const portalInnerRadius = layout.cellSize * 0.19;
   const portalStrokeWidth = Math.max(2, layout.cellSize * 0.055);
+  const hazardSize = layout.cellSize * 0.32;
 
   return (
     <Group>
@@ -209,6 +225,7 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
         portalOuterRadius={portalOuterRadius}
         portalInnerRadius={portalInnerRadius}
         portalStrokeWidth={portalStrokeWidth}
+        hazardSize={hazardSize}
       />
 
       {state.movables.map(movable => {
@@ -224,6 +241,19 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
               ringRadius={anchoredRingRadius}
               strokeWidth={anchoredStrokeWidth}
               color={theme.colors.textSecondary}
+            />
+          );
+        }
+
+        if (movable.destroyed) {
+          return (
+            <DestroyedPieceMark
+              key={movable.id}
+              cx={center.x}
+              cy={center.y}
+              radius={movableRadius}
+              color={theme.colors.danger}
+              markColor={theme.colors.surface}
             />
           );
         }

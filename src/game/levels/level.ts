@@ -100,6 +100,16 @@ export interface LevelDefinition {
    * blocker).
    */
   readonly zone?: LevelZone;
+  /**
+   * Positions of hazard cells: stepping onto one destroys the object that
+   * does, instantly failing the puzzle (see `isPuzzleFailed`). Optional - a
+   * level without this field has no hazards and behaves exactly as before.
+   * Unlike an obstacle a hazard never blocks entry, so it never shares a
+   * cell with anything an object could otherwise reach or rest on: not an
+   * object's start, a target, an obstacle, an anchor, another hazard, or a
+   * portal endpoint (all rejected by `assertValidLevel`).
+   */
+  readonly hazards?: ReadonlyArray<GridPosition>;
   readonly difficulty: Difficulty;
   readonly metadata?: LevelMetadata;
 }
@@ -146,12 +156,14 @@ export function assertValidLevel(level: LevelDefinition): void {
 
   const anchors = level.anchors ?? [];
   const portals = level.portals ?? [];
+  const hazards = level.hazards ?? [];
 
   level.objects.forEach(position => checkBounds('object', position));
   level.targets.forEach(position => checkBounds('target', position));
   level.obstacles.forEach(position => checkBounds('obstacle', position));
   anchors.forEach(position => checkBounds('anchor', position));
   portals.forEach(pair => pair.forEach(position => checkBounds('portal endpoint', position)));
+  hazards.forEach(position => checkBounds('hazard', position));
 
   const objectKeys = new Set(level.objects.map(keyOf));
   if (objectKeys.size !== level.objects.length) {
@@ -171,6 +183,11 @@ export function assertValidLevel(level: LevelDefinition): void {
   const anchorKeys = new Set(anchors.map(keyOf));
   if (anchorKeys.size !== anchors.length) {
     throw new Error(`Level ${level.id}: two anchored objects overlap each other.`);
+  }
+
+  const hazardKeys = new Set(hazards.map(keyOf));
+  if (hazardKeys.size !== hazards.length) {
+    throw new Error(`Level ${level.id}: two hazards overlap each other.`);
   }
 
   for (const key of obstacleKeys) {
@@ -194,6 +211,26 @@ export function assertValidLevel(level: LevelDefinition): void {
     }
     if (obstacleKeys.has(key)) {
       throw new Error(`Level ${level.id}: an anchored object overlaps an obstacle at (${key}).`);
+    }
+  }
+
+  // A hazard is lethal the instant an object reaches it, so - unlike an
+  // obstacle - it must never share a cell with anything an object could
+  // otherwise legitimately occupy: an object could never start already dead,
+  // a target could never be safely covered, and an obstacle/anchor there
+  // would be redundant (nothing could ever reach the hazard anyway).
+  for (const key of hazardKeys) {
+    if (objectKeys.has(key)) {
+      throw new Error(`Level ${level.id}: a hazard overlaps an object's start position at (${key}) - it would start destroyed.`);
+    }
+    if (targetKeys.has(key)) {
+      throw new Error(`Level ${level.id}: a hazard overlaps a target at (${key}) - it could never be safely covered.`);
+    }
+    if (obstacleKeys.has(key)) {
+      throw new Error(`Level ${level.id}: a hazard overlaps an obstacle at (${key}).`);
+    }
+    if (anchorKeys.has(key)) {
+      throw new Error(`Level ${level.id}: a hazard overlaps an anchored object at (${key}).`);
     }
   }
 
@@ -224,6 +261,9 @@ export function assertValidLevel(level: LevelDefinition): void {
       }
       if (anchorKeys.has(key)) {
         throw new Error(`Level ${level.id}: a portal endpoint overlaps an anchored object at (${key}).`);
+      }
+      if (hazardKeys.has(key)) {
+        throw new Error(`Level ${level.id}: a portal endpoint overlaps a hazard at (${key}).`);
       }
     }
   }
@@ -288,6 +328,9 @@ export function createGameStateFromLevel(level: LevelDefinition): GameState {
   }
   for (const { row, col } of level.obstacles) {
     staticGrid[row][col] = StaticCellType.Obstacle;
+  }
+  for (const { row, col } of level.hazards ?? []) {
+    staticGrid[row][col] = StaticCellType.Hazard;
   }
 
   const movables: MovableObject[] = [

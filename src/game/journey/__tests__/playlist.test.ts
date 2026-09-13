@@ -1,12 +1,24 @@
-import { JOURNEY, buildJourney, getNextJourneyEntry, journeyEntryOf, nextEntryOfKind } from '..';
+import { JOURNEY, ROTATION, buildJourney, getNextJourneyEntry, journeyEntryOf, nextEntryOfKind } from '..';
 import { LEVELS } from '../../levels';
 import { CONSTELLATIONS } from '../../constellation';
 import { TRAJECTORIES } from '../../trajectory';
+import { SUDOKUS } from '../../sudoku';
+import { MIRROR_MAZES } from '../../mirror';
+import { TENTS_TREES } from '../../tents';
+import { TOWERS } from '../../towers';
+import { BINAIRO } from '../../binairo';
 
 describe('the interleaved Journey', () => {
-  test('holds every puzzle from all three games, exactly once', () => {
+  test('holds every puzzle from every game, exactly once', () => {
     expect(JOURNEY).toHaveLength(
-      LEVELS.length + CONSTELLATIONS.length + TRAJECTORIES.length,
+      LEVELS.length +
+        CONSTELLATIONS.length +
+        TRAJECTORIES.length +
+        SUDOKUS.length +
+        MIRROR_MAZES.length +
+        TENTS_TREES.length +
+        TOWERS.length +
+        BINAIRO.length,
     );
     const ids = JOURNEY.map(e => e.puzzleId);
     expect(new Set(ids).size).toBe(ids.length);
@@ -15,6 +27,11 @@ describe('the interleaved Journey', () => {
     expect(count('gravity')).toBe(LEVELS.length);
     expect(count('constellation')).toBe(CONSTELLATIONS.length);
     expect(count('trajectory')).toBe(TRAJECTORIES.length);
+    expect(count('sudoku')).toBe(SUDOKUS.length);
+    expect(count('mirror')).toBe(MIRROR_MAZES.length);
+    expect(count('tents')).toBe(TENTS_TREES.length);
+    expect(count('towers')).toBe(TOWERS.length);
+    expect(count('binairo')).toBe(BINAIRO.length);
   });
 
   test('positions are 1..N with no gaps', () => {
@@ -23,25 +40,21 @@ describe('the interleaved Journey', () => {
     );
   });
 
-  test('opens 1-1-1: gravity, constellation, trajectory, repeating', () => {
-    expect(JOURNEY.slice(0, 6).map(e => e.kind)).toEqual([
-      'gravity',
-      'constellation',
-      'trajectory',
-      'gravity',
-      'constellation',
-      'trajectory',
-    ]);
+  test('opens with one full rotation, then repeats it', () => {
+    expect(JOURNEY.slice(0, ROTATION.length * 2).map(e => e.kind)).toEqual([...ROTATION, ...ROTATION]);
   });
 
   test('never repeats a game back-to-back while more than one game has puzzles left', () => {
-    // trajectory is the shortest pool; while it still has entries there are
-    // >= 2 games in play, so no adjacent pair may share a kind.
-    const lastTrajectory = Math.max(
-      ...JOURNEY.filter(e => e.kind === 'trajectory').map(e => e.position),
-    );
+    // Whichever pool is shortest runs out first; up to (and including) the
+    // position it runs out at, every pool is still in play, so no adjacent
+    // pair may share a kind. Computed rather than naming a pool directly,
+    // so this keeps holding however the pools grow.
+    const lastPositionOfKind = new Map<string, number>();
+    for (const entry of JOURNEY) lastPositionOfKind.set(entry.kind, entry.position);
+    const cutover = Math.min(...lastPositionOfKind.values());
+
     for (let i = 1; i < JOURNEY.length; i += 1) {
-      if (JOURNEY[i].position <= lastTrajectory) {
+      if (JOURNEY[i].position <= cutover) {
         expect(JOURNEY[i].kind).not.toBe(JOURNEY[i - 1].kind);
       }
     }

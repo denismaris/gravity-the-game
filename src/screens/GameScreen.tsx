@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BoardView, triggerHaptic, useAnimatedMovables } from '../game/rendering';
+import { BoardView, triggerFeedback, useAnimatedMovables } from '../game/rendering';
 import {
   canUndo,
   createGameSession,
@@ -10,13 +10,23 @@ import {
   gameSessionReducer,
   getCurrentState,
   gravityChangesState,
+  isPuzzleFailed,
   isPuzzleSolved,
   StaticCellType,
 } from '../game/engine';
 import { createGameStateFromLevel, getStarThresholds, LevelDefinition } from '../game/levels';
-import { LevelCompleteCard, SessionControls, useSwipeGesture } from '../components';
+import {
+  LevelCompleteCard,
+  LevelFailedCard,
+  PressableScale,
+  SessionControls,
+  TutorialOverlay,
+  useSwipeGesture,
+} from '../components';
 import { GameKind, getNextJourneyEntry } from '../game/journey';
+import { copyForTutorial, mechanicsOf, pickTutorial, tutorialIdForGame, tutorialIdForMechanic } from '../game/tutorials';
 import { CompletionOutcome, getLevelResult, usePlayerProgress } from '../progression';
+import { useSettings } from '../settings';
 import { theme } from '../theme';
 
 /** Approximate height reserved below the board for the header text above it
@@ -85,6 +95,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
 
   const gameState = getCurrentState(session);
   const solved = isPuzzleSolved(gameState);
+  const failed = isPuzzleFailed(gameState);
 
   // Gravity moves made in the current attempt. Each successful gravity push
   // adds one history entry (no-ops don't); undo pops one; restart resets to
@@ -93,6 +104,28 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   const moveCount = session.history.length - 1;
 
   const { progress, recordCompletion, markLevelOpened } = usePlayerProgress();
+  const { settings, ready: settingsReady, markTutorialSeen } = useSettings();
+
+  // Which one-time "how this works" overlay (if any) this level should
+  // offer: the game intro on a player's very first Gravity puzzle, or the
+  // first not-yet-seen mechanic this level actually uses (see `mechanicsOf`
+  // - it lists them in teaching order, so only the most foundational unseen
+  // one shows even if a level combines several). In practice a level's
+  // existing unlock requirements mean a player has always already met every
+  // earlier mechanic by the time they reach a later one, so this rarely (if
+  // ever) has more than one real candidate at a time.
+  const tutorialCandidates = useMemo(
+    () => [tutorialIdForGame('gravity'), ...mechanicsOf(level).map(tutorialIdForMechanic)],
+    [level],
+  );
+  const [tutorialToShow, setTutorialToShow] = useState<ReturnType<typeof pickTutorial>>(null);
+  useEffect(() => {
+    if (settingsReady) setTutorialToShow(pickTutorial(settings.seenTutorials, tutorialCandidates));
+  }, [settingsReady, settings.seenTutorials, tutorialCandidates]);
+  const dismissTutorial = useCallback(() => {
+    if (tutorialToShow) markTutorialSeen(tutorialToShow);
+    setTutorialToShow(null);
+  }, [tutorialToShow, markTutorialSeen]);
 
   // Par (the optimal / 3-star move count) shown up front, plus the player's
   // best so far - reframes each level as a target to beat rather than an
@@ -173,7 +206,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     if (solved) {
       if (!previousSolvedRef.current) {
         previousSolvedRef.current = true;
-        triggerHaptic('solved');
+        triggerFeedback('solved');
         // Record the solve exactly once per settled win. Replays re-enter
         // here after `restart` flips `solved` back to false and clears the
         // guard, so a better replay still updates the persisted best.
@@ -182,9 +215,38 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     } else {
       previousSolvedRef.current = false;
       if (outcome !== null) setOutcome(null);
-      if (gainedTarget) triggerHaptic('targetReached');
+      if (gainedTarget) triggerFeedback('targetReached');
     }
   }, [onTargetIds, solved, isAnimating, moveCount, level.id, recordCompletion, outcome]);
+
+  // A single, unmistakable buzz the instant a hazard destroys a piece -
+  // separate from the win/progress effect above since it's the one outcome
+  // that isn't a flavour of "things are going fine". Gated on `!isAnimating`
+  // for the same reason as the win haptic: it should land with the piece
+  // visibly reaching the hazard, not the moment the logical move commits.
+  // The same moment also kicks the board with a quick shake - the one
+  // outcome that's allowed to visibly rattle the board, not just overlay a
+  // card on top of it.
+  const previousFailedRef = useRef(false);
+  const shake = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (isAnimating) return;
+
+    if (failed) {
+      if (!previousFailedRef.current) {
+        previousFailedRef.current = true;
+        triggerFeedback('failed');
+        shake.setValue(0);
+        Animated.sequence(
+          [1, -1, 0.6, -0.6, 0.3, 0].map(to =>
+            Animated.timing(shake, { toValue: to, duration: 45, useNativeDriver: true }),
+          ),
+        ).start();
+      }
+    } else {
+      previousFailedRef.current = false;
+    }
+  }, [failed, isAnimating, shake]);
 
   const handleDirection = useCallback((direction: Direction) => {
     // Ignore new gravity input while a move is already committed or still
@@ -199,7 +261,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
 
     movePendingRef.current = true;
     lastActionRef.current = 'gravity';
-    triggerHaptic('gravityChange');
+    triggerFeedback('gravityChange');
     dispatch({ type: 'gravity', direction });
   }, []);
 
@@ -234,7 +296,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   return (
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
-        <Pressable
+        <PressableScale
           accessibilityRole="button"
           accessibilityLabel="Back to home"
           onPress={onExit}
@@ -242,7 +304,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           style={styles.backButton}
         >
           <Text style={styles.backButtonLabel}>{'‹ Home'}</Text>
-        </Pressable>
+        </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.levelName} numberOfLines={1}>
             {level.name}
@@ -255,8 +317,17 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
         <View style={styles.backButtonSpacer} />
       </View>
 
-      <View
-        style={[styles.board, { width: boardSize, height: boardSize }]}
+      <Animated.View
+        style={[
+          styles.board,
+          {
+            width: boardSize,
+            height: boardSize,
+            transform: [
+              { translateX: shake.interpolate({ inputRange: [-1, 1], outputRange: [-10, 10] }) },
+            ],
+          },
+        ]}
         {...swipeHandlers}
       >
         <Canvas style={styles.canvas}>
@@ -279,15 +350,26 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
             onExit={onExit}
           />
         )}
-      </View>
+        {failed && !isAnimating && <LevelFailedCard onRetry={handleRestart} onExit={onExit} />}
+      </Animated.View>
 
       <View style={styles.sessionControls}>
         <SessionControls
           onUndo={handleUndo}
           onRestart={handleRestart}
-          undoDisabled={!canUndo(session)}
+          // Once a hazard has claimed a piece, Undo is off the table - the
+          // failure has to mean something, and `LevelFailedCard` frames
+          // Retry/Exit as the only ways out. Undoing a *solve* stays
+          // allowed (see the recordCompletion effect above): that's a
+          // deliberate "try for a better run" path, not an escape from a
+          // stated loss condition.
+          undoDisabled={!canUndo(session) || failed}
         />
       </View>
+
+      {tutorialToShow && (
+        <TutorialOverlay copy={copyForTutorial(tutorialToShow)} onDismiss={dismissTutorial} />
+      )}
     </View>
   );
 }
@@ -335,7 +417,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.micro,
     letterSpacing: 1,
-    color: theme.colors.textTertiary,
+    color: theme.colors.secondary,
     marginTop: 2,
   },
   board: {

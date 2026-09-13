@@ -1,5 +1,6 @@
 import React from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { PressableScale } from './PressableScale';
 import { theme } from '../theme';
 
 export interface SessionControlsProps {
@@ -44,11 +45,12 @@ interface SessionButtonProps {
 
 function SessionButton({ label, onPress, disabled = false }: SessionButtonProps) {
   return (
-    <Pressable
+    <PressableScale
       accessibilityRole="button"
       accessibilityLabel={label}
       accessibilityState={{ disabled }}
       onPress={disabled ? undefined : onPress}
+      disabled={disabled}
       hitSlop={8}
       style={({ pressed }) => [
         styles.button,
@@ -57,7 +59,7 @@ function SessionButton({ label, onPress, disabled = false }: SessionButtonProps)
       ]}
     >
       <Text style={[styles.buttonLabel, disabled && styles.buttonLabelDisabled]}>{label}</Text>
-    </Pressable>
+    </PressableScale>
   );
 }
 

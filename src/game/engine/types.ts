@@ -21,6 +21,11 @@ export enum StaticCellType {
   Empty = 'empty',
   Target = 'target',
   Obstacle = 'obstacle',
+  /** A lethal cell. Unlike an obstacle it never blocks entry - an object
+   * slides freely onto it and is destroyed the instant it does (see
+   * `applyGravity`). One destroyed object means the puzzle can never be
+   * solved (see `isPuzzleFailed`). */
+  Hazard = 'hazard',
 }
 
 /**
@@ -47,6 +52,14 @@ export interface MovableObject {
    * object, which behaves exactly as it always has.
    */
   readonly anchored?: boolean;
+  /**
+   * Set the instant this object slides onto a `Hazard` cell (see
+   * `applyGravity`). A destroyed object stops there permanently - like an
+   * anchor, it is excluded from future sliding and never counts toward a
+   * target - so the puzzle can never be solved again this attempt (see
+   * `isPuzzleFailed`). Absent/false means a normal, living object.
+   */
+  readonly destroyed?: boolean;
 }
 
 /** One cell on the board. */

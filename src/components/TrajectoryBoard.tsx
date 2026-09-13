@@ -36,8 +36,9 @@ export interface TrajectoryBoardProps {
 
 /**
  * A flow board drawn with plain views. Endpoints are filled discs; a drawn
- * path is a chain of rounded bars in its colour. Dragging from an endpoint
- * begins its path; dragging over adjacent cells extends it.
+ * path is a chain of rounded bars in its colour; a blocked cell (if the
+ * puzzle has any) is a solid square no path may ever enter. Dragging from
+ * an endpoint begins its path; dragging over adjacent cells extends it.
  */
 export function TrajectoryBoard({
   puzzle,
@@ -138,6 +139,28 @@ export function TrajectoryBoard({
           />
         )),
       )}
+
+      {/* blocked cells - permanently off-limits, drawn the same dark filled
+          square as a Gravity obstacle so "solid, can't go there" reads the
+          same language across every game. */}
+      {(puzzle.blocked ?? []).map(b => {
+        const inset = cell * 0.14;
+        return (
+          <View
+            key={`b-${b.row}-${b.col}`}
+            pointerEvents="none"
+            style={{
+              position: 'absolute',
+              left: b.col * cell + inset,
+              top: b.row * cell + inset,
+              width: cell - inset * 2,
+              height: cell - inset * 2,
+              borderRadius: cell * 0.08,
+              backgroundColor: theme.colors.textSecondary,
+            }}
+          />
+        );
+      })}
 
       {/* paths - a pair still being drawn renders as a thin, translucent
           sketch; the moment it correctly joins both endpoints it thickens

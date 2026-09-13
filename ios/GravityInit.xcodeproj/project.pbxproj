@@ -7,22 +7,49 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		0B412B3721CBFD813FA426DA /* sfx_target.wav in Resources */ = {isa = PBXBuildFile; fileRef = 004E61D0AED9BE6563C58D22 /* sfx_target.wav */; };
 		0C80B921A6F3F58F76C31292 /* libPods-GravityInit.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-GravityInit.a */; };
+		139D034796C454514FD4461C /* sfx_move.wav in Resources */ = {isa = PBXBuildFile; fileRef = 82C8FD3C1722BA279244080C /* sfx_move.wav */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
+		185A9A8EA8F7DCD06461B506 /* sfx_towers_place.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3B6A68F0B4555DC11A36A5E2 /* sfx_towers_place.wav */; };
+		33C63563EF50ABAC3B3057C4 /* sfx_tap.wav in Resources */ = {isa = PBXBuildFile; fileRef = A6771E312736404BD2FD70EE /* sfx_tap.wav */; };
+		3B9DFF08DD9B530E577575F3 /* sfx_mirror_place.wav in Resources */ = {isa = PBXBuildFile; fileRef = 81B6A7CD078CA1E09335C233 /* sfx_mirror_place.wav */; };
+		5C4826ED02A3F535DAFFA2CF /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
+		61A6BA45885343E196301354 /* sfx_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = BFAAE301FFA1BC61BD53DC70 /* sfx_solve.wav */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
+		766697C60B96947080FF03C7 /* sfx_mirror_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = 369F0C92F8C5839051C7486F /* sfx_mirror_solve.wav */; };
+		796B970C79EBD518885D9957 /* sfx_towers_row_complete.wav in Resources */ = {isa = PBXBuildFile; fileRef = 18785872A2254CCABF8FF6E3 /* sfx_towers_row_complete.wav */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
+		8DA680DF67209FEDA9F39F4A /* sfx_step.wav in Resources */ = {isa = PBXBuildFile; fileRef = BF4A64503A5344D1F60D5457 /* sfx_step.wav */; };
+		9F5469FC6DB931CB042985F5 /* sfx_towers_conflict.wav in Resources */ = {isa = PBXBuildFile; fileRef = 9EF4F30E6CCB820AA0E73F82 /* sfx_towers_conflict.wav */; };
+		C6D0609B1EEA1F4EC543E155 /* sfx_mirror_gem.wav in Resources */ = {isa = PBXBuildFile; fileRef = B4BCA7DF5DF9E2E4C048C218 /* sfx_mirror_gem.wav */; };
+		C75E6ABE796EA53C84291540 /* sfx_fail.wav in Resources */ = {isa = PBXBuildFile; fileRef = 0BE463B4E3DBCB2D279BFC24 /* sfx_fail.wav */; };
+		E32B288A57E5B905EA185645 /* sfx_towers_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = 6E4C97F0D249C82985E84986 /* sfx_towers_solve.wav */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		004E61D0AED9BE6563C58D22 /* sfx_target.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_target.wav; path = GravityInit/Sounds/sfx_target.wav; sourceTree = "<group>"; };
+		0BE463B4E3DBCB2D279BFC24 /* sfx_fail.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_fail.wav; path = GravityInit/Sounds/sfx_fail.wav; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* GravityInit.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = GravityInit.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = GravityInit/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = GravityInit/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = GravityInit/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		18785872A2254CCABF8FF6E3 /* sfx_towers_row_complete.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_towers_row_complete.wav; path = GravityInit/Sounds/sfx_towers_row_complete.wav; sourceTree = "<group>"; };
+		369F0C92F8C5839051C7486F /* sfx_mirror_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_mirror_solve.wav; path = GravityInit/Sounds/sfx_mirror_solve.wav; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-GravityInit.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GravityInit.debug.xcconfig"; path = "Target Support Files/Pods-GravityInit/Pods-GravityInit.debug.xcconfig"; sourceTree = "<group>"; };
+		3B6A68F0B4555DC11A36A5E2 /* sfx_towers_place.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_towers_place.wav; path = GravityInit/Sounds/sfx_towers_place.wav; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-GravityInit.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GravityInit.release.xcconfig"; path = "Target Support Files/Pods-GravityInit/Pods-GravityInit.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-GravityInit.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-GravityInit.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		6E4C97F0D249C82985E84986 /* sfx_towers_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_towers_solve.wav; path = GravityInit/Sounds/sfx_towers_solve.wav; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = GravityInit/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = GravityInit/LaunchScreen.storyboard; sourceTree = "<group>"; };
+		81B6A7CD078CA1E09335C233 /* sfx_mirror_place.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_mirror_place.wav; path = GravityInit/Sounds/sfx_mirror_place.wav; sourceTree = "<group>"; };
+		82C8FD3C1722BA279244080C /* sfx_move.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_move.wav; path = GravityInit/Sounds/sfx_move.wav; sourceTree = "<group>"; };
+		9EF4F30E6CCB820AA0E73F82 /* sfx_towers_conflict.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_towers_conflict.wav; path = GravityInit/Sounds/sfx_towers_conflict.wav; sourceTree = "<group>"; };
+		A6771E312736404BD2FD70EE /* sfx_tap.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_tap.wav; path = GravityInit/Sounds/sfx_tap.wav; sourceTree = "<group>"; };
+		B4BCA7DF5DF9E2E4C048C218 /* sfx_mirror_gem.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_mirror_gem.wav; path = GravityInit/Sounds/sfx_mirror_gem.wav; sourceTree = "<group>"; };
+		BF4A64503A5344D1F60D5457 /* sfx_step.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_step.wav; path = GravityInit/Sounds/sfx_step.wav; sourceTree = "<group>"; };
+		BFAAE301FFA1BC61BD53DC70 /* sfx_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_solve.wav; path = GravityInit/Sounds/sfx_solve.wav; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -46,6 +73,7 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */,
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
+				FEEF680F4D9F8C9D2BFDDC87 /* Sounds */,
 			);
 			name = GravityInit;
 			sourceTree = "<group>";
@@ -95,6 +123,26 @@
 				5709B34CF0A7D63546082F79 /* Pods-GravityInit.release.xcconfig */,
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		FEEF680F4D9F8C9D2BFDDC87 /* Sounds */ = {
+			isa = PBXGroup;
+			children = (
+				0BE463B4E3DBCB2D279BFC24 /* sfx_fail.wav */,
+				82C8FD3C1722BA279244080C /* sfx_move.wav */,
+				BFAAE301FFA1BC61BD53DC70 /* sfx_solve.wav */,
+				BF4A64503A5344D1F60D5457 /* sfx_step.wav */,
+				A6771E312736404BD2FD70EE /* sfx_tap.wav */,
+				004E61D0AED9BE6563C58D22 /* sfx_target.wav */,
+				B4BCA7DF5DF9E2E4C048C218 /* sfx_mirror_gem.wav */,
+				81B6A7CD078CA1E09335C233 /* sfx_mirror_place.wav */,
+				369F0C92F8C5839051C7486F /* sfx_mirror_solve.wav */,
+				9EF4F30E6CCB820AA0E73F82 /* sfx_towers_conflict.wav */,
+				3B6A68F0B4555DC11A36A5E2 /* sfx_towers_place.wav */,
+				18785872A2254CCABF8FF6E3 /* sfx_towers_row_complete.wav */,
+				6E4C97F0D249C82985E84986 /* sfx_towers_solve.wav */,
+			);
+			name = Sounds;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -159,6 +207,20 @@
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
+				C75E6ABE796EA53C84291540 /* sfx_fail.wav in Resources */,
+				139D034796C454514FD4461C /* sfx_move.wav in Resources */,
+				61A6BA45885343E196301354 /* sfx_solve.wav in Resources */,
+				8DA680DF67209FEDA9F39F4A /* sfx_step.wav in Resources */,
+				33C63563EF50ABAC3B3057C4 /* sfx_tap.wav in Resources */,
+				0B412B3721CBFD813FA426DA /* sfx_target.wav in Resources */,
+				5C4826ED02A3F535DAFFA2CF /* PrivacyInfo.xcprivacy in Resources */,
+				C6D0609B1EEA1F4EC543E155 /* sfx_mirror_gem.wav in Resources */,
+				3B9DFF08DD9B530E577575F3 /* sfx_mirror_place.wav in Resources */,
+				766697C60B96947080FF03C7 /* sfx_mirror_solve.wav in Resources */,
+				9F5469FC6DB931CB042985F5 /* sfx_towers_conflict.wav in Resources */,
+				185A9A8EA8F7DCD06461B506 /* sfx_towers_place.wav in Resources */,
+				796B970C79EBD518885D9957 /* sfx_towers_row_complete.wav in Resources */,
+				E32B288A57E5B905EA185645 /* sfx_towers_solve.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -370,6 +432,10 @@
 				);
 				MTL_ENABLE_DEBUG_INFO = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
@@ -377,8 +443,13 @@
 					"-DFOLLY_USE_LIBCPP=1",
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
+				PODFILE_DIR = "$(SRCROOT)";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "$(inherited) DEBUG";
+				USE_HERMES = true;
 			};
 			name = Debug;
 		};
@@ -435,6 +506,10 @@
 					"\"$(inherited)\"",
 				);
 				MTL_ENABLE_DEBUG_INFO = NO;
+				OTHER_CFLAGS = (
+					"$(inherited)",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
+				);
 				OTHER_CPLUSPLUSFLAGS = (
 					"$(OTHER_CFLAGS)",
 					"-DFOLLY_NO_CONFIG",
@@ -442,8 +517,12 @@
 					"-DFOLLY_USE_LIBCPP=1",
 					"-DFOLLY_CFG_NO_COROUTINES=1",
 					"-DFOLLY_HAVE_CLOCK_GETTIME=1",
+					"-DRCT_REMOVE_LEGACY_ARCH=1",
 				);
+				PODFILE_DIR = "$(SRCROOT)";
+				REACT_NATIVE_PATH = "${PODS_ROOT}/../../node_modules/react-native";
 				SDKROOT = iphoneos;
+				USE_HERMES = true;
 				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;

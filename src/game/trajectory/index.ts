@@ -10,8 +10,10 @@ export {
   extendPath,
   clearPath,
   endpointColorAt,
+  isBlockedCell,
   pathColorAt,
   pairConnected,
+  playableCells,
   isTrajectorySolved,
   remainingCells,
 } from './logic';

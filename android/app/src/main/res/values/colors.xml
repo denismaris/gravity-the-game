@@ -1,0 +1,8 @@
+<resources>
+    <!-- Brand colours mirrored from src/theme/colors.ts, for native surfaces
+         (app icon background, window background) that can't reach the JS
+         theme before the bundle loads. Keep these in sync by hand if the
+         palette changes. -->
+    <color name="ic_launcher_background">#2A251F</color>
+    <color name="window_background">#F3EEE3</color>
+</resources>

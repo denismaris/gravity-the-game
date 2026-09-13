@@ -5,7 +5,9 @@ export type { BoardLayout } from './layout';
 export {
   AnchoredPiece,
   CellBackground,
+  DestroyedPieceMark,
   GravityZoneOverlay,
+  HazardMarker,
   MovablePiece,
   ObstacleBlock,
   PortalMark,
@@ -13,5 +15,10 @@ export {
 } from './shapes';
 export { useAnimatedMovables } from './useAnimatedMovables';
 export type { AnimatedMovablesResult } from './useAnimatedMovables';
+export { useAnimatedBeamReveal } from './useAnimatedBeamReveal';
+export type { AnimatedBeamRevealResult } from './useAnimatedBeamReveal';
+export { useAnimationClock } from './useAnimationClock';
 export { setHapticsEnabled, triggerHaptic } from './haptics';
 export type { HapticKind } from './haptics';
+export { setSoundEnabled, triggerSound } from './sound';
+export { triggerFeedback } from './feedback';

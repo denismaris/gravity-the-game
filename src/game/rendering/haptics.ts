@@ -5,7 +5,23 @@ import { Vibration } from 'react-native';
  * closed set (rather than letting callers pass raw durations) so haptics
  * stay consistent and easy to re-tune from one place.
  */
-export type HapticKind = 'gravityChange' | 'targetReached' | 'solved' | 'step';
+export type HapticKind =
+  | 'gravityChange'
+  | 'targetReached'
+  | 'solved'
+  | 'step'
+  | 'failed'
+  | 'tap'
+  // Per-game voices. The shared kinds above stay the default for any game
+  // that hasn't been given its own character yet; these exist so a game's
+  // core verb, its milestone and its win can be told apart by ear alone.
+  | 'mirrorPlace'
+  | 'mirrorGem'
+  | 'mirrorSolve'
+  | 'towersPlace'
+  | 'towersConflict'
+  | 'towersRowComplete'
+  | 'towersSolve';
 
 /**
  * Pattern in milliseconds passed to `Vibration.vibrate`. A single number is
@@ -23,6 +39,33 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   // Trajectory (a cell toggled, a path extended by one square) - lighter
   // than `gravityChange` since these fire far more often, per drag frame.
   step: 5,
+  // One long, low buzz - deliberately unlike the two short/double pulses
+  // above, so a hazard death reads as "wrong" the instant it's felt, before
+  // the eye even finds the failure card.
+  failed: 45,
+  // A near-imperceptible tick for a plain UI button press (see
+  // `PressableScale`) - present mostly so it lines up with `sound.ts`'s
+  // `tap`, which is the more noticeable half of that pair.
+  tap: 4,
+
+  // Mirror Maze. A mirror turning is the game's core verb and fires
+  // constantly, so it stays crisp and light; reaching a gem is a genuine
+  // milestone and gets noticeably more; the solve is a rising triple,
+  // deliberately unlike the shared `solved` double-pulse.
+  mirrorPlace: 6,
+  mirrorGem: 16,
+  mirrorSolve: [0, 12, 45, 16, 45, 28],
+
+  // Skyscrapers. A height entry is the core verb (as frequent as
+  // `mirrorPlace`, same weight); a conflict is a soft "no" - present but
+  // well short of `failed`, which is reserved for a hazard death; a row/
+  // column completing is a real but mid-weight milestone (`mirrorGem`'s
+  // weight); the solve is a rising triple, its own shape rather than a
+  // copy of `mirrorSolve`'s.
+  towersPlace: 6,
+  towersConflict: 10,
+  towersRowComplete: 16,
+  towersSolve: [0, 15, 50, 15, 50, 25],
 };
 
 let hapticsEnabled = true;

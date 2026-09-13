@@ -38,20 +38,32 @@ export const EMPTY_DAILY: DailyStatus = { streak: 0, lastCompletedKey: null };
  *    so they can never drift.
  *  - `cursor` - the last world+level the player opened (a resume hint only).
  *  - `daily` - the Daily puzzle's streak state (see `DailyStatus`).
+ *  - `bestDailyStreak` - the highest `daily.streak` ever reached. Tracked
+ *    separately because `daily.streak` itself is *not* a permanent record -
+ *    `recordDaily` resets it to 1 the day after a miss - so a streak-based
+ *    achievement ("reach a 7-day streak") needs its own monotonically
+ *    non-decreasing field to stay earned once it's earned.
  *
  * This module is pure - it never talks to storage (see `playerProgressStore`).
  */
 export interface PlayerProgress {
-  readonly version: 3;
+  readonly version: 4;
   readonly levels: Readonly<Record<string, LevelResult>>;
   readonly cursor: ProgressCursor | null;
   readonly daily: DailyStatus;
+  readonly bestDailyStreak: number;
 }
 
-export const PLAYER_PROGRESS_VERSION = 3 as const;
+export const PLAYER_PROGRESS_VERSION = 4 as const;
 
 export function emptyProgress(): PlayerProgress {
-  return { version: PLAYER_PROGRESS_VERSION, levels: {}, cursor: null, daily: EMPTY_DAILY };
+  return {
+    version: PLAYER_PROGRESS_VERSION,
+    levels: {},
+    cursor: null,
+    daily: EMPTY_DAILY,
+    bestDailyStreak: 0,
+  };
 }
 
 /** The player's best result for a level, or `undefined` if never completed. */
@@ -141,7 +153,11 @@ export function recordDaily(progress: PlayerProgress, todayKey: string): PlayerP
   const continuesStreak = progress.daily.lastCompletedKey === dayBefore(todayKey);
   const streak = continuesStreak ? progress.daily.streak + 1 : 1;
 
-  return { ...progress, daily: { streak, lastCompletedKey: todayKey } };
+  return {
+    ...progress,
+    daily: { streak, lastCompletedKey: todayKey },
+    bestDailyStreak: Math.max(progress.bestDailyStreak, streak),
+  };
 }
 
 /**

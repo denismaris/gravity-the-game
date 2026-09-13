@@ -1,4 +1,4 @@
-import { isPuzzleSolved } from '../completion';
+import { isPuzzleFailed, isPuzzleSolved } from '../completion';
 import { GameState, MovableObject, StaticCellType } from '../types';
 
 /** Builds a minimal GameState for testing without needing level data. */
@@ -193,5 +193,68 @@ describe('isPuzzleSolved', () => {
 
       expect(isPuzzleSolved(state)).toBe(false);
     });
+  });
+
+  describe('with a destroyed object', () => {
+    test('a destroyed object does NOT count as covering a target', () => {
+      const state = createState(
+        5,
+        5,
+        [{ id: 'a', row: 2, col: 2, destroyed: true }],
+        [{ row: 2, col: 2 }],
+      );
+
+      expect(isPuzzleSolved(state)).toBe(false);
+    });
+
+    test('one destroyed object among several keeps the puzzle unsolved even if the rest are placed', () => {
+      const state = createState(
+        5,
+        5,
+        [
+          { id: 'a', row: 0, col: 0 },
+          { id: 'b', row: 4, col: 4, destroyed: true },
+        ],
+        [
+          { row: 0, col: 0 },
+          { row: 4, col: 4 },
+        ],
+      );
+
+      expect(isPuzzleSolved(state)).toBe(false);
+    });
+  });
+});
+
+describe('isPuzzleFailed', () => {
+  test('false when nothing has been destroyed', () => {
+    const state = createState(5, 5, [{ id: 'a', row: 0, col: 0 }], [{ row: 4, col: 4 }]);
+    expect(isPuzzleFailed(state)).toBe(false);
+  });
+
+  test('true the moment any object is destroyed', () => {
+    const state = createState(5, 5, [{ id: 'a', row: 2, col: 2, destroyed: true }], [{ row: 2, col: 2 }]);
+    expect(isPuzzleFailed(state)).toBe(true);
+  });
+
+  test('true if even one of several objects is destroyed', () => {
+    const state = createState(
+      5,
+      5,
+      [
+        { id: 'a', row: 0, col: 0 },
+        { id: 'b', row: 4, col: 4, destroyed: true },
+      ],
+      [
+        { row: 0, col: 0 },
+        { row: 4, col: 4 },
+      ],
+    );
+    expect(isPuzzleFailed(state)).toBe(true);
+  });
+
+  test('an anchored (not destroyed) object never counts as failed', () => {
+    const state = createState(5, 5, [{ id: 'anchor', row: 0, col: 0, anchored: true }]);
+    expect(isPuzzleFailed(state)).toBe(false);
   });
 });

@@ -1,5 +1,6 @@
 import {
   TRAJECTORIES,
+  TrajectoryPuzzle,
   TrajectoryState,
   assertValidTrajectory,
   beginPath,
@@ -7,8 +8,10 @@ import {
   emptyTrajectoryState,
   extendPath,
   getTrajectoryById,
+  isBlockedCell,
   isTrajectorySolved,
   pairConnected,
+  playableCells,
   remainingCells,
   revealHint,
   solveTrajectory,
@@ -87,6 +90,69 @@ describe('completion', () => {
     // blank one colour entirely -> uncovered cells remain.
     const holed: TrajectoryState = { ...solved, paths: { ...solved.paths, 2: [] } };
     expect(isTrajectorySolved(holed, puzzle)).toBe(false);
+  });
+});
+
+describe('blocked cells', () => {
+  const withBlock: TrajectoryPuzzle = {
+    id: 'test-blocked',
+    rows: 3,
+    cols: 3,
+    pairs: [{ color: 1, a: { row: 0, col: 0 }, b: { row: 0, col: 1 } }],
+    blocked: [{ row: 1, col: 1 }],
+  };
+
+  test('isBlockedCell / playableCells', () => {
+    expect(isBlockedCell(withBlock, { row: 1, col: 1 })).toBe(true);
+    expect(isBlockedCell(withBlock, { row: 0, col: 0 })).toBe(false);
+    expect(playableCells(withBlock)).toBe(8); // 3x3 minus the one blocked cell
+  });
+
+  test('extendPath refuses to step onto a blocked cell', () => {
+    const s = beginPath(emptyTrajectoryState(withBlock), withBlock, { row: 0, col: 0 });
+    const s2 = extendPath(s, withBlock, 1, { row: 1, col: 0 });
+    expect(extendPath(s2, withBlock, 1, { row: 1, col: 1 })).toBe(s2); // no-op
+  });
+
+  test('a path covering every playable cell (routed around the block) is solved', () => {
+    const ring = [
+      { row: 0, col: 0 },
+      { row: 1, col: 0 },
+      { row: 2, col: 0 },
+      { row: 2, col: 1 },
+      { row: 2, col: 2 },
+      { row: 1, col: 2 },
+      { row: 0, col: 2 },
+      { row: 0, col: 1 },
+    ];
+    const state: TrajectoryState = { rows: 3, cols: 3, paths: { 1: ring } };
+    expect(remainingCells(state, withBlock)).toBe(0);
+    expect(isTrajectorySolved(state, withBlock)).toBe(true);
+  });
+
+  test('assertValidTrajectory accepts a solvable puzzle with a blocked cell', () => {
+    expect(() => assertValidTrajectory(withBlock)).not.toThrow();
+  });
+
+  test('assertValidTrajectory rejects a blocked cell out of bounds', () => {
+    expect(() => assertValidTrajectory({ ...withBlock, blocked: [{ row: 9, col: 9 }] })).toThrow(
+      /off the board/,
+    );
+  });
+
+  test('assertValidTrajectory rejects a blocked cell on an endpoint', () => {
+    expect(() => assertValidTrajectory({ ...withBlock, blocked: [{ row: 0, col: 0 }] })).toThrow(
+      /overlaps an endpoint/,
+    );
+  });
+
+  test('assertValidTrajectory rejects the same cell blocked twice', () => {
+    expect(() =>
+      assertValidTrajectory({
+        ...withBlock,
+        blocked: [{ row: 1, col: 1 }, { row: 1, col: 1 }],
+      }),
+    ).toThrow(/blocked twice/);
   });
 });
 

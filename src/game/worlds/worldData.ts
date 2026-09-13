@@ -25,6 +25,13 @@ function levelIdsInOrderRange(from: number, to: number): string[] {
  *    111-130 expand the zone on its own (with obstacles and multiple
  *    objects); 131-140 fold the zone together with anchored objects and
  *    portals.
+ *  - World 6 - Hazards: 16 levels (play order 141-156) built around a
+ *    lethal cell that destroys any object which reaches it - the first
+ *    genuine fail state in the game. 141-143 teach it alone; 144-147 combine
+ *    it with obstacles/anchors (which now double as safety); 148-150 raise
+ *    the stakes with tighter multi-step gauntlets; 151-156 fold in gravity
+ *    zones and portals from Worlds 3-5 (a "belt" that carries an object one
+ *    cell past its own far edge, into a waiting hazard).
  *
  * Each world's `levelIds` are derived from `LEVELS` by play-order range
  * (rather than hand-copied) so a world can never drift out of sync with the
@@ -73,6 +80,14 @@ export const WORLDS: ReadonlyArray<WorldDefinition> = [
     subtitle: 'In this area, down is somewhere else.',
     mechanics: ['gravity', 'targets', 'obstacles', 'multi-object', 'gravity-zone', 'anchored', 'portals'],
     levelIds: levelIdsInOrderRange(101, 140),
+  },
+  {
+    id: 'world-6',
+    order: 6,
+    name: 'Hazards',
+    subtitle: 'One wrong move and it is over.',
+    mechanics: ['gravity', 'targets', 'obstacles', 'anchored', 'hazard', 'gravity-zone', 'portals'],
+    levelIds: levelIdsInOrderRange(141, 156),
   },
 ];
 

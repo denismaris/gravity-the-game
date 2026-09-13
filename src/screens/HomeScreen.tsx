@@ -1,22 +1,56 @@
-import React, { useMemo } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef } from 'react';
+import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { getJourneyPoint, usePlayerProgress } from '../progression';
 import { getLevelById, getStarThresholds } from '../game/levels';
-import { GameKind, getDailyEntry } from '../game/journey';
+import { accentColorForKind, GameKind, getDailyEntry } from '../game/journey';
+import { PressableScale } from '../components';
 import { theme } from '../theme';
+
+/** A fade/rise that finishes at `endsAt` (a fraction of the shared `mount`
+ * driver) - staggering several elements off one Animated.Value instead of
+ * timing each separately. */
+function riseIn(mount: Animated.Value, endsAt: number) {
+  const start = Math.max(0, endsAt - 0.4);
+  return {
+    opacity: mount.interpolate({ inputRange: [start, endsAt], outputRange: [0, 1], extrapolate: 'clamp' }),
+    transform: [
+      {
+        translateY: mount.interpolate({
+          inputRange: [start, endsAt],
+          outputRange: [14, 0],
+          extrapolate: 'clamp',
+        }),
+      },
+    ],
+  };
+}
 
 export interface HomeScreenProps {
   /** Open a journey puzzle (any of the three games). */
   onOpen: (target: { kind: GameKind; puzzleId: string }) => void;
+  /** Open the Settings screen. */
+  onOpenSettings: () => void;
+  /** Open the all-puzzles level-select/browse screen. */
+  onOpenBrowse: () => void;
+  /** Open the achievements screen. */
+  onOpenAchievements: () => void;
 }
 
 /**
  * Home - the cover page of a puzzle almanac. A masthead, one dominant
  * Continue card for the next Journey entry (gravity, constellation or
- * trajectory), a Daily card, and a line of figures. No level select.
+ * trajectory), a Daily card, and a line of figures. A small Settings gear,
+ * a "Browse All Puzzles" link, and the stats line itself (which opens
+ * Achievements) are the only other ways out of the single Continue-driven
+ * flow.
  */
-export function HomeScreen({ onOpen }: HomeScreenProps): React.JSX.Element {
+export function HomeScreen({
+  onOpen,
+  onOpenSettings,
+  onOpenBrowse,
+  onOpenAchievements,
+}: HomeScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { progress, totalStars, markLevelOpened, dailyStreak, dailyCompletedToday } =
     usePlayerProgress();
@@ -42,79 +76,158 @@ export function HomeScreen({ onOpen }: HomeScreenProps): React.JSX.Element {
   const daily = useMemo(() => getDailyEntry(), []);
   const openDaily = (): void => onOpen({ kind: daily.kind, puzzleId: daily.puzzleId });
 
+  // A quiet cascade on every visit to Home (not just first mount - Home
+  // remounts fresh each time the player backs out of a puzzle), so the hub
+  // never feels like a static screen you're just returning to. The progress
+  // fill animates separately so it reads as "counting up to here" rather
+  // than popping straight to its resting width.
+  const mount = useRef(new Animated.Value(0)).current;
+  const trackFill = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    mount.setValue(0);
+    Animated.timing(mount, {
+      toValue: 1,
+      duration: 480,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [mount]);
+  useEffect(() => {
+    Animated.timing(trackFill, {
+      toValue: pct,
+      duration: 700,
+      delay: 220,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false, // width isn't a transform - can't use the native driver
+    }).start();
+  }, [pct, trackFill]);
+
   return (
-    <ScrollView
-      style={styles.container}
-      contentContainerStyle={[
-        styles.content,
-        { paddingTop: insets.top + 30, paddingBottom: insets.bottom + 36 },
-      ]}
-    >
-      <View style={styles.masthead}>
-        <Text style={styles.wordmark}>GRAVITY</Text>
-        <View style={styles.rule} />
-        <Text style={styles.tagline}>AN ALMANAC OF PUZZLES</Text>
-      </View>
-
-      <Pressable
+    <View style={styles.container}>
+      <PressableScale
         accessibilityRole="button"
-        accessibilityLabel={`${journey.allDone ? 'Replay' : 'Continue'}: ${entry.name}, No. ${
-          journey.position
-        } of ${journey.total}`}
-        onPress={openEntry}
-        style={({ pressed }) => [styles.card, styles.cardHero, pressed && styles.cardPressed]}
+        accessibilityLabel="Settings"
+        onPress={onOpenSettings}
+        hitSlop={8}
+        containerStyle={[styles.settingsButton, { top: insets.top + theme.spacing.sm }]}
       >
-        <Text style={styles.eyebrow}>JOURNEY · {entry.chapter.toUpperCase()}</Text>
-        <Text style={styles.heroTitle} numberOfLines={2}>
-          {entry.name}
-        </Text>
-        <Text style={styles.heroMeta}>
-          No. {journey.position} of {journey.total}
-          {'      '}
-          {isGravity ? `PAR ${par}` : entry.chapter.toUpperCase()}
-        </Text>
+        {/* U+FE0E forces the plain monochrome glyph - without it iOS renders
+            a full-colour emoji gear that clashes with the flat paper
+            palette (Android already renders plain either way). */}
+        <Text style={styles.settingsGlyph}>{'⚙︎'}</Text>
+      </PressableScale>
 
-        <View style={styles.track}>
-          <View style={[styles.trackFill, { width: `${Math.round(pct * 100)}%` }]} />
-        </View>
-
-        <View style={styles.heroFoot}>
-          <Text style={styles.verb}>{journey.allDone ? 'Replay' : 'Continue'}</Text>
-          <View style={styles.play}>
-            <View style={styles.playTri} />
-          </View>
-        </View>
-      </Pressable>
-
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={`Daily puzzle: ${daily.name}${
-          dailyCompletedToday ? ', already solved today' : ''
-        }`}
-        onPress={openDaily}
-        style={({ pressed }) => [styles.card, styles.cardMuted, pressed && styles.cardPressed]}
+      <ScrollView
+        contentContainerStyle={[
+          styles.content,
+          { paddingTop: insets.top + 30, paddingBottom: insets.bottom + 36 },
+        ]}
       >
-        <View style={styles.dailyHead}>
-          <Text style={styles.eyebrowMuted}>
-            DAILY{dailyStreak > 0 ? ` · ${dailyStreak} DAY${dailyStreak > 1 ? 'S' : ''}` : ''}
-          </Text>
-          <Text style={styles.dailyBadge}>{dailyCompletedToday ? 'SOLVED' : 'PLAY'}</Text>
-        </View>
-        <Text style={styles.dailyTitle} numberOfLines={1}>
-          {daily.name}
-        </Text>
-        <Text style={styles.dailyMeta}>
-          {daily.chapter.toUpperCase()}
-          {dailyCompletedToday ? ' · come back tomorrow' : ' · a new one every day'}
-        </Text>
-      </Pressable>
+        <Animated.View style={[styles.masthead, riseIn(mount, 0.45)]}>
+          <Text style={styles.wordmark}>GRAVITY</Text>
+          <View style={styles.rule} />
+          <Text style={styles.tagline}>AN ALMANAC OF PUZZLES</Text>
+        </Animated.View>
 
-      <Text style={styles.stats}>
-        {solved} of {journey.total} solved
-        {'      '}
-        <Text style={styles.statsStar}>★</Text> {totalStars}
-      </Text>
-    </ScrollView>
+        <Animated.View style={riseIn(mount, 0.7)}>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={`${journey.allDone ? 'Replay' : 'Continue'}: ${entry.name}, No. ${
+              journey.position
+            } of ${journey.total}`}
+            onPress={openEntry}
+            scaleTo={0.985}
+            style={({ pressed }) => [styles.card, styles.cardHero, pressed && styles.cardPressed]}
+          >
+            <Text style={[styles.eyebrow, { color: accentColorForKind(entry.kind) }]}>
+              JOURNEY · {entry.chapter.toUpperCase()}
+            </Text>
+            <Text style={styles.heroTitle} numberOfLines={2}>
+              {entry.name}
+            </Text>
+            <Text style={styles.heroMeta}>
+              No. {journey.position} of {journey.total}
+              {'      '}
+              {isGravity ? `PAR ${par}` : entry.chapter.toUpperCase()}
+            </Text>
+
+            <View style={styles.track}>
+              <Animated.View
+                style={[
+                  styles.trackFill,
+                  {
+                    width: trackFill.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0%', '100%'],
+                      extrapolate: 'clamp',
+                    }),
+                  },
+                ]}
+              />
+            </View>
+
+            <View style={styles.heroFoot}>
+              <Text style={styles.verb}>{journey.allDone ? 'Replay' : 'Continue'}</Text>
+              <View style={styles.play}>
+                <View style={styles.playTri} />
+              </View>
+            </View>
+          </PressableScale>
+        </Animated.View>
+
+        <Animated.View style={riseIn(mount, 0.9)}>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={`Daily puzzle: ${daily.name}${
+              dailyCompletedToday ? ', already solved today' : ''
+            }`}
+            onPress={openDaily}
+            scaleTo={0.985}
+            style={({ pressed }) => [styles.card, styles.cardMuted, pressed && styles.cardPressed]}
+          >
+            <View style={styles.dailyHead}>
+              <Text style={styles.eyebrowMuted}>
+                DAILY{dailyStreak > 0 ? ` · ${dailyStreak} DAY${dailyStreak > 1 ? 'S' : ''}` : ''}
+              </Text>
+              <Text style={styles.dailyBadge}>{dailyCompletedToday ? 'SOLVED' : 'PLAY'}</Text>
+            </View>
+            <Text style={styles.dailyTitle} numberOfLines={1}>
+              {daily.name}
+            </Text>
+            <Text style={styles.dailyMeta}>
+              {daily.chapter.toUpperCase()}
+              {dailyCompletedToday ? ' · come back tomorrow' : ' · a new one every day'}
+            </Text>
+          </PressableScale>
+        </Animated.View>
+
+        <Animated.View style={riseIn(mount, 1)}>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={`Achievements: ${solved} of ${journey.total} solved, ${totalStars} stars`}
+            onPress={onOpenAchievements}
+            style={({ pressed }) => [pressed && styles.statsPressed]}
+          >
+            <Text style={styles.stats}>
+              {solved} of {journey.total} solved
+              {'      '}
+              <Text style={styles.statsStar}>★</Text> {totalStars}
+            </Text>
+          </PressableScale>
+        </Animated.View>
+
+        <Animated.View style={riseIn(mount, 1)}>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Browse all puzzles"
+            onPress={onOpenBrowse}
+            style={({ pressed }) => [styles.browseLink, pressed && styles.browseLinkPressed]}
+          >
+            <Text style={styles.browseLinkText}>Browse All Puzzles</Text>
+          </PressableScale>
+        </Animated.View>
+      </ScrollView>
+    </View>
   );
 }
 
@@ -126,6 +239,20 @@ const styles = StyleSheet.create({
   content: {
     paddingHorizontal: theme.spacing.lg,
     gap: theme.spacing.md,
+  },
+  settingsButton: {
+    position: 'absolute',
+    right: theme.spacing.lg,
+    zIndex: 5,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsGlyph: {
+    fontSize: 20,
+    color: theme.colors.textSecondary,
   },
 
   masthead: {
@@ -279,7 +406,26 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: theme.spacing.lg,
   },
+  statsPressed: {
+    opacity: 0.6,
+  },
   statsStar: {
     color: theme.colors.accent,
+  },
+  browseLink: {
+    alignSelf: 'center',
+    marginTop: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.md,
+    paddingVertical: theme.spacing.xs,
+  },
+  browseLinkPressed: {
+    opacity: 0.6,
+  },
+  browseLinkText: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.caption,
+    letterSpacing: 1,
+    color: theme.colors.secondary,
+    fontWeight: theme.typography.weights.semibold,
   },
 });
