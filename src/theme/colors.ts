@@ -1,9 +1,13 @@
 /**
  * Core color palette for the Gravity design system.
  *
- * Direction: a warm printed-almanac feel. Cream paper, ink text, one muted
- * red accent used sparingly, ochre for stars. Light, calm, airy. Hierarchy
- * comes from a real paper/card contrast plus generous space - never from a
+ * Direction: a warm printed-almanac feel - cream paper, ink text, one loud
+ * accent, ochre for stars - now tuned to lean into Claude's own warm-coral-
+ * on-cream identity rather than away from it: `secondary` moved from a
+ * brick-leaning terracotta toward Claude's own warmer, more orange coral,
+ * since the two visual languages (warm paper ground, one confident warm
+ * accent) were already the same idea. Light, calm, airy. Hierarchy comes
+ * from a real paper/card contrast plus generous space - never from a
  * spread of colours. The board keeps functional colour so its four object
  * types stay instantly readable on the paper ground.
  *
@@ -21,7 +25,7 @@ export const colors = {
 
   // --- ink + accent ---
   primary: '#2A251F', // ink - primary buttons are ink on cream
-  secondary: '#B4472E', // muted terracotta - portals, Gravity's own accent, and the app's one loud colour
+  secondary: '#BE5A38', // warm coral-terracotta, tuned toward Claude's own brand orange - portals, Gravity's own accent, and the app's one loud colour
   accent: '#B7892F', // ochre - target rings and stars only
 
   // --- per-game identity accents ---
@@ -72,21 +76,27 @@ export const colors = {
   // share one plain `danger`-red hazard-tape treatment - one consistent
   // "this is wrong" language beats three - which is exactly why nothing
   // else on this board can also read as red. Bumped from a 25% blend to
-  // 35%, then to 55%/75% once these two tokens also became the fill
-  // colour of the 3D bubble drawn *on top* of the tile - and bumped again
-  // here to 75%/95%, still too pale each time on an actual device rather
-  // than in isolation. `binairoFilledTileGiven`/`binairoOutlineTileGiven`
-  // stay the deeper of each pair (95% - nearly the pure hue - vs. 75%) -
-  // a given (printed) cell's tile and bubble are a visibly richer, more
-  // saturated version of the same colour a player's own entry uses, on
-  // top of the border-weight difference already there, since one subtle
-  // cue wasn't reading as "these are two different kinds of cell" clearly
-  // enough on an actual device.
+  // 35%, then to 55%/75%, then to 75%/95%, still too pale each time on an
+  // actual device rather than in isolation - then, once dark enough, the
+  // gold side still read as a flat, slightly muddy olive-brown rather
+  // than a genuinely rich colour, so `binairoFilledTile` moved off
+  // `accent` entirely - first to a warmer amber, which *still* read as a
+  // dull, brownish "mustard" next to the actual bubble shading rather
+  // than a genuine gold, so bumped again to a brighter, more saturated
+  // "sun gold" (`accent` itself stays untouched throughout -
+  // stars/target rings elsewhere in the app still use it as-is).
+  // `binairoOutlineTile` stays exactly `pieceBlue` at 100% - that side
+  // never had the same complaint. A given (printed) cell and a player's
+  // own entry share this exact same colour now - they used to differ (a
+  // given tile ran a further blend toward ink, deeper/richer), but that
+  // made the two symbols read as different colours rather than the same
+  // colour at two depths, so the distinction moved entirely onto
+  // `TILE_SHADOW_DY`/border-weight in `BinairoBoardView.tsx` (a given
+  // tile still sits more raised, with a heavier rule) instead of also
+  // living here.
   binairoTileShadow: 'rgba(42, 37, 31, 0.18)',
-  binairoFilledTile: '#C8A560',
-  binairoOutlineTile: '#6D83AF',
-  binairoFilledTileGiven: '#BA8F39',
-  binairoOutlineTileGiven: '#47649D',
+  binairoFilledTile: '#E3A828',
+  binairoOutlineTile: '#3E5C99',
 
   // --- Mirror Maze's board ---
   // The one board in the app that inverts to a dark ground. Light can only

@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { Circle, Group, Path } from '@shopify/react-native-skia';
+import { Circle, Group, Path, RadialGradient, vec } from '@shopify/react-native-skia';
 import {
   isRowSatisfied,
   isColSatisfied,
@@ -19,15 +19,25 @@ const SHADOW_BASE = 0.16;
 const SHADOW_WIDTH_RATIO = 1.8;
 const SHADOW_HEIGHT_RATIO = 0.35;
 
-/** Tree canopy: three overlapping lobes. The literal spec formula
- * (`~40%-of-smaller-radius overlap`, i.e. distance = r1+r2-0.4*min(r1,r2))
- * was checked against these radii and produces a canopy ~1.38x the cell's
- * own width - it overflows badly. These centre-to-centre distances were
- * tuned by hand instead for a contained, still-lumpy silhouette (~1.1x
- * cell width, a normal amount of foliage "spillover" for this style of
- * icon), keeping the radii themselves as specified. */
-const LOBE_RADII = [0.3, 0.22, 0.26]; // left, middle, right - as specified
-const LOBE_DISTANCE = [0.28, 0.26]; // tuned: mid-to-left, mid-to-right
+/** Tree canopy: one rounded, lumpy blob rather than three overlapping flat
+ * circles - the original three-circle silhouette had no shading and no
+ * separation between the lobes, so at a board icon's actual size it just
+ * read as one solid black smudge, not a tree. A single softly-scalloped
+ * path plus a real radial gradient (see `CANOPY_LIGHT`/`CANOPY_DARK`) reads
+ * as foliage at a glance and is cheaper to draw besides - one gradient
+ * fill instead of three. Proven out in an actual rendered SVG comparison
+ * against a shaded three-lobe-with-outlines version and a layered-pine
+ * silhouette before picking this one: it read as the cleanest single
+ * shape without needing separator strokes to hold together. The canopy
+ * moved off plain ink to a real forest green in the same pass - shape
+ * (a round puff vs. the tent's sharp A-frame) is still what tells a tree
+ * and a tent apart at a glance, exactly as elsewhere in this app, so nudging
+ * the tree toward its own green doesn't blur that: the two greens are
+ * deliberately different (a darker, more muted one for the tree). */
+const CANOPY_LIGHT = '#5C7150';
+const CANOPY_DARK = '#28331F';
+const CANOPY_OUTLINE = 'rgba(24, 30, 18, 0.5)';
+const TRUNK_COLOR = '#5A4632';
 
 const TRUNK_BASE = 0.16;
 const TRUNK_TOP_RATIO = 0.6;
@@ -39,6 +49,18 @@ const NOTCH_WIDTH = 0.1;
 const NOTCH_HEIGHT_RATIO = 0.35; // of the tent's own height
 const GUY_LENGTH = 0.22;
 const GUY_ANGLE_DEG = 35;
+/** The tent's two canvas faces, lit from the same upper-right direction
+ * the tree's own canopy highlight comes from - a flat single-colour A-frame
+ * read as a cardboard cutout with no volume; splitting it at the ridge
+ * into a lighter (sun-facing) and darker (shadowed) triangle, plus a small
+ * cream entrance flap where the two faces meet at the base, is enough to
+ * read as a real three-dimensional tent without needing a full gradient.
+ * `TENT_LIGHT`/`TENT_DARK` are a different, more muted green family than
+ * the canopy's own - two adjacent objects sharing one exact green would
+ * blur back together at a glance. */
+const TENT_LIGHT = '#557A5D';
+const TENT_DARK = '#345140';
+const TENT_DOOR_COLOR = theme.colors.background;
 
 /** `0,-3,3,-2,2,0` over 220ms, linear per 44ms segment - Skyscrapers'
  * exact conflict shake, reused for a touching-tents violation. Skia has no
@@ -81,23 +103,66 @@ function trunkPath(cx: number, topY: number, cellSize: number): string {
   return `M ${cx - top / 2} ${topY} L ${cx + top / 2} ${topY} L ${cx + base / 2} ${bottomY} L ${cx - base / 2} ${bottomY} Z`;
 }
 
-/** True A-frame with an inverted-V entrance notch cut into the base, not
- * "the tree without a trunk" - a different silhouette family entirely. */
-function tentPath(cx: number, baseY: number, cellSize: number): string {
-  const height = cellSize * TENT_HEIGHT;
-  const halfBase = cellSize * TENT_HALF_BASE;
-  const apexY = baseY - height;
-  const notchWidth = cellSize * NOTCH_WIDTH;
-  const notchTopY = baseY - height * NOTCH_HEIGHT_RATIO;
+/** The canopy's own lumpy silhouette - one continuous scalloped path, not
+ * stacked circles - hand-tuned as a set of cubic Beziers against a
+ * `cellSize`-square reference box (this exact curve is the one that read
+ * best in the SVG comparison mentioned above). `cx`/`topRefY` anchor
+ * roughly where the blob's own centre falls, not its top-left corner. */
+function canopyPath(cx: number, topRefY: number, cellSize: number): string {
+  const ox = cx - cellSize * 0.5;
+  const oy = topRefY - cellSize * 0.4;
+  const p = (px: number, py: number): string => `${ox + (px / 100) * cellSize} ${oy + (py / 100) * cellSize}`;
   return [
-    `M ${cx - halfBase} ${baseY}`,
-    `L ${cx - notchWidth / 2} ${baseY}`,
-    `L ${cx} ${notchTopY}`,
-    `L ${cx + notchWidth / 2} ${baseY}`,
-    `L ${cx + halfBase} ${baseY}`,
-    `L ${cx} ${apexY}`,
+    `M ${p(22, 46)}`,
+    `C ${p(20, 30)}, ${p(36, 18)}, ${p(50, 22)}`,
+    `C ${p(58, 12)}, ${p(76, 16)}, ${p(78, 30)}`,
+    `C ${p(92, 32)}, ${p(92, 52)}, ${p(78, 54)}`,
+    `C ${p(76, 66)}, ${p(56, 68)}, ${p(50, 58)}`,
+    `C ${p(34, 66)}, ${p(18, 58)}, ${p(22, 46)}`,
     'Z',
   ].join(' ');
+}
+
+/** True A-frame with an inverted-V entrance notch cut into the base, not
+ * "the tree without a trunk" - a different silhouette family entirely.
+ * Computed once as a handful of points and shared by the left/right face
+ * paths and the door path below, so all three always agree on exactly
+ * where the notch sits. */
+interface TentGeometry {
+  apex: { x: number; y: number };
+  leftBase: { x: number; y: number };
+  rightBase: { x: number; y: number };
+  leftNotch: { x: number; y: number };
+  rightNotch: { x: number; y: number };
+  notchTop: { x: number; y: number };
+}
+function tentGeometry(cx: number, baseY: number, cellSize: number): TentGeometry {
+  const height = cellSize * TENT_HEIGHT;
+  const halfBase = cellSize * TENT_HALF_BASE;
+  const notchWidth = cellSize * NOTCH_WIDTH;
+  const notchTopY = baseY - height * NOTCH_HEIGHT_RATIO;
+  return {
+    apex: { x: cx, y: baseY - height },
+    leftBase: { x: cx - halfBase, y: baseY },
+    rightBase: { x: cx + halfBase, y: baseY },
+    leftNotch: { x: cx - notchWidth / 2, y: baseY },
+    rightNotch: { x: cx + notchWidth / 2, y: baseY },
+    notchTop: { x: cx, y: notchTopY },
+  };
+}
+/** The shadowed, left-facing side of the A-frame - lit from the upper
+ * right, the same direction the canopy's own highlight comes from. */
+function tentLeftFacePath(g: TentGeometry): string {
+  return `M ${g.apex.x} ${g.apex.y} L ${g.leftBase.x} ${g.leftBase.y} L ${g.leftNotch.x} ${g.leftNotch.y} L ${g.notchTop.x} ${g.notchTop.y} Z`;
+}
+/** The sun-facing, right side - lighter than its left-hand counterpart. */
+function tentRightFacePath(g: TentGeometry): string {
+  return `M ${g.apex.x} ${g.apex.y} L ${g.notchTop.x} ${g.notchTop.y} L ${g.rightNotch.x} ${g.rightNotch.y} L ${g.rightBase.x} ${g.rightBase.y} Z`;
+}
+/** A small cream flap right where the two faces meet at the base - the
+ * tent's own entrance, not just a notch cut out of the silhouette. */
+function tentDoorPath(g: TentGeometry): string {
+  return `M ${g.leftNotch.x} ${g.leftNotch.y} L ${g.notchTop.x} ${g.notchTop.y} L ${g.rightNotch.x} ${g.rightNotch.y} Z`;
 }
 
 function guyLinePath(cx: number, baseY: number, cellSize: number): string {
@@ -257,11 +322,11 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
           return (
             <Group key={cellKey(r, c)}>
               <Path path={ellipsePath(cx, trunkBottomY + shadowH * 0.3, shadowW / 2, shadowH / 2)} color={theme.colors.tentsShadow} />
-              {LOBE_RADII.map((radius, i) => {
-                const lobeX = i === 0 ? cx - cellSize * LOBE_DISTANCE[0] : i === 2 ? cx + cellSize * LOBE_DISTANCE[1] : cx;
-                return <Circle key={`lobe-${i}`} cx={lobeX} cy={canopyY} r={cellSize * radius} color={theme.colors.primary} />;
-              })}
-              <Path path={trunkPath(cx, trunkTopY, cellSize)} color={theme.colors.primary} />
+              <Path path={canopyPath(cx, canopyY, cellSize)} style="fill">
+                <RadialGradient c={vec(cx - cellSize * 0.12, canopyY - cellSize * 0.12)} r={cellSize * 0.65} colors={[CANOPY_LIGHT, CANOPY_DARK]} />
+              </Path>
+              <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_OUTLINE} style="stroke" strokeWidth={Math.max(1, cellSize * 0.012)} />
+              <Path path={trunkPath(cx, trunkTopY, cellSize)} color={TRUNK_COLOR} />
               {fireflyOpacity > 0.01 && <Circle cx={fireflyX} cy={fireflyY} r={Math.max(1, cellSize * 0.025)} color={theme.colors.accent} opacity={fireflyOpacity} />}
             </Group>
           );
@@ -314,11 +379,29 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
             <Path path={ellipsePath(cx, baseY + shadowH * 0.3, shadowW / 2, shadowH / 2)} color={theme.colors.tentsShadow} />
             <Path
               path={guyLinePath(cx, baseY, cellSize)}
-              color={isTouching ? theme.colors.danger : theme.colors.tentsAccent}
+              color={isTouching ? theme.colors.danger : TENT_DARK}
               style="stroke"
               strokeWidth={1.5}
             />
-            <Path path={tentPath(cx, baseY, cellSize)} color={isTouching ? theme.colors.danger : theme.colors.tentsAccent} />
+            {/* A violation collapses both faces to one flat danger red -
+                the same "this is wrong" language every other board in this
+                app uses, rather than a two-tone error nobody else has. The
+                valid A-frame keeps its two shaded faces plus a small cream
+                entrance flap where they meet, so it reads as a real tent
+                rather than a flat triangle cutout. */}
+            {(() => {
+              const g = tentGeometry(cx, baseY, cellSize);
+              if (isTouching) {
+                return <Path path={`${tentLeftFacePath(g)} ${tentRightFacePath(g)}`} color={theme.colors.danger} />;
+              }
+              return (
+                <>
+                  <Path path={tentLeftFacePath(g)} color={TENT_DARK} />
+                  <Path path={tentRightFacePath(g)} color={TENT_LIGHT} />
+                  <Path path={tentDoorPath(g)} color={TENT_DOOR_COLOR} />
+                </>
+              );
+            })()}
           </Group>
         );
       })}

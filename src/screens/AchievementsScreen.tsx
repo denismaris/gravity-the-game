@@ -1,5 +1,5 @@
-import React from 'react';
-import { ScrollView, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '../components';
 import { ACHIEVEMENTS, usePlayerProgress } from '../progression';
@@ -7,6 +7,26 @@ import { theme } from '../theme';
 
 export interface AchievementsScreenProps {
   onExit: () => void;
+}
+
+/** How far into the shared `mount` driver row `index` finishes its own
+ * fade/rise - spaced so the list reads as one confident cascade rather
+ * than all 18 rows snapping in together, capped so a long list still
+ * settles well within `MOUNT_DURATION_MS`. */
+const STAGGER_STEP = 0.045;
+const STAGGER_START = 0.12;
+const MOUNT_DURATION_MS = 620;
+
+function riseIn(mount: Animated.Value, endsAt: number) {
+  const start = Math.max(0, endsAt - 0.3);
+  return {
+    opacity: mount.interpolate({ inputRange: [start, endsAt], outputRange: [0, 1], extrapolate: 'clamp' }),
+    transform: [
+      {
+        translateY: mount.interpolate({ inputRange: [start, endsAt], outputRange: [10, 0], extrapolate: 'clamp' }),
+      },
+    ],
+  };
 }
 
 /**
@@ -20,6 +40,19 @@ export function AchievementsScreen({ onExit }: AchievementsScreenProps): React.J
   const { progress } = usePlayerProgress();
 
   const earnedCount = ACHIEVEMENTS.filter(a => a.isEarned(progress)).length;
+
+  // A quiet cascade every time this screen opens, the same "arrived, not
+  // just present" idea Home's own masthead/cards use.
+  const mount = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    mount.setValue(0);
+    Animated.timing(mount, {
+      toValue: 1,
+      duration: MOUNT_DURATION_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start();
+  }, [mount]);
 
   return (
     <View style={styles.container}>
@@ -38,12 +71,13 @@ export function AchievementsScreen({ onExit }: AchievementsScreenProps): React.J
           {earnedCount} of {ACHIEVEMENTS.length} earned
         </Text>
 
-        {ACHIEVEMENTS.map(achievement => {
+        {ACHIEVEMENTS.map((achievement, index) => {
           const earned = achievement.isEarned(progress);
+          const endsAt = Math.min(1, STAGGER_START + index * STAGGER_STEP);
           return (
-            <View
+            <Animated.View
               key={achievement.id}
-              style={[styles.row, earned && styles.rowEarned]}
+              style={[styles.row, earned && styles.rowEarned, riseIn(mount, endsAt)]}
               accessibilityRole="text"
               accessibilityLabel={`${achievement.title}${earned ? ', earned' : ', not yet earned'}. ${achievement.description}`}
             >
@@ -54,7 +88,7 @@ export function AchievementsScreen({ onExit }: AchievementsScreenProps): React.J
                 <Text style={[styles.rowTitle, !earned && styles.rowTitleLocked]}>{achievement.title}</Text>
                 <Text style={styles.rowDescription}>{achievement.description}</Text>
               </View>
-            </View>
+            </Animated.View>
           );
         })}
       </ScrollView>
