@@ -2,17 +2,20 @@ export type { TentMark, TentsTreesCell, TentsTreesPuzzle, TentsTreesState } from
 export {
   adjacentTreeCount,
   allNeighbors,
+  colTentCount,
   emptyTentsTreesState,
+  isColSatisfied,
   isEligible,
+  isRowSatisfied,
   isTentsTreesSolved,
   isTreeCell,
   nextMark,
   orthogonalNeighbors,
   remainingTents,
   rowTentCount,
-  colTentCount,
   setMark,
   totalTentsNeeded,
+  touchingTentCells,
 } from './logic';
 export { assertValidTentsAndTrees, revealHint, solveTentsAndTrees } from './solver';
 export { getTentsTreesById, TENTS_TREES } from './puzzles';

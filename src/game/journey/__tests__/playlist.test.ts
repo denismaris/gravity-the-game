@@ -1,8 +1,5 @@
 import { JOURNEY, ROTATION, buildJourney, getNextJourneyEntry, journeyEntryOf, nextEntryOfKind } from '..';
 import { LEVELS } from '../../levels';
-import { CONSTELLATIONS } from '../../constellation';
-import { TRAJECTORIES } from '../../trajectory';
-import { SUDOKUS } from '../../sudoku';
 import { MIRROR_MAZES } from '../../mirror';
 import { TENTS_TREES } from '../../tents';
 import { TOWERS } from '../../towers';
@@ -10,24 +7,12 @@ import { BINAIRO } from '../../binairo';
 
 describe('the interleaved Journey', () => {
   test('holds every puzzle from every game, exactly once', () => {
-    expect(JOURNEY).toHaveLength(
-      LEVELS.length +
-        CONSTELLATIONS.length +
-        TRAJECTORIES.length +
-        SUDOKUS.length +
-        MIRROR_MAZES.length +
-        TENTS_TREES.length +
-        TOWERS.length +
-        BINAIRO.length,
-    );
+    expect(JOURNEY).toHaveLength(LEVELS.length + MIRROR_MAZES.length + TENTS_TREES.length + TOWERS.length + BINAIRO.length);
     const ids = JOURNEY.map(e => e.puzzleId);
     expect(new Set(ids).size).toBe(ids.length);
 
     const count = (k: string) => JOURNEY.filter(e => e.kind === k).length;
     expect(count('gravity')).toBe(LEVELS.length);
-    expect(count('constellation')).toBe(CONSTELLATIONS.length);
-    expect(count('trajectory')).toBe(TRAJECTORIES.length);
-    expect(count('sudoku')).toBe(SUDOKUS.length);
     expect(count('mirror')).toBe(MIRROR_MAZES.length);
     expect(count('tents')).toBe(TENTS_TREES.length);
     expect(count('towers')).toBe(TOWERS.length);
@@ -83,7 +68,7 @@ describe('the interleaved Journey', () => {
     test('advances one position at a time, across game kinds', () => {
       const first = getNextJourneyEntry(JOURNEY[0].puzzleId);
       expect(first).toBe(JOURNEY[1]);
-      // The opening deal is gravity, constellation, trajectory - so the
+      // The opening deal is one full rotation (see `ROTATION`) - so the
       // entry after a gravity puzzle is a *different* game, not another
       // gravity level. This is the whole point of routing every
       // completion screen's "Next" through this selector.

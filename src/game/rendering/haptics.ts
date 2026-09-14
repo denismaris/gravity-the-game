@@ -21,7 +21,15 @@ export type HapticKind =
   | 'towersPlace'
   | 'towersConflict'
   | 'towersRowComplete'
-  | 'towersSolve';
+  | 'towersSolve'
+  | 'binairoToggle'
+  | 'binairoError'
+  | 'binairoRowBalance'
+  | 'binairoSolve'
+  | 'tentsPlant'
+  | 'tentsError'
+  | 'tentsRowComplete'
+  | 'tentsSolve';
 
 /**
  * Pattern in milliseconds passed to `Vibration.vibrate`. A single number is
@@ -66,6 +74,26 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   towersConflict: 10,
   towersRowComplete: 16,
   towersSolve: [0, 15, 50, 15, 50, 25],
+
+  // Binairo. The highest-repetition tap in the whole app, so its toggle
+  // stays the lightest haptic anywhere (lighter than `tap` itself); an
+  // error is a soft "no", quieter even than Skyscrapers' since Binairo's
+  // whole palette is deliberately the quietest of the four; a line
+  // balancing is a small, real nudge; the solve is its own short rising
+  // pair, distinct from (and gentler than) the other three games' solves.
+  binairoToggle: 3,
+  binairoError: 8,
+  binairoRowBalance: 14,
+  binairoSolve: [0, 12, 40, 18],
+
+  // Tents and Trees. Planting is a real, deliberate act (unlike Binairo's
+  // rapid-fire toggle), so it sits a little firmer; a touching-tents
+  // violation is a clear but not alarming "no"; a satisfied line is a
+  // solid tick; the solve is its own short rising triple.
+  tentsPlant: 9,
+  tentsError: 12,
+  tentsRowComplete: 15,
+  tentsSolve: [0, 14, 45, 14, 45, 22],
 };
 
 let hapticsEnabled = true;

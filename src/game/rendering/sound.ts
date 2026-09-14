@@ -28,6 +28,14 @@ const FILES: Record<HapticKind, string> = {
   towersConflict: 'sfx_towers_conflict.wav',
   towersRowComplete: 'sfx_towers_row_complete.wav',
   towersSolve: 'sfx_towers_solve.wav',
+  binairoToggle: 'sfx_binairo_toggle.wav',
+  binairoError: 'sfx_binairo_error.wav',
+  binairoRowBalance: 'sfx_binairo_row_balance.wav',
+  binairoSolve: 'sfx_binairo_solve.wav',
+  tentsPlant: 'sfx_tents_plant.wav',
+  tentsError: 'sfx_tents_error.wav',
+  tentsRowComplete: 'sfx_tents_row_complete.wav',
+  tentsSolve: 'sfx_tents_solve.wav',
 };
 
 let soundEnabled = true;

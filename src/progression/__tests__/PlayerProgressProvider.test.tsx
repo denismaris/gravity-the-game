@@ -6,15 +6,15 @@ import { PLAYER_PROGRESS_KEY } from '../playerProgressStore';
 import { CompletionOutcome, PlayerProgressProvider, usePlayerProgress } from '../PlayerProgressProvider';
 
 /**
- * Constellation and Trajectory have no authored `StarThresholds` of their
- * own, so `recordCompletion` scores them off the hint count passed through
- * the `moves` slot instead. This is a regression test for a real bug: a
+ * Every non-Gravity game has no authored `StarThresholds` of its own, so
+ * `recordCompletion` scores it off the hint count passed through the
+ * `moves` slot instead. This is a regression test for a real bug: a
  * flawless (zero-hint) solve was scoring *worse* (1 star) than a solve that
  * used a hint (3 stars), because `computeStars` treats a move count under 1
  * as a defensive/invalid input - exactly the value a perfect hint-based
  * solve legitimately produces.
  */
-describe('PlayerProgressProvider - hint-based scoring (Constellation/Trajectory)', () => {
+describe('PlayerProgressProvider - hint-based scoring (non-Gravity games)', () => {
   async function renderWithCapturedApi() {
     const api: { current: ReturnType<typeof usePlayerProgress> | null } = { current: null };
 
@@ -39,7 +39,7 @@ describe('PlayerProgressProvider - hint-based scoring (Constellation/Trajectory)
 
     let outcome!: CompletionOutcome;
     await act(async () => {
-      outcome = api.current!.recordCompletion('constellation-01', 0);
+      outcome = api.current!.recordCompletion('mirror-01', 0);
     });
 
     expect(outcome.runStars).toBe(3);
@@ -52,9 +52,9 @@ describe('PlayerProgressProvider - hint-based scoring (Constellation/Trajectory)
     let oneHint!: CompletionOutcome;
     let manyHints!: CompletionOutcome;
     await act(async () => {
-      zeroHints = api.current!.recordCompletion('trajectory-01', 0);
-      oneHint = api.current!.recordCompletion('trajectory-02', 1);
-      manyHints = api.current!.recordCompletion('trajectory-03', 4);
+      zeroHints = api.current!.recordCompletion('tents-01', 0);
+      oneHint = api.current!.recordCompletion('tents-02', 1);
+      manyHints = api.current!.recordCompletion('tents-03', 4);
     });
 
     expect(zeroHints.runStars).toBe(3);

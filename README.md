@@ -1,16 +1,22 @@
 # Gravity — an almanac of puzzles
 
-A React Native puzzle game built around one idea: pressing a direction pulls
-*everything* that way, not just the piece you're thinking about. Three games
-share that world, dealt out as one continuous **Journey**:
+A React Native puzzle game built around Gravity's own idea: pressing a
+direction pulls *everything* that way, not just the piece you're thinking
+about. Five games share one continuous **Journey**, dealt out in a fixed
+rotation:
 
 - **Gravity** — slide pieces onto their targets. Anchors pin cells in place,
   portals link two cells, gravity zones override the direction inside a
   region, and hazards end the run the instant something reaches them.
-- **Constellation** — a nonogram: fill the grid to match the row/column clues
-  and reveal the picture.
-- **Trajectory** — a flow puzzle: connect every pair of endpoints with a
-  single path that covers the whole board.
+- **Mirror Maze** — place and rotate mirrors to route a beam through every
+  gem to its target.
+- **Tents and Trees** — pitch a tent beside every tree so each row and
+  column's count matches, with no two tents touching.
+- **Skyscrapers** — fill the grid with each height exactly once per row and
+  column, matching the visibility clues around the edge.
+- **Binairo** — fill every cell with one of two symbols so no three in a row
+  repeat, each line splits evenly, and no two lines match - some puzzles add
+  `=`/`x` constraint tiles between adjacent cells too.
 
 A **Daily** puzzle (one fixed pick from the whole pool, the same for everyone
 on a given day) keeps a streak going independently of the Journey.
@@ -42,10 +48,10 @@ npx tsc --noEmit # typecheck
 - `src/game/engine/` — the Gravity rules (`applyGravity`, `isPuzzleSolved`,
   `isPuzzleFailed`, undo/restart history). Pure TypeScript, zero React,
   fully unit-tested — this is the one place that knows what a legal move is.
-- `src/game/constellation/` / `src/game/trajectory/` — the same idea for the
-  other two games: pure logic plus a solver used both for hints and to
-  verify every hand-authored puzzle actually has (a) a solution at all and,
-  for Constellation, (b) exactly one.
+- `src/game/mirror/`, `src/game/tents/`, `src/game/towers/`,
+  `src/game/binairo/` — the same idea for the other four games: pure logic
+  plus a solver used both for hints and to verify every hand-authored puzzle
+  actually has a solution, and for most of them, exactly one.
 - `src/game/levels/`, `src/game/worlds/`, `src/game/journey/` — level data,
   the worlds they're grouped into, and the interleaved Journey/Daily
   selection built on top of it. All plain, testable data.

@@ -1,7 +1,4 @@
 import { LEVELS } from '../levels';
-import { CONSTELLATIONS } from '../constellation';
-import { TRAJECTORIES } from '../trajectory';
-import { SUDOKUS } from '../sudoku';
 import { MIRROR_MAZES } from '../mirror';
 import { TENTS_TREES } from '../tents';
 import { TOWERS } from '../towers';
@@ -17,15 +14,7 @@ import { getWorldForLevel } from '../worlds';
  * of the journey is whatever remains (in practice: the tail of the gravity
  * pack, by far the largest pool).
  */
-export type GameKind =
-  | 'gravity'
-  | 'constellation'
-  | 'trajectory'
-  | 'sudoku'
-  | 'mirror'
-  | 'tents'
-  | 'towers'
-  | 'binairo';
+export type GameKind = 'gravity' | 'mirror' | 'tents' | 'towers' | 'binairo';
 
 export interface JourneyEntry {
   /** 1-based position in the whole journey. */
@@ -38,16 +27,7 @@ export interface JourneyEntry {
   readonly chapter: string;
 }
 
-export const ROTATION: ReadonlyArray<GameKind> = [
-  'gravity',
-  'constellation',
-  'trajectory',
-  'sudoku',
-  'mirror',
-  'tents',
-  'towers',
-  'binairo',
-];
+export const ROTATION: ReadonlyArray<GameKind> = ['gravity', 'mirror', 'tents', 'towers', 'binairo'];
 
 interface PoolItem {
   readonly puzzleId: string;
@@ -63,24 +43,6 @@ function buildPools(): Record<GameKind, PoolItem[]> {
       name: level.name,
       chapter: getWorldForLevel(level.id)?.name ?? 'Gravity',
     }));
-
-  const constellation: PoolItem[] = CONSTELLATIONS.map(puzzle => ({
-    puzzleId: puzzle.id,
-    name: puzzle.name ?? puzzle.id,
-    chapter: 'Constellation',
-  }));
-
-  const trajectory: PoolItem[] = TRAJECTORIES.map(puzzle => ({
-    puzzleId: puzzle.id,
-    name: puzzle.name ?? puzzle.id,
-    chapter: 'Trajectory',
-  }));
-
-  const sudoku: PoolItem[] = SUDOKUS.map(puzzle => ({
-    puzzleId: puzzle.id,
-    name: puzzle.name ?? puzzle.id,
-    chapter: 'Sudoku',
-  }));
 
   const mirror: PoolItem[] = MIRROR_MAZES.map(puzzle => ({
     puzzleId: puzzle.id,
@@ -106,7 +68,7 @@ function buildPools(): Record<GameKind, PoolItem[]> {
     chapter: 'Binairo',
   }));
 
-  return { gravity, constellation, trajectory, sudoku, mirror, tents, towers, binairo };
+  return { gravity, mirror, tents, towers, binairo };
 }
 
 export function buildJourney(): JourneyEntry[] {
@@ -161,7 +123,7 @@ export function nextEntryOfKind(kind: GameKind, fromPosition: number): JourneyEn
  * action should advance to - it is what keeps finishing a puzzle rotating
  * toward whichever game comes next in the deal, rather than each game's own
  * "Next" quietly staying inside its own pool (Gravity chaining to Gravity,
- * forever, and never touching Constellation or Trajectory).
+ * forever, and never touching the other games).
  */
 export function getNextJourneyEntry(puzzleId: string): JourneyEntry | null {
   const current = journeyEntryOf(puzzleId);

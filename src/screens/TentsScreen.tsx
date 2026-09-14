@@ -2,17 +2,17 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
-  colTentCount,
   emptyTentsTreesState,
+  isColSatisfied,
+  isRowSatisfied,
   isTentsTreesSolved,
   nextMark,
   remainingTents,
   revealHint,
-  rowTentCount,
   setMark,
   TentsTreesCell,
   TentsTreesPuzzle,
-  TentsTreesState,
+  touchingTentCells,
 } from '../game/tents';
 import { PressableScale, PuzzleSolved, TentsBoard, TutorialOverlay } from '../components';
 import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
@@ -75,7 +75,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
       recorded.current = true;
       const outcome = recordCompletion(puzzle.id, hints);
       setStars(outcome.best.stars);
-      triggerFeedback('solved');
+      triggerFeedback('tentsSolve');
     }
   }, [solved, hints, puzzle.id, recordCompletion]);
 
@@ -86,14 +86,21 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
         const next = setMark(s, puzzle, row, col, nextMark(s.marks[row][col]));
         if (next === s) return next;
 
-        // A firmer tick the instant this move completes its row or column
-        // count; otherwise the same faint per-step tick every other game
-        // uses for an ordinary, still-open move.
-        const rowDone = (st: TentsTreesState) => rowTentCount(st, row) === puzzle.rowCounts[row];
-        const colDone = (st: TentsTreesState) => colTentCount(st, col) === puzzle.colCounts[col];
-        const justDone = (!rowDone(s) && rowDone(next)) || (!colDone(s) && colDone(next));
-        triggerFeedback(justDone ? 'targetReached' : 'step');
-
+        // The solved sound fires exactly once from the effect above,
+        // regardless of which move triggers it. Short of that: a fresh
+        // touching-tents violation at the cell just cycled beats a newly-
+        // satisfied line (a violation that happens to also fill a line
+        // isn't a milestone); a genuinely new line beats the plain cycle.
+        if (!isTentsTreesSolved(puzzle, next)) {
+          const isViolation = touchingTentCells(puzzle, next).has(`${row}:${col}`);
+          if (isViolation) {
+            triggerFeedback('tentsError');
+          } else {
+            const rowJustDone = isRowSatisfied(puzzle, next, row) && !isRowSatisfied(puzzle, s, row);
+            const colJustDone = isColSatisfied(puzzle, next, col) && !isColSatisfied(puzzle, s, col);
+            triggerFeedback(rowJustDone || colJustDone ? 'tentsRowComplete' : 'tentsPlant');
+          }
+        }
         return next;
       });
     },
@@ -145,7 +152,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
       </View>
 
       <View style={styles.boardArea}>
-        <TentsBoard puzzle={puzzle} state={state} size={boardSize} onToggleCell={toggle} flashCell={flash} />
+        <TentsBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} />
       </View>
 
       <View style={styles.controls}>

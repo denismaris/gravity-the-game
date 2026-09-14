@@ -1,4 +1,4 @@
-import { CONSTELLATIONS } from '../../game/constellation';
+import { MIRROR_MAZES } from '../../game/mirror';
 import { JOURNEY, ROTATION } from '../../game/journey';
 import { FIRST_WORLD, WORLDS } from '../../game/worlds';
 import { ACHIEVEMENTS, getEarnedAchievements } from '../achievements';
@@ -61,13 +61,13 @@ describe('world completion achievements', () => {
 });
 
 describe('per-game completion achievements', () => {
-  test('Stargazer requires every Constellation puzzle, not just most of them', () => {
-    const achievement = findAchievement('game:constellation');
+  test('Bending Light requires every Mirror Maze puzzle, not just most of them', () => {
+    const achievement = findAchievement('game:mirror');
     let p = emptyProgress();
-    for (const puzzle of CONSTELLATIONS.slice(0, -1)) p = complete(p, puzzle.id, 1);
+    for (const puzzle of MIRROR_MAZES.slice(0, -1)) p = complete(p, puzzle.id, 1);
     expect(achievement.isEarned(p)).toBe(false);
 
-    p = complete(p, CONSTELLATIONS[CONSTELLATIONS.length - 1].id, 1);
+    p = complete(p, MIRROR_MAZES[MIRROR_MAZES.length - 1].id, 1);
     expect(achievement.isEarned(p)).toBe(true);
   });
 
@@ -106,7 +106,7 @@ describe('star milestones', () => {
     expect(bright.isEarned(p)).toBe(false);
   });
 
-  test('Full Constellation requires literally every star in the game', () => {
+  test('Full Almanac requires literally every star in the game', () => {
     const achievement = findAchievement('stars:all');
     let p = emptyProgress();
     for (const entry of JOURNEY) p = complete(p, entry.puzzleId, 3);
@@ -135,18 +135,18 @@ describe('Daily streak achievements', () => {
 });
 
 describe('Flawless achievement', () => {
-  test('earned by a single zero-hint solve on any of the three hint-scored games', () => {
+  test('earned by a single zero-hint solve on any of the hint-scored games', () => {
     const achievement = findAchievement('skill:flawless');
     let p = emptyProgress();
     expect(achievement.isEarned(p)).toBe(false);
 
-    p = complete(p, CONSTELLATIONS[0].id, 3);
+    p = complete(p, MIRROR_MAZES[0].id, 3);
     expect(achievement.isEarned(p)).toBe(true);
   });
 
   test('is not earned by a merely-completed (non-flawless) solve', () => {
     const achievement = findAchievement('skill:flawless');
-    const p = complete(emptyProgress(), CONSTELLATIONS[0].id, 1);
+    const p = complete(emptyProgress(), MIRROR_MAZES[0].id, 1);
     expect(achievement.isEarned(p)).toBe(false);
   });
 });

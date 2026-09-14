@@ -4,13 +4,12 @@ import { PressableScale } from './PressableScale';
 import { theme } from '../theme';
 
 export interface NumberKeypadProps {
-  /** The digits offered, in order (Sudoku: 1..9; Skyscrapers: 1..N). */
+  /** The digits offered, in order (e.g. Skyscrapers: 1..N). */
   digits: ReadonlyArray<number>;
   /** How many of each digit are already placed on the board, keyed by the
    * digit itself. A digit dims once its count reaches `digits.length` -
-   * true for any Latin-square-shaped puzzle (Sudoku included), where every
-   * digit must appear exactly once per row/column (Sudoku adds "per box"
-   * on top, but the completion target is the same either way). */
+   * true for any Latin-square-shaped puzzle, where every digit must appear
+   * exactly once per row/column. */
   counts: Readonly<Record<number, number>>;
   /** No cell selected yet - every key is inert until one is. */
   disabled: boolean;
@@ -24,9 +23,9 @@ export interface NumberKeypadProps {
  * that turns "did I already place all my 7s?" into a glance instead of a
  * recount. Dimmed digits still work (one too many is still just a wrong
  * entry, visible the moment it's placed via the board's own conflict
- * highlight) - this is a hint, never a hard block. Shared by Sudoku and
- * Skyscrapers, the two games where tapping a cell then a number is how you
- * play, rather than tapping a cell to cycle it directly.
+ * highlight) - this is a hint, never a hard block. Used by Skyscrapers,
+ * where tapping a cell then a number is how you play, rather than tapping
+ * a cell to cycle it directly.
  */
 export function NumberKeypad({ digits, counts, disabled, onPressDigit, onErase }: NumberKeypadProps): React.JSX.Element {
   return (

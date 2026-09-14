@@ -114,6 +114,35 @@ export function remainingTents(puzzle: TentsTreesPuzzle, state: TentsTreesState)
   return Math.max(0, totalTentsNeeded(puzzle) - currentTentCount(state));
 }
 
+/** Tents that touch another tent (including diagonally) - the one live
+ * error state this game has. Flags both offenders in a pair, mirroring
+ * `computeConflicts`' "flag every cell involved" convention elsewhere in
+ * this codebase. */
+export function touchingTentCells(puzzle: TentsTreesPuzzle, state: TentsTreesState): ReadonlySet<string> {
+  const flagged = new Set<string>();
+  for (let r = 0; r < puzzle.rows; r += 1) {
+    for (let c = 0; c < puzzle.cols; c += 1) {
+      if (state.marks[r][c] !== 'tent') continue;
+      const touches = allNeighbors(puzzle, r, c).some(n => state.marks[n.row][n.col] === 'tent');
+      if (touches) flagged.add(`${r}:${c}`);
+    }
+  }
+  return flagged;
+}
+
+/** Whether row `row`'s tent count already matches its clue - used to catch
+ * the instant a single line resolves (a progress cue), as distinct from
+ * `isTentsTreesSolved`, which asks that of the whole grid plus the
+ * per-tent placement rules at once. */
+export function isRowSatisfied(puzzle: TentsTreesPuzzle, state: TentsTreesState, row: number): boolean {
+  return rowTentCount(state, row) === puzzle.rowCounts[row];
+}
+
+/** Column counterpart to `isRowSatisfied`. */
+export function isColSatisfied(puzzle: TentsTreesPuzzle, state: TentsTreesState, col: number): boolean {
+  return colTentCount(state, col) === puzzle.colCounts[col];
+}
+
 /**
  * A puzzle is solved when: every row/column's tent count matches its clue,
  * every tent has exactly one orthogonally-adjacent tree, and no two tents

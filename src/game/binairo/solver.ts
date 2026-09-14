@@ -1,5 +1,5 @@
 import { BinairoCell, BinairoPuzzle, BinairoState, BinairoValue } from './types';
-import { isBinairoSolved, isGiven, setValue } from './logic';
+import { constraintPartner, isBinairoSolved, isGiven, setValue } from './logic';
 
 type WorkingGrid = BinairoValue[][];
 
@@ -64,6 +64,34 @@ function propagateLine(length: number, get: (i: number) => BinairoValue, set: (i
   return changed ? 'changed' : 'unchanged';
 }
 
+/**
+ * Propagates every `=`/`x` constraint once: a decided cell forces its
+ * still-blank partner (`same` copies the value, `different` copies its
+ * opposite); two decided cells that disagree with `kind` are an immediate
+ * contradiction, the same "however it got that way" stance the triple
+ * window takes above. A no-op pass over an empty `constraints` list (the
+ * common case for every puzzle authored before this mechanic existed).
+ */
+function propagateConstraints(puzzle: BinairoPuzzle, grid: WorkingGrid): LineResult {
+  let changed = false;
+  for (const constraint of puzzle.constraints ?? []) {
+    const partner = constraintPartner(constraint);
+    const a = grid[constraint.row][constraint.col];
+    const b = grid[partner.row][partner.col];
+    if (a !== null && b !== null) {
+      const satisfied = constraint.kind === 'same' ? a === b : a !== b;
+      if (!satisfied) return 'fail';
+    } else if (a !== null && b === null) {
+      grid[partner.row][partner.col] = constraint.kind === 'same' ? a : a === 0 ? 1 : 0;
+      changed = true;
+    } else if (b !== null && a === null) {
+      grid[constraint.row][constraint.col] = constraint.kind === 'same' ? b : b === 0 ? 1 : 0;
+      changed = true;
+    }
+  }
+  return changed ? 'changed' : 'unchanged';
+}
+
 /** Propagates every forced move to a fixed point, mutating `grid` in
  * place. Returns `false` the instant either rule finds a contradiction. */
 function propagate(puzzle: BinairoPuzzle, grid: WorkingGrid): boolean {
@@ -83,6 +111,10 @@ function propagate(puzzle: BinairoPuzzle, grid: WorkingGrid): boolean {
       if (result === 'fail') return false;
       if (result === 'changed') changed = true;
     }
+
+    const constraintResult = propagateConstraints(puzzle, grid);
+    if (constraintResult === 'fail') return false;
+    if (constraintResult === 'changed') changed = true;
   }
   return true;
 }

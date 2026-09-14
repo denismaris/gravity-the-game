@@ -30,7 +30,7 @@ function baseLevel(overrides: Partial<LevelDefinition>): LevelDefinition {
 
 describe('tutorial ids', () => {
   test('tutorialIdForGame / tutorialIdForMechanic produce the documented shape', () => {
-    expect(tutorialIdForGame('sudoku')).toBe('game:sudoku');
+    expect(tutorialIdForGame('binairo')).toBe('game:binairo');
     expect(tutorialIdForMechanic('hazard')).toBe('mechanic:hazard');
   });
 

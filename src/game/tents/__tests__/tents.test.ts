@@ -2,7 +2,9 @@ import {
   adjacentTreeCount,
   allNeighbors,
   emptyTentsTreesState,
+  isColSatisfied,
   isEligible,
+  isRowSatisfied,
   isTentsTreesSolved,
   isTreeCell,
   nextMark,
@@ -12,6 +14,7 @@ import {
   colTentCount,
   setMark,
   totalTentsNeeded,
+  touchingTentCells,
 } from '../logic';
 import { assertValidTentsAndTrees, revealHint, solveTentsAndTrees } from '../solver';
 import { getTentsTreesById, TENTS_TREES } from '../puzzles';
@@ -213,6 +216,56 @@ describe('isTentsTreesSolved', () => {
       ),
     };
     expect(isTentsTreesSolved(SIMPLE, state)).toBe(false);
+  });
+});
+
+describe('touchingTentCells', () => {
+  test('flags both tents in a touching pair', () => {
+    const state: TentsTreesState = {
+      marks: emptyTentsTreesState(SIMPLE).marks.map((line, r) =>
+        r === 1 ? line.map((_m, c) => (c === 1 || c === 2 ? 'tent' : 'empty')) : line,
+      ),
+    };
+    const flagged = touchingTentCells(SIMPLE, state);
+    expect(flagged.has('1:1')).toBe(true);
+    expect(flagged.has('1:2')).toBe(true);
+    expect(flagged.size).toBe(2);
+  });
+
+  test('flags a diagonal touch too', () => {
+    const state = stateWithTents(SIMPLE, [{ row: 1, col: 1 }, { row: 2, col: 2 }]);
+    const flagged = touchingTentCells(SIMPLE, state);
+    expect(flagged.has('1:1')).toBe(true);
+    expect(flagged.has('2:2')).toBe(true);
+  });
+
+  test('the real solution has no touching tents', () => {
+    const state = stateWithTents(SIMPLE, SIMPLE_SOLUTION_TENTS);
+    expect(touchingTentCells(SIMPLE, state).size).toBe(0);
+  });
+});
+
+describe('isRowSatisfied / isColSatisfied', () => {
+  test('the real solution satisfies every row and column', () => {
+    const state = stateWithTents(SIMPLE, SIMPLE_SOLUTION_TENTS);
+    for (let i = 0; i < 4; i += 1) {
+      expect(isRowSatisfied(SIMPLE, state, i)).toBe(true);
+      expect(isColSatisfied(SIMPLE, state, i)).toBe(true);
+    }
+  });
+
+  test('an empty board only satisfies zero-clued lines', () => {
+    const state = emptyTentsTreesState(SIMPLE);
+    expect(isRowSatisfied(SIMPLE, state, 0)).toBe(true); // rowCounts[0] === 0
+    expect(isRowSatisfied(SIMPLE, state, 1)).toBe(false); // rowCounts[1] === 1
+  });
+
+  test('over-placing a line un-satisfies it', () => {
+    // Row 1 needs exactly 1 tent; (1,1) is its only legal candidate, but the
+    // count check itself doesn't care about legality - two marks is simply
+    // the wrong count.
+    const state = stateWithTents(SIMPLE, [{ row: 1, col: 1 }, { row: 1, col: 3 }]);
+    expect(isRowSatisfied(SIMPLE, state, 1)).toBe(false);
   });
 });
 

@@ -9,16 +9,24 @@
 /* Begin PBXBuildFile section */
 		0B412B3721CBFD813FA426DA /* sfx_target.wav in Resources */ = {isa = PBXBuildFile; fileRef = 004E61D0AED9BE6563C58D22 /* sfx_target.wav */; };
 		0C80B921A6F3F58F76C31292 /* libPods-GravityInit.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-GravityInit.a */; };
+		103E266DC96111ECDC638735 /* sfx_binairo_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = F317E282D8AEEA9FDD698D15 /* sfx_binairo_solve.wav */; };
 		139D034796C454514FD4461C /* sfx_move.wav in Resources */ = {isa = PBXBuildFile; fileRef = 82C8FD3C1722BA279244080C /* sfx_move.wav */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		185A9A8EA8F7DCD06461B506 /* sfx_towers_place.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3B6A68F0B4555DC11A36A5E2 /* sfx_towers_place.wav */; };
 		33C63563EF50ABAC3B3057C4 /* sfx_tap.wav in Resources */ = {isa = PBXBuildFile; fileRef = A6771E312736404BD2FD70EE /* sfx_tap.wav */; };
 		3B9DFF08DD9B530E577575F3 /* sfx_mirror_place.wav in Resources */ = {isa = PBXBuildFile; fileRef = 81B6A7CD078CA1E09335C233 /* sfx_mirror_place.wav */; };
+		3CA70813EB5D2FDB2D437AF7 /* sfx_tents_row_complete.wav in Resources */ = {isa = PBXBuildFile; fileRef = 1E96CE94D4CB06168C226B9A /* sfx_tents_row_complete.wav */; };
+		4EC4FDB738B9E61670F21C45 /* sfx_tents_error.wav in Resources */ = {isa = PBXBuildFile; fileRef = D9BBB737A0FEDF8A0EE4FB01 /* sfx_tents_error.wav */; };
 		5C4826ED02A3F535DAFFA2CF /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
 		61A6BA45885343E196301354 /* sfx_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = BFAAE301FFA1BC61BD53DC70 /* sfx_solve.wav */; };
+		657D61A956941BABBFFDCEE6 /* sfx_binairo_row_balance.wav in Resources */ = {isa = PBXBuildFile; fileRef = 8FBDDD8FC6DB55B74D342F2F /* sfx_binairo_row_balance.wav */; };
+		6EE4BBC59B4547653F6B6999 /* sfx_binairo_error.wav in Resources */ = {isa = PBXBuildFile; fileRef = FC23D3BF292257E5217ACC95 /* sfx_binairo_error.wav */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		766697C60B96947080FF03C7 /* sfx_mirror_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = 369F0C92F8C5839051C7486F /* sfx_mirror_solve.wav */; };
+		7704181FF0AD2DDAB0646744 /* sfx_tents_plant.wav in Resources */ = {isa = PBXBuildFile; fileRef = 18D648F25764C6A01DF64BC2 /* sfx_tents_plant.wav */; };
+		778C9DC89E178AE69F21559B /* sfx_tents_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = 9C0D9F01714DCB0BFDA7F9FB /* sfx_tents_solve.wav */; };
 		796B970C79EBD518885D9957 /* sfx_towers_row_complete.wav in Resources */ = {isa = PBXBuildFile; fileRef = 18785872A2254CCABF8FF6E3 /* sfx_towers_row_complete.wav */; };
+		7CED867168456542ED382E39 /* sfx_binairo_toggle.wav in Resources */ = {isa = PBXBuildFile; fileRef = 64406E1A073E9C3E3F54E9CB /* sfx_binairo_toggle.wav */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		8DA680DF67209FEDA9F39F4A /* sfx_step.wav in Resources */ = {isa = PBXBuildFile; fileRef = BF4A64503A5344D1F60D5457 /* sfx_step.wav */; };
 		9F5469FC6DB931CB042985F5 /* sfx_towers_conflict.wav in Resources */ = {isa = PBXBuildFile; fileRef = 9EF4F30E6CCB820AA0E73F82 /* sfx_towers_conflict.wav */; };
@@ -35,22 +43,30 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = GravityInit/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = GravityInit/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		18785872A2254CCABF8FF6E3 /* sfx_towers_row_complete.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_towers_row_complete.wav; path = GravityInit/Sounds/sfx_towers_row_complete.wav; sourceTree = "<group>"; };
+		18D648F25764C6A01DF64BC2 /* sfx_tents_plant.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_tents_plant.wav; path = GravityInit/Sounds/sfx_tents_plant.wav; sourceTree = "<group>"; };
+		1E96CE94D4CB06168C226B9A /* sfx_tents_row_complete.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_tents_row_complete.wav; path = GravityInit/Sounds/sfx_tents_row_complete.wav; sourceTree = "<group>"; };
 		369F0C92F8C5839051C7486F /* sfx_mirror_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_mirror_solve.wav; path = GravityInit/Sounds/sfx_mirror_solve.wav; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-GravityInit.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GravityInit.debug.xcconfig"; path = "Target Support Files/Pods-GravityInit/Pods-GravityInit.debug.xcconfig"; sourceTree = "<group>"; };
 		3B6A68F0B4555DC11A36A5E2 /* sfx_towers_place.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_towers_place.wav; path = GravityInit/Sounds/sfx_towers_place.wav; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-GravityInit.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GravityInit.release.xcconfig"; path = "Target Support Files/Pods-GravityInit/Pods-GravityInit.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-GravityInit.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-GravityInit.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		64406E1A073E9C3E3F54E9CB /* sfx_binairo_toggle.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_binairo_toggle.wav; path = GravityInit/Sounds/sfx_binairo_toggle.wav; sourceTree = "<group>"; };
 		6E4C97F0D249C82985E84986 /* sfx_towers_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_towers_solve.wav; path = GravityInit/Sounds/sfx_towers_solve.wav; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = GravityInit/AppDelegate.swift; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = GravityInit/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		81B6A7CD078CA1E09335C233 /* sfx_mirror_place.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_mirror_place.wav; path = GravityInit/Sounds/sfx_mirror_place.wav; sourceTree = "<group>"; };
 		82C8FD3C1722BA279244080C /* sfx_move.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_move.wav; path = GravityInit/Sounds/sfx_move.wav; sourceTree = "<group>"; };
+		8FBDDD8FC6DB55B74D342F2F /* sfx_binairo_row_balance.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_binairo_row_balance.wav; path = GravityInit/Sounds/sfx_binairo_row_balance.wav; sourceTree = "<group>"; };
+		9C0D9F01714DCB0BFDA7F9FB /* sfx_tents_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_tents_solve.wav; path = GravityInit/Sounds/sfx_tents_solve.wav; sourceTree = "<group>"; };
 		9EF4F30E6CCB820AA0E73F82 /* sfx_towers_conflict.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_towers_conflict.wav; path = GravityInit/Sounds/sfx_towers_conflict.wav; sourceTree = "<group>"; };
 		A6771E312736404BD2FD70EE /* sfx_tap.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_tap.wav; path = GravityInit/Sounds/sfx_tap.wav; sourceTree = "<group>"; };
 		B4BCA7DF5DF9E2E4C048C218 /* sfx_mirror_gem.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_mirror_gem.wav; path = GravityInit/Sounds/sfx_mirror_gem.wav; sourceTree = "<group>"; };
 		BF4A64503A5344D1F60D5457 /* sfx_step.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_step.wav; path = GravityInit/Sounds/sfx_step.wav; sourceTree = "<group>"; };
 		BFAAE301FFA1BC61BD53DC70 /* sfx_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_solve.wav; path = GravityInit/Sounds/sfx_solve.wav; sourceTree = "<group>"; };
+		D9BBB737A0FEDF8A0EE4FB01 /* sfx_tents_error.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_tents_error.wav; path = GravityInit/Sounds/sfx_tents_error.wav; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
+		F317E282D8AEEA9FDD698D15 /* sfx_binairo_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_binairo_solve.wav; path = GravityInit/Sounds/sfx_binairo_solve.wav; sourceTree = "<group>"; };
+		FC23D3BF292257E5217ACC95 /* sfx_binairo_error.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_binairo_error.wav; path = GravityInit/Sounds/sfx_binairo_error.wav; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -141,6 +157,14 @@
 				3B6A68F0B4555DC11A36A5E2 /* sfx_towers_place.wav */,
 				18785872A2254CCABF8FF6E3 /* sfx_towers_row_complete.wav */,
 				6E4C97F0D249C82985E84986 /* sfx_towers_solve.wav */,
+				FC23D3BF292257E5217ACC95 /* sfx_binairo_error.wav */,
+				8FBDDD8FC6DB55B74D342F2F /* sfx_binairo_row_balance.wav */,
+				F317E282D8AEEA9FDD698D15 /* sfx_binairo_solve.wav */,
+				64406E1A073E9C3E3F54E9CB /* sfx_binairo_toggle.wav */,
+				D9BBB737A0FEDF8A0EE4FB01 /* sfx_tents_error.wav */,
+				18D648F25764C6A01DF64BC2 /* sfx_tents_plant.wav */,
+				1E96CE94D4CB06168C226B9A /* sfx_tents_row_complete.wav */,
+				9C0D9F01714DCB0BFDA7F9FB /* sfx_tents_solve.wav */,
 			);
 			name = Sounds;
 			sourceTree = "<group>";
@@ -221,6 +245,14 @@
 				185A9A8EA8F7DCD06461B506 /* sfx_towers_place.wav in Resources */,
 				796B970C79EBD518885D9957 /* sfx_towers_row_complete.wav in Resources */,
 				E32B288A57E5B905EA185645 /* sfx_towers_solve.wav in Resources */,
+				6EE4BBC59B4547653F6B6999 /* sfx_binairo_error.wav in Resources */,
+				657D61A956941BABBFFDCEE6 /* sfx_binairo_row_balance.wav in Resources */,
+				103E266DC96111ECDC638735 /* sfx_binairo_solve.wav in Resources */,
+				7CED867168456542ED382E39 /* sfx_binairo_toggle.wav in Resources */,
+				4EC4FDB738B9E61670F21C45 /* sfx_tents_error.wav in Resources */,
+				7704181FF0AD2DDAB0646744 /* sfx_tents_plant.wav in Resources */,
+				3CA70813EB5D2FDB2D437AF7 /* sfx_tents_row_complete.wav in Resources */,
+				778C9DC89E178AE69F21559B /* sfx_tents_solve.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

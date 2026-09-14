@@ -22,18 +22,6 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
     title: 'Gravity',
     body: 'Swipe any direction to pull every piece that way. Land each one on its ringed target to solve the board.',
   },
-  constellation: {
-    title: 'Constellation',
-    body: 'Tap a cell to fill it, tap again to cross it out. The numbers beside each row and column tell you exactly how many cells to fill - reveal the whole picture to solve it.',
-  },
-  trajectory: {
-    title: 'Trajectory',
-    body: 'Drag between two matching dots to draw a path between them. Cover every cell on the board to solve it.',
-  },
-  sudoku: {
-    title: 'Sudoku',
-    body: 'Fill every row, column and 3×3 box with the digits 1 through 9, with no repeats. Tap a cell, then tap a number.',
-  },
   mirror: {
     title: 'Mirror Maze',
     body: 'Tap a cell to place a mirror, tap again to rotate it, and once more to remove it. Route the beam through every gem to the target to solve it.',
@@ -48,7 +36,7 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   },
   binairo: {
     title: 'Binairo',
-    body: 'Tap a cell to cycle a ring, a filled dot, then blank. No three of the same in a row or column, and each needs an equal split of both, to solve it.',
+    body: 'Tap a cell to cycle a square, a circle, then blank. No three of the same in a row or column, and each needs an equal split of both, to solve it.',
   },
 };
 

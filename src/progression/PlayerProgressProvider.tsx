@@ -69,10 +69,10 @@ interface PlayerProgressContextValue {
 const PlayerProgressContext = createContext<PlayerProgressContextValue | null>(null);
 
 /**
- * Star thresholds for Constellation and Trajectory, whose puzzles have no
+ * Star thresholds for every non-Gravity game, whose puzzles have no
  * authored `StarThresholds` of their own (`getLevelById` only knows Gravity
- * levels). Both games pass a *hint count* through the `moves` slot instead
- * of a move count, scored on a fixed tier: 0 hints -> 3 stars, 1 hint -> 2,
+ * levels). They pass a *hint count* through the `moves` slot instead of a
+ * move count, scored on a fixed tier: 0 hints -> 3 stars, 1 hint -> 2,
  * 2+ hints -> 1. See `recordCompletion` below for why that count is shifted
  * up by one before it reaches `computeStars`.
  */
@@ -168,20 +168,20 @@ export function PlayerProgressProvider({
 
     // `computeStars` treats a move count under 1 as a defensive, degenerate
     // input (a Gravity level can never actually be solved in zero moves).
-    // Constellation/Trajectory's hint count legitimately *is* zero on a
-    // flawless solve, so it is shifted up one tier here before scoring -
-    // 0 hints scores as tier 1 against `HINT_STAR_THRESHOLDS`, 1 hint as
-    // tier 2, and so on. Gravity's own `moves` is untouched.
+    // A non-Gravity game's hint count legitimately *is* zero on a flawless
+    // solve, so it is shifted up one tier here before scoring - 0 hints
+    // scores as tier 1 against `HINT_STAR_THRESHOLDS`, 1 hint as tier 2, and
+    // so on. Gravity's own `moves` is untouched.
     const scored = level ? moves : moves + 1;
     const isDaily = levelId === getDailyEntry().puzzleId;
     const todayKey = dailyKeyOf(new Date());
 
     const next = applyMutation(current => {
       let result = recordCompletionPure(current, levelId, scored, thresholds);
-      // Any completion - Gravity, Constellation or Trajectory alike - also
-      // extends the Daily streak when it happens to be today's Daily entry.
-      // No screen needs to know it opened the Daily card for this to work:
-      // every completion already funnels through here by puzzle id.
+      // Any completion - Gravity or any other game alike - also extends the
+      // Daily streak when it happens to be today's Daily entry. No screen
+      // needs to know it opened the Daily card for this to work: every
+      // completion already funnels through here by puzzle id.
       if (isDaily) result = recordDaily(result, todayKey);
       return result;
     });

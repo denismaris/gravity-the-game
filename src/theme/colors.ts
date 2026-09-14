@@ -26,13 +26,10 @@ export const colors = {
 
   // --- per-game identity accents ---
   // One muted, distinct colour per game (Gravity's is `secondary` above,
-  // already established everywhere) so the four games read as different
-  // things at a glance - Home's hero card, each screen's kicker line, and
+  // already established everywhere) so each game reads as a different
+  // thing at a glance - Home's hero card, each screen's kicker line, and
   // Browse's section headers - without introducing new hues that clash with
   // the functional board colours above (danger/success/accent/pieceBlue).
-  constellationAccent: '#4A4A72', // dusty indigo - a night sky
-  trajectoryAccent: '#3D7D6E', // muted teal - a flowing path
-  sudokuAccent: '#7D5470', // dusty plum - distinct from both the ochre stars and the terracotta
   mirrorAccent: '#4D6A80', // dusty steel-blue - a mirror's reflective surface
   tentsAccent: '#45684D', // muted sage-green - a pitched tent among the trees
   towersAccent: '#714B81', // dusty violet - a city skyline at dusk
@@ -46,6 +43,50 @@ export const colors = {
   towersClueChip: 'rgba(113, 75, 129, 0.10)', // plaque behind each edge clue
   towersClueText: '#5A3F66',
   towersShadow: 'rgba(42, 37, 31, 0.18)', // ink-based; Tents and Trees' ground shadow shares this same ink base
+
+  // --- Tents and Trees' ground shadow ---
+  // Same ink base as `towersShadow` (a slightly lower alpha - trees and
+  // tents sit lower/flatter in their cell than a skyscraper's digit) -
+  // ground shadows are one visual concept in this palette, not several.
+  tentsShadow: 'rgba(42, 37, 31, 0.14)',
+
+  // --- Binairo's tactile tile board ---
+  // The one board where each cell is its own raised tile rather than a
+  // square on a shared flat surface. `binairoTileShadow` is the same
+  // ink-based shadow *family* as `towersShadow`/`tentsShadow` above, just a
+  // tighter alpha tuned for a small offset tile shadow rather than a ground
+  // shadow. The board's two fillable symbols (a filled disc, a hollow
+  // rounded square) are both drawn in plain ink - shape carries the
+  // primary distinction, not colour - so `binairoFilledTile`/
+  // `binairoOutlineTile` carry the redundant colour cue instead, on the
+  // tile's own face. They were originally blends of `secondary`
+  // (terracotta) and `binairoAccent` (olive) - a real palette mistake,
+  // not just a taste call: a pink-tinted tile and a red hazard-tape error
+  // share one colour family, so a filled tile could misread as "this is
+  // wrong" at a glance, and a green-tinted tile sits too close to
+  // `success`'s own meaning elsewhere in the app. Rebuilt as 25% blends
+  // of `pieceBlue` and `accent` (ochre) instead - a plain warm/cool pair
+  // that doesn't borrow either error-red or success-green's own hue, and
+  // reuses colours already meaningful elsewhere (a piece, a target/star)
+  // rather than inventing new ones. All three rule violations still
+  // share one plain `danger`-red hazard-tape treatment - one consistent
+  // "this is wrong" language beats three - which is exactly why nothing
+  // else on this board can also read as red. Bumped from a 25% blend to
+  // 35%, then to 55%/75% once these two tokens also became the fill
+  // colour of the 3D bubble drawn *on top* of the tile - and bumped again
+  // here to 75%/95%, still too pale each time on an actual device rather
+  // than in isolation. `binairoFilledTileGiven`/`binairoOutlineTileGiven`
+  // stay the deeper of each pair (95% - nearly the pure hue - vs. 75%) -
+  // a given (printed) cell's tile and bubble are a visibly richer, more
+  // saturated version of the same colour a player's own entry uses, on
+  // top of the border-weight difference already there, since one subtle
+  // cue wasn't reading as "these are two different kinds of cell" clearly
+  // enough on an actual device.
+  binairoTileShadow: 'rgba(42, 37, 31, 0.18)',
+  binairoFilledTile: '#C8A560',
+  binairoOutlineTile: '#6D83AF',
+  binairoFilledTileGiven: '#BA8F39',
+  binairoOutlineTileGiven: '#47649D',
 
   // --- Mirror Maze's board ---
   // The one board in the app that inverts to a dark ground. Light can only

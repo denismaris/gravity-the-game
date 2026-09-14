@@ -13,18 +13,18 @@ export interface PuzzleSolvedProps {
   onDone: () => void;
   /** Whether another puzzle follows this one in the Journey. When true, the
    * primary action advances there instead of leaving to Home - this is what
-   * makes finishing a Constellation or Trajectory puzzle roll on to
-   * whichever game the Journey deals next, matching Gravity's own
-   * `LevelCompleteCard`. */
+   * makes finishing a puzzle roll on to whichever game the Journey deals
+   * next, matching Gravity's own `LevelCompleteCard`. */
   hasNext?: boolean;
   /** Advance to the next Journey entry (only meaningful when `hasNext`). */
   onNext?: () => void;
 }
 
 /**
- * Shared "you solved it" overlay for the Constellation and Trajectory
- * games - a quiet card with the star result and two actions. Fades and
- * scales in as an immediate reaction to the finishing move.
+ * Shared "you solved it" overlay used by every puzzle screen (Mirror Maze,
+ * Tents and Trees, Skyscrapers, Binairo) - a quiet card with the star
+ * result and two actions. Fades and scales in as an immediate reaction to
+ * the finishing move.
  */
 export function PuzzleSolved({
   title = 'SOLVED',

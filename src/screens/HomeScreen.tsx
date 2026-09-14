@@ -39,11 +39,10 @@ export interface HomeScreenProps {
 
 /**
  * Home - the cover page of a puzzle almanac. A masthead, one dominant
- * Continue card for the next Journey entry (gravity, constellation or
- * trajectory), a Daily card, and a line of figures. A small Settings gear,
- * a "Browse All Puzzles" link, and the stats line itself (which opens
- * Achievements) are the only other ways out of the single Continue-driven
- * flow.
+ * Continue card for the next Journey entry (whichever game that is), a
+ * Daily card, and a line of figures. A small Settings gear, a "Browse All
+ * Puzzles" link, and the stats line itself (which opens Achievements) are
+ * the only other ways out of the single Continue-driven flow.
  */
 export function HomeScreen({
   onOpen,

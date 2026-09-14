@@ -3,13 +3,10 @@ import { ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '../components';
 import { BINAIRO } from '../game/binairo';
-import { CONSTELLATIONS } from '../game/constellation';
 import { accentColorForKind, GameKind } from '../game/journey';
 import { MIRROR_MAZES } from '../game/mirror';
-import { SUDOKUS } from '../game/sudoku';
 import { TENTS_TREES } from '../game/tents';
 import { TOWERS } from '../game/towers';
-import { TRAJECTORIES } from '../game/trajectory';
 import { getAllWorldSummaries, usePlayerProgress, WorldSummary } from '../progression';
 import { StarRating } from '../game/scoring';
 import { theme } from '../theme';
@@ -40,9 +37,6 @@ interface FlatPoolSection {
 }
 
 const FLAT_POOL_SECTIONS: ReadonlyArray<FlatPoolSection> = [
-  { kind: 'constellation', label: 'CONSTELLATION', pool: CONSTELLATIONS },
-  { kind: 'trajectory', label: 'TRAJECTORY', pool: TRAJECTORIES },
-  { kind: 'sudoku', label: 'SUDOKU', pool: SUDOKUS },
   { kind: 'mirror', label: 'MIRROR MAZE', pool: MIRROR_MAZES },
   { kind: 'tents', label: 'TENTS AND TREES', pool: TENTS_TREES },
   { kind: 'towers', label: 'SKYSCRAPERS', pool: TOWERS },
@@ -51,18 +45,18 @@ const FLAT_POOL_SECTIONS: ReadonlyArray<FlatPoolSection> = [
 
 /**
  * Every puzzle in the game, organised by world (Gravity) or as a flat
- * numbered grid (Constellation/Trajectory/Sudoku, which have no lock
- * concept), with stars shown for whatever's already completed. This is a
- * second way to reach any puzzle - it does not replace the Journey's own
- * "Continue"/"Daily" flow on Home, and picking a puzzle here does not change
- * Journey position or the Daily pick.
+ * numbered grid (every other game, which has no lock concept), with stars
+ * shown for whatever's already completed. This is a second way to reach any
+ * puzzle - it does not replace the Journey's own "Continue"/"Daily" flow on
+ * Home, and picking a puzzle here does not change Journey position or the
+ * Daily pick.
  *
  * Gravity's lock state is the *existing* rule surfaced for the first time,
  * not a new one: `getAllWorldSummaries`/`isWorldUnlocked` already governed
  * unlocking before there was any level-select screen to show it on. The
- * other three games have never had a lock rule, so their tiles are always
- * open - adding one here would be new gameplay logic, not a display of
- * something that already existed, so this deliberately doesn't.
+ * other games have never had a lock rule, so their tiles are always open -
+ * adding one here would be new gameplay logic, not a display of something
+ * that already existed, so this deliberately doesn't.
  */
 export function BrowseScreen({ onExit, onOpen }: BrowseScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();

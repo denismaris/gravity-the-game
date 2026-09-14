@@ -54,7 +54,7 @@ describe('loadSettings / saveSettings round-trip', () => {
     let settings = defaultSettings();
     settings = withSoundEnabled(settings, false);
     settings = withHapticsEnabled(settings, false);
-    settings = withTutorialSeen(settings, 'game:sudoku');
+    settings = withTutorialSeen(settings, 'game:binairo');
 
     await saveSettings(backend, settings);
     const loaded = await loadSettings(backend);

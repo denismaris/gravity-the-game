@@ -1,11 +1,8 @@
 import { BINAIRO } from '../game/binairo';
-import { CONSTELLATIONS } from '../game/constellation';
 import { JOURNEY } from '../game/journey';
 import { MIRROR_MAZES } from '../game/mirror';
-import { SUDOKUS } from '../game/sudoku';
 import { TENTS_TREES } from '../game/tents';
 import { TOWERS } from '../game/towers';
-import { TRAJECTORIES } from '../game/trajectory';
 import { WORLDS } from '../game/worlds';
 import { getLevelStars, getTotalStars, isLevelCompleted, PlayerProgress } from './playerProgress';
 import { isWorldComplete } from './worldProgress';
@@ -38,9 +35,9 @@ function allCompleted(progress: PlayerProgress, pool: ReadonlyArray<{ id: string
 }
 
 /** Whether any puzzle in `pool` has ever been solved for the full 3 stars -
- * for every hint-scored game (Constellation/Trajectory/Sudoku/Mirror Maze/
- * Tents and Trees/Skyscrapers/Binairo) that means zero hints (see
- * `HINT_STAR_THRESHOLDS` in `PlayerProgressProvider`). */
+ * for every hint-scored game (Mirror Maze/Tents and Trees/Skyscrapers/
+ * Binairo) that means zero hints (see `HINT_STAR_THRESHOLDS` in
+ * `PlayerProgressProvider`). */
 function anyFlawless(progress: PlayerProgress, pool: ReadonlyArray<{ id: string }>): boolean {
   return pool.some(puzzle => getLevelStars(progress, puzzle.id) === 3);
 }
@@ -62,24 +59,6 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
       isEarned: progress => isWorldComplete(progress, world),
     }),
   ),
-  {
-    id: 'game:constellation',
-    title: 'Stargazer',
-    description: 'Solve every Constellation puzzle.',
-    isEarned: progress => allCompleted(progress, CONSTELLATIONS),
-  },
-  {
-    id: 'game:trajectory',
-    title: 'True Path',
-    description: 'Solve every Trajectory puzzle.',
-    isEarned: progress => allCompleted(progress, TRAJECTORIES),
-  },
-  {
-    id: 'game:sudoku',
-    title: "Number's Up",
-    description: 'Solve every Sudoku puzzle.',
-    isEarned: progress => allCompleted(progress, SUDOKUS),
-  },
   {
     id: 'game:mirror',
     title: 'Bending Light',
@@ -118,7 +97,7 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
   },
   {
     id: 'stars:all',
-    title: 'Full Constellation',
+    title: 'Full Almanac',
     description: `Earn every star - all ${TOTAL_STARS_POSSIBLE}.`,
     isEarned: progress => getTotalStars(progress) >= TOTAL_STARS_POSSIBLE,
   },
@@ -143,18 +122,8 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
   {
     id: 'skill:flawless',
     title: 'Flawless',
-    description:
-      'Solve a Constellation, Trajectory, Sudoku, Mirror Maze, Tents and Trees, Skyscrapers or Binairo puzzle without using a hint.',
-    isEarned: progress =>
-      anyFlawless(progress, [
-        ...CONSTELLATIONS,
-        ...TRAJECTORIES,
-        ...SUDOKUS,
-        ...MIRROR_MAZES,
-        ...TENTS_TREES,
-        ...TOWERS,
-        ...BINAIRO,
-      ]),
+    description: 'Solve a Mirror Maze, Tents and Trees, Skyscrapers or Binairo puzzle without using a hint.',
+    isEarned: progress => anyFlawless(progress, [...MIRROR_MAZES, ...TENTS_TREES, ...TOWERS, ...BINAIRO]),
   },
   {
     id: 'journey:complete',

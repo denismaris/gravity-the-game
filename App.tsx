@@ -12,21 +12,15 @@ import {
   AchievementsScreen,
   BinairoScreen,
   BrowseScreen,
-  ConstellationScreen,
   GameScreen,
   HomeScreen,
   MirrorMazeScreen,
   SettingsScreen,
-  SudokuScreen,
   TentsScreen,
   TowersScreen,
-  TrajectoryScreen,
 } from './src/screens';
 import { ScreenTransition } from './src/components';
 import { getLevelById } from './src/game/levels';
-import { getConstellationById } from './src/game/constellation';
-import { getTrajectoryById } from './src/game/trajectory';
-import { getSudokuById } from './src/game/sudoku';
 import { getMirrorMazeById } from './src/game/mirror';
 import { getTentsTreesById } from './src/game/tents';
 import { getTowersById } from './src/game/towers';
@@ -57,12 +51,12 @@ function App(): React.JSX.Element {
   const [overlayRoute, setOverlayRoute] = useState<OverlayRoute>(null);
 
   const exit = useCallback(() => setSelected(null), []);
-  // Shared by all four games' completion screens (as "next puzzle") and by
+  // Shared by every game's completion screen (as "next puzzle") and by
   // Browse (as "open this specific puzzle"): advancing/opening always means
   // going straight to a Journey entry, whatever game it belongs to - this is
-  // what keeps finishing a puzzle rotating through Gravity/Constellation/
-  // Trajectory/Sudoku instead of each game only ever advancing within
-  // itself. Also closes Browse/Settings, in case this came from there.
+  // what keeps finishing a puzzle rotating through the whole Journey instead
+  // of each game only ever advancing within itself. Also closes Browse/
+  // Settings, in case this came from there.
   const openPuzzle = useCallback((kind: GameKind, puzzleId: string) => {
     setOverlayRoute(null);
     setSelected({ kind, puzzleId });
@@ -96,36 +90,6 @@ function App(): React.JSX.Element {
     // a case here is a compile error, not a silent bounce to Home the way an
     // unmatched if/else-if chain would be.
     switch (selected.kind) {
-      case 'constellation': {
-        const puzzle = getConstellationById(selected.puzzleId);
-        screen = puzzle ? (
-          <ConstellationScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
-        ) : (
-          homeScreen
-        );
-        routeKey = puzzle ? `constellation:${puzzle.id}` : 'home';
-        break;
-      }
-      case 'trajectory': {
-        const puzzle = getTrajectoryById(selected.puzzleId);
-        screen = puzzle ? (
-          <TrajectoryScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
-        ) : (
-          homeScreen
-        );
-        routeKey = puzzle ? `trajectory:${puzzle.id}` : 'home';
-        break;
-      }
-      case 'sudoku': {
-        const puzzle = getSudokuById(selected.puzzleId);
-        screen = puzzle ? (
-          <SudokuScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
-        ) : (
-          homeScreen
-        );
-        routeKey = puzzle ? `sudoku:${puzzle.id}` : 'home';
-        break;
-      }
       case 'mirror': {
         const puzzle = getMirrorMazeById(selected.puzzleId);
         screen = puzzle ? (

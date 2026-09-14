@@ -19,7 +19,7 @@ function complete(progress: ReturnType<typeof emptyProgress>, levelId: string) {
   return recordCompletion(progress, levelId, getStarThresholds(level).three, getStarThresholds(level));
 }
 
-/** Completes any puzzle id (gravity, constellation or trajectory). */
+/** Completes any puzzle id, from any game. */
 function completeAny(progress: ReturnType<typeof emptyProgress>, puzzleId: string) {
   const level = getLevelById(puzzleId);
   const thresholds = level ? getStarThresholds(level) : { two: 3, three: 1 };

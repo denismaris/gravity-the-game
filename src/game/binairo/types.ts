@@ -10,6 +10,25 @@
  * legitimate board values here, so blank needs its own, third state. */
 export type BinairoValue = 0 | 1 | null;
 
+/** `'same'`: the two cells must end up equal. `'different'`: they must end
+ * up opposite. */
+export type BinairoConstraintKind = 'same' | 'different';
+
+/**
+ * A marker between two orthogonally-adjacent cells. Anchored at the
+ * upper-left of the pair with a direction to its neighbour, so every
+ * constraint has exactly one canonical shape - `(row, col, 'right')` means
+ * "this cell and the one to its right", `(row, col, 'down')` means "this
+ * cell and the one below" - rather than needing two mirrored entries per
+ * pair or a separate `(row2, col2)` that could point anywhere.
+ */
+export interface BinairoConstraint {
+  readonly row: number;
+  readonly col: number;
+  readonly direction: 'right' | 'down';
+  readonly kind: BinairoConstraintKind;
+}
+
 export interface BinairoPuzzle {
   readonly id: string;
   readonly name?: string;
@@ -18,6 +37,10 @@ export interface BinairoPuzzle {
   readonly size: number;
   /** Pre-filled cells; `null` where the player must fill it in. */
   readonly givens: ReadonlyArray<ReadonlyArray<BinairoValue>>;
+  /** `=`/`x` markers between adjacent cells - absent (or empty) on every
+   * puzzle authored before this mechanic existed. An additional rule
+   * layered on top of the base ruleset, not a replacement for any of it. */
+  readonly constraints?: ReadonlyArray<BinairoConstraint>;
 }
 
 export interface BinairoState {
