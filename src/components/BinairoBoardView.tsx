@@ -11,50 +11,41 @@ import {
   duplicateLineGroups,
   isGiven,
   tripleRunGroups,
+  twinKey,
+  twinPartner,
   unbalancedLines,
   violatedConstraints,
+  violatedTwins,
 } from '../game/binairo';
 import { BoardLayout, computeBoardLayout, getCellOrigin, useAnimationClock } from '../game/rendering';
 import { theme } from '../theme';
 
-/** How long a placed (or cleared) symbol takes to settle - see the
- * toggle-flip block in `BinairoBoardView` for what actually animates over
- * this window. A real flip needs enough time to actually read as turning
- * (not just a flicker), but still quick enough that cycling through
- * several cells in a row feels snappy, not delayed. */
-const TOGGLE_MS = 220;
-/** A card flip via horizontal `scaleX`, not a real `rotateY`+`perspective`
- * 3D transform - a true perspective projection needs proper z-clipping to
- * stay smooth right around the 90deg edge-on point, which this Skia
- * version's `Group` transform doesn't do, so it visibly stuttered/warped
- * there instead of reading as a clean turn. `scaleX` faking the same
- * silhouette (squish flat, swap face, unsquish) is the standard technique
- * 2D card-flip UIs use for exactly this reason, and stays perfectly smooth
- * since it's just a linear scale, no projection math to go wrong. The
- * width itself is driven by `cos` of a linearly-advancing turn angle
- * (`flipScaleX` below), not a hand-picked easing curve - that's the exact
- * silhouette a flat object held at that angle actually projects to, so it
- * decelerates approaching full width and accelerates through the middle
- * the same way a real turning card would, without needing a real 3D
- * transform to get there. A real->real swap is two quarter-flips back to
- * back: the old symbol squishes from full width to nothing, then the new
- * one unsquishes from nothing back to full width - only one face is ever
- * showing, like an actual flipped card. Placing into an empty cell or
- * clearing one only has a single face to animate, so those get one
- * quarter-flip each. */
-const FLIP_MIN_SCALE = 0.001;
-function flipScaleX(turnFraction: number): number {
-  return Math.max(FLIP_MIN_SCALE, Math.abs(Math.cos(turnFraction * (Math.PI / 2))));
-}
-/** The empty-ring's own fade is timed independently of the flip's own
- * duration, not tied 1:1 to the same `t` the shape's scale uses - the
- * ring reaching zero opacity in lockstep with the shape reaching full
- * width would leave a visibly stale, ghostly ring hanging over an
- * already-formed symbol, since a `scaleX` shape reads as "basically
- * there" well before it's actually at 100% width. Fading the ring out (or
- * in) over a much shorter window at the very start (or end) of the
- * transition clears it before the shape becomes visually prominent. */
-const FLIP_RING_FADE_FRACTION = 0.4;
+/** A placed mark doesn't turn or fade in - it stamps: it lands a touch
+ * oversized and settles to its resting size in one quick, decelerating
+ * motion, the way a rubber stamp's ink looks a beat "heavier" the
+ * instant it strikes the page before your eye settles on the mark
+ * itself. `STAMP_IN_MS` is that settle's own duration; `TOGGLE_MS` is
+ * the outer window the rest of this file uses to know how long a cell
+ * stays in its "currently transitioning" set (see `useToggleEvents`'s
+ * callers below) - equal to the longer of the incoming stamp and the
+ * outgoing lift, since both can be running at once (see `STAMP_OUT_MS`). */
+const STAMP_IN_MS = 150;
+const TOGGLE_MS = STAMP_IN_MS;
+/** How long an outgoing mark takes to lift off the tile and vanish - a
+ * plain quick shrink-and-fade, not a mirror of the incoming stamp.
+ * Deliberately shorter than `STAMP_IN_MS` and run *concurrently* with it
+ * (not sequenced, like a page turning) - the old mark is old news the
+ * instant a new one starts landing, and overlapping the two is what
+ * keeps a fast run of taps feeling continuous instead of stuttery. */
+const STAMP_OUT_MS = 90;
+/** How much larger than its resting size an incoming mark starts - the
+ * "struck a touch too hard" overshoot the settle then eases out of. */
+const STAMP_OVERSHOOT_SCALE = 1.3;
+/** The empty ring's own fade - clearing out (or landing back) well
+ * before the incoming/outgoing mark is done animating, over a window
+ * this much shorter than `STAMP_IN_MS`, so it never sits half-visible
+ * underneath an already-legible mark. */
+const RING_FADE_MS = 70;
 
 /** All three rule violations - a triple run, an unequal count, a
  * duplicated line - render as the *same* hazard-tape zone at the *same*
@@ -86,7 +77,7 @@ const ERROR_BORDER_OPACITY = 0.8;
  * the error-zone block in `BinairoBoardView` itself) has a real gap to
  * show through, not just a hairline. */
 const TILE_GAP = 6;
-const TILE_RADIUS = 8;
+export const TILE_RADIUS = 8;
 /** The tile's own contact shadow, offset down *and slightly right* - not
  * straight down - to match the same upper-left light the tray's edge
  * seam, the tokens' own diagonal gradient, and their step-shadow all
@@ -110,78 +101,82 @@ const WAVE_STAGGER_MS = 40;
 const WAVE_TILE_MS = 220;
 const WAVE_TOTAL_MS = 650;
 
-/** The two fillable states are a solid disc and a solid rounded square -
- * two different *shapes*, not two colours, so they're still told apart at
- * a glance even though both are now the same kind of glossy 3D "bubble".
- * `ICON_COLOR` survives only for the constraint badges' own ink marks -
- * the two symbols below get their colour from `bubbleBaseColor` instead. */
-const ICON_COLOR = theme.colors.primary;
+/** The board's own opening flourish: every tile - given or not - starts
+ * hidden under a solid cream "shutter" (the page's own `background`, not a
+ * near-white that would nearly vanish against the tray beneath it) with a
+ * bright accent seam glowing along its shrinking edge, then those shutters
+ * shrink away in a diagonal wave from the top-left corner, the seam fading
+ * as it goes, revealing the tray underneath tile by tile, like a deck
+ * being dealt out rather than the whole grid just appearing at once. Runs
+ * once when the board first mounts, and again on every restart (see
+ * `introKey`) - a puzzle resetting reads as the same tray waking back up,
+ * not a silent snap back to blank. Distance is plain Chebyshev from the
+ * corner `(0,0)`, the same "square rings" metric `useSolveWave` already
+ * uses, just fixed at a corner instead of wherever the winning move landed
+ * - `WAVE_TOTAL_MS`'s margin math applies here too: worst case a 10x10
+ * board's opposite corner is 9 tiles away, 9 * `INTRO_STAGGER_MS` +
+ * `INTRO_TILE_MS` = 306 + 340 = 646ms, comfortably under `INTRO_TOTAL_MS`. */
+const INTRO_STAGGER_MS = 34;
+const INTRO_TILE_MS = 340;
+const INTRO_TOTAL_MS = 700;
+const INTRO_SEAM_WIDTH_FACTOR = 0.05;
 
-/** The square bubble's own proportions, relative to the circle bubble's
- * radius `R` - slightly larger half-width than `R`, so it reads as "the
- * same visual weight" next to the disc rather than looking small and
+/** A tile's own tactile "press" feedback: an accent-coloured ring that
+ * pulses outward from the centre and fades - a deliberately visible "ink"
+ * ripple (the same idiom Material-style touch feedback uses), not just a
+ * quiet tint - plus a softer full-tile darkening that holds for as long as
+ * the finger stays down and eases out on release. Both start the instant a
+ * finger lands, independent of (and usually much quicker than) whatever
+ * toggle/flip that release goes on to trigger: this is purely "something
+ * under my finger reacted", the flip is "the value actually changed". The
+ * ripple always plays out in full (`PRESS_RIPPLE_MS`) even if the finger
+ * lifts immediately - a tap that's already over by the time the ripple
+ * would start is exactly the case this most needs to cover. */
+const PRESS_GLOW_IN_MS = 90;
+const PRESS_GLOW_OUT_MS = 150;
+const PRESS_GLOW_OPACITY = 0.14;
+const PRESS_RIPPLE_MS = 340;
+const PRESS_RIPPLE_START_FACTOR = 0.2;
+const PRESS_RIPPLE_END_FACTOR = 0.95;
+const PRESS_RIPPLE_OPACITY = 0.45;
+
+/** The two fillable states are a solid disc and a solid rounded square,
+ * *and* two different colours (see `theme/colors.ts`'s own comment for
+ * which, and why those two) - shape and colour agree instead of only one
+ * of them carrying the distinction, since colour alone isn't colourblind-
+ * safe and shape alone reads noticeably slower at a glance across a full
+ * board. Only the mark itself carries colour, in a flat, solid fill with
+ * no gradient or bevel - the tile it sits on stays this app's plain
+ * paper colour regardless of value (see `renderTileChrome`), so a filled
+ * cell never paints a second, unrelated colour across its whole
+ * background the way an earlier version of this board did. Constraint
+ * badges use their own separate ink (`BADGE_INK_COLOR` below) rather than
+ * either of these two - a badge is a different kind of mark (a rule
+ * check, not a value), and borrowing a value's own colour for it would
+ * blur that difference. */
+function markColor(value: 1 | 0): string {
+  return value === 1 ? theme.colors.binairoMarkFilled : theme.colors.binairoMarkOutline;
+}
+/** The constraint badges' own ink - plain `primary`, independent of
+ * `markColor` above (see that function's own comment for why). */
+const BADGE_INK_COLOR = theme.colors.primary;
+
+/** The square mark's own proportions, relative to the circle's own radius
+ * `R` - slightly larger half-width than `R`, so it reads as "the same
+ * visual weight" next to the disc rather than looking small and
  * secondary beside it. */
-const SQUARE_HALF_FACTOR = 1.05;
-const SQUARE_CORNER_FACTOR = 0.38;
+const SQUARE_HALF_FACTOR = 1.02;
+const SQUARE_CORNER_FACTOR = 0.32;
 
-/**
- * Both fillable symbols are clean "tokens" - a disc ("1") and rounded
- * square ("0") - coloured with the exact same hue family their own tile
- * face already uses (see `bubbleBaseColor`) so a token and the tile it
- * sits in are always one coordinated colour. A given cell's token and a
- * player's own entry share the exact same colour and shading now - only
- * the tile chrome beneath them (a heavier border, a deeper shadow) still
- * tells the two apart, not the symbol itself. Real depth from just two
- * moves: a wide-contrast diagonal gradient (corner-lit, not a flat tint)
- * plus a solid, hard-edged "step" underneath offset a few pixels down -
- * a duplicate of the same shape in a darker shade, peeking out as a
- * crescent along the bottom edge, the same un-blurred offset-shadow trick
- * modern flat-with-depth UI (Duolingo's own buttons, for one) uses to
- * make a flat shape read as a raised physical piece. Not a third attempt
- * at the earlier four-layer glass-marble treatment (a vignette, a broad
- * ambient highlight, a tight specular hot-spot, a separate occlusion
- * glow) - that read as glossy "bubblewrap" - and not last round's single
- * gentle linear gradient either, which lost the marble's depth without
- * replacing it with anything and read as flat/bland. Proven out in an
- * actual rendered HTML/CSS comparison of the gradient-contrast-plus-step-
- * shadow combination against a higher-contrast radial sphere, a crisp
- * two-tone bevel, and a classic glossy button band before porting the
- * winner here: real contrast plus a hard step shadow gave the strongest
- * "raised piece" read without tipping back into looking spherical/glossy.
- */
-const TILE_GRADIENT_MID_STOP = 0.46;
-const BUBBLE_RIM_COLOR = 'rgba(42, 37, 31, 0.4)';
-const BUBBLE_RIM_STROKE_FACTOR = 0.045;
-/** The step shadow's own offset, as a fraction of the shape's own radius
- * (a circle) or half-width (a square) - how far the darker duplicate
- * shape sits below the visible one, which is exactly how much of it
- * peeks out as the bottom crescent. Kept small and semi-transparent (see
- * `TILE_STEP_OPACITY`) rather than a large fully-opaque duplicate - at
- * full strength it read as a stray hard-edged patch of a different colour
- * stuck to the tile rather than an actual shadow. */
-const TILE_STEP_OFFSET_FACTOR = 0.065;
-const TILE_STEP_OPACITY = 0.6;
-/** A soft, wide ambient shadow underneath the token, in addition to the
- * crisp step - the step alone reads as the piece's own bevel/edge, not as
- * the piece casting light onto the tile beneath it. A radial fade offset
- * down-right (the same light direction as everything else) sells "a
- * physical object resting on a surface" the way the hard-edged step can't
- * by itself. */
-const TILE_AMBIENT_SHADOW_OFFSET_FACTOR = 0.1;
-const TILE_AMBIENT_SHADOW_REACH_FACTOR = 1.16;
-const TILE_AMBIENT_SHADOW_ALPHA = 0.16;
-
-/** The gradient's own light/dark ends and the step shadow's own solid
- * colour, per symbol - hand-tuned against the actual tile colour, not
- * computed by a generic lighten/darken formula (a uniform blend-toward-
- * white-or-black desaturates unevenly across these two different hues;
- * picking each pair by eye against a real rendered swatch reads better
- * than a formula that isn't hue-aware). Keyed by `value` (1 = filled/
- * circle, 0 = outline/square). */
-const TILE_GRADIENT: Record<'filled' | 'outline', { light: string; dark: string; step: string }> = {
-  filled: { light: '#FBE2A0', dark: '#B67F12', step: '#8C6110' },
-  outline: { light: '#9AB2DE', dark: '#253A67', step: '#1B2745' },
-};
+/** A mark's own soft contact shadow - offset the same down-and-slightly-
+ * right direction the tile chrome beneath it already shades toward (see
+ * `TILE_SHADOW_DY`/`TILE_SHADOW_DX`), just tighter: a thin mark sits
+ * close enough to its own tile that a wide, diffuse shadow would read as
+ * a smudge rather than a mark resting a hair above the paper. Ink-based
+ * (not the mark's own colour) since a shadow is never the colour of the
+ * thing casting it. */
+const MARK_SHADOW_OFFSET_FACTOR = 0.05;
+const MARK_SHADOW_ALPHA = 0.22;
 
 /** A constraint badge sits centred on the shared edge between its two
  * cells - small enough to read as a marker on the seam, not a third tile
@@ -198,6 +193,24 @@ const CONSTRAINT_MARK_STROKE_FACTOR = 0.3;
 const CONSTRAINT_POP_MS = 260;
 const CONSTRAINT_PULSE_PERIOD_MS = 1100;
 const CONSTRAINT_PULSE_AMPLITUDE = 0.045;
+
+/** A twin badge sits *on* one cell, not between two - deliberately unlike
+ * a constraint badge (which marks a relationship between neighbours), a
+ * twin's own partner is usually nowhere near it on the board, so a
+ * shared visual language between the two would suggest a connection
+ * that isn't there. Much smaller and quieter than a constraint badge
+ * (`0.09` vs. `0.22` of tile size) - it's a single quiet cue a player
+ * learns once (see `MechanicsCarousel`'s own twin slide), not something
+ * that needs its own presence competing with the mark it sits beside. */
+const TWIN_BADGE_RADIUS_FACTOR = 0.09;
+/** How far from each tile edge the badge sits - the tile's own top-right
+ * corner, inset so it never overlaps the mark at the tile's centre. */
+const TWIN_BADGE_INSET_FACTOR = 0.16;
+/** Same pop-on-flip and pulse-while-violated timing as a constraint
+ * badge (`CONSTRAINT_POP_MS`/`CONSTRAINT_PULSE_PERIOD_MS`/
+ * `CONSTRAINT_PULSE_AMPLITUDE`), reused rather than re-tuned - one
+ * consistent "a badge just became wrong" rhythm for every badge kind on
+ * this board, not a second one to learn. */
 
 function clamp01(t: number): number {
   return t < 0 ? 0 : t > 1 ? 1 : t;
@@ -218,88 +231,61 @@ function easeOutBack(t: number): number {
   const x = t - 1;
   return 1 + c3 * x ** 3 + c1 * x ** 2;
 }
-/** The tile-matching flat colour a bubble is built on top of - the same
- * token its own tile face already fills with, so bubble and tile are one
- * coordinated colour by construction rather than two independently-tuned
- * ones that could drift apart later. */
-function bubbleBaseColor(value: 1 | 0): string {
-  return value === 1 ? theme.colors.binairoFilledTile : theme.colors.binairoOutlineTile;
-}
-
-/**
- * A clean satin token: a single top-to-bottom linear gradient (light at
- * the top, the tile-matching hue at the middle, darker at the bottom) for
- * quiet, believable dimension, plus a thin ink rim so the token stays
- * legible even where its own hue nearly matches its tile. `topY`/`bottomY`
- * are the shape's own top/bottom edge in canvas space - a circle's
- * `cy - r`/`cy + r`, a square's `y`/`y + side` - so the gradient always
- * runs edge-to-edge on the shape it's painting, whatever that shape is.
- */
-function renderTileFace(shape: (children: React.ReactNode) => React.JSX.Element, start: ReturnType<typeof vec>, end: ReturnType<typeof vec>, value: 1 | 0): React.JSX.Element {
-  const grad = TILE_GRADIENT[value === 1 ? 'filled' : 'outline'];
-  return shape(<LinearGradient start={start} end={end} colors={[grad.light, bubbleBaseColor(value), grad.dark]} positions={[0, TILE_GRADIENT_MID_STOP, 1]} />);
-}
-
-function renderCircleBubble(key: string, cx: number, cy: number, r: number): React.JSX.Element {
-  const step = TILE_GRADIENT.filled.step;
-  const layer = (gradient: React.ReactNode): React.JSX.Element => (
-    <Circle cx={cx} cy={cy} r={r}>
-      {gradient}
-    </Circle>
-  );
-  const shadowCx = cx + r * TILE_AMBIENT_SHADOW_OFFSET_FACTOR;
-  const shadowCy = cy + r * TILE_AMBIENT_SHADOW_OFFSET_FACTOR;
+/** A disc, stamped in one flat colour plus its own soft contact shadow -
+ * no gradient, no rim stroke. A flat fill reads as a mark printed onto
+ * the paper; the bevel-and-rim treatment this replaced was built to sell
+ * "a small raised physical piece", which is exactly the wrong physicality
+ * for something that's supposed to look stamped, not moulded. */
+export function renderCircleMark(key: string, cx: number, cy: number, r: number, color: string): React.JSX.Element {
+  const dx = r * MARK_SHADOW_OFFSET_FACTOR;
   return (
     <Group key={key}>
-      {/* A soft ambient shadow first, then the crisp step - see
-          `TILE_AMBIENT_SHADOW_OFFSET_FACTOR`/`TILE_STEP_OFFSET_FACTOR`. */}
-      <Circle cx={shadowCx} cy={shadowCy} r={r * TILE_AMBIENT_SHADOW_REACH_FACTOR}>
-        <RadialGradient c={vec(shadowCx, shadowCy)} r={r * TILE_AMBIENT_SHADOW_REACH_FACTOR} colors={[`rgba(42,37,31,${TILE_AMBIENT_SHADOW_ALPHA})`, 'rgba(42,37,31,0)']} />
-      </Circle>
-      <Circle cx={cx} cy={cy + r * TILE_STEP_OFFSET_FACTOR} r={r} color={step} opacity={TILE_STEP_OPACITY} />
-      {renderTileFace(layer, vec(cx - r * 0.5, cy - r), vec(cx + r * 0.5, cy + r), 1)}
-      <Circle cx={cx} cy={cy} r={r} color={BUBBLE_RIM_COLOR} style="stroke" strokeWidth={Math.max(1, r * BUBBLE_RIM_STROKE_FACTOR)} />
+      <Circle cx={cx + dx} cy={cy + dx} r={r} color={`rgba(42,37,31,${MARK_SHADOW_ALPHA})`} />
+      <Circle cx={cx} cy={cy} r={r} color={color} />
     </Group>
   );
 }
 
-/** The circle's counterpart: the exact same treatment applied to a
- * rounded square instead - a genuinely different silhouette, so the two
- * fillable states are still told apart by shape alone. */
-function renderSquareBubble(key: string, cx: number, cy: number, R: number): React.JSX.Element {
+/** The circle's counterpart: the same flat-fill-plus-shadow treatment
+ * applied to a rounded square - a genuinely different silhouette, so the
+ * two fillable states are still told apart by shape even in grayscale. */
+export function renderSquareMark(key: string, cx: number, cy: number, R: number, color: string): React.JSX.Element {
   const half = R * SQUARE_HALF_FACTOR;
   const x = cx - half;
   const y = cy - half;
   const side = half * 2;
   const cr = half * SQUARE_CORNER_FACTOR;
-  const step = TILE_GRADIENT.outline.step;
-  const layer = (gradient: React.ReactNode): React.JSX.Element => (
-    <RoundedRect x={x} y={y} width={side} height={side} r={cr}>
-      {gradient}
-    </RoundedRect>
-  );
-  const shadowCx = cx + half * TILE_AMBIENT_SHADOW_OFFSET_FACTOR;
-  const shadowCy = cy + half * TILE_AMBIENT_SHADOW_OFFSET_FACTOR;
-  const shadowR = half * TILE_AMBIENT_SHADOW_REACH_FACTOR;
+  const dx = half * MARK_SHADOW_OFFSET_FACTOR;
   return (
     <Group key={key}>
-      <RoundedRect x={shadowCx - shadowR} y={shadowCy - shadowR} width={shadowR * 2} height={shadowR * 2} r={cr}>
-        <RadialGradient c={vec(shadowCx, shadowCy)} r={shadowR} colors={[`rgba(42,37,31,${TILE_AMBIENT_SHADOW_ALPHA})`, 'rgba(42,37,31,0)']} />
-      </RoundedRect>
-      <RoundedRect x={x} y={y + half * TILE_STEP_OFFSET_FACTOR} width={side} height={side} r={cr} color={step} opacity={TILE_STEP_OPACITY} />
-      {renderTileFace(layer, vec(x, y), vec(x + side, y + side), 0)}
-      <RoundedRect x={x} y={y} width={side} height={side} r={cr} color={BUBBLE_RIM_COLOR} style="stroke" strokeWidth={Math.max(1, half * BUBBLE_RIM_STROKE_FACTOR)} />
+      <RoundedRect x={x + dx} y={y + dx} width={side} height={side} r={cr} color={`rgba(42,37,31,${MARK_SHADOW_ALPHA})`} />
+      <RoundedRect x={x} y={y} width={side} height={side} r={cr} color={color} />
     </Group>
   );
 }
 
 function renderSymbol(key: string, value: 1 | 0, cx: number, cy: number, R: number): React.JSX.Element {
-  return value === 1 ? renderCircleBubble(key, cx, cy, R) : renderSquareBubble(key, cx, cy, R);
+  const color = markColor(value);
+  return value === 1 ? renderCircleMark(key, cx, cy, R, color) : renderSquareMark(key, cx, cy, R, color);
+}
+
+/** A mark mid-stamp: the same shape `renderSymbol` draws, wrapped in the
+ * scale/opacity envelope the placing/lifting animation needs (see
+ * `STAMP_IN_MS`/`STAMP_OUT_MS` in `BinairoBoardView`) - kept as its own
+ * wrapper rather than threading scale/opacity through the shape
+ * functions themselves, so the steady-state layer above can keep calling
+ * plain `renderSymbol` with no animation-only params to ignore. */
+function renderStampedSymbol(key: string, value: 1 | 0, cx: number, cy: number, R: number, centre: ReturnType<typeof vec>, opacity: number, scale: number): React.JSX.Element {
+  return (
+    <Group key={key} opacity={opacity} transform={[{ scale }]} origin={centre}>
+      {renderSymbol(`${key}-shape`, value, cx, cy, R)}
+    </Group>
+  );
 }
 
 /** The resting state's own icon: a faint dashed ring, distinct in kind
  * (not just colour) from both fillable symbols. */
-function renderEmptyRing(key: string, cx: number, cy: number, R: number): React.JSX.Element {
+export function renderEmptyRing(key: string, cx: number, cy: number, R: number): React.JSX.Element {
   return (
     <Group key={key}>
       {/* A genuinely recessed socket, not just a faint flat disc - shading
@@ -332,10 +318,10 @@ function renderEmptyRing(key: string, cx: number, cy: number, R: number): React.
  * inventing a second "this is wrong" colour language just for
  * constraints.
  */
-function renderConstraintBadge(key: string, cx: number, cy: number, radius: number, kind: BinairoConstraint['kind'], violated: boolean): React.JSX.Element {
+export function renderConstraintBadge(key: string, cx: number, cy: number, radius: number, kind: BinairoConstraint['kind'], violated: boolean): React.JSX.Element {
   const fill = violated ? theme.colors.danger : theme.colors.surfaceHi;
   const ring = violated ? theme.colors.danger : theme.colors.borderStrong;
-  const mark = violated ? theme.colors.surfaceHi : ICON_COLOR;
+  const mark = violated ? theme.colors.surfaceHi : BADGE_INK_COLOR;
   const strokeWidth = Math.max(1.25, radius * CONSTRAINT_MARK_STROKE_FACTOR);
   const d = radius * 0.5;
   const markPath =
@@ -349,6 +335,18 @@ function renderConstraintBadge(key: string, cx: number, cy: number, radius: numb
       <Path path={markPath} color={mark} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />
     </Group>
   );
+}
+
+/**
+ * A twin badge: a single small filled dot, nothing else - no ring, no
+ * mark inside it, unlike a constraint badge. Sits in one cell's own
+ * top-right corner rather than on a shared edge (see
+ * `TWIN_BADGE_RADIUS_FACTOR`'s own comment for why it's deliberately
+ * unlike `renderConstraintBadge`). `violated` swaps it to the same
+ * `danger` red every other "this is wrong" signal on this board uses.
+ */
+export function renderTwinBadge(key: string, cx: number, cy: number, radius: number, violated: boolean): React.JSX.Element {
+  return <Circle key={key} cx={cx} cy={cy} r={radius} color={violated ? theme.colors.danger : theme.colors.binairoAccent} />;
 }
 
 /** A plain rectangle SVG path - used only where a plain `<Rect>` element
@@ -369,7 +367,7 @@ function rectPath(x: number, y: number, w: number, h: number): string {
  * same diagonal-offset units used internally) slides every stripe along
  * the diagonal for the idle scroll.
  */
-function hazardStripePaths(bx: number, by: number, w: number, h: number, stripeWidth: number, phaseOffset: number): string[] {
+export function hazardStripePaths(bx: number, by: number, w: number, h: number, stripeWidth: number, phaseOffset: number): string[] {
   const period = stripeWidth * 2 * Math.SQRT2; // consecutive stroke centres, in x-y units
   const margin = w + h;
   const dMin = -h - stripeWidth;
@@ -451,6 +449,54 @@ function useSolveWave(solved: boolean, toggles: Map<string, ToggleEvent>, gridSi
   previousSolvedRef.current = solved;
 
   return waveRef.current;
+}
+
+/** The intro wave's own start time - `Date.now()` at first mount, and
+ * again whenever `introKey` changes (a restart). Stored in a ref rather
+ * than state since, exactly like `useSolveWave`, nothing here needs its
+ * own re-render - the animation clock already drives one for the whole
+ * window this covers. */
+function useIntroWave(introKey: number | undefined, now: number): number {
+  const startedAtRef = useRef(now);
+  const prevKeyRef = useRef(introKey);
+  if (introKey !== prevKeyRef.current) {
+    startedAtRef.current = now;
+    prevKeyRef.current = introKey;
+  }
+  return startedAtRef.current;
+}
+
+interface PressGlow {
+  readonly key: string;
+  readonly pressedAt: number;
+  readonly releasedAt: number | null;
+}
+
+/** Tracks the one cell currently (or most recently) held down, entirely
+ * independent of `useToggleEvents` - a press that never completes a toggle
+ * (a finger sliding off before release) still gets its own fade-out here,
+ * and a press that does complete one races the flip it triggers rather
+ * than being tied to it (see `PRESS_GLOW_OUT_MS`). */
+function usePressGlow(pressedCell: BinairoCell | null | undefined, now: number): PressGlow | null {
+  const ref = useRef<PressGlow | null>(null);
+  const pressedKey = pressedCell ? `${pressedCell.row}:${pressedCell.col}` : null;
+  const current = ref.current;
+
+  if (pressedKey && (!current || current.key !== pressedKey || current.releasedAt !== null)) {
+    ref.current = { key: pressedKey, pressedAt: now, releasedAt: null };
+  } else if (!pressedKey && current && current.releasedAt === null) {
+    ref.current = { ...current, releasedAt: now };
+  }
+
+  // Kept alive until *both* the tint has fully faded (from `releasedAt`)
+  // and the ripple has fully played out (from `pressedAt`, since the ripple
+  // runs its own fixed duration regardless of how quickly the finger
+  // lifted) - whichever finishes last.
+  const entry = ref.current;
+  if (entry && entry.releasedAt !== null && now - entry.releasedAt > PRESS_GLOW_OUT_MS && now - entry.pressedAt > PRESS_RIPPLE_MS) {
+    ref.current = null;
+  }
+  return ref.current;
 }
 
 /** Delays a set of keys' *onset* by `delayMs` without delaying their
@@ -579,32 +625,22 @@ function renderTray(layout: BoardLayout): React.JSX.Element {
   );
 }
 
-/** The tile's own background tint for a given cell value - shared between
- * the static per-cell chrome and the animated overlay that takes over a
- * cell's chrome for the duration of its toggle (see `renderTileChrome`),
- * so both always agree on what colour a given value paints. */
-function tileFaceColor(value: BinairoValue): string {
-  return value === 1 ? theme.colors.binairoFilledTile : value === 0 ? theme.colors.binairoOutlineTile : theme.colors.surfaceHi;
-}
-
-/** One tile's full chrome - offset shadow, tinted face, border - the same
- * three shapes whether drawn by the static layer (the common case) or, for
- * a cell mid-toggle, by the animated overlay instead (see the toggle-flip
- * block in `BinairoBoardView`). Keeping this in one place is what makes a
- * mid-flip tile's background swap to its new colour in lockstep with the
- * flip's own crossover point, rather than jumping to its final colour the
- * instant the tap lands while the old symbol is still visibly turning on
- * top of it - the static layer used to always paint the *current* state's
- * colour regardless of what the animation on top of it was showing, which
- * read as the tile's colour changing before its own symbol did. */
-function renderTileChrome(tx: number, ty: number, tileSize: number, given: boolean, face: string): React.JSX.Element {
+/** One tile's full chrome - offset shadow, plain paper face, border - the
+ * same shapes whether drawn by the static layer (the common case) or, for
+ * a cell mid-stamp, by the animated overlay instead (see the stamp block
+ * in `BinairoBoardView`). The face is always this one paper colour now,
+ * whatever the cell's value - only `given` (a heavier border, a deeper
+ * shadow) still tells a puzzle's own clue apart from a player's entry;
+ * the tile itself no longer tints by value (see `markColor`'s own
+ * comment for why colour lives on the mark, not the tile). */
+export function renderTileChrome(tx: number, ty: number, tileSize: number, given: boolean): React.JSX.Element {
   const dy = given ? TILE_SHADOW_DY : TILE_SHADOW_DY * 0.5;
   const dx = given ? TILE_SHADOW_DX : TILE_SHADOW_DX * 0.5;
   const inset = tileSize * 0.22;
   return (
     <>
       <RoundedRect x={tx + dx} y={ty + dy} width={tileSize} height={tileSize} r={TILE_RADIUS} color={theme.colors.binairoTileShadow} opacity={given ? 1 : 0.6} />
-      <RoundedRect x={tx} y={ty} width={tileSize} height={tileSize} r={TILE_RADIUS} color={face} />
+      <RoundedRect x={tx} y={ty} width={tileSize} height={tileSize} r={TILE_RADIUS} color={theme.colors.surfaceHi} />
       <RoundedRect
         x={tx}
         y={ty}
@@ -675,26 +711,24 @@ const StaticBinairoTiles = React.memo(function StaticBinairoTilesImpl({ puzzle, 
     <Group>
       {/* Per-cell tile chrome: a flat offset shadow (no blur - the same
           technique `towersShadow`/`tentsShadow` already use elsewhere)
-          under a raised face, so cells read as tiles sitting in the tray
-          above rather than squares drawn on one shared surface. The face
-          itself carries a faint per-symbol tint - a reference
-          screenshot's own tiles are fully coloured, not neutral squares
-          with a coloured icon on them - the *same* tint for a given cell
-          and a player's own entry (see `bubbleBaseColor`); a given cell
-          is told apart by a heavier `borderStrong` rule and a deeper
-          shadow instead, not by a different colour. */}
+          under a raised, plain-paper face, so cells read as tiles sitting
+          in the tray above rather than squares drawn on one shared
+          surface. Every tile is this same paper colour regardless of its
+          value now - only a given cell's heavier `borderStrong` rule and
+          deeper shadow (see `renderTileChrome`) tell it apart from a
+          player's own entry; colour lives on the mark, not the tile. */}
       {state.values.map((line, r) =>
-        line.map((value, c) => {
+        line.map((_value, c) => {
           // A transitioning cell's whole chrome - not just its symbol - is
           // owned by the animated overlay instead, for exactly as long as
-          // that overlay needs to keep showing the *old* colour while the
-          // old symbol is still visibly turning (see `renderTileChrome`).
+          // that overlay's own stamp/lift is still playing (see
+          // `renderTileChrome`).
           if (skipKeys.has(`${r}:${c}`)) return null;
           const origin = getCellOrigin(layout, r, c);
           const tx = origin.x + TILE_GAP;
           const ty = origin.y + TILE_GAP;
           const given = isGiven(puzzle, r, c);
-          return <Group key={`tile-${r}-${c}`}>{renderTileChrome(tx, ty, tileSize, given, tileFaceColor(value))}</Group>;
+          return <Group key={`tile-${r}-${c}`}>{renderTileChrome(tx, ty, tileSize, given)}</Group>;
         }),
       )}
 
@@ -738,24 +772,35 @@ export interface BinairoBoardViewProps {
   size: number;
   solved: boolean;
   flashCell?: BinairoCell | null;
+  /** The single cell currently held down, for the tactile press-glow -
+   * see `usePressGlow`. */
+  pressedCell?: BinairoCell | null;
+  /** Bumped by the screen on every restart to replay the intro wave - see
+   * `useIntroWave`. Undefined (the default, never changing) still plays
+   * the wave once, at mount. */
+  introKey?: number;
 }
 
 /**
  * The Skia-drawn Binairo board: individually raised tiles rather than one
- * flat surface, a glossy 3D disc vs. a glossy 3D rounded square as the
- * two fillable symbols (told apart by shape, not colour - see
- * `bubbleBaseColor`), an empty cell reading as a faint dashed ring, and
- * one consistent hazard-tape zone - always the entire offending row or
+ * flat surface, a flat gold disc vs. a flat blue rounded square as the
+ * two fillable symbols (told apart by shape *and* colour together - see
+ * `markColor`), an empty cell reading as a faint dashed ring, and one
+ * consistent hazard-tape zone - always the entire offending row or
  * column, never a tight box around a handful of cells - for whichever of
  * the three rule violations is at fault.
  */
-export function BinairoBoardView({ puzzle, state, size, solved, flashCell }: BinairoBoardViewProps): React.JSX.Element {
+export function BinairoBoardView({ puzzle, state, size, solved, flashCell, pressedCell, introKey }: BinairoBoardViewProps): React.JSX.Element {
   const layout = useMemo(() => computeBoardLayout(puzzle.size, size), [puzzle.size, size]);
   const toggles = useToggleEvents(state.values);
   const solveWave = useSolveWave(solved, toggles, puzzle.size);
   const waveActive = solveWave !== null && Date.now() - solveWave.startedAt < WAVE_TOTAL_MS;
-  useAnimationClock(!solved || waveActive);
   const now = Date.now();
+  const introStartedAt = useIntroWave(introKey, now);
+  const introElapsed = now - introStartedAt;
+  const introActive = introElapsed < INTRO_TOTAL_MS;
+  const pressGlow = usePressGlow(pressedCell, now);
+  useAnimationClock(!solved || waveActive || introActive || pressGlow !== null);
 
   const tripleGroups = useMemo(() => tripleRunGroups(state), [state]);
   const unbalanced = useMemo(() => unbalancedLines(puzzle, state), [puzzle, state]);
@@ -799,6 +844,15 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell }: Bin
   const constraintKeys = useMemo(() => (puzzle.constraints ?? []).map(constraintKey), [puzzle]);
   const readyViolatedKeys = useDelayedKeys(violatedConstraintKeys, now, ERROR_DELAY_MS);
   const badgeLifecycles = useConstraintBadgeLifecycles(readyViolatedKeys, constraintKeys, now);
+
+  // Twin badges reuse the exact same delayed-onset/lifecycle machinery as
+  // constraint badges above - both are "a badge that pops on violate and
+  // pulses while it stays wrong," just keyed and positioned differently.
+  const violatedTwinKeys = useMemo(() => violatedTwins(puzzle, state), [puzzle, state]);
+  const twinCellKeys = useMemo(() => (puzzle.twinCells ?? []).map(twinKey), [puzzle]);
+  const readyViolatedTwinKeys = useDelayedKeys(violatedTwinKeys, now, ERROR_DELAY_MS);
+  const twinBadgeLifecycles = useConstraintBadgeLifecycles(readyViolatedTwinKeys, twinCellKeys, now);
+
   const tileSize = Math.max(0, layout.cellSize - TILE_GAP * 2);
   const R = tileSize * 0.32;
 
@@ -861,16 +915,16 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell }: Bin
 
       <StaticBinairoTiles puzzle={puzzle} state={state} layout={layout} flashCell={flashCell} transitioningKeys={transitioningKeys} />
 
-      {/* Toggle placement: a card flip via `scaleX` - see `flipScaleX` for
-          why this fakes the turn instead of using a real `rotateY`
-          projection. Scaling via each `Group`'s own `transform`/`origin`
-          rather than the bubble's own size keeps every gradient
-          underneath at the fixed centre/radius it was already drawn
-          with - only the already-composited pixels squish - which is why
-          this stays cheap per frame despite looking like real motion
-          (the old size-driven pop animation measurably janked:
-          `dumpsys gfxinfo` showed over half the frames missing their
-          deadline while toggling). */}
+      {/* Toggle placement: a stamp, not a flip - see `STAMP_IN_MS`'s own
+          comment for why. The outgoing mark (if any) and the incoming
+          mark (if any) animate concurrently off the same `elapsed`, not
+          sequenced into two halves of one window - a real ink stamp
+          doesn't wait for the old mark to finish leaving before it
+          strikes, and running them together is what keeps a fast run of
+          taps feeling continuous. The tile's own chrome no longer needs
+          to swap colour mid-transition (see `renderTileChrome`), so it's
+          just drawn once per transitioning cell here, same as the static
+          layer draws it everywhere else. */}
       {transitioningEntries.map(([key, event]) => {
         const [rStr, cStr] = key.split(':');
         const r = Number(rStr);
@@ -881,77 +935,32 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell }: Bin
         const cx = tx + tileSize / 2;
         const cy = ty + tileSize / 2;
         const centre = vec(cx, cy);
-        const t = clamp01((now - event.startedAt) / TOGGLE_MS);
+        const elapsed = now - event.startedAt;
         const given = isGiven(puzzle, r, c);
-        const chrome = (face: BinairoValue): React.JSX.Element => <Group>{renderTileChrome(tx, ty, tileSize, given, tileFaceColor(face))}</Group>;
 
-        if (event.from !== null && event.to !== null) {
-          // A real->real swap: two quarter-flips back to back, like an
-          // actual card flipping - the old face squishes away to nothing
-          // (never both faces on screen at once), then the new one
-          // unsquishes the rest of the way to full width. The tile's own
-          // background swaps at the exact same crossover point as the
-          // symbol does, not a moment before it.
-          const firstHalf = t < 0.5;
-          if (firstHalf) {
-            const scaleX = flipScaleX(t / 0.5);
-            return (
-              <Group key={key}>
-                {chrome(event.from)}
-                <Group transform={[{ scaleX }]} origin={centre}>
-                  {renderSymbol(`${key}-out`, event.from, cx, cy, R)}
-                </Group>
-              </Group>
-            );
-          }
-          const scaleX = flipScaleX(1 - (t - 0.5) / 0.5);
-          return (
-            <Group key={key}>
-              {chrome(event.to)}
-              <Group transform={[{ scaleX }]} origin={centre}>
-                {renderSymbol(`${key}-in`, event.to, cx, cy, R)}
-              </Group>
-            </Group>
-          );
-        }
+        // Outgoing: a quick shrink-and-fade, independent of whatever's
+        // landing on top of it.
+        const outT = clamp01(elapsed / STAMP_OUT_MS);
+        const outOpacity = 1 - easeInCubic(outT);
+        const outScale = 1 - outT * 0.3;
 
-        if (event.from === null && event.to !== null) {
-          // Empty -> a symbol: one quarter-flip unsquishing into view -
-          // there's no first face to squish away, just the ring fading
-          // out (on its own, faster schedule - see `FLIP_RING_FADE_FRACTION`)
-          // as the new symbol turns into view. The background swaps to
-          // the new colour on that same faster schedule, once the ring
-          // has mostly cleared, rather than the instant the tap lands.
-          const scaleX = flipScaleX(1 - t);
-          const ringT = clamp01(t / FLIP_RING_FADE_FRACTION);
-          const ringOpacity = 1 - easeOutCubic(ringT);
-          return (
-            <Group key={key}>
-              {chrome(ringT < 1 ? null : event.to)}
-              <Group opacity={ringOpacity}>{renderEmptyRing(`${key}-ring`, cx, cy, R)}</Group>
-              <Group transform={[{ scaleX }]} origin={centre}>
-                {renderSymbol(`${key}-in`, event.to, cx, cy, R)}
-              </Group>
-            </Group>
-          );
-        }
+        // Incoming: lands oversized, eases down to its resting size - see
+        // `STAMP_OVERSHOOT_SCALE`. Opacity ramps in over just the first
+        // half of that settle, so the mark reads as "there" well before
+        // its scale finishes decaying.
+        const inT = clamp01(elapsed / STAMP_IN_MS);
+        const inOpacity = easeOutCubic(clamp01(elapsed / (STAMP_IN_MS * 0.5)));
+        const inScale = 1 + (STAMP_OVERSHOOT_SCALE - 1) * (1 - easeOutCubic(inT));
 
-        // A symbol -> empty: the mirror image - one quarter-flip
-        // squishing away while the ring fades in behind it, again on its
-        // own faster schedule rather than growing in lockstep with the
-        // squish - and the background only turns back to blank once that
-        // fade-in schedule actually starts, not before.
-        const from = event.from as 1 | 0;
-        const scaleX = flipScaleX(t);
-        const ringT = clamp01((t - (1 - FLIP_RING_FADE_FRACTION)) / FLIP_RING_FADE_FRACTION);
-        const eased = easeInCubic(ringT);
+        const ringT = clamp01(elapsed / RING_FADE_MS);
+
         return (
           <Group key={key}>
-            {chrome(ringT > 0 ? null : from)}
-            <Group transform={[{ scaleX }]} origin={centre}>
-              {renderSymbol(`${key}-out`, from, cx, cy, R)}
-            </Group>
-            <Group opacity={eased}>{renderEmptyRing(`${key}-ring`, cx, cy, R)}</Group>
+            {renderTileChrome(tx, ty, tileSize, given)}
+            {event.from !== null && renderStampedSymbol(`${key}-out`, event.from, cx, cy, R, centre, outOpacity, outScale)}
+            {event.from === null && <Group opacity={1 - easeOutCubic(ringT)}>{renderEmptyRing(`${key}-ring`, cx, cy, R)}</Group>}
+            {event.to === null && <Group opacity={easeOutCubic(ringT)}>{renderEmptyRing(`${key}-ring`, cx, cy, R)}</Group>}
+            {event.to !== null && renderStampedSymbol(`${key}-in`, event.to, cx, cy, R, centre, inOpacity, inScale)}
           </Group>
         );
       })}
@@ -979,6 +988,37 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell }: Bin
               ? 1 + Math.sin((now / CONSTRAINT_PULSE_PERIOD_MS) * Math.PI * 2) * CONSTRAINT_PULSE_AMPLITUDE
               : 1;
         return renderConstraintBadge(`constraint-${key}`, cx, cy, tileSize * CONSTRAINT_BADGE_RADIUS_FACTOR * scale, constraint.kind, isViolated);
+      })}
+
+      {/* Twin badges: same every-frame/pop/pulse treatment as constraint
+          tiles above, just one dot per twinned cell instead of a badge on
+          a shared edge - see `renderTwinBadge`'s own comment for why the
+          two badge kinds are deliberately unlike each other. `twinCells`
+          only ever lists one side of each pair (see that field's own
+          comment), so both the anchor *and* its derived partner draw a
+          badge here - a player has to recognise the cue on either cell
+          it lands on, not just the one the puzzle data happens to name. */}
+      {(puzzle.twinCells ?? []).flatMap(anchor => {
+        const key = twinKey(anchor);
+        const partner = twinPartner(puzzle.size, anchor);
+        const isViolated = readyViolatedTwinKeys.has(key);
+        const lifecycle = twinBadgeLifecycles.get(key);
+        const elapsedSinceChange = lifecycle ? now - lifecycle.changedAt : Infinity;
+        const scale =
+          elapsedSinceChange < CONSTRAINT_POP_MS
+            ? 0.7 + easeOutBack(clamp01(elapsedSinceChange / CONSTRAINT_POP_MS)) * 0.3
+            : isViolated
+              ? 1 + Math.sin((now / CONSTRAINT_PULSE_PERIOD_MS) * Math.PI * 2) * CONSTRAINT_PULSE_AMPLITUDE
+              : 1;
+        const radius = tileSize * TWIN_BADGE_RADIUS_FACTOR * scale;
+        return [anchor, partner].map((cell, i) => {
+          const origin = getCellOrigin(layout, cell.row, cell.col);
+          const tx = origin.x + TILE_GAP;
+          const ty = origin.y + TILE_GAP;
+          const cx = tx + tileSize - tileSize * TWIN_BADGE_INSET_FACTOR;
+          const cy = ty + tileSize * TWIN_BADGE_INSET_FACTOR;
+          return renderTwinBadge(`twin-${key}-${i}`, cx, cy, radius, isViolated);
+        });
       })}
 
       {/* Solve wave: a glowing double ring (a soft warm halo plus a crisp
@@ -1014,6 +1054,83 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell }: Bin
                 <Circle cx={cx} cy={cy} r={(tileSize / 2) * (1 + t * 0.38)} color={theme.colors.accent} style="stroke" strokeWidth={7} opacity={(1 - t) * 0.28} />
                 <Circle cx={cx} cy={cy} r={(tileSize / 2) * (1 + t * 0.3)} color="rgba(255,255,255,0.95)" style="stroke" strokeWidth={2.5} opacity={(1 - t) * 0.95} />
                 <Circle cx={cx} cy={cy} r={tileSize * 0.32} color="rgba(255,255,255,0.95)" opacity={flash * 0.5} />
+              </Group>
+            );
+          }),
+        )}
+
+      {/* Press feedback: a soft full-tile darkening for as long as the
+          finger stays down, plus a brighter accent ring rippling outward
+          from the centre - drawn on top of everything so both still read
+          even the instant a toggle's own flip starts underneath (see
+          `PRESS_GLOW_OUT_MS`/`PRESS_RIPPLE_MS` for why that overlap is
+          brief and harmless). */}
+      {pressGlow &&
+        (() => {
+          const [rStr, cStr] = pressGlow.key.split(':');
+          const r = Number(rStr);
+          const c = Number(cStr);
+          const origin = getCellOrigin(layout, r, c);
+          const tx = origin.x + TILE_GAP;
+          const ty = origin.y + TILE_GAP;
+          const cx = tx + tileSize / 2;
+          const cy = ty + tileSize / 2;
+          const tintOpacity =
+            pressGlow.releasedAt === null
+              ? PRESS_GLOW_OPACITY * easeOutCubic(clamp01((now - pressGlow.pressedAt) / PRESS_GLOW_IN_MS))
+              : PRESS_GLOW_OPACITY * (1 - easeInCubic(clamp01((now - pressGlow.releasedAt) / PRESS_GLOW_OUT_MS)));
+          const rippleT = clamp01((now - pressGlow.pressedAt) / PRESS_RIPPLE_MS);
+          const rippleActive = now - pressGlow.pressedAt < PRESS_RIPPLE_MS;
+          const rippleEase = easeOutCubic(rippleT);
+          const rippleRadius = tileSize * (PRESS_RIPPLE_START_FACTOR + (PRESS_RIPPLE_END_FACTOR - PRESS_RIPPLE_START_FACTOR) * rippleEase);
+          const rippleOpacity = PRESS_RIPPLE_OPACITY * (1 - rippleEase);
+          return (
+            <Group key={pressGlow.key}>
+              {tintOpacity > 0 && <RoundedRect x={tx} y={ty} width={tileSize} height={tileSize} r={TILE_RADIUS} color="#2A251F" opacity={tintOpacity} />}
+              {rippleActive && <Circle cx={cx} cy={cy} r={rippleRadius} color={theme.colors.accent} opacity={rippleOpacity} />}
+            </Group>
+          );
+        })()}
+
+      {/* Intro wave: every tile - given or not - starts hidden under its
+          own solid cream shutter with a glowing accent seam along its
+          shrinking edge, which pops away (an overshooting "iris" reveal,
+          not a plain fade) in a diagonal wave from the top-left corner -
+          see `INTRO_STAGGER_MS`/`INTRO_TILE_MS`. Drawn last so it covers
+          the tray, tile chrome, tokens and constraint badges alike until
+          each tile's own turn comes up. */}
+      {introActive &&
+        state.values.map((line, r) =>
+          line.map((_value, c) => {
+            const dist = Math.max(r, c);
+            const cellElapsed = introElapsed - dist * INTRO_STAGGER_MS;
+            const origin = getCellOrigin(layout, r, c);
+            const tx = origin.x + TILE_GAP;
+            const ty = origin.y + TILE_GAP;
+            if (cellElapsed < 0) {
+              return <RoundedRect key={`intro-${r}-${c}`} x={tx} y={ty} width={tileSize} height={tileSize} r={TILE_RADIUS} color={theme.colors.background} />;
+            }
+            if (cellElapsed >= INTRO_TILE_MS) return null;
+            const t = clamp01(cellElapsed / INTRO_TILE_MS);
+            const scale = 1 - easeOutCubic(t);
+            if (scale <= 0.001) return null;
+            const cx = tx + tileSize / 2;
+            const cy = ty + tileSize / 2;
+            const seamOpacity = 1 - easeInCubic(t);
+            return (
+              <Group key={`intro-${r}-${c}`} transform={[{ scale }]} origin={vec(cx, cy)}>
+                <RoundedRect x={tx} y={ty} width={tileSize} height={tileSize} r={TILE_RADIUS} color={theme.colors.background} />
+                <RoundedRect
+                  x={tx}
+                  y={ty}
+                  width={tileSize}
+                  height={tileSize}
+                  r={TILE_RADIUS}
+                  color={theme.colors.accent}
+                  style="stroke"
+                  strokeWidth={Math.max(1, tileSize * INTRO_SEAM_WIDTH_FACTOR)}
+                  opacity={seamOpacity}
+                />
               </Group>
             );
           }),

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
   computeConflicts,
   emptyTowersState,
@@ -13,15 +14,29 @@ import {
   TowersCell,
   TowersPuzzle,
 } from '../game/towers';
-import { NumberKeypad, PressableScale, PuzzleSolved, TowersBoard, TutorialOverlay } from '../components';
+import { MechanicsCarousel, NumberKeypad, PressableScale, PuzzleSolved, renderTowersIllustration, TowersBoard } from '../components';
 import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
-import { copyForTutorial, tutorialIdForGame } from '../game/tutorials';
+import { TOWERS_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { theme } from '../theme';
+import { motion, theme } from '../theme';
 
 const TUTORIAL_ID = tutorialIdForGame('towers');
+const ICON_SIZE = 14;
+
+/** A plain "?" glyph - see `BinairoScreen.tsx`'s identical `HelpIcon` for
+ * the full rationale. Reopens the same `MechanicsCarousel` the first-run
+ * auto-open shows. */
+function HelpIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
+      <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
+      <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
+    </Canvas>
+  );
+}
 
 export interface TowersScreenProps {
   puzzle: TowersPuzzle;
@@ -32,6 +47,12 @@ export interface TowersScreenProps {
 }
 
 const RESERVED = 360;
+/** The stage card's own horizontal inset around the board - see
+ * `BinairoScreen.tsx`'s identical constant for why this is tight while
+ * the stage's vertical padding (below) is generous. */
+const STAGE_H_PADDING = theme.spacing.sm;
+/** How long the progress track's fill animates to its new width. */
+const TRACK_MS = 220;
 
 /**
  * Play screen for a Skyscrapers puzzle. Tap a cell to select it, tap a
@@ -54,6 +75,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
     markTutorialSeen(TUTORIAL_ID);
     setShowTutorial(false);
   }, [markTutorialSeen]);
+  const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
   const nextEntry = useMemo(() => getNextJourneyEntry(puzzle.id), [puzzle.id]);
   const [state, setState] = useState(() => emptyTowersState(puzzle));
@@ -71,6 +93,19 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
 
   const solved = useMemo(() => isTowersSolved(puzzle, state), [puzzle, state]);
   const left = remainingCells(state);
+  const totalCells = puzzle.size * puzzle.size;
+
+  // The header's own progress track - see `styles.track`.
+  const trackFill = useRef(new Animated.Value(totalCells ? (totalCells - left) / totalCells : 0)).current;
+  useEffect(() => {
+    Animated.timing(trackFill, {
+      toValue: totalCells ? (totalCells - left) / totalCells : 0,
+      duration: TRACK_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false, // width isn't a transform - can't use the native driver
+    }).start();
+  }, [left, totalCells, trackFill]);
+
   const heightCounts = useMemo(() => {
     const tally: Record<number, number> = {};
     for (const row of state.values) for (const v of row) if (v !== 0) tally[v] = (tally[v] ?? 0) + 1;
@@ -156,7 +191,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
 
   const boardSize = Math.max(
     0,
-    Math.min(width - theme.spacing.lg * 2, height - insets.top - insets.bottom - RESERVED),
+    Math.min(width - theme.spacing.lg * 2 - STAGE_H_PADDING * 2, height - insets.top - insets.bottom - RESERVED),
   );
 
   return (
@@ -169,20 +204,40 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
           <Text style={styles.name} numberOfLines={1}>
             {puzzle.name ?? 'Skyscrapers'}
           </Text>
-          <Text style={styles.kicker}>SKYSCRAPERS · {left} LEFT</Text>
+          <AnimatedKicker left={left} solved={solved} />
+          <View style={styles.track}>
+            <Animated.View
+              style={[
+                styles.trackFill,
+                {
+                  width: trackFill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' }),
+                },
+              ]}
+            />
+          </View>
         </View>
-        <View style={styles.headerRightSpacer} />
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="How to play"
+          onPress={reopenTutorial}
+          hitSlop={8}
+          containerStyle={styles.headerRightSpacer}
+        >
+          <HelpIcon />
+        </PressableScale>
       </View>
 
       <View style={styles.boardArea}>
-        <TowersBoard
-          puzzle={puzzle}
-          state={state}
-          size={boardSize}
-          selected={selected}
-          onSelectCell={selectCell}
-          flashCell={flash}
-        />
+        <View style={styles.stage}>
+          <TowersBoard
+            puzzle={puzzle}
+            state={state}
+            size={boardSize}
+            selected={selected}
+            onSelectCell={selectCell}
+            flashCell={flash}
+          />
+        </View>
       </View>
 
       <View style={styles.keypadArea}>
@@ -226,12 +281,47 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
       )}
 
       {showTutorial && (
-        <TutorialOverlay
-          copy={copyForTutorial(TUTORIAL_ID)}
-          onDismiss={dismissTutorial}
+        <MechanicsCarousel
+          slides={TOWERS_MECHANICS_SLIDES}
+          renderIllustration={renderTowersIllustration}
+          onDone={dismissTutorial}
           accentColor={accentColorForKind('towers')}
         />
       )}
+    </View>
+  );
+}
+
+/** The "N LEFT" kicker, popping (`spring.pop`) on each decrement only -
+ * mirrors `BinairoScreen.tsx`'s own `AnimatedKicker` exactly. */
+function AnimatedKicker({ left, solved }: { left: number; solved: boolean }): React.JSX.Element {
+  const scale = useRef(new Animated.Value(1)).current;
+  const previous = useRef(left);
+  const solvedScale = useRef(new Animated.Value(0)).current;
+  const previousSolved = useRef(solved);
+
+  useEffect(() => {
+    if (left < previous.current) {
+      scale.setValue(0.85);
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
+    }
+    previous.current = left;
+  }, [left, scale]);
+
+  useEffect(() => {
+    if (solved && !previousSolved.current) {
+      solvedScale.setValue(0);
+      Animated.spring(solvedScale, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
+    }
+    previousSolved.current = solved;
+  }, [solved, solvedScale]);
+
+  return (
+    <View style={styles.kickerRow}>
+      <Animated.Text style={[styles.kicker, { transform: [{ scale }] }]}>
+        {solved ? 'SKYSCRAPERS · SOLVED' : `SKYSCRAPERS · ${left} LEFT`}
+      </Animated.Text>
+      {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
     </View>
   );
 }
@@ -254,24 +344,59 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weights.semibold,
   },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerRightSpacer: { width: 56 },
+  headerRightSpacer: { width: 56, alignItems: 'center' },
   name: {
     fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.subtitle,
+    fontSize: theme.typography.sizes.title,
     fontWeight: theme.typography.weights.semibold,
     color: theme.colors.textPrimary,
+  },
+  kickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
   },
   kicker: {
     fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.micro,
     letterSpacing: 1,
     color: theme.colors.towersAccent,
-    marginTop: 2,
+  },
+  solvedBadge: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.colors.primary,
+    marginLeft: 5,
+  },
+  track: {
+    width: 140,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: theme.colors.surfaceAlt,
+    marginTop: theme.spacing.sm,
+    overflow: 'hidden',
+  },
+  trackFill: {
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: theme.colors.towersAccent,
   },
   boardArea: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`.
+  stage: {
+    backgroundColor: theme.colors.surfaceAlt,
+    borderRadius: 28,
+    paddingHorizontal: STAGE_H_PADDING,
+    paddingVertical: theme.spacing.xxl,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderStrong,
   },
   keypadArea: {
     marginBottom: theme.spacing.lg,
@@ -287,9 +412,17 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderTopColor: '#FBF6EB',
+    borderLeftColor: theme.colors.border,
+    borderRightColor: theme.colors.border,
+    borderBottomColor: theme.colors.border,
+    shadowColor: '#2A251F',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 2, height: 3 },
+    elevation: 2,
   },
-  pillPressed: { backgroundColor: theme.colors.surfaceAlt },
+  pillPressed: { backgroundColor: theme.colors.surfaceAlt, shadowOpacity: 0.04, shadowOffset: { width: 1, height: 1 }, elevation: 1 },
   pillText: {
     color: theme.colors.textPrimary,
     fontSize: theme.typography.sizes.body,

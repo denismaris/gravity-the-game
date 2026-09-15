@@ -13,13 +13,17 @@ export {
   isConstraintViolated,
   isGiven,
   isRowHealthy,
+  isTwinViolated,
   nextValue,
   remainingCells,
   setValue,
   tripleRunCells,
   tripleRunGroups,
+  twinKey,
+  twinPartner,
   unbalancedLines,
   violatedConstraints,
+  violatedTwins,
 } from './logic';
 export { assertValidBinairo, revealHint, solveBinairo } from './solver';
 export { BINAIRO, getBinairoById } from './puzzles';

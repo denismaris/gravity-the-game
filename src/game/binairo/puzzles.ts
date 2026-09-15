@@ -51,6 +51,13 @@ const GRID_10 = rotateGrid(BASE_10);
 const BASE_10_ALT: ReadonlyArray<0 | 1> = [0, 1, 0, 1, 1, 0, 0, 1, 1, 0];
 const GRID_10_ALT = rotateGrid(BASE_10_ALT);
 
+// A fresh, independently-checked 6-wide base for binairo-013 (the first
+// twin-cell puzzle) - same circular-triple-free, 3/3-balanced bar as
+// every other base above, so it doesn't just recolor a transform of
+// BASE_6 (already used four ways by binairo-001..004).
+const BASE_6_ALT: ReadonlyArray<0 | 1> = [0, 1, 0, 0, 1, 1];
+const GRID_6_ALT = rotateGrid(BASE_6_ALT);
+
 function grid(rows: ReadonlyArray<ReadonlyArray<BinairoValue>>): ReadonlyArray<ReadonlyArray<BinairoValue>> {
   return rows;
 }
@@ -75,6 +82,7 @@ export const BINAIRO_SOLUTION_GRIDS: ReadonlyArray<FullGrid> = [
   reflectHorizontal(GRID_10),
   swapValues(reflectHorizontal(GRID_10)),
   reflectHorizontal(swapValues(GRID_10_ALT)),
+  GRID_6_ALT,
 ];
 
 /**
@@ -100,6 +108,19 @@ export const BINAIRO_SOLUTION_GRIDS: ReadonlyArray<FullGrid> = [
  * wall anywhere. `assertValidBinairo` re-verifies uniqueness again
  * independently in the test suite, so this comment is provenance, not
  * the only proof.
+ *
+ * `binairo-013` appends the first puzzle using `twinCells` - deliberately
+ * on its own, no `constraints` alongside it, so a player meets the new
+ * mechanic in isolation before any puzzle asks them to juggle it together
+ * with `=`/`x` badges. Stripped the same solve-strip-verify way, but with
+ * one extra bar the others don't need to clear: the twin pair has to be
+ * load-bearing, not decorative - stripping stopped only once removing
+ * `twinCells` from the same givens actually broke uniqueness (verified:
+ * 2 solutions without it, exactly 1 with it), proof the mechanic is doing
+ * real work here rather than just sitting on an already-determined cell.
+ * (Its name coincides with `binairo-002`'s "Twin Ranks," authored years
+ * before this mechanic existed - that one has no twin cells at all, pure
+ * flavor text; worth a future rename if it ever reads as confusing.)
  */
 export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   {
@@ -349,6 +370,20 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
       { row: 6, col: 6, direction: 'down', kind: 'same' },
       { row: 1, col: 5, direction: 'right', kind: 'different' },
     ],
+  },
+  {
+    id: 'binairo-013',
+    name: 'Across the Center',
+    size: 6,
+    givens: grid([
+      [null, null, 0, null, 1, null],
+      [null, null, 0, 1, null, null],
+      [null, null, 1, null, 0, null],
+      [0, 1, null, 0, null, null],
+      [null, 1, 0, 1, null, null],
+      [null, 0, null, 0, 0, null],
+    ]),
+    twinCells: [{ row: 1, col: 1 }],
   },
 ];
 

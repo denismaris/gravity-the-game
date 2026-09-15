@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
@@ -20,10 +20,10 @@ import {
   tripleRunCells,
   unbalancedLines,
 } from '../game/binairo';
-import { BinairoBoard, PressableScale, PuzzleSolved, TutorialOverlay } from '../components';
+import { BinairoBoard, MechanicsCarousel, PressableScale, PuzzleSolved, renderBinairoIllustration } from '../components';
 import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
-import { copyForTutorial, tutorialIdForGame } from '../game/tutorials';
+import { BINAIRO_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme } from '../theme';
@@ -40,6 +40,17 @@ export interface BinairoScreenProps {
 
 const RESERVED = 300;
 const ICON_SIZE = 14;
+/** The stage card's own horizontal inset around the board - deliberately
+ * tight (unlike its generous vertical padding, see `styles.stage`) so the
+ * grid loses as little of the screen's width as possible; width is what
+ * actually caps the board's size on a phone, so every point here is a
+ * point of board. */
+const STAGE_H_PADDING = theme.spacing.sm;
+/** How long the progress track's fill animates to its new width on a
+ * toggle - the same "state indication" budget as a dropdown, not a
+ * celebratory spring: this fires on ordinary cell taps, tens of times a
+ * puzzle, so it has to stay quiet. */
+const TRACK_MS = 220;
 /** How long the completion popup waits after solve detection before
  * appearing - tuned to `BinairoBoardView`'s own `WAVE_TOTAL_MS` (650ms),
  * the board's ripple-celebration duration, so the popup doesn't cut the
@@ -74,6 +85,23 @@ function RestartIcon(): React.JSX.Element {
   );
 }
 
+/** A plain "?" glyph, ring plus stem plus dot - the same simple-stroke
+ * treatment `HintIcon`/`RestartIcon` use, so this reads as one family of
+ * header icons rather than a generic help symbol dropped in from
+ * elsewhere. Sits in the header's own right-hand slot (see
+ * `styles.headerRightSpacer`) and reopens the exact same
+ * `MechanicsCarousel` the first-run auto-open shows - see
+ * `reopenTutorial` below. */
+function HelpIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
+      <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
+      <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
+    </Canvas>
+  );
+}
+
 /**
  * Play screen for a Binairo puzzle. Tap a cell to cycle blank -> square ->
  * circle -> blank; matching every row and column's balance, with no run
@@ -85,6 +113,12 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
   const { recordCompletion } = usePlayerProgress();
   const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
 
+  // Bumped on every restart so the board's own intro wave (see
+  // `BinairoBoardView`'s `introKey` prop) replays - the puzzle "resetting"
+  // reads as the same tray waking back up that a fresh puzzle load does,
+  // rather than the grid just silently snapping back to blank.
+  const [introKey, setIntroKey] = useState(0);
+
   const [showTutorial, setShowTutorial] = useState(false);
   useEffect(() => {
     if (settingsReady && !hasSeenTutorial(TUTORIAL_ID)) setShowTutorial(true);
@@ -93,6 +127,12 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
     markTutorialSeen(TUTORIAL_ID);
     setShowTutorial(false);
   }, [markTutorialSeen]);
+  // The header's "?" icon reopens the exact same carousel the first-run
+  // auto-open shows (see `MechanicsCarousel`'s own doc comment) - it's
+  // the same `showTutorial`/`dismissTutorial` pair either way, so a
+  // manual reopen always starts at slide 1 for free (the component
+  // unmounts on dismiss and remounts fresh on the next open).
+  const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
   const nextEntry = useMemo(() => getNextJourneyEntry(puzzle.id), [puzzle.id]);
   const [state, setState] = useState(() => emptyBinairoState(puzzle));
@@ -111,6 +151,21 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
 
   const solved = useMemo(() => isBinairoSolved(puzzle, state), [puzzle, state]);
   const left = remainingCells(state);
+  const totalCells = puzzle.size * puzzle.size;
+
+  // The header's own progress track - see `styles.track`. Animates toward
+  // its new fraction on every toggle rather than jumping, so filling the
+  // last few cells of a row reads as continuous progress instead of a
+  // stepped counter.
+  const trackFill = useRef(new Animated.Value(totalCells ? (totalCells - left) / totalCells : 0)).current;
+  useEffect(() => {
+    Animated.timing(trackFill, {
+      toValue: totalCells ? (totalCells - left) / totalCells : 0,
+      duration: TRACK_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false, // width isn't a transform - can't use the native driver
+    }).start();
+  }, [left, totalCells, trackFill]);
 
   useEffect(() => {
     if (solved && !recorded.current) {
@@ -188,6 +243,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
     setStars(null);
     setHints(0);
     setState(emptyBinairoState(puzzle));
+    setIntroKey(k => k + 1);
   }, [puzzle]);
 
   const goNext = useCallback(() => {
@@ -196,8 +252,10 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
 
   const boardSize = Math.max(
     0,
-    Math.min(width - theme.spacing.lg * 2, height - insets.top - insets.bottom - RESERVED),
+    Math.min(width - theme.spacing.lg * 2 - STAGE_H_PADDING * 2, height - insets.top - insets.bottom - RESERVED),
   );
+
+  const constraintKinds = useMemo(() => new Set((puzzle.constraints ?? []).map(c => c.kind)), [puzzle]);
 
   return (
     <View style={styles.container}>
@@ -210,12 +268,49 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
             {puzzle.name ?? 'Binairo'}
           </Text>
           <AnimatedKicker left={left} solved={solved} />
+          <View style={styles.track}>
+            <Animated.View
+              style={[
+                styles.trackFill,
+                {
+                  width: trackFill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' }),
+                },
+              ]}
+            />
+          </View>
         </View>
-        <View style={styles.headerRightSpacer} />
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="How to play"
+          onPress={reopenTutorial}
+          hitSlop={8}
+          containerStyle={styles.headerRightSpacer}
+        >
+          <HelpIcon />
+        </PressableScale>
       </View>
 
       <View style={styles.boardArea}>
-        <BinairoBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} />
+        <View style={styles.stage}>
+          <BinairoBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} introKey={introKey} />
+        </View>
+
+        {constraintKinds.size > 0 && (
+          <View style={styles.legend}>
+            {constraintKinds.has('same') && (
+              <View style={styles.legendItem}>
+                <Text style={styles.legendMark}>=</Text>
+                <Text style={styles.legendLabel}>same</Text>
+              </View>
+            )}
+            {constraintKinds.has('different') && (
+              <View style={styles.legendItem}>
+                <Text style={styles.legendMark}>×</Text>
+                <Text style={styles.legendLabel}>different</Text>
+              </View>
+            )}
+          </View>
+        )}
       </View>
 
       <View style={styles.controls}>
@@ -251,9 +346,10 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
       )}
 
       {showTutorial && (
-        <TutorialOverlay
-          copy={copyForTutorial(TUTORIAL_ID)}
-          onDismiss={dismissTutorial}
+        <MechanicsCarousel
+          slides={BINAIRO_MECHANICS_SLIDES}
+          renderIllustration={renderBinairoIllustration}
+          onDone={dismissTutorial}
           accentColor={accentColorForKind('binairo')}
         />
       )}
@@ -316,10 +412,10 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weights.semibold,
   },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerRightSpacer: { width: 56 },
+  headerRightSpacer: { width: 56, alignItems: 'center' },
   name: {
     fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.subtitle,
+    fontSize: theme.typography.sizes.title,
     fontWeight: theme.typography.weights.semibold,
     color: theme.colors.textPrimary,
   },
@@ -341,10 +437,71 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.primary,
     marginLeft: 5,
   },
+  // The header's own progress track - same shape as Home's hero-card track
+  // (`HomeScreen.tsx`'s `styles.track`/`trackFill`), tinted with this game's
+  // own identity colour instead of the app-wide `secondary` so it reads as
+  // "this screen's" progress, not a borrowed piece of chrome.
+  track: {
+    width: 140,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: theme.colors.surfaceAlt,
+    marginTop: theme.spacing.sm,
+    overflow: 'hidden',
+  },
+  trackFill: {
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: theme.colors.binairoAccent,
+  },
   boardArea: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // The board's own plinth: a shallow, gently-tinted well the tray rests
+  // in, rather than the board floating directly on the page background.
+  // Padding is deliberately asymmetric - tight horizontally (every point
+  // there is a point the board itself loses, see `STAGE_H_PADDING`) and
+  // generous vertically, since vertical is the axis this screen actually
+  // has spare room on (the board is width-capped on every phone this app
+  // targets, never height-capped). The lighter top edge/deeper bottom
+  // edge is the same "catching the light" cue `pill`'s own border already
+  // uses on this screen, applied to a recessed surface instead of a
+  // raised one - light grazes the near lip of a well from above, so its
+  // top rule reads brighter and its bottom rule darker, the opposite of a
+  // raised card's own shading.
+  stage: {
+    backgroundColor: theme.colors.surfaceAlt,
+    borderRadius: 28,
+    paddingHorizontal: STAGE_H_PADDING,
+    paddingVertical: theme.spacing.xxl,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderStrong,
+  },
+  legend: {
+    flexDirection: 'row',
+    gap: theme.spacing.lg,
+    marginTop: theme.spacing.md,
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: theme.spacing.xs,
+  },
+  legendMark: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.caption,
+    fontWeight: theme.typography.weights.bold,
+    color: theme.colors.textTertiary,
+  },
+  legendLabel: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.micro,
+    letterSpacing: 0.6,
+    color: theme.colors.textTertiary,
   },
   controls: {
     flexDirection: 'row',

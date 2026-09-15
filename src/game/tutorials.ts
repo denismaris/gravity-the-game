@@ -17,6 +17,180 @@ export interface TutorialCopy {
   readonly body: string;
 }
 
+/**
+ * One page of a `MechanicsCarousel` (`src/components/MechanicsCarousel.tsx`)
+ * - the multi-slide counterpart to `TutorialCopy` above, for a game whose
+ * rules are better taught one mechanic at a time than crammed into a
+ * single overlay's body text. `illustration` is an opaque key the
+ * carousel's own renderer switches on to draw a small board-fragment
+ * diagram for that slide; kept as a plain string here (rather than a
+ * React node) so this file - imported by plain game logic, not just
+ * screens - never needs to depend on React or Skia.
+ */
+export interface TutorialSlide {
+  readonly title: string;
+  readonly body: string;
+  readonly illustration: string;
+}
+
+/**
+ * Binairo's own mechanics, one slide per rule, in the order a player
+ * actually meets them: the base toggle first, then the three base
+ * validity rules, then the two constraint-badge kinds (both used from the
+ * very first puzzle onward - see `BINAIRO[0].constraints`), then twin
+ * cells last, since it's the one rule that asks a player to hold a
+ * whole-board relationship in their head rather than a purely local one.
+ */
+export const BINAIRO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Tap to fill',
+    body: 'Tap a cell to cycle it: blank, a blue square, a gold circle, then blank again.',
+    illustration: 'toggle',
+  },
+  {
+    title: 'No three in a row',
+    body: "Three of the same shape in a row or column isn't allowed - hazard stripes flare up across the whole line the moment it happens.",
+    illustration: 'triple',
+  },
+  {
+    title: 'Keep it even',
+    body: 'Every full row and column needs the same number of circles as squares.',
+    illustration: 'balance',
+  },
+  {
+    title: 'No repeats',
+    body: 'No two rows - and no two columns - can end up identical.',
+    illustration: 'duplicate',
+  },
+  {
+    title: 'Equal badges',
+    body: "A small '=' badge between two cells means they must match.",
+    illustration: 'equal',
+  },
+  {
+    title: 'Different badges',
+    body: 'A small × badge means those two cells must differ.',
+    illustration: 'different',
+  },
+  {
+    title: 'Twin cells',
+    body: "A small dot marks a cell as twinned with its mirror opposite, straight across the board's center. Twins always match.",
+    illustration: 'twin',
+  },
+];
+
+/**
+ * Tents and Trees' own mechanics, one slide per rule, in the order a
+ * player actually meets them: the tap cycle first, then the two
+ * placement rules (a tree's own tent, no touching), then the row/column
+ * counts that tie the whole board together.
+ */
+export const TENTS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Pitch a tent',
+    body: "Tap a cell to cycle it: empty, a tent, then a small mark for 'definitely not a tent.'",
+    illustration: 'cycle',
+  },
+  {
+    title: 'One tent per tree',
+    body: 'Every tree hides exactly one tent, directly beside it - never diagonal.',
+    illustration: 'adjacency',
+  },
+  {
+    title: 'Tents never touch',
+    body: "Two tents can't sit next to each other, not even diagonally.",
+    illustration: 'touching',
+  },
+  {
+    title: 'Match the count',
+    body: 'Each row and column shows how many tents belong in it - fill exactly that many.',
+    illustration: 'counts',
+  },
+];
+
+/**
+ * Gravity's own mechanics, one slide per rule: the swipe input first
+ * (the one thing every level needs from the very first puzzle), then
+ * what "solved" means (every piece on its target), then the one thing
+ * that trips up a first-time player moving from Binairo/Tents/
+ * Skyscrapers - a single swipe moves *every* piece on the board at once,
+ * not just one. Gravity's other mechanics (obstacles, anchored pieces,
+ * portals, gravity zones, hazards) stay on the existing progressive
+ * single-page `TutorialOverlay` system (`MECHANIC_INTROS`/`mechanicsOf`
+ * below) - they unlock world by world, so teaching them all up front here
+ * would spoil mechanics a player hasn't met yet.
+ */
+export const GRAVITY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Swipe to pull',
+    body: 'Swipe any direction and every piece slides that way at once, like gravity flipping instantly.',
+    illustration: 'swipe',
+  },
+  {
+    title: 'Land on target',
+    body: 'Every piece needs to land on its ringed target to solve the board.',
+    illustration: 'target',
+  },
+  {
+    title: 'Move together',
+    body: 'One swipe moves every piece on the board - plan a direction that helps all of them, not just one.',
+    illustration: 'multi',
+  },
+];
+
+/**
+ * Mirror Maze's own mechanics, one slide per rule, in the order a player
+ * meets them: placing/cycling a mirror first, then what a mirror
+ * actually does to the beam, then the two ways to solve - touch every
+ * gem, then reach the target.
+ */
+export const MIRROR_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Tap to place',
+    body: 'Tap a cell to cycle it: no mirror, a "/" mirror, a "\\" mirror, then blank again.',
+    illustration: 'place',
+  },
+  {
+    title: 'Mirrors bend the beam',
+    body: 'The beam runs straight from its source until it hits a mirror, which turns it a quarter turn.',
+    illustration: 'reflect',
+  },
+  {
+    title: 'Light every gem',
+    body: 'Route the beam so it touches every gem on the board.',
+    illustration: 'gems',
+  },
+  {
+    title: 'Reach the target',
+    body: 'Once the beam has touched every gem and reaches the target, the puzzle solves itself.',
+    illustration: 'target',
+  },
+];
+
+/**
+ * Skyscrapers' own mechanics, one slide per rule: the tap-then-fill input
+ * first, then the Latin-square rule every row/column follows, then the
+ * one idea that's genuinely new to this game - a clue counts *visible*
+ * towers, not a position or a total.
+ */
+export const TOWERS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Tap and fill',
+    body: 'Tap a cell, then tap a height below to fill it - tap the eraser to clear it again.',
+    illustration: 'fill',
+  },
+  {
+    title: 'Every height once',
+    body: 'Each row and column needs every height from 1 to the grid size, exactly once.',
+    illustration: 'unique',
+  },
+  {
+    title: 'Clues count what you see',
+    body: "Each clue outside the grid is how many towers you'd see looking straight in from that side - a taller tower hides every shorter one behind it.",
+    illustration: 'visibility',
+  },
+];
+
 const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   gravity: {
     title: 'Gravity',

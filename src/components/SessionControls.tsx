@@ -77,10 +77,24 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    // A slightly lighter top edge than the other three sides - see
+    // `BinairoScreen.tsx`'s identical `pill` style for why (a small
+    // "catching the light" cue rather than one flat border colour).
+    borderTopColor: '#FBF6EB',
+    borderLeftColor: theme.colors.border,
+    borderRightColor: theme.colors.border,
+    borderBottomColor: theme.colors.border,
+    shadowColor: '#2A251F',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 2, height: 3 },
+    elevation: 2,
   },
   buttonPressed: {
     backgroundColor: theme.colors.surfaceAlt,
+    shadowOpacity: 0.04,
+    shadowOffset: { width: 1, height: 1 },
+    elevation: 1,
   },
   buttonDisabled: {
     opacity: 0.4,

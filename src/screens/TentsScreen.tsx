@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
   emptyTentsTreesState,
   isColSatisfied,
@@ -12,17 +13,34 @@ import {
   setMark,
   TentsTreesCell,
   TentsTreesPuzzle,
+  totalTentsNeeded,
   touchingTentCells,
 } from '../game/tents';
-import { PressableScale, PuzzleSolved, TentsBoard, TutorialOverlay } from '../components';
+import { MechanicsCarousel, PressableScale, PuzzleSolved, TentsBoard, renderTentsIllustration } from '../components';
 import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
-import { copyForTutorial, tutorialIdForGame } from '../game/tutorials';
+import { TENTS_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { theme } from '../theme';
+import { motion, theme } from '../theme';
 
 const TUTORIAL_ID = tutorialIdForGame('tents');
+const ICON_SIZE = 14;
+
+/** A plain "?" glyph, ring plus stem plus dot - the same simple-stroke
+ * treatment `BinairoScreen.tsx`'s own `HelpIcon` uses, so both screens'
+ * header icons read as one family. Sits in the header's own right-hand
+ * slot and reopens the exact same `MechanicsCarousel` the first-run
+ * auto-open shows - see `reopenTutorial` below. */
+function HelpIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
+      <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
+      <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
+    </Canvas>
+  );
+}
 
 export interface TentsScreenProps {
   puzzle: TentsTreesPuzzle;
@@ -33,6 +51,12 @@ export interface TentsScreenProps {
 }
 
 const RESERVED = 300;
+/** The stage card's own horizontal inset around the board - see
+ * `BinairoScreen.tsx`'s identical constant for why this is tight while
+ * the stage's vertical padding (below) is generous. */
+const STAGE_H_PADDING = theme.spacing.sm;
+/** How long the progress track's fill animates to its new width. */
+const TRACK_MS = 220;
 
 /**
  * Play screen for a Tents and Trees puzzle. Tap a cell to cycle empty ->
@@ -53,6 +77,11 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
     markTutorialSeen(TUTORIAL_ID);
     setShowTutorial(false);
   }, [markTutorialSeen]);
+  // The header's "?" icon reopens the exact same carousel the first-run
+  // auto-open shows - same `showTutorial`/`dismissTutorial` pair either
+  // way, so a manual reopen always starts at slide 1 for free (the
+  // component unmounts on dismiss and remounts fresh on the next open).
+  const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
   const nextEntry = useMemo(() => getNextJourneyEntry(puzzle.id), [puzzle.id]);
   const [state, setState] = useState(() => emptyTentsTreesState(puzzle));
@@ -69,6 +98,19 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
 
   const solved = useMemo(() => isTentsTreesSolved(puzzle, state), [puzzle, state]);
   const left = remainingTents(puzzle, state);
+  const totalTents = totalTentsNeeded(puzzle);
+
+  // The header's own progress track - see `styles.track`.
+  const trackFill = useRef(new Animated.Value(totalTents ? (totalTents - left) / totalTents : 0)).current;
+  useEffect(() => {
+    if (!totalTents) return;
+    Animated.timing(trackFill, {
+      toValue: (totalTents - left) / totalTents,
+      duration: TRACK_MS,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false, // width isn't a transform - can't use the native driver
+    }).start();
+  }, [left, totalTents, trackFill]);
 
   useEffect(() => {
     if (solved && !recorded.current) {
@@ -133,7 +175,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
 
   const boardSize = Math.max(
     0,
-    Math.min(width - theme.spacing.lg * 2, height - insets.top - insets.bottom - RESERVED),
+    Math.min(width - theme.spacing.lg * 2 - STAGE_H_PADDING * 2, height - insets.top - insets.bottom - RESERVED),
   );
 
   return (
@@ -146,13 +188,33 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
           <Text style={styles.name} numberOfLines={1}>
             {puzzle.name ?? 'Tents and Trees'}
           </Text>
-          <Text style={styles.kicker}>TENTS AND TREES · {left} LEFT</Text>
+          <AnimatedKicker left={left} solved={solved} />
+          <View style={styles.track}>
+            <Animated.View
+              style={[
+                styles.trackFill,
+                {
+                  width: trackFill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' }),
+                },
+              ]}
+            />
+          </View>
         </View>
-        <View style={styles.headerRightSpacer} />
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="How to play"
+          onPress={reopenTutorial}
+          hitSlop={8}
+          containerStyle={styles.headerRightSpacer}
+        >
+          <HelpIcon />
+        </PressableScale>
       </View>
 
       <View style={styles.boardArea}>
-        <TentsBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} />
+        <View style={styles.stage}>
+          <TentsBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} />
+        </View>
       </View>
 
       <View style={styles.controls}>
@@ -186,12 +248,47 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
       )}
 
       {showTutorial && (
-        <TutorialOverlay
-          copy={copyForTutorial(TUTORIAL_ID)}
-          onDismiss={dismissTutorial}
+        <MechanicsCarousel
+          slides={TENTS_MECHANICS_SLIDES}
+          renderIllustration={renderTentsIllustration}
+          onDone={dismissTutorial}
           accentColor={accentColorForKind('tents')}
         />
       )}
+    </View>
+  );
+}
+
+/** The "N LEFT" kicker, popping (`spring.pop`) on each decrement only -
+ * mirrors `BinairoScreen.tsx`'s own `AnimatedKicker` exactly. */
+function AnimatedKicker({ left, solved }: { left: number; solved: boolean }): React.JSX.Element {
+  const scale = useRef(new Animated.Value(1)).current;
+  const previous = useRef(left);
+  const solvedScale = useRef(new Animated.Value(0)).current;
+  const previousSolved = useRef(solved);
+
+  useEffect(() => {
+    if (left < previous.current) {
+      scale.setValue(0.85);
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
+    }
+    previous.current = left;
+  }, [left, scale]);
+
+  useEffect(() => {
+    if (solved && !previousSolved.current) {
+      solvedScale.setValue(0);
+      Animated.spring(solvedScale, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
+    }
+    previousSolved.current = solved;
+  }, [solved, solvedScale]);
+
+  return (
+    <View style={styles.kickerRow}>
+      <Animated.Text style={[styles.kicker, { transform: [{ scale }] }]}>
+        {solved ? 'TENTS AND TREES · SOLVED' : `TENTS AND TREES · ${left} LEFT`}
+      </Animated.Text>
+      {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
     </View>
   );
 }
@@ -214,24 +311,59 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weights.semibold,
   },
   headerCenter: { flex: 1, alignItems: 'center' },
-  headerRightSpacer: { width: 56 },
+  headerRightSpacer: { width: 56, alignItems: 'center' },
   name: {
     fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.subtitle,
+    fontSize: theme.typography.sizes.title,
     fontWeight: theme.typography.weights.semibold,
     color: theme.colors.textPrimary,
+  },
+  kickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
   },
   kicker: {
     fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.micro,
     letterSpacing: 1,
     color: theme.colors.tentsAccent,
-    marginTop: 2,
+  },
+  solvedBadge: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: theme.colors.primary,
+    marginLeft: 5,
+  },
+  track: {
+    width: 140,
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: theme.colors.surfaceAlt,
+    marginTop: theme.spacing.sm,
+    overflow: 'hidden',
+  },
+  trackFill: {
+    height: 3,
+    borderRadius: 1.5,
+    backgroundColor: theme.colors.tentsAccent,
   },
   boardArea: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`.
+  stage: {
+    backgroundColor: theme.colors.surfaceAlt,
+    borderRadius: 28,
+    paddingHorizontal: STAGE_H_PADDING,
+    paddingVertical: theme.spacing.xxl,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderStrong,
   },
   controls: {
     flexDirection: 'row',
@@ -244,9 +376,17 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderTopColor: '#FBF6EB',
+    borderLeftColor: theme.colors.border,
+    borderRightColor: theme.colors.border,
+    borderBottomColor: theme.colors.border,
+    shadowColor: '#2A251F',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 2, height: 3 },
+    elevation: 2,
   },
-  pillPressed: { backgroundColor: theme.colors.surfaceAlt },
+  pillPressed: { backgroundColor: theme.colors.surfaceAlt, shadowOpacity: 0.04, shadowOffset: { width: 1, height: 1 }, elevation: 1 },
   pillText: {
     color: theme.colors.textPrimary,
     fontSize: theme.typography.sizes.body,

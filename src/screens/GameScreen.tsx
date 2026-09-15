@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Canvas } from '@shopify/react-native-skia';
+import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BoardView, triggerFeedback, useAnimatedMovables } from '../game/rendering';
 import {
@@ -18,22 +18,47 @@ import { createGameStateFromLevel, getStarThresholds, LevelDefinition } from '..
 import {
   LevelCompleteCard,
   LevelFailedCard,
+  MechanicsCarousel,
   PressableScale,
+  renderGravityIllustration,
   SessionControls,
   TutorialOverlay,
   useSwipeGesture,
 } from '../components';
-import { GameKind, getNextJourneyEntry } from '../game/journey';
-import { copyForTutorial, mechanicsOf, pickTutorial, tutorialIdForGame, tutorialIdForMechanic } from '../game/tutorials';
+import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
+import { copyForTutorial, GRAVITY_MECHANICS_SLIDES, mechanicsOf, pickTutorial, tutorialIdForGame, tutorialIdForMechanic } from '../game/tutorials';
 import { CompletionOutcome, getLevelResult, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { theme } from '../theme';
+
+const GAME_TUTORIAL_ID = tutorialIdForGame('gravity');
+const ICON_SIZE = 14;
+
+/** A plain "?" glyph - see `BinairoScreen.tsx`'s identical `HelpIcon` for
+ * the full rationale. Always reopens the base "how to play Gravity"
+ * carousel, never one of the progressive per-mechanic overlays - those
+ * stay tied to the level that introduces them, not to a general-purpose
+ * reopen button. */
+function HelpIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
+      <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
+      <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
+    </Canvas>
+  );
+}
 
 /** Approximate height reserved below the board for the header text above it
  * and the Undo/Restart row beneath it - there is no direction pad any more,
  * gravity is triggered purely by swiping the board (see `useSwipeGesture`),
  * which made the pad a redundant second control for the same input. */
 const CONTROLS_AREA_HEIGHT = 190;
+/** The board's own plinth's horizontal inset - see `BinairoScreen.tsx`'s
+ * identical `STAGE_H_PADDING` for why this is tight (every point here is
+ * a point of board) while the plinth's vertical padding (below) is
+ * generous. */
+const STAGE_H_PADDING = theme.spacing.sm;
 
 export interface GameScreenProps {
   /** The level to play. Changing this remounts the board at a fresh state. */
@@ -115,7 +140,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   // earlier mechanic by the time they reach a later one, so this rarely (if
   // ever) has more than one real candidate at a time.
   const tutorialCandidates = useMemo(
-    () => [tutorialIdForGame('gravity'), ...mechanicsOf(level).map(tutorialIdForMechanic)],
+    () => [GAME_TUTORIAL_ID, ...mechanicsOf(level).map(tutorialIdForMechanic)],
     [level],
   );
   const [tutorialToShow, setTutorialToShow] = useState<ReturnType<typeof pickTutorial>>(null);
@@ -126,6 +151,11 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     if (tutorialToShow) markTutorialSeen(tutorialToShow);
     setTutorialToShow(null);
   }, [tutorialToShow, markTutorialSeen]);
+  // The header's "?" icon always reopens the base game-intro carousel,
+  // bypassing `pickTutorial` - a manual reopen is always "show me how
+  // Gravity itself works again", never one of the progressive mechanic
+  // overlays.
+  const reopenTutorial = useCallback(() => setTutorialToShow(GAME_TUTORIAL_ID), []);
 
   // Par (the optimal / 3-star move count) shown up front, plus the player's
   // best so far - reframes each level as a target to beat rather than an
@@ -288,7 +318,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   const swipeHandlers = useSwipeGesture(handleDirection, isAnimating);
 
   const padding = theme.spacing.lg;
-  const availableWidth = width - padding * 2;
+  const availableWidth = width - padding * 2 - STAGE_H_PADDING * 2;
   const availableHeight =
     height - insets.top - insets.bottom - padding * 2 - CONTROLS_AREA_HEIGHT;
   const boardSize = Math.max(0, Math.floor(Math.min(availableWidth, availableHeight)));
@@ -314,44 +344,54 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
             {priorBest !== null ? `   ·   BEST ${priorBest}` : ''}
           </Text>
         </View>
-        <View style={styles.backButtonSpacer} />
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="How to play"
+          onPress={reopenTutorial}
+          hitSlop={8}
+          containerStyle={styles.backButtonSpacer}
+        >
+          <HelpIcon />
+        </PressableScale>
       </View>
 
-      <Animated.View
-        style={[
-          styles.board,
-          {
-            width: boardSize,
-            height: boardSize,
-            transform: [
-              { translateX: shake.interpolate({ inputRange: [-1, 1], outputRange: [-10, 10] }) },
-            ],
-          },
-        ]}
-        {...swipeHandlers}
-      >
-        <Canvas style={styles.canvas}>
-          <BoardView
-            state={displayState}
-            size={boardSize}
-            onTargetIds={onTargetIds}
-            pulsingIds={justLandedIds}
-          />
-        </Canvas>
-        {solved && !isAnimating && outcome && (
-          <LevelCompleteCard
-            stars={outcome.best.stars}
-            runStars={outcome.runStars}
-            moves={outcome.runMoves}
-            bestMoves={outcome.best.bestMoves}
-            hasNextLevel={nextEntry !== null}
-            onReplay={handleRestart}
-            onNext={handleNext}
-            onExit={onExit}
-          />
-        )}
-        {failed && !isAnimating && <LevelFailedCard onRetry={handleRestart} onExit={onExit} />}
-      </Animated.View>
+      <View style={styles.stage}>
+        <Animated.View
+          style={[
+            styles.board,
+            {
+              width: boardSize,
+              height: boardSize,
+              transform: [
+                { translateX: shake.interpolate({ inputRange: [-1, 1], outputRange: [-10, 10] }) },
+              ],
+            },
+          ]}
+          {...swipeHandlers}
+        >
+          <Canvas style={styles.canvas}>
+            <BoardView
+              state={displayState}
+              size={boardSize}
+              onTargetIds={onTargetIds}
+              pulsingIds={justLandedIds}
+            />
+          </Canvas>
+          {solved && !isAnimating && outcome && (
+            <LevelCompleteCard
+              stars={outcome.best.stars}
+              runStars={outcome.runStars}
+              moves={outcome.runMoves}
+              bestMoves={outcome.best.bestMoves}
+              hasNextLevel={nextEntry !== null}
+              onReplay={handleRestart}
+              onNext={handleNext}
+              onExit={onExit}
+            />
+          )}
+          {failed && !isAnimating && <LevelFailedCard onRetry={handleRestart} onExit={onExit} />}
+        </Animated.View>
+      </View>
 
       <View style={styles.sessionControls}>
         <SessionControls
@@ -367,8 +407,15 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
         />
       </View>
 
-      {tutorialToShow && (
-        <TutorialOverlay copy={copyForTutorial(tutorialToShow)} onDismiss={dismissTutorial} />
+      {tutorialToShow === GAME_TUTORIAL_ID ? (
+        <MechanicsCarousel
+          slides={GRAVITY_MECHANICS_SLIDES}
+          renderIllustration={renderGravityIllustration}
+          onDone={dismissTutorial}
+          accentColor={accentColorForKind('gravity')}
+        />
+      ) : (
+        tutorialToShow && <TutorialOverlay copy={copyForTutorial(tutorialToShow)} onDismiss={dismissTutorial} />
       )}
     </View>
   );
@@ -397,6 +444,7 @@ const styles = StyleSheet.create({
   },
   backButtonSpacer: {
     minWidth: 60,
+    alignItems: 'center',
   },
   backButtonLabel: {
     color: theme.colors.primary,
@@ -409,8 +457,9 @@ const styles = StyleSheet.create({
   },
   levelName: {
     textAlign: 'center',
+    fontFamily: theme.typography.families.display,
     color: theme.colors.textPrimary,
-    fontSize: theme.typography.sizes.body,
+    fontSize: theme.typography.sizes.title,
     fontWeight: theme.typography.weights.semibold,
   },
   levelPar: {
@@ -419,6 +468,17 @@ const styles = StyleSheet.create({
     letterSpacing: 1,
     color: theme.colors.secondary,
     marginTop: 2,
+  },
+  // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`.
+  stage: {
+    backgroundColor: theme.colors.surfaceAlt,
+    borderRadius: 28,
+    paddingHorizontal: STAGE_H_PADDING,
+    paddingVertical: theme.spacing.xxl,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderStrong,
   },
   board: {
     borderRadius: theme.radii.md,

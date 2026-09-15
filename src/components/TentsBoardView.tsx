@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { Circle, Group, Path, RadialGradient, vec } from '@shopify/react-native-skia';
+import { Circle, Group, Path, vec } from '@shopify/react-native-skia';
 import {
   isRowSatisfied,
   isColSatisfied,
@@ -23,25 +23,24 @@ const SHADOW_HEIGHT_RATIO = 0.35;
  * circles - the original three-circle silhouette had no shading and no
  * separation between the lobes, so at a board icon's actual size it just
  * read as one solid black smudge, not a tree. A single softly-scalloped
- * path plus a real radial gradient (see `CANOPY_LIGHT`/`CANOPY_DARK`) reads
- * as foliage at a glance and is cheaper to draw besides - one gradient
- * fill instead of three. Proven out in an actual rendered SVG comparison
- * against a shaded three-lobe-with-outlines version and a layered-pine
- * silhouette before picking this one: it read as the cleanest single
- * shape without needing separator strokes to hold together. The canopy
- * moved off plain ink to a real forest green in the same pass - shape
- * (a round puff vs. the tent's sharp A-frame) is still what tells a tree
- * and a tent apart at a glance, exactly as elsewhere in this app, so nudging
- * the tree toward its own green doesn't blur that: the two greens are
- * deliberately different (a darker, more muted one for the tree). */
-const CANOPY_LIGHT = '#5C7150';
-const CANOPY_DARK = '#28331F';
-const CANOPY_OUTLINE = 'rgba(24, 30, 18, 0.5)';
-const TRUNK_COLOR = '#5A4632';
+ * path reads as foliage at a glance and is cheaper to draw besides.
+ * Flat fill plus a soft offset shadow underneath (the same technique
+ * `BinairoBoardView.tsx`'s own marks use), not a gradient bevel - this
+ * board's other tokens (the tent, the ground shadow) are all flat too,
+ * and a lone glossy-bevel canopy was the one spot in this app that still
+ * looked like a moulded game token rather than a printed piece. Shape (a
+ * round puff vs. the tent's sharp A-frame) is what tells a tree and a
+ * tent apart at a glance, exactly as elsewhere in this app - the canopy's
+ * own green is just a second, redundant cue on top of that. */
+export const CANOPY_COLOR = '#425237';
+export const CANOPY_OUTLINE = 'rgba(24, 30, 18, 0.5)';
+const CANOPY_SHADOW_OFFSET_FACTOR = 0.05;
+const CANOPY_SHADOW_ALPHA = 0.22;
+export const TRUNK_COLOR = '#5A4632';
 
 const TRUNK_BASE = 0.16;
 const TRUNK_TOP_RATIO = 0.6;
-const TRUNK_HEIGHT = 0.22;
+export const TRUNK_HEIGHT = 0.22;
 
 const TENT_HEIGHT = 0.3;
 const TENT_HALF_BASE = 0.44;
@@ -58,9 +57,32 @@ const GUY_ANGLE_DEG = 35;
  * `TENT_LIGHT`/`TENT_DARK` are a different, more muted green family than
  * the canopy's own - two adjacent objects sharing one exact green would
  * blur back together at a glance. */
-const TENT_LIGHT = '#557A5D';
-const TENT_DARK = '#345140';
-const TENT_DOOR_COLOR = theme.colors.background;
+export const TENT_LIGHT = '#557A5D';
+export const TENT_DARK = '#345140';
+export const TENT_DOOR_COLOR = theme.colors.background;
+
+/** The "definitely not a tent" pencil mark - a small quiet cross, faint
+ * enough to read as bookkeeping (it never affects solving) rather than a
+ * third token competing with the tree/tent pair. Deliberately not the
+ * `danger` red every violation on this board's own tents already uses -
+ * ruling a cell out isn't a mistake, so it shouldn't borrow that
+ * vocabulary. `textTertiary` is this app's own "quiet ink" outside any
+ * board's functional colours. */
+export const MARK_COLOR = theme.colors.textTertiary;
+const MARK_RADIUS_FACTOR = 0.16;
+const MARK_STROKE_FACTOR = 0.045;
+
+/** A tent doesn't fade in, it pitches: it springs up a touch tall and
+ * settles to its resting height in one quick, decelerating motion - the
+ * same "struck a beat heavier, then settled" shape Binairo's own stamp
+ * uses (`BinairoBoardView.tsx`'s `STAMP_IN_MS`), reused verbatim rather
+ * than re-tuned so placing something feels the same weight across every
+ * board in this app, even though the metaphor differs (a stamp striking
+ * paper vs. a tent's canvas snapping taut). The pencil mark gets the same
+ * treatment, just smaller and quieter, matching its own visual weight. */
+const PITCH_IN_MS = 150;
+const PITCH_OVERSHOOT_SCALE = 1.3;
+const MARK_FADE_IN_MS = 120;
 
 /** `0,-3,3,-2,2,0` over 220ms, linear per 44ms segment - Skyscrapers'
  * exact conflict shake, reused for a touching-tents violation. Skia has no
@@ -92,11 +114,11 @@ function cellKey(row: number, col: number): string {
   return `${row}:${col}`;
 }
 
-function ellipsePath(cx: number, cy: number, rx: number, ry: number): string {
+export function ellipsePath(cx: number, cy: number, rx: number, ry: number): string {
   return `M ${cx - rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx + rx} ${cy} A ${rx} ${ry} 0 1 0 ${cx - rx} ${cy} Z`;
 }
 
-function trunkPath(cx: number, topY: number, cellSize: number): string {
+export function trunkPath(cx: number, topY: number, cellSize: number): string {
   const base = cellSize * TRUNK_BASE;
   const top = base * TRUNK_TOP_RATIO;
   const bottomY = topY + cellSize * TRUNK_HEIGHT;
@@ -108,7 +130,7 @@ function trunkPath(cx: number, topY: number, cellSize: number): string {
  * `cellSize`-square reference box (this exact curve is the one that read
  * best in the SVG comparison mentioned above). `cx`/`topRefY` anchor
  * roughly where the blob's own centre falls, not its top-left corner. */
-function canopyPath(cx: number, topRefY: number, cellSize: number): string {
+export function canopyPath(cx: number, topRefY: number, cellSize: number): string {
   const ox = cx - cellSize * 0.5;
   const oy = topRefY - cellSize * 0.4;
   const p = (px: number, py: number): string => `${ox + (px / 100) * cellSize} ${oy + (py / 100) * cellSize}`;
@@ -128,7 +150,7 @@ function canopyPath(cx: number, topRefY: number, cellSize: number): string {
  * Computed once as a handful of points and shared by the left/right face
  * paths and the door path below, so all three always agree on exactly
  * where the notch sits. */
-interface TentGeometry {
+export interface TentGeometry {
   apex: { x: number; y: number };
   leftBase: { x: number; y: number };
   rightBase: { x: number; y: number };
@@ -136,7 +158,7 @@ interface TentGeometry {
   rightNotch: { x: number; y: number };
   notchTop: { x: number; y: number };
 }
-function tentGeometry(cx: number, baseY: number, cellSize: number): TentGeometry {
+export function tentGeometry(cx: number, baseY: number, cellSize: number): TentGeometry {
   const height = cellSize * TENT_HEIGHT;
   const halfBase = cellSize * TENT_HALF_BASE;
   const notchWidth = cellSize * NOTCH_WIDTH;
@@ -152,20 +174,20 @@ function tentGeometry(cx: number, baseY: number, cellSize: number): TentGeometry
 }
 /** The shadowed, left-facing side of the A-frame - lit from the upper
  * right, the same direction the canopy's own highlight comes from. */
-function tentLeftFacePath(g: TentGeometry): string {
+export function tentLeftFacePath(g: TentGeometry): string {
   return `M ${g.apex.x} ${g.apex.y} L ${g.leftBase.x} ${g.leftBase.y} L ${g.leftNotch.x} ${g.leftNotch.y} L ${g.notchTop.x} ${g.notchTop.y} Z`;
 }
 /** The sun-facing, right side - lighter than its left-hand counterpart. */
-function tentRightFacePath(g: TentGeometry): string {
+export function tentRightFacePath(g: TentGeometry): string {
   return `M ${g.apex.x} ${g.apex.y} L ${g.notchTop.x} ${g.notchTop.y} L ${g.rightNotch.x} ${g.rightNotch.y} L ${g.rightBase.x} ${g.rightBase.y} Z`;
 }
 /** A small cream flap right where the two faces meet at the base - the
  * tent's own entrance, not just a notch cut out of the silhouette. */
-function tentDoorPath(g: TentGeometry): string {
+export function tentDoorPath(g: TentGeometry): string {
   return `M ${g.leftNotch.x} ${g.leftNotch.y} L ${g.notchTop.x} ${g.notchTop.y} L ${g.rightNotch.x} ${g.rightNotch.y} Z`;
 }
 
-function guyLinePath(cx: number, baseY: number, cellSize: number): string {
+export function guyLinePath(cx: number, baseY: number, cellSize: number): string {
   const startX = cx + cellSize * TENT_HALF_BASE;
   const angle = (GUY_ANGLE_DEG * Math.PI) / 180;
   const length = cellSize * GUY_LENGTH;
@@ -199,6 +221,30 @@ function useBooleanTransitions(current: ReadonlyMap<string, boolean>, now: numbe
     if (!existing || existing.value !== value) stateRef.current.set(key, { value, changedAt: now });
   }
   return stateRef.current;
+}
+
+/** Diffs `marks` against the previous render to find cells that just
+ * changed and when - the same during-render-diff idiom `useToggleEvents`
+ * uses on Binairo's own board, needed here so a freshly-pitched tent (or
+ * a freshly-drawn pencil mark) knows how long it's been standing, to
+ * animate its own entrance (see `PITCH_IN_MS`/`MARK_FADE_IN_MS`) rather
+ * than snapping into place the instant the tap lands. */
+function useMarkChangeTimestamps(marks: TentsTreesState['marks']): Map<string, number> {
+  const prevRef = useRef<TentsTreesState['marks'] | null>(null);
+  const eventsRef = useRef(new Map<string, number>());
+  if (prevRef.current !== marks) {
+    const prev = prevRef.current;
+    const now = Date.now();
+    for (let r = 0; r < marks.length; r += 1) {
+      for (let c = 0; c < marks[r].length; c += 1) {
+        const from = prev ? prev[r][c] : marks[r][c];
+        const to = marks[r][c];
+        if (from !== to) eventsRef.current.set(cellKey(r, c), now);
+      }
+    }
+    prevRef.current = marks;
+  }
+  return eventsRef.current;
 }
 
 export interface TentsBoardViewProps {
@@ -267,6 +313,18 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
     return cells;
   }, [puzzle, state]);
 
+  const allMarkedCells: TentsTreesCell[] = useMemo(() => {
+    const cells: TentsTreesCell[] = [];
+    for (let r = 0; r < puzzle.rows; r += 1) {
+      for (let c = 0; c < puzzle.cols; c += 1) {
+        if (state.marks[r][c] === 'marked') cells.push({ row: r, col: c });
+      }
+    }
+    return cells;
+  }, [puzzle, state]);
+
+  const markChangedAt = useMarkChangeTimestamps(state.marks);
+
   return (
     <Group>
       {/* Hairline grid + hint flash */}
@@ -322,9 +380,11 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
           return (
             <Group key={cellKey(r, c)}>
               <Path path={ellipsePath(cx, trunkBottomY + shadowH * 0.3, shadowW / 2, shadowH / 2)} color={theme.colors.tentsShadow} />
-              <Path path={canopyPath(cx, canopyY, cellSize)} style="fill">
-                <RadialGradient c={vec(cx - cellSize * 0.12, canopyY - cellSize * 0.12)} r={cellSize * 0.65} colors={[CANOPY_LIGHT, CANOPY_DARK]} />
-              </Path>
+              <Path
+                path={canopyPath(cx + cellSize * CANOPY_SHADOW_OFFSET_FACTOR, canopyY + cellSize * CANOPY_SHADOW_OFFSET_FACTOR, cellSize)}
+                color={`rgba(42,37,31,${CANOPY_SHADOW_ALPHA})`}
+              />
+              <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_COLOR} />
               <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_OUTLINE} style="stroke" strokeWidth={Math.max(1, cellSize * 0.012)} />
               <Path path={trunkPath(cx, trunkTopY, cellSize)} color={TRUNK_COLOR} />
               {fireflyOpacity > 0.01 && <Circle cx={fireflyX} cy={fireflyY} r={Math.max(1, cellSize * 0.025)} color={theme.colors.accent} opacity={fireflyOpacity} />}
@@ -346,6 +406,17 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
         const shakeStart = shakeStarts.get(key);
         const shakeElapsed = shakeStart !== undefined ? now - shakeStart : Infinity;
         const dx = shakeOffsetAt(shakeElapsed);
+
+        // Pitching in: springs up a touch tall and settles, rather than
+        // snapping straight to full height - see `PITCH_IN_MS`'s own
+        // comment. Anchored at the tent's own base (not the cell's
+        // centre) so it reads as rising from the ground, not scaling
+        // from nowhere.
+        const pitchedAt = markChangedAt.get(key);
+        const pitchElapsed = pitchedAt !== undefined ? now - pitchedAt : Infinity;
+        const pitchT = clamp01(pitchElapsed / PITCH_IN_MS);
+        const pitchScale = pitchElapsed < PITCH_IN_MS ? 1 + (PITCH_OVERSHOOT_SCALE - 1) * (1 - easeOutCubic(pitchT)) : 1;
+        const pitchOpacity = pitchElapsed < PITCH_IN_MS ? easeOutCubic(clamp01(pitchElapsed / (PITCH_IN_MS * 0.5))) : 1;
 
         // Crossfades from the opposite extreme over GLOW_CROSSFADE_MS
         // rather than snapping - "the warmth going out" should read as a
@@ -369,7 +440,7 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
         }
 
         return (
-          <Group key={key} transform={[{ translateX: dx }]}>
+          <Group key={key} transform={[{ translateX: dx }, { scale: pitchScale }]} origin={vec(cx, baseY)} opacity={pitchOpacity}>
             {glowOpacity + flareBoost > 0.02 && (
               <Group>
                 <Circle cx={cx} cy={baseY - cellSize * 0.14} r={cellSize * 0.42} color={theme.colors.accent} opacity={(glowOpacity + flareBoost) * 0.28} />
@@ -403,6 +474,35 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
               );
             })()}
           </Group>
+        );
+      })}
+
+      {/* Pencil marks: a player's own "definitely not a tent" note - see
+          `MARK_COLOR`'s own comment for why this is a quiet cross rather
+          than borrowing the tent's violation red or any other vocabulary
+          already spoken for on this board. Fades in rather than
+          appearing instantly, the same `MARK_FADE_IN_MS` beat every other
+          quiet appearance on this app's boards uses (Binairo's own empty-
+          ring fade is the closest cousin). */}
+      {allMarkedCells.map(({ row: r, col: c }) => {
+        const cx = c * cellSize + cellSize / 2;
+        const cy = r * cellSize + cellSize / 2;
+        const key = cellKey(r, c);
+        const markedAt = markChangedAt.get(key);
+        const elapsed = markedAt !== undefined ? now - markedAt : Infinity;
+        const opacity = elapsed < MARK_FADE_IN_MS ? easeOutCubic(clamp01(elapsed / MARK_FADE_IN_MS)) : 1;
+        const d = cellSize * MARK_RADIUS_FACTOR;
+        const strokeWidth = Math.max(1, cellSize * MARK_STROKE_FACTOR);
+        return (
+          <Path
+            key={`mark-${key}`}
+            path={`M ${cx - d} ${cy - d} L ${cx + d} ${cy + d} M ${cx + d} ${cy - d} L ${cx - d} ${cy + d}`}
+            color={MARK_COLOR}
+            style="stroke"
+            strokeWidth={strokeWidth}
+            strokeCap="round"
+            opacity={opacity}
+          />
         );
       })}
 

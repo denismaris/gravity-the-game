@@ -46,7 +46,7 @@ function easeOutCubic(t: number): number {
 
 /** A solid arrowhead centred on (cx, cy), pointing `direction` - marks where
  * the beam enters the board and which way it starts moving. */
-function arrowPath(cx: number, cy: number, size: number, direction: Direction): string {
+export function arrowPath(cx: number, cy: number, size: number, direction: Direction): string {
   const { dRow, dCol } = DIRECTION_VECTOR[direction];
   const perpRow = dCol;
   const perpCol = -dRow;
@@ -63,7 +63,7 @@ function arrowPath(cx: number, cy: number, size: number, direction: Direction): 
  * coordinates, y growing downward), so a 90deg sweep is exactly the
  * rotation the player's tap just asked for.
  */
-function mirrorPath(cx: number, cy: number, halfLength: number, mirror: MirrorKind, extraRadians: number, scale: number): string {
+export function mirrorPath(cx: number, cy: number, halfLength: number, mirror: MirrorKind, extraRadians: number, scale: number): string {
   const angle = (mirror === 'fwd' ? -Math.PI / 4 : Math.PI / 4) + extraRadians;
   const dx = Math.cos(angle) * halfLength * scale;
   const dy = Math.sin(angle) * halfLength * scale;
@@ -72,7 +72,7 @@ function mirrorPath(cx: number, cy: number, halfLength: number, mirror: MirrorKi
 
 /** A small diamond marking a gem - distinct from the mirror's straight
  * diagonal, the target's ring and the obstacle's square. */
-function gemPath(cx: number, cy: number, size: number): string {
+export function gemPath(cx: number, cy: number, size: number): string {
   return `M ${cx} ${cy - size} L ${cx + size} ${cy} L ${cx} ${cy + size} L ${cx - size} ${cy} Z`;
 }
 

@@ -41,6 +41,17 @@ export interface BinairoPuzzle {
    * puzzle authored before this mechanic existed. An additional rule
    * layered on top of the base ruleset, not a replacement for any of it. */
   readonly constraints?: ReadonlyArray<BinairoConstraint>;
+  /**
+   * Cells twinned with their 180-degree mirror opposite - `(row, col)` is
+   * always twinned with `(size-1-row, size-1-col)`, a fixed relationship
+   * derived from board geometry, never stored per-pair. Only one of the
+   * two cells in a pair is ever listed here (see `twinPartner`), always
+   * whichever one comes first in row-major order - `size` is always even
+   * (see above), so `row === size-1-row` can never happen and this
+   * canonical choice never has to break a tie. Absent (or empty) on every
+   * puzzle authored before this mechanic existed, same as `constraints`.
+   */
+  readonly twinCells?: ReadonlyArray<BinairoCell>;
 }
 
 export interface BinairoState {

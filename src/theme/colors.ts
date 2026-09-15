@@ -59,44 +59,27 @@ export const colors = {
   // square on a shared flat surface. `binairoTileShadow` is the same
   // ink-based shadow *family* as `towersShadow`/`tentsShadow` above, just a
   // tighter alpha tuned for a small offset tile shadow rather than a ground
-  // shadow. The board's two fillable symbols (a filled disc, a hollow
-  // rounded square) are both drawn in plain ink - shape carries the
-  // primary distinction, not colour - so `binairoFilledTile`/
-  // `binairoOutlineTile` carry the redundant colour cue instead, on the
-  // tile's own face. They were originally blends of `secondary`
-  // (terracotta) and `binairoAccent` (olive) - a real palette mistake,
-  // not just a taste call: a pink-tinted tile and a red hazard-tape error
-  // share one colour family, so a filled tile could misread as "this is
-  // wrong" at a glance, and a green-tinted tile sits too close to
-  // `success`'s own meaning elsewhere in the app. Rebuilt as 25% blends
-  // of `pieceBlue` and `accent` (ochre) instead - a plain warm/cool pair
-  // that doesn't borrow either error-red or success-green's own hue, and
-  // reuses colours already meaningful elsewhere (a piece, a target/star)
-  // rather than inventing new ones. All three rule violations still
-  // share one plain `danger`-red hazard-tape treatment - one consistent
-  // "this is wrong" language beats three - which is exactly why nothing
-  // else on this board can also read as red. Bumped from a 25% blend to
-  // 35%, then to 55%/75%, then to 75%/95%, still too pale each time on an
-  // actual device rather than in isolation - then, once dark enough, the
-  // gold side still read as a flat, slightly muddy olive-brown rather
-  // than a genuinely rich colour, so `binairoFilledTile` moved off
-  // `accent` entirely - first to a warmer amber, which *still* read as a
-  // dull, brownish "mustard" next to the actual bubble shading rather
-  // than a genuine gold, so bumped again to a brighter, more saturated
-  // "sun gold" (`accent` itself stays untouched throughout -
-  // stars/target rings elsewhere in the app still use it as-is).
-  // `binairoOutlineTile` stays exactly `pieceBlue` at 100% - that side
-  // never had the same complaint. A given (printed) cell and a player's
-  // own entry share this exact same colour now - they used to differ (a
-  // given tile ran a further blend toward ink, deeper/richer), but that
-  // made the two symbols read as different colours rather than the same
-  // colour at two depths, so the distinction moved entirely onto
-  // `TILE_SHADOW_DY`/border-weight in `BinairoBoardView.tsx` (a given
-  // tile still sits more raised, with a heavier rule) instead of also
-  // living here.
+  // shadow. Every tile *face* stays this app's plain `surfaceHi` paper
+  // colour regardless of value - colour never spreads across the tile
+  // itself, only the mark drawn on top of it (`binairoMarkFilled`/
+  // `binairoMarkOutline` below) carries it, so a filled cell never reads
+  // as "this whole tile is now a different colour". A given (printed)
+  // cell and a player's own entry still share the exact same mark colour -
+  // they're told apart by `BinairoBoardView.tsx`'s own `TILE_SHADOW_DY`/
+  // border-weight (a given tile sits more raised, with a heavier rule).
   binairoTileShadow: 'rgba(42, 37, 31, 0.18)',
-  binairoFilledTile: '#E3A828',
-  binairoOutlineTile: '#3E5C99',
+  // The two fillable values' own ink - a warm gold disc, a cool blue
+  // square, so colour and shape agree rather than only one of them
+  // carrying the distinction (colour alone isn't colourblind-safe; shape
+  // alone reads as flatter/harder to scan at speed - together they're
+  // both fast to read and robust without it). Flat, solid fills, no
+  // gradient or bevel - the point is to read as ink stamped on the page,
+  // not a glossy game token. Reuses this app's own existing warm/cool
+  // pair (`pieceBlue`'s exact blue; a gold pitched to sit clearly apart
+  // from `accent`'s own ochre, so a mark is never mistaken for a hint
+  // flash or a star) rather than inventing new hues.
+  binairoMarkFilled: '#D99A2B',
+  binairoMarkOutline: '#3E5C99',
 
   // --- Mirror Maze's board ---
   // The one board in the app that inverts to a dark ground. Light can only

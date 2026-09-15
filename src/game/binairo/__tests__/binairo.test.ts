@@ -11,13 +11,17 @@ import {
   isConstraintViolated,
   isGiven,
   isRowHealthy,
+  isTwinViolated,
   nextValue,
   remainingCells,
   setValue,
   tripleRunCells,
   tripleRunGroups,
+  twinKey,
+  twinPartner,
   unbalancedLines,
   violatedConstraints,
+  violatedTwins,
 } from '../logic';
 import { assertValidBinairo, revealHint, solveBinairo } from '../solver';
 import { BINAIRO, BINAIRO_SOLUTION_GRIDS, getBinairoById } from '../puzzles';
@@ -105,6 +109,19 @@ function constraintBasePuzzle(id: string, constraints?: ReadonlyArray<BinairoCon
   givens[0][0] = null;
   givens[1][0] = null;
   return { id, size: 4, givens, constraints };
+}
+
+/**
+ * Same base solution and same "blank exactly the two cells under test,
+ * base rules alone already pin both" design as `constraintBasePuzzle`,
+ * parameterized by which cells to blank so twin tests can pick a pair
+ * whose forced values happen to agree (a clean "consistent" case) or
+ * disagree (a clean "contradicting" case) from the one grid.
+ */
+function twinBasePuzzle(id: string, blank: ReadonlyArray<{ row: number; col: number }>, twinCells?: ReadonlyArray<{ row: number; col: number }>): BinairoPuzzle {
+  const givens = CONSTRAINT_BASE_SOLUTION.map(row => row.slice() as (0 | 1 | null)[]);
+  for (const cell of blank) givens[cell.row][cell.col] = null;
+  return { id, size: 4, givens, twinCells };
 }
 
 describe('hasTripleRun', () => {
@@ -473,6 +490,119 @@ describe('constraint tiles', () => {
   });
 });
 
+describe('twin cells', () => {
+  // On a 4x4 board, (0,0)'s twin is (3,3) - and in `CONSTRAINT_BASE_SOLUTION`
+  // both happen to be 0, a clean "consistent" pair. (0,2)'s twin is (3,1) -
+  // 1 and 0 respectively, a clean "contradicting" pair from the same grid.
+  const anchor = { row: 0, col: 0 };
+  const anchorTwin = { row: 3, col: 3 };
+  const differingAnchor = { row: 0, col: 2 };
+  const differingAnchorTwin = { row: 3, col: 1 };
+
+  describe('twinPartner', () => {
+    test('is the 180-degree mirror opposite on a size x size board', () => {
+      expect(twinPartner(4, anchor)).toEqual(anchorTwin);
+      expect(twinPartner(4, { row: 1, col: 2 })).toEqual({ row: 2, col: 1 });
+    });
+
+    test('is its own inverse - applying it twice returns the original cell', () => {
+      const cell = { row: 1, col: 3 };
+      expect(twinPartner(6, twinPartner(6, cell))).toEqual(cell);
+    });
+  });
+
+  describe('isTwinViolated / violatedTwins', () => {
+    const values: BinairoValue[][] = [
+      [0, 0, 1, 1],
+      [1, 1, 0, 0],
+      [0, 1, null, 1],
+      [1, 0, 0, 0],
+    ];
+    const state: BinairoState = { values };
+    const puzzle: BinairoPuzzle = { id: 'x', size: 4, givens: values };
+
+    test('never violated while either side is still blank', () => {
+      // (2,2) is itself blank - not yet decided, so its twin pair with
+      // (1,1) isn't yet broken either way.
+      expect(isTwinViolated(puzzle, state, { row: 2, col: 2 })).toBe(false);
+    });
+
+    test('violated when both sides are decided and differ', () => {
+      // (0,0)=0, twin (3,3)=0 - equal, not violated.
+      expect(isTwinViolated(puzzle, state, { row: 0, col: 0 })).toBe(false);
+      // (0,1)=0, twin (3,2)=0 - equal, not violated either.
+      expect(isTwinViolated(puzzle, state, { row: 0, col: 1 })).toBe(false);
+      // (0,2)=1, twin (3,1)=0 - decided and unequal.
+      expect(isTwinViolated(puzzle, state, differingAnchor)).toBe(true);
+    });
+
+    test('violatedTwins reports exactly the broken pairs, keyed', () => {
+      const withTwins: BinairoPuzzle = { ...puzzle, twinCells: [anchor, differingAnchor] };
+      const violated = violatedTwins(withTwins, state);
+      expect(violated.has(twinKey(anchor))).toBe(false);
+      expect(violated.has(twinKey(differingAnchor))).toBe(true);
+      expect(violated.size).toBe(1);
+    });
+  });
+
+  describe('isBinairoSolved with twins', () => {
+    const solution: BinairoState = { values: CONSTRAINT_BASE_SOLUTION };
+
+    test('a puzzle with no twin cells is unaffected', () => {
+      expect(isBinairoSolved(twinBasePuzzle('no-twins', [anchor]), solution)).toBe(true);
+    });
+
+    test('solved requires every twin pair to match, not just be unbroken', () => {
+      expect(isBinairoSolved(twinBasePuzzle('sat', [anchor], [anchor]), solution)).toBe(true);
+      expect(isBinairoSolved(twinBasePuzzle('con', [differingAnchor], [differingAnchor]), solution)).toBe(false);
+    });
+
+    test('a twin pair between two still-blank cells blocks "solved" even if every base rule passes', () => {
+      const state: BinairoState = { values: [[null, 0, 1, 1], [1, 1, 0, 0], [0, 1, 0, 1], [1, 0, 1, null]] };
+      const puzzle: BinairoPuzzle = { id: 'blank-pair', size: 4, givens: state.values, twinCells: [anchor] };
+      expect(isBinairoSolved(puzzle, state)).toBe(false);
+    });
+  });
+
+  describe('solver enforcement', () => {
+    test('the base puzzle alone already has exactly one solution', () => {
+      expect(solveBinairo(twinBasePuzzle('base', [anchor, anchorTwin]), 3)).toHaveLength(1);
+    });
+
+    test('a twin pair consistent with the lone solution leaves it unique', () => {
+      const solutions = solveBinairo(twinBasePuzzle('consistent', [anchor, anchorTwin], [anchor]), 3);
+      expect(solutions).toHaveLength(1);
+      expect(solutions[0].values).toEqual(CONSTRAINT_BASE_SOLUTION);
+    });
+
+    test('a twin pair contradicting the lone solution makes the puzzle unsolvable - proof the solver actually enforces it, not just checks it at the end', () => {
+      const solutions = solveBinairo(twinBasePuzzle('contradicting', [differingAnchor, differingAnchorTwin], [differingAnchor]), 3);
+      expect(solutions).toHaveLength(0);
+    });
+
+    test('assertValidBinairo rejects a puzzle whose twin cells contradict its own unique solution', () => {
+      const puzzle = twinBasePuzzle('invalid', [differingAnchor, differingAnchorTwin], [differingAnchor]);
+      expect(() => assertValidBinairo(puzzle)).toThrow(/no solution/);
+    });
+
+    test('assertValidBinairo accepts a puzzle whose twin cells agree with its unique solution', () => {
+      const puzzle = twinBasePuzzle('valid', [anchor, anchorTwin], [anchor]);
+      expect(() => assertValidBinairo(puzzle)).not.toThrow();
+    });
+
+    test('twin cells and =/x constraints can coexist in the same puzzle without interfering', () => {
+      const givens = CONSTRAINT_BASE_SOLUTION.map(row => row.slice() as (0 | 1 | null)[]);
+      givens[0][0] = null; // twinned with (3,3)
+      givens[0][2] = null; // constrained (down) against (1,2)
+      const downConstraint: BinairoConstraint = { row: 0, col: 2, direction: 'down', kind: 'different' };
+      const puzzle: BinairoPuzzle = { id: 'combined', size: 4, givens, twinCells: [anchor], constraints: [downConstraint] };
+      const solutions = solveBinairo(puzzle, 3);
+      expect(solutions).toHaveLength(1);
+      expect(solutions[0].values).toEqual(CONSTRAINT_BASE_SOLUTION);
+    });
+  });
+});
+
 describe('assertValidBinairo', () => {
   test('accepts a well-formed, uniquely-solvable puzzle', () => {
     expect(() => assertValidBinairo(SIMPLE)).not.toThrow();
@@ -533,7 +663,14 @@ describe('the shipped Binairo pool', () => {
     expect(Math.min(...sizes)).toBe(6);
     expect(Math.max(...sizes)).toBe(10);
     expect(sizes.every(s => s % 2 === 0)).toBe(true);
-    expect(sizes).toEqual([...sizes].sort((a, b) => a - b));
+    // Monotonic within the constraint-tile puzzles - the ramp broken
+    // exactly once, deliberately, by the first twin-cell puzzle
+    // (`binairo-013`): a brand new mechanic is introduced on a small,
+    // easy-to-see board before it ever meets a harder one, the same
+    // reason a new mechanic in any of this app's other games always
+    // debuts on an easy level rather than dropping into a late one.
+    const rampSizes = BINAIRO.filter(p => !p.twinCells || p.twinCells.length === 0).map(p => p.size);
+    expect(rampSizes).toEqual([...rampSizes].sort((a, b) => a - b));
   });
 
   describe.each(BINAIRO.map((p, i) => [p.id, p, BINAIRO_SOLUTION_GRIDS[i]] as const))('%s', (_id, puzzle, solutionGrid) => {
@@ -564,9 +701,18 @@ describe('the shipped Binairo pool', () => {
     });
   });
 
-  test('every puzzle carries at least one constraint tile, not just a harder tier at the end', () => {
+  test('every puzzle carries at least one extra mechanic - a constraint tile or a twin pair - not just a harder tier at the end', () => {
     for (const puzzle of BINAIRO) {
-      expect((puzzle.constraints?.length ?? 0)).toBeGreaterThan(0);
+      const extraMechanics = (puzzle.constraints?.length ?? 0) + (puzzle.twinCells?.length ?? 0);
+      expect(extraMechanics).toBeGreaterThan(0);
+    }
+  });
+
+  test('twin cells, where present, are load-bearing - removing them would leave the puzzle ambiguous', () => {
+    for (const puzzle of BINAIRO) {
+      if (!puzzle.twinCells || puzzle.twinCells.length === 0) continue;
+      const withoutTwins: BinairoPuzzle = { ...puzzle, twinCells: undefined };
+      expect(solveBinairo(withoutTwins, 2).length).not.toBe(1);
     }
   });
 

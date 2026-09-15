@@ -1,5 +1,5 @@
 /* eslint-disable react-native/no-inline-styles -- cell geometry is derived from `size` at render time */
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
 import { BinairoCell, BinairoPuzzle, BinairoState, constraintPartner, isConstraintViolated, isGiven } from '../game/binairo';
@@ -15,6 +15,10 @@ export interface BinairoBoardProps {
   onToggleCell: (row: number, col: number) => void;
   /** Cell to flash briefly (a hint reveal). */
   flashCell?: BinairoCell | null;
+  /** Bumped by the screen on every restart to replay the board's intro
+   * wave - see `BinairoBoardView`'s own `introKey` prop for what actually
+   * animates off it. */
+  introKey?: number;
 }
 
 function valueLabel(value: BinairoState['values'][number][number]): string {
@@ -50,8 +54,14 @@ function constraintDescriptions(puzzle: BinairoPuzzle, state: BinairoState, row:
  * symbols are real path geometry a plain `View` can't draw. Given cells
  * get no `Pressable` at all, matching the old board's `disabled={given}`.
  */
-export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashCell }: BinairoBoardProps): React.JSX.Element {
+export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashCell, introKey }: BinairoBoardProps): React.JSX.Element {
   const layout = useMemo(() => computeBoardLayout(puzzle.size, size), [puzzle.size, size]);
+  // Which single cell is currently held down, purely for the tactile
+  // press-glow `BinairoBoardView` draws while it's true - the actual value
+  // change (and its own flip animation) still only happens on release, via
+  // `onToggleCell`/`onPress` below. Tracked here rather than in the Skia
+  // view since only the `Pressable` overlay actually sees touch events.
+  const [pressedCell, setPressedCell] = useState<BinairoCell | null>(null);
 
   const editableCells = useMemo(() => {
     const cells: BinairoCell[] = [];
@@ -82,7 +92,7 @@ export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashC
       }}
     >
       <Canvas style={StyleSheet.absoluteFill}>
-        <BinairoBoardView puzzle={puzzle} state={state} size={size} solved={solved} flashCell={flashCell} />
+        <BinairoBoardView puzzle={puzzle} state={state} size={size} solved={solved} flashCell={flashCell} pressedCell={pressedCell} introKey={introKey} />
       </Canvas>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         {editableCells.map(({ row, col }) => {
@@ -95,6 +105,8 @@ export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashC
               accessibilityRole="button"
               accessibilityLabel={label}
               onPress={() => onToggleCell(row, col)}
+              onPressIn={() => setPressedCell({ row, col })}
+              onPressOut={() => setPressedCell(prev => (prev && prev.row === row && prev.col === col ? null : prev))}
               style={{
                 position: 'absolute',
                 left: origin.x,

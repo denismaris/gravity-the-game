@@ -262,6 +262,57 @@ export function violatedConstraints(puzzle: BinairoPuzzle, state: BinairoState):
   return violated;
 }
 
+/** The cell twinned with `(row, col)` on a `size`x`size` board - always
+ * its 180-degree mirror opposite, computed from board geometry rather
+ * than looked up from any stored pairing. Whichever of the two cells is
+ * passed in, this returns the *other* one - it's its own inverse, so
+ * `twinPartner(size, twinPartner(size, cell))` is `cell` again. */
+export function twinPartner(size: number, cell: { row: number; col: number }): { row: number; col: number } {
+  return { row: size - 1 - cell.row, col: size - 1 - cell.col };
+}
+
+/** Canonical string key for one twin pair, keyed by whichever cell is
+ * actually listed in `BinairoPuzzle.twinCells` (see that field's own
+ * comment for why only one side is ever stored) - stable across renders,
+ * usable as a Map/Set key or a React `key`. */
+export function twinKey(cell: { row: number; col: number }): string {
+  return `twin:${cell.row}:${cell.col}`;
+}
+
+/** Same "not violated until both sides disagree" stance as
+ * `isConstraintViolated` - a twin pair with one or both sides still
+ * blank hasn't had the chance to be wrong yet. */
+export function isTwinViolated(puzzle: BinairoPuzzle, state: BinairoState, cell: { row: number; col: number }): boolean {
+  const partner = twinPartner(puzzle.size, cell);
+  const a = state.values[cell.row][cell.col];
+  const b = state.values[partner.row][partner.col];
+  if (a === null || b === null) return false;
+  return a !== b;
+}
+
+/** Both sides filled *and* equal - the stronger bar `isBinairoSolved`
+ * needs, mirroring `isConstraintFullyMet`'s own reasoning. */
+function isTwinFullyMet(puzzle: BinairoPuzzle, state: BinairoState, cell: { row: number; col: number }): boolean {
+  const partner = twinPartner(puzzle.size, cell);
+  const a = state.values[cell.row][cell.col];
+  const b = state.values[partner.row][partner.col];
+  if (a === null || b === null) return false;
+  return a === b;
+}
+
+/** Keys (see `twinKey`) of every currently-violated twin pair - a fifth
+ * error geometry alongside `tripleRunCells`/`unbalancedLines`/
+ * `duplicateLines`/`violatedConstraints`. Empty for any puzzle with no
+ * `twinCells` at all, which is every puzzle authored before this
+ * mechanic existed. */
+export function violatedTwins(puzzle: BinairoPuzzle, state: BinairoState): ReadonlySet<string> {
+  const violated = new Set<string>();
+  for (const cell of puzzle.twinCells ?? []) {
+    if (isTwinViolated(puzzle, state, cell)) violated.add(twinKey(cell));
+  }
+  return violated;
+}
+
 /** Whether row `row` is finished on its own terms: full, evenly split, no
  * triple run - independent of whether it happens to duplicate another
  * line elsewhere (that is a separate, error-worthy question). Used to
@@ -280,9 +331,10 @@ export function isColHealthy(puzzle: BinairoPuzzle, state: BinairoState, col: nu
 /**
  * A puzzle is solved when every cell is filled, no row or column has a
  * triple, every row and column is evenly split, no two rows - or two
- * columns - repeat, and every `=`/`x` constraint (if the puzzle has any)
- * is met. Player mistakes are simply wrong the moment they're made; there
- * is no separate "check" step.
+ * columns - repeat, every `=`/`x` constraint (if the puzzle has any) is
+ * met, and every twin pair (if the puzzle has any) matches. Player
+ * mistakes are simply wrong the moment they're made; there is no
+ * separate "check" step.
  */
 export function isBinairoSolved(puzzle: BinairoPuzzle, state: BinairoState): boolean {
   const n = puzzle.size;
@@ -303,6 +355,10 @@ export function isBinairoSolved(puzzle: BinairoPuzzle, state: BinairoState): boo
 
   for (const constraint of puzzle.constraints ?? []) {
     if (!isConstraintFullyMet(state, constraint)) return false;
+  }
+
+  for (const cell of puzzle.twinCells ?? []) {
+    if (!isTwinFullyMet(puzzle, state, cell)) return false;
   }
 
   return true;

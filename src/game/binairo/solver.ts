@@ -1,5 +1,5 @@
 import { BinairoCell, BinairoPuzzle, BinairoState, BinairoValue } from './types';
-import { constraintPartner, isBinairoSolved, isGiven, setValue } from './logic';
+import { constraintPartner, isBinairoSolved, isGiven, setValue, twinPartner } from './logic';
 
 type WorkingGrid = BinairoValue[][];
 
@@ -92,6 +92,35 @@ function propagateConstraints(puzzle: BinairoPuzzle, grid: WorkingGrid): LineRes
   return changed ? 'changed' : 'unchanged';
 }
 
+/**
+ * Propagates every twin pair once: a decided cell forces its still-blank
+ * partner to the same value; two decided cells that disagree are an
+ * immediate contradiction. Mirrors `propagateConstraints` exactly, minus
+ * the `direction`/`kind` branching a twin pair doesn't need - it's
+ * always "copy the value," and the partner is derived from geometry
+ * (`twinPartner`), never stored. A no-op pass over an empty `twinCells`
+ * list (the common case for every puzzle authored before this mechanic
+ * existed).
+ */
+function propagateTwins(puzzle: BinairoPuzzle, grid: WorkingGrid): LineResult {
+  let changed = false;
+  for (const cell of puzzle.twinCells ?? []) {
+    const partner = twinPartner(puzzle.size, cell);
+    const a = grid[cell.row][cell.col];
+    const b = grid[partner.row][partner.col];
+    if (a !== null && b !== null) {
+      if (a !== b) return 'fail';
+    } else if (a !== null && b === null) {
+      grid[partner.row][partner.col] = a;
+      changed = true;
+    } else if (b !== null && a === null) {
+      grid[cell.row][cell.col] = b;
+      changed = true;
+    }
+  }
+  return changed ? 'changed' : 'unchanged';
+}
+
 /** Propagates every forced move to a fixed point, mutating `grid` in
  * place. Returns `false` the instant either rule finds a contradiction. */
 function propagate(puzzle: BinairoPuzzle, grid: WorkingGrid): boolean {
@@ -115,6 +144,10 @@ function propagate(puzzle: BinairoPuzzle, grid: WorkingGrid): boolean {
     const constraintResult = propagateConstraints(puzzle, grid);
     if (constraintResult === 'fail') return false;
     if (constraintResult === 'changed') changed = true;
+
+    const twinResult = propagateTwins(puzzle, grid);
+    if (twinResult === 'fail') return false;
+    if (twinResult === 'changed') changed = true;
   }
   return true;
 }
