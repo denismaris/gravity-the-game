@@ -360,14 +360,22 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: theme.colors.border,
+    // A slightly lighter top edge than the other three sides - the same
+    // small "catching the light" cue the board's own tiles use - rather
+    // than one flat border colour on all sides.
+    borderTopColor: '#FBF6EB',
+    borderLeftColor: theme.colors.border,
+    borderRightColor: theme.colors.border,
+    borderBottomColor: theme.colors.border,
+    // Offset down-right, matching the one light source every other
+    // element in this screen now shades toward.
     shadowColor: '#2A251F',
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.1,
     shadowRadius: 8,
-    shadowOffset: { width: 0, height: 3 },
+    shadowOffset: { width: 2, height: 3 },
     elevation: 2,
   },
-  pillPressed: { backgroundColor: theme.colors.surfaceAlt, shadowOpacity: 0.04, elevation: 1 },
+  pillPressed: { backgroundColor: theme.colors.surfaceAlt, shadowOpacity: 0.04, shadowOffset: { width: 1, height: 1 }, elevation: 1 },
   pillText: {
     color: theme.colors.textPrimary,
     fontSize: theme.typography.sizes.body,

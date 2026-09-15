@@ -64,7 +64,23 @@ export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashC
   }, [puzzle]);
 
   return (
-    <View style={{ width: layout.boardSize, height: layout.boardSize }}>
+    <View
+      style={{
+        width: layout.boardSize,
+        height: layout.boardSize,
+        // A soft ambient shadow separating the whole board from the paper
+        // behind it, drawn by the native platform (outside the Skia
+        // canvas's own bounds) rather than inside it - the board should
+        // read as one physical slab resting above the page, not a flat
+        // rectangle painted onto it. Offset down-right to match the same
+        // upper-left light every tile/token/button already shades toward.
+        shadowColor: '#2A251F',
+        shadowOpacity: 0.22,
+        shadowRadius: 14,
+        shadowOffset: { width: 3, height: 6 },
+        elevation: 6,
+      }}
+    >
       <Canvas style={StyleSheet.absoluteFill}>
         <BinairoBoardView puzzle={puzzle} state={state} size={size} solved={solved} flashCell={flashCell} />
       </Canvas>

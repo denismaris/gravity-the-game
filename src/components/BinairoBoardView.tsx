@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { Circle, DashPathEffect, Group, LinearGradient, Path, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Circle, DashPathEffect, Group, LinearGradient, Path, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
 import {
   BinairoCell,
   BinairoConstraint,
@@ -87,7 +87,13 @@ const ERROR_BORDER_OPACITY = 0.8;
  * show through, not just a hairline. */
 const TILE_GAP = 6;
 const TILE_RADIUS = 8;
+/** The tile's own contact shadow, offset down *and slightly right* - not
+ * straight down - to match the same upper-left light the tray's edge
+ * seam, the tokens' own diagonal gradient, and their step-shadow all
+ * already shade toward. One consistent light source everywhere, not a
+ * different implied angle per element. */
 const TILE_SHADOW_DY = 2;
+const TILE_SHADOW_DX = 0.75;
 
 /** The solve celebration: a ring of light pops on every tile in turn,
  * radiating outward (Chebyshev distance - square "rings", not circular
@@ -155,6 +161,15 @@ const BUBBLE_RIM_STROKE_FACTOR = 0.045;
  * stuck to the tile rather than an actual shadow. */
 const TILE_STEP_OFFSET_FACTOR = 0.065;
 const TILE_STEP_OPACITY = 0.6;
+/** A soft, wide ambient shadow underneath the token, in addition to the
+ * crisp step - the step alone reads as the piece's own bevel/edge, not as
+ * the piece casting light onto the tile beneath it. A radial fade offset
+ * down-right (the same light direction as everything else) sells "a
+ * physical object resting on a surface" the way the hard-edged step can't
+ * by itself. */
+const TILE_AMBIENT_SHADOW_OFFSET_FACTOR = 0.1;
+const TILE_AMBIENT_SHADOW_REACH_FACTOR = 1.16;
+const TILE_AMBIENT_SHADOW_ALPHA = 0.16;
 
 /** The gradient's own light/dark ends and the step shadow's own solid
  * colour, per symbol - hand-tuned against the actual tile colour, not
@@ -232,11 +247,15 @@ function renderCircleBubble(key: string, cx: number, cy: number, r: number): Rea
       {gradient}
     </Circle>
   );
+  const shadowCx = cx + r * TILE_AMBIENT_SHADOW_OFFSET_FACTOR;
+  const shadowCy = cy + r * TILE_AMBIENT_SHADOW_OFFSET_FACTOR;
   return (
     <Group key={key}>
-      {/* The step shadow: a full duplicate circle offset down, visible
-          only as the crescent that peeks out past the main circle's own
-          bottom edge - see `TILE_STEP_OFFSET_FACTOR`. */}
+      {/* A soft ambient shadow first, then the crisp step - see
+          `TILE_AMBIENT_SHADOW_OFFSET_FACTOR`/`TILE_STEP_OFFSET_FACTOR`. */}
+      <Circle cx={shadowCx} cy={shadowCy} r={r * TILE_AMBIENT_SHADOW_REACH_FACTOR}>
+        <RadialGradient c={vec(shadowCx, shadowCy)} r={r * TILE_AMBIENT_SHADOW_REACH_FACTOR} colors={[`rgba(42,37,31,${TILE_AMBIENT_SHADOW_ALPHA})`, 'rgba(42,37,31,0)']} />
+      </Circle>
       <Circle cx={cx} cy={cy + r * TILE_STEP_OFFSET_FACTOR} r={r} color={step} opacity={TILE_STEP_OPACITY} />
       {renderTileFace(layer, vec(cx - r * 0.5, cy - r), vec(cx + r * 0.5, cy + r), 1)}
       <Circle cx={cx} cy={cy} r={r} color={BUBBLE_RIM_COLOR} style="stroke" strokeWidth={Math.max(1, r * BUBBLE_RIM_STROKE_FACTOR)} />
@@ -259,8 +278,14 @@ function renderSquareBubble(key: string, cx: number, cy: number, R: number): Rea
       {gradient}
     </RoundedRect>
   );
+  const shadowCx = cx + half * TILE_AMBIENT_SHADOW_OFFSET_FACTOR;
+  const shadowCy = cy + half * TILE_AMBIENT_SHADOW_OFFSET_FACTOR;
+  const shadowR = half * TILE_AMBIENT_SHADOW_REACH_FACTOR;
   return (
     <Group key={key}>
+      <RoundedRect x={shadowCx - shadowR} y={shadowCy - shadowR} width={shadowR * 2} height={shadowR * 2} r={cr}>
+        <RadialGradient c={vec(shadowCx, shadowCy)} r={shadowR} colors={[`rgba(42,37,31,${TILE_AMBIENT_SHADOW_ALPHA})`, 'rgba(42,37,31,0)']} />
+      </RoundedRect>
       <RoundedRect x={x} y={y + half * TILE_STEP_OFFSET_FACTOR} width={side} height={side} r={cr} color={step} opacity={TILE_STEP_OPACITY} />
       {renderTileFace(layer, vec(x, y), vec(x + side, y + side), 0)}
       <RoundedRect x={x} y={y} width={side} height={side} r={cr} color={BUBBLE_RIM_COLOR} style="stroke" strokeWidth={Math.max(1, half * BUBBLE_RIM_STROKE_FACTOR)} />
@@ -277,12 +302,18 @@ function renderSymbol(key: string, value: 1 | 0, cx: number, cy: number, R: numb
 function renderEmptyRing(key: string, cx: number, cy: number, R: number): React.JSX.Element {
   return (
     <Group key={key}>
-      {/* A faint recessed disc behind the dashed ring - a shallow "socket"
-          waiting for a bubble, rather than a plain outline floating flat
-          on the tile. Deliberately subtle: this cell is about to be the
-          least visually interesting thing on the board once filled, so
-          it only needs a hint of depth, not its own competing detail. */}
-      <Circle cx={cx} cy={cy} r={R * 0.86} color="rgba(42, 37, 31, 0.05)" />
+      {/* A genuinely recessed socket, not just a faint flat disc - shading
+          runs the *opposite* way a raised token's own gradient does (dark
+          toward the upper-left, where the board's own light can't reach
+          the near wall of a hollow, lighter toward the lower-right, where
+          it can), so this reads as a small dent waiting for a piece
+          rather than a sticker floating on the tile. Deliberately subtle:
+          this cell is about to be the least visually interesting thing on
+          the board once filled, so it only needs a hint of depth. */}
+      <Circle cx={cx} cy={cy} r={R * 0.86}>
+        <RadialGradient c={vec(cx + R * 0.3, cy + R * 0.3)} r={R * 1.1} colors={['rgba(42,37,31,0.03)', 'rgba(42,37,31,0.1)']} />
+      </Circle>
+      <Circle cx={cx} cy={cy} r={R * 0.86} color="rgba(42,37,31,0.16)" style="stroke" strokeWidth={1} />
       <Circle cx={cx} cy={cy} r={R} color={theme.colors.textTertiary} style="stroke" strokeWidth={1.5}>
         <DashPathEffect intervals={[R * 0.28, R * 0.22]} />
       </Circle>
@@ -514,28 +545,36 @@ function useErrorZoneLifecycles(boxes: Map<string, ErrorZoneBox>, now: number): 
 }
 
 /**
- * Plain white tray, not the warm-tan `surfaceAlt` every other board
- * uses - a coloured gutter competed with the tiles' own (now bolder)
- * colour, and empty cells disappearing seamlessly into a white tray
- * reads as cleaner than a visible tan gap around them. Cheap enough (two
- * shapes) that it doesn't need its own memo the way the tile chrome
- * below does - it just needs to render *before* the error zone, which
- * itself needs to render before the tile chrome (see `BinairoBoardView`).
+ * The tray, not a plain white rectangle - a very quiet top-left-to-
+ * bottom-right gradient (near-white easing toward a whisper of warm
+ * shadow) so the whole board reads as one physical slab catching the
+ * same light every tile and token already does, rather than a flat sheet
+ * the tiles happen to sit on. Still light enough that empty cells
+ * disappear into it cleanly - a coloured gutter would compete with the
+ * tiles' own (bolder) colour. Cheap enough (three shapes) that it doesn't
+ * need its own memo the way the tile chrome below does - it just needs to
+ * render *before* the error zone, which itself needs to render before the
+ * tile chrome (see `BinairoBoardView`).
  */
 function renderTray(layout: BoardLayout): React.JSX.Element {
+  const { boardSize } = layout;
   return (
     <Group>
-      <RoundedRect x={0} y={0} width={layout.boardSize} height={layout.boardSize} r={10} color={theme.colors.surfaceHi} />
-      <RoundedRect
-        x={1}
-        y={1}
-        width={layout.boardSize - 2}
-        height={layout.boardSize - 2}
-        r={9}
-        color={theme.colors.borderStrong}
+      <RoundedRect x={0} y={0} width={boardSize} height={boardSize} r={10} color={theme.colors.surfaceHi}>
+        <LinearGradient start={vec(0, 0)} end={vec(boardSize, boardSize)} colors={['#FFFFFF', theme.colors.surfaceHi, '#EFE9DC']} positions={[0, 0.55, 1]} />
+      </RoundedRect>
+      {/* A thin light seam along the top-left edge and a slightly deeper
+          one along the bottom-right - the board's own edge catching and
+          losing the light, not a uniform outline on all four sides. */}
+      <Path path={`M 1.5 ${boardSize - 10} L 1.5 10 Q 1.5 1.5 10 1.5 L ${boardSize - 10} 1.5`} color="rgba(255,255,255,0.9)" style="stroke" strokeWidth={1.5} strokeCap="round" />
+      <Path
+        path={`M ${boardSize - 1.5} 10 L ${boardSize - 1.5} ${boardSize - 10} Q ${boardSize - 1.5} ${boardSize - 1.5} ${boardSize - 10} ${boardSize - 1.5} L 10 ${boardSize - 1.5}`}
+        color="rgba(42,37,31,0.16)"
         style="stroke"
-        strokeWidth={2}
+        strokeWidth={1.5}
+        strokeCap="round"
       />
+      <RoundedRect x={1} y={1} width={boardSize - 2} height={boardSize - 2} r={9} color={theme.colors.borderStrong} style="stroke" strokeWidth={1.25} opacity={0.7} />
     </Group>
   );
 }
@@ -559,17 +598,12 @@ function tileFaceColor(value: BinairoValue): string {
  * colour regardless of what the animation on top of it was showing, which
  * read as the tile's colour changing before its own symbol did. */
 function renderTileChrome(tx: number, ty: number, tileSize: number, given: boolean, face: string): React.JSX.Element {
+  const dy = given ? TILE_SHADOW_DY : TILE_SHADOW_DY * 0.5;
+  const dx = given ? TILE_SHADOW_DX : TILE_SHADOW_DX * 0.5;
+  const inset = tileSize * 0.22;
   return (
     <>
-      <RoundedRect
-        x={tx}
-        y={ty + (given ? TILE_SHADOW_DY : TILE_SHADOW_DY * 0.5)}
-        width={tileSize}
-        height={tileSize}
-        r={TILE_RADIUS}
-        color={theme.colors.binairoTileShadow}
-        opacity={given ? 1 : 0.6}
-      />
+      <RoundedRect x={tx + dx} y={ty + dy} width={tileSize} height={tileSize} r={TILE_RADIUS} color={theme.colors.binairoTileShadow} opacity={given ? 1 : 0.6} />
       <RoundedRect x={tx} y={ty} width={tileSize} height={tileSize} r={TILE_RADIUS} color={face} />
       <RoundedRect
         x={tx}
@@ -580,6 +614,24 @@ function renderTileChrome(tx: number, ty: number, tileSize: number, given: boole
         color={given ? theme.colors.borderStrong : theme.colors.border}
         style="stroke"
         strokeWidth={given ? 1.5 : 1}
+      />
+      {/* A tiny highlight on the tile's own top-left corner, and a
+          matching whisper of shade on its bottom-right - the tile reads
+          as a small raised object catching the board's own light, not
+          just a flat square with a uniform rule around it. */}
+      <Path
+        path={`M ${tx + 1} ${ty + inset} L ${tx + 1} ${ty + TILE_RADIUS} Q ${tx + 1} ${ty + 1} ${tx + TILE_RADIUS} ${ty + 1} L ${tx + inset} ${ty + 1}`}
+        color="rgba(255,255,255,0.55)"
+        style="stroke"
+        strokeWidth={1.25}
+        strokeCap="round"
+      />
+      <Path
+        path={`M ${tx + tileSize - inset} ${ty + tileSize - 1} L ${tx + tileSize - TILE_RADIUS} ${ty + tileSize - 1} Q ${tx + tileSize - 1} ${ty + tileSize - 1} ${tx + tileSize - 1} ${ty + tileSize - TILE_RADIUS} L ${tx + tileSize - 1} ${ty + tileSize - inset}`}
+        color="rgba(42,37,31,0.14)"
+        style="stroke"
+        strokeWidth={1.25}
+        strokeCap="round"
       />
     </>
   );
