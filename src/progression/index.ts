@@ -21,10 +21,12 @@ export {
   PLAYER_PROGRESS_KEY,
   saveProgress,
 } from './playerProgressStore';
-export type { JourneyPoint, WorldLevelSummary, WorldSummary } from './worldProgress';
+export type { BatchPuzzleRef, BatchState } from './batches';
+export { generateBatch, isBatchComplete, markPuzzleCompleted, nextInBatch } from './batches';
+export type { LevelPoint, LevelPointEntry, WorldLevelSummary, WorldSummary } from './worldProgress';
 export {
   getAllWorldSummaries,
-  getJourneyPoint,
+  getLevelPoint,
   getUnlockedWorlds,
   getWorldSummary,
   isLevelUnlocked,
@@ -37,4 +39,4 @@ export type {
 } from './PlayerProgressProvider';
 export { PlayerProgressProvider, usePlayerProgress } from './PlayerProgressProvider';
 export type { Achievement } from './achievements';
-export { ACHIEVEMENTS, getEarnedAchievements } from './achievements';
+export { ACHIEVEMENTS, getEarnedAchievements, TOTAL_PUZZLE_COUNT } from './achievements';

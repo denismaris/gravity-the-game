@@ -1,3 +1,4 @@
+import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { Direction, MirrorMazeCell, MirrorMazePuzzle } from './types';
 
 const DIRECTION_BY_LETTER: Readonly<Record<string, Direction>> = {
@@ -18,7 +19,7 @@ const DIRECTION_BY_LETTER: Readonly<Record<string, Direction>> = {
  * *solvability* is verified by the real solver in the test suite, not by
  * this parser.
  */
-function fromGrid(id: string, name: string, rows: ReadonlyArray<string>): MirrorMazePuzzle {
+function fromGrid(id: string, name: string, difficulty: PuzzleDifficulty, rows: ReadonlyArray<string>): MirrorMazePuzzle {
   const height = rows.length;
   const width = rows[0].length;
 
@@ -63,6 +64,7 @@ function fromGrid(id: string, name: string, rows: ReadonlyArray<string>): Mirror
   return {
     id,
     name,
+    difficulty,
     rows: height,
     cols: width,
     source,
@@ -73,20 +75,28 @@ function fromGrid(id: string, name: string, rows: ReadonlyArray<string>): Mirror
   };
 }
 
+// Difficulty follows this game's own real complexity signal, grid size (see
+// `PuzzleDifficulty`'s comment in `types.ts`): the four 4x4s are easy, the
+// four 5x5s are medium, the four 6x6s are hard - a clean 4/4/4 split that
+// matches the size ramp already baked into this array's own order.
 export const MIRROR_MAZES: ReadonlyArray<MirrorMazePuzzle> = [
-  fromGrid('mirror-001', 'First Light', ['.D..', '...T', '....', '....']),
-  fromGrid('mirror-002', 'Turn Twice', ['D..T', '....', '....', '....']),
-  fromGrid('mirror-003', 'First Gem', ['..D.', '..G.', '...T', '....']),
-  fromGrid('mirror-004', 'Doubling Back', ['....', 'T...', '.G..', 'R...']),
-  fromGrid('mirror-005', 'Side Step', ['..D..', '..G..', '....T', '.....', '.....']),
-  fromGrid('mirror-006', 'Long Way Round', ['..T..', '.....', 'RG...', '.....', '.....']),
-  fromGrid('mirror-007', 'Two Gems', ['D..T.', 'G....', '..G..', '.....', '.....']),
-  fromGrid('mirror-008', 'Obstacle Course', ['#....', '.....', 'T....', '..G..', '..U..']),
-  fromGrid('mirror-009', 'Six by Six', ['...D.T', '...G..', '....G.', '......', '......', '......']),
-  fromGrid('mirror-010', 'Gauntlet', ['#.....', '......', 'T.....', '.G....', '.G....', 'R.....']),
-  fromGrid('mirror-011', 'Crossroads', ['.....D', 'T....G', '...G..', '......', '......', '......']),
-  fromGrid('mirror-012', "Master's Maze", ['#.....', '......', '......', '....GT', '...G..', '....GL']),
+  fromGrid('mirror-001', 'First Light', 'easy', ['.D..', '...T', '....', '....']),
+  fromGrid('mirror-002', 'Turn Twice', 'easy', ['D..T', '....', '....', '....']),
+  fromGrid('mirror-003', 'First Gem', 'easy', ['..D.', '..G.', '...T', '....']),
+  fromGrid('mirror-004', 'Doubling Back', 'easy', ['....', 'T...', '.G..', 'R...']),
+  fromGrid('mirror-005', 'Side Step', 'medium', ['..D..', '..G..', '....T', '.....', '.....']),
+  fromGrid('mirror-006', 'Long Way Round', 'medium', ['..T..', '.....', 'RG...', '.....', '.....']),
+  fromGrid('mirror-007', 'Two Gems', 'medium', ['D..T.', 'G....', '..G..', '.....', '.....']),
+  fromGrid('mirror-008', 'Obstacle Course', 'medium', ['#....', '.....', 'T....', '..G..', '..U..']),
+  fromGrid('mirror-009', 'Six by Six', 'hard', ['...D.T', '...G..', '....G.', '......', '......', '......']),
+  fromGrid('mirror-010', 'Gauntlet', 'hard', ['#.....', '......', 'T.....', '.G....', '.G....', 'R.....']),
+  fromGrid('mirror-011', 'Crossroads', 'hard', ['.....D', 'T....G', '...G..', '......', '......', '......']),
+  fromGrid('mirror-012', "Master's Maze", 'hard', ['#.....', '......', '......', '....GT', '...G..', '....GL']),
 ];
+
+export function getMirrorMazesByDifficulty(difficulty: PuzzleDifficulty): ReadonlyArray<MirrorMazePuzzle> {
+  return MIRROR_MAZES.filter(puzzle => puzzle.difficulty === difficulty);
+}
 
 export function getMirrorMazeById(id: string): MirrorMazePuzzle | undefined {
   return MIRROR_MAZES.find(puzzle => puzzle.id === id);

@@ -1,3 +1,4 @@
+import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { LevelDefinition, StarThresholds } from './level';
 
 /**
@@ -2351,4 +2352,17 @@ export function getLevelById(id: string): LevelDefinition | undefined {
 /** Looks up a level by its 1-based play order. Returns `undefined` if not found. */
 export function getLevelByOrder(order: number): LevelDefinition | undefined {
   return LEVELS.find(level => level.order === order);
+}
+
+/**
+ * Levels at one of the three shared `PuzzleDifficulty` tiers (see its own
+ * comment in `src/game/puzzleDifficulty.ts`) - for the batch generator, so
+ * it can query Gravity the same way it queries every other game. Gravity's
+ * own `expert` tier is deliberately unreachable through this function: the
+ * parameter type itself has no `'expert'` value, so no call site can ever
+ * ask for one - this is the literal difficulty ceiling the batch generator
+ * relies on, not a filter it has to remember to apply.
+ */
+export function getLevelsByDifficulty(difficulty: PuzzleDifficulty): ReadonlyArray<LevelDefinition> {
+  return LEVELS.filter(level => level.difficulty === difficulty);
 }

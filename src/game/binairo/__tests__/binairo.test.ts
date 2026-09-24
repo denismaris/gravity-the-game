@@ -2,6 +2,10 @@ import {
   colValues,
   constraintKey,
   constraintPartner,
+  countClueKey,
+  countClueNeighbours,
+  countClueOpenNeighbours,
+  countClueTally,
   duplicateLineGroups,
   duplicateLines,
   emptyBinairoState,
@@ -9,6 +13,7 @@ import {
   isBinairoSolved,
   isColHealthy,
   isConstraintViolated,
+  isCountClueViolated,
   isGiven,
   isRowHealthy,
   isTwinViolated,
@@ -21,11 +26,12 @@ import {
   twinPartner,
   unbalancedLines,
   violatedConstraints,
+  violatedCountClues,
   violatedTwins,
 } from '../logic';
 import { assertValidBinairo, revealHint, solveBinairo } from '../solver';
 import { BINAIRO, BINAIRO_SOLUTION_GRIDS, getBinairoById } from '../puzzles';
-import { BinairoConstraint, BinairoPuzzle, BinairoState, BinairoValue } from '../types';
+import { BinairoConstraint, BinairoCountClue, BinairoPuzzle, BinairoState, BinairoValue } from '../types';
 
 /**
  * A hand-verified 4x4 solution, built by rotating the base row `0,0,1,1`
@@ -51,6 +57,7 @@ const SIMPLE_SOLUTION_GRID: ReadonlyArray<ReadonlyArray<0 | 1>> = [
 ];
 const SIMPLE: BinairoPuzzle = {
   id: 'test-simple',
+  difficulty: 'easy',
   size: 4,
   givens: [
     [null, null, 1, 1],
@@ -66,6 +73,7 @@ const SIMPLE_SOLUTION: BinairoState = { values: SIMPLE_SOLUTION_GRID };
  * board. */
 const IMPOSSIBLE: BinairoPuzzle = {
   id: 'test-impossible',
+  difficulty: 'easy',
   size: 4,
   givens: [
     [0, 0, 0, null],
@@ -78,6 +86,7 @@ const IMPOSSIBLE: BinairoPuzzle = {
 /** A fully blank board - many valid completions exist. */
 const UNCLUED: BinairoPuzzle = {
   id: 'test-unclued',
+  difficulty: 'easy',
   size: 4,
   givens: [
     [null, null, null, null],
@@ -108,7 +117,7 @@ function constraintBasePuzzle(id: string, constraints?: ReadonlyArray<BinairoCon
   const givens = CONSTRAINT_BASE_SOLUTION.map(row => row.slice() as (0 | 1 | null)[]);
   givens[0][0] = null;
   givens[1][0] = null;
-  return { id, size: 4, givens, constraints };
+  return { id, difficulty: 'easy', size: 4, givens, constraints };
 }
 
 /**
@@ -121,7 +130,7 @@ function constraintBasePuzzle(id: string, constraints?: ReadonlyArray<BinairoCon
 function twinBasePuzzle(id: string, blank: ReadonlyArray<{ row: number; col: number }>, twinCells?: ReadonlyArray<{ row: number; col: number }>): BinairoPuzzle {
   const givens = CONSTRAINT_BASE_SOLUTION.map(row => row.slice() as (0 | 1 | null)[]);
   for (const cell of blank) givens[cell.row][cell.col] = null;
-  return { id, size: 4, givens, twinCells };
+  return { id, difficulty: 'easy', size: 4, givens, twinCells };
 }
 
 describe('hasTripleRun', () => {
@@ -428,7 +437,7 @@ describe('constraint tiles', () => {
     });
 
     test('violatedConstraints reports exactly the broken ones, keyed', () => {
-      const puzzle: BinairoPuzzle = { id: 'x', size: 4, givens: values, constraints: [rightSame, rightDifferent, downSame] };
+      const puzzle: BinairoPuzzle = { id: 'x', difficulty: 'easy', size: 4, givens: values, constraints: [rightSame, rightDifferent, downSame] };
       const violated = violatedConstraints(puzzle, state);
       expect(violated.has(constraintKey(rightSame))).toBe(true);
       expect(violated.has(constraintKey(rightDifferent))).toBe(false);
@@ -456,7 +465,7 @@ describe('constraint tiles', () => {
     test('a constraint between two still-blank cells blocks "solved" even if every base rule passes', () => {
       const betweenBlanks: BinairoConstraint = { row: 0, col: 0, direction: 'right', kind: 'same' };
       const state: BinairoState = { values: [[null, null, 1, 1], [1, 1, 0, 0], [0, 1, 0, 1], [1, 0, 1, 0]] };
-      const puzzle: BinairoPuzzle = { id: 'blank-pair', size: 4, givens: state.values, constraints: [betweenBlanks] };
+      const puzzle: BinairoPuzzle = { id: 'blank-pair', difficulty: 'easy', size: 4, givens: state.values, constraints: [betweenBlanks] };
       expect(isBinairoSolved(puzzle, state)).toBe(false);
     });
   });
@@ -519,7 +528,7 @@ describe('twin cells', () => {
       [1, 0, 0, 0],
     ];
     const state: BinairoState = { values };
-    const puzzle: BinairoPuzzle = { id: 'x', size: 4, givens: values };
+    const puzzle: BinairoPuzzle = { id: 'x', difficulty: 'easy', size: 4, givens: values };
 
     test('never violated while either side is still blank', () => {
       // (2,2) is itself blank - not yet decided, so its twin pair with
@@ -559,7 +568,7 @@ describe('twin cells', () => {
 
     test('a twin pair between two still-blank cells blocks "solved" even if every base rule passes', () => {
       const state: BinairoState = { values: [[null, 0, 1, 1], [1, 1, 0, 0], [0, 1, 0, 1], [1, 0, 1, null]] };
-      const puzzle: BinairoPuzzle = { id: 'blank-pair', size: 4, givens: state.values, twinCells: [anchor] };
+      const puzzle: BinairoPuzzle = { id: 'blank-pair', difficulty: 'easy', size: 4, givens: state.values, twinCells: [anchor] };
       expect(isBinairoSolved(puzzle, state)).toBe(false);
     });
   });
@@ -595,7 +604,7 @@ describe('twin cells', () => {
       givens[0][0] = null; // twinned with (3,3)
       givens[0][2] = null; // constrained (down) against (1,2)
       const downConstraint: BinairoConstraint = { row: 0, col: 2, direction: 'down', kind: 'different' };
-      const puzzle: BinairoPuzzle = { id: 'combined', size: 4, givens, twinCells: [anchor], constraints: [downConstraint] };
+      const puzzle: BinairoPuzzle = { id: 'combined', difficulty: 'easy', size: 4, givens, twinCells: [anchor], constraints: [downConstraint] };
       const solutions = solveBinairo(puzzle, 3);
       expect(solutions).toHaveLength(1);
       expect(solutions[0].values).toEqual(CONSTRAINT_BASE_SOLUTION);
@@ -647,6 +656,192 @@ describe('revealHint', () => {
   });
 });
 
+describe('count clues', () => {
+  /** Same 4x4 base the constraint/twin suites use, with (0,0) and (1,0)
+   * blanked - so a clue's own arithmetic can be checked against a grid
+   * that still has real undecided cells in it. */
+  function countBasePuzzle(id: string, countClues?: ReadonlyArray<BinairoCountClue>): BinairoPuzzle {
+    const givens = CONSTRAINT_BASE_SOLUTION.map(row => row.slice() as (0 | 1 | null)[]);
+    givens[0][0] = null;
+    givens[1][0] = null;
+    return { id, difficulty: 'easy', size: 4, givens, countClues };
+  }
+
+  describe('countClueNeighbours', () => {
+    test('is orthogonal only, and clipped at the board edge', () => {
+      expect(countClueNeighbours(4, { row: 1, col: 1 })).toEqual([
+        { row: 0, col: 1 },
+        { row: 2, col: 1 },
+        { row: 1, col: 0 },
+        { row: 1, col: 2 },
+      ]);
+    });
+
+    test('a corner has two neighbours, an edge three, the interior four', () => {
+      expect(countClueNeighbours(4, { row: 0, col: 0 })).toHaveLength(2);
+      expect(countClueNeighbours(4, { row: 3, col: 3 })).toHaveLength(2);
+      expect(countClueNeighbours(4, { row: 0, col: 1 })).toHaveLength(3);
+      expect(countClueNeighbours(4, { row: 2, col: 2 })).toHaveLength(4);
+    });
+  });
+
+  describe('countClueTally', () => {
+    const values: BinairoValue[][] = [
+      [null, 0, 1, 1],
+      [1, 1, 0, 0],
+      [0, 1, 0, 1],
+      [1, 0, 1, 0],
+    ];
+
+    test('counts circles and still-undecided neighbours separately', () => {
+      // (0,1)'s neighbours are (1,1)=1, (0,0)=blank, (0,2)=1.
+      expect(countClueTally(4, values, { row: 0, col: 1 })).toEqual({ ones: 2, blanks: 1 });
+      // (2,2)'s neighbours are all decided: (1,2)=0, (3,2)=1, (2,1)=1, (2,3)=1.
+      expect(countClueTally(4, values, { row: 2, col: 2 })).toEqual({ ones: 3, blanks: 0 });
+    });
+  });
+
+  describe('isCountClueViolated / violatedCountClues', () => {
+    const values: BinairoValue[][] = [
+      [null, 0, 1, 1],
+      [1, 1, 0, 0],
+      [0, 1, 0, 1],
+      [1, 0, 1, 0],
+    ];
+    const state: BinairoState = { values };
+    const puzzle = countBasePuzzle('violation');
+
+    test('an unfinished clue that can still come good is never violated', () => {
+      // (0,1) has 2 circles and 1 blank: a count of 2 or 3 both remain
+      // reachable, so neither is wrong yet.
+      expect(isCountClueViolated(puzzle, state, { row: 0, col: 1, count: 2 })).toBe(false);
+      expect(isCountClueViolated(puzzle, state, { row: 0, col: 1, count: 3 })).toBe(false);
+    });
+
+    test('violated once too many neighbours are already circles', () => {
+      expect(isCountClueViolated(puzzle, state, { row: 0, col: 1, count: 1 })).toBe(true);
+    });
+
+    test('violated once too few neighbours remain to ever reach the count', () => {
+      // 2 circles + 1 blank can never reach 4.
+      expect(isCountClueViolated(puzzle, state, { row: 0, col: 1, count: 4 })).toBe(true);
+      // Fully decided at 3 circles, so 2 is already unreachable downward.
+      expect(isCountClueViolated(puzzle, state, { row: 2, col: 2, count: 4 })).toBe(true);
+    });
+
+    test('violatedCountClues reports exactly the broken clues, keyed', () => {
+      const good = { row: 0, col: 1, count: 2 };
+      const bad = { row: 0, col: 1, count: 1 };
+      const withClues = countBasePuzzle('keyed', [good, bad]);
+      const violated = violatedCountClues(withClues, state);
+      expect(violated.has(countClueKey(bad))).toBe(true);
+      expect(violated.size).toBe(1);
+    });
+  });
+
+  describe('isBinairoSolved with count clues', () => {
+    const solution: BinairoState = { values: CONSTRAINT_BASE_SOLUTION };
+
+    test('a puzzle with no count clues is unaffected', () => {
+      expect(isBinairoSolved(countBasePuzzle('none'), solution)).toBe(true);
+    });
+
+    test('solved requires the count to match exactly', () => {
+      // (1,1)'s neighbours in the solution: (0,1)=0, (2,1)=1, (1,0)=1, (1,2)=0.
+      expect(isBinairoSolved(countBasePuzzle('sat', [{ row: 1, col: 1, count: 2 }]), solution)).toBe(true);
+      expect(isBinairoSolved(countBasePuzzle('over', [{ row: 1, col: 1, count: 3 }]), solution)).toBe(false);
+      expect(isBinairoSolved(countBasePuzzle('under', [{ row: 1, col: 1, count: 1 }]), solution)).toBe(false);
+    });
+  });
+
+  describe('solver enforcement', () => {
+    test('a satisfiable clue leaves the puzzle uniquely solvable', () => {
+      // (0,1)'s neighbours in the solution: (0,0)=0, (0,2)=1, (1,1)=1.
+      const solutions = solveBinairo(countBasePuzzle('ok', [{ row: 0, col: 1, count: 2 }]), 2);
+      expect(solutions).toHaveLength(1);
+      expect(solutions[0].values).toEqual(CONSTRAINT_BASE_SOLUTION);
+    });
+
+    test('a clue contradicting the only solution kills it outright', () => {
+      // Row 0 must hold two squares, which forces (0,0) to 0 - so (0,1)
+      // can never see 3 circles, and no grid survives.
+      expect(solveBinairo(countBasePuzzle('bad', [{ row: 0, col: 1, count: 3 }]), 2)).toHaveLength(0);
+    });
+
+    test('propagation forces every remaining neighbour once the count is reached', () => {
+      // A clue of 0 on an otherwise-open board forces both of (0,0)'s
+      // neighbours to squares without any guessing.
+      const givens: (0 | 1 | null)[][] = Array.from({ length: 4 }, () => [null, null, null, null]);
+      const [solved] = solveBinairo(
+        { id: 'forced-zero', difficulty: 'easy', size: 4, givens, countClues: [{ row: 0, col: 0, count: 0 }] },
+        1,
+      );
+      expect(solved).toBeDefined();
+      expect(solved.values[0][1]).toBe(0);
+      expect(solved.values[1][0]).toBe(0);
+    });
+
+    test('propagation forces circles when every remaining neighbour is needed', () => {
+      const givens: (0 | 1 | null)[][] = Array.from({ length: 4 }, () => [null, null, null, null]);
+      const [solved] = solveBinairo(
+        { id: 'forced-one', difficulty: 'easy', size: 4, givens, countClues: [{ row: 0, col: 0, count: 2 }] },
+        1,
+      );
+      expect(solved).toBeDefined();
+      expect(solved.values[0][1]).toBe(1);
+      expect(solved.values[1][0]).toBe(1);
+    });
+  });
+
+  describe('authoring guards', () => {
+    test('a clue on a non-given cell is rejected', () => {
+      // (0,0) is blanked by `countBasePuzzle`, so it cannot carry a clue.
+      expect(() => assertValidBinairo(countBasePuzzle('ng', [{ row: 0, col: 0, count: 1 }]))).toThrow(/given cell/);
+    });
+
+    test('a count beyond the cell\'s own neighbour count is rejected', () => {
+      // A corner has only two neighbours, so 3 is not expressible there.
+      expect(() => assertValidBinairo(countBasePuzzle('hi', [{ row: 3, col: 3, count: 3 }]))).toThrow(/0\.\.2/);
+    });
+
+    test('countClueOpenNeighbours measures how much a clue is actually worth', () => {
+      const puzzle = countBasePuzzle('worth');
+      // (0,1)'s neighbours: (0,0) blank, (0,2) given, (1,1) given.
+      expect(countClueOpenNeighbours(puzzle, { row: 0, col: 1, count: 2 })).toBe(1);
+      // (2,2) is ringed entirely by givens - a clue there states nothing new.
+      expect(countClueOpenNeighbours(puzzle, { row: 2, col: 2, count: 3 })).toBe(0);
+    });
+  });
+
+  describe('the shipped count-clue puzzle', () => {
+    const puzzle = BINAIRO.find(p => (p.countClues?.length ?? 0) > 0)!;
+
+    test('exists', () => {
+      expect(puzzle).toBeDefined();
+      expect(puzzle.id).toBe('binairo-014');
+    });
+
+    test('every clue is load-bearing - dropping them all leaves the puzzle ambiguous', () => {
+      const withoutClues: BinairoPuzzle = { ...puzzle, countClues: undefined };
+      expect(solveBinairo(withoutClues, 2).length).not.toBe(1);
+    });
+
+    test('every clue sits on a given and is satisfied by the solution grid', () => {
+      const solution: BinairoState = { values: BINAIRO_SOLUTION_GRIDS[BINAIRO.indexOf(puzzle)] };
+      for (const clue of puzzle.countClues ?? []) {
+        expect(isGiven(puzzle, clue.row, clue.col)).toBe(true);
+        expect(countClueTally(puzzle.size, solution.values, clue).ones).toBe(clue.count);
+      }
+    });
+
+    test('no clue is decoration - each has at least two neighbours still to work out', () => {
+      for (const clue of puzzle.countClues ?? []) {
+        expect(countClueOpenNeighbours(puzzle, clue)).toBeGreaterThanOrEqual(2);
+      }
+    });
+  });
+});
+
 describe('the shipped Binairo pool', () => {
   test('every id is unique and resolvable by getBinairoById', () => {
     const ids = BINAIRO.map(p => p.id);
@@ -663,13 +858,17 @@ describe('the shipped Binairo pool', () => {
     expect(Math.min(...sizes)).toBe(6);
     expect(Math.max(...sizes)).toBe(10);
     expect(sizes.every(s => s % 2 === 0)).toBe(true);
-    // Monotonic within the constraint-tile puzzles - the ramp broken
-    // exactly once, deliberately, by the first twin-cell puzzle
-    // (`binairo-013`): a brand new mechanic is introduced on a small,
-    // easy-to-see board before it ever meets a harder one, the same
-    // reason a new mechanic in any of this app's other games always
-    // debuts on an easy level rather than dropping into a late one.
-    const rampSizes = BINAIRO.filter(p => !p.twinCells || p.twinCells.length === 0).map(p => p.size);
+    // Monotonic within the constraint-tile puzzles - the ramp broken only
+    // by a puzzle that *introduces* a brand new mechanic (`binairo-013`
+    // for twin cells, `binairo-014` for count clues). Each of those debuts
+    // its mechanic on a small, easy-to-see board before it ever meets a
+    // harder one, the same reason a new mechanic in any of this app's
+    // other games always debuts on an easy level rather than dropping into
+    // a late one. Every such puzzle is appended at the end, so the ramp
+    // itself stays sorted once they're excluded.
+    const introducesNewMechanic = (p: BinairoPuzzle): boolean =>
+      (p.twinCells?.length ?? 0) > 0 || (p.countClues?.length ?? 0) > 0;
+    const rampSizes = BINAIRO.filter(p => !introducesNewMechanic(p)).map(p => p.size);
     expect(rampSizes).toEqual([...rampSizes].sort((a, b) => a - b));
   });
 
@@ -701,9 +900,10 @@ describe('the shipped Binairo pool', () => {
     });
   });
 
-  test('every puzzle carries at least one extra mechanic - a constraint tile or a twin pair - not just a harder tier at the end', () => {
+  test('every puzzle carries at least one extra mechanic - a constraint tile, a twin pair or a count clue - not just a harder tier at the end', () => {
     for (const puzzle of BINAIRO) {
-      const extraMechanics = (puzzle.constraints?.length ?? 0) + (puzzle.twinCells?.length ?? 0);
+      const extraMechanics =
+        (puzzle.constraints?.length ?? 0) + (puzzle.twinCells?.length ?? 0) + (puzzle.countClues?.length ?? 0);
       expect(extraMechanics).toBeGreaterThan(0);
     }
   });

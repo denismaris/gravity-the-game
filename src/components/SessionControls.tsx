@@ -84,7 +84,7 @@ const styles = StyleSheet.create({
     borderLeftColor: theme.colors.border,
     borderRightColor: theme.colors.border,
     borderBottomColor: theme.colors.border,
-    shadowColor: '#2A251F',
+    shadowColor: '#3B1F52',
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 2, height: 3 },

@@ -27,6 +27,7 @@ import { TowersPuzzle, TowersState } from '../types';
  */
 const SIMPLE: TowersPuzzle = {
   id: 'test-simple',
+  difficulty: 'easy',
   size: 3,
   topClues: [3, 2, 1],
   bottomClues: [1, 2, 2],
@@ -46,6 +47,7 @@ const SIMPLE_SOLUTION: TowersState = {
  * row 0 to be the smallest value in every column simultaneously. */
 const IMPOSSIBLE: TowersPuzzle = {
   id: 'test-impossible',
+  difficulty: 'easy',
   size: 3,
   topClues: [3, 3, 3],
   bottomClues: [0, 0, 0],
@@ -57,6 +59,7 @@ const IMPOSSIBLE: TowersPuzzle = {
  * more than one, so this is genuinely ambiguous. */
 const UNCLUED: TowersPuzzle = {
   id: 'test-unclued',
+  difficulty: 'easy',
   size: 3,
   topClues: [0, 0, 0],
   bottomClues: [0, 0, 0],

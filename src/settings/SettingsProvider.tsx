@@ -9,7 +9,14 @@ import React, {
 } from 'react';
 import { setHapticsEnabled as setHapticsGate, setSoundEnabled as setSoundGate } from '../game/rendering';
 import { createDefaultBackend, StorageBackend } from '../storage';
-import { defaultSettings, Settings, withHapticsEnabled, withSoundEnabled, withTutorialSeen } from './settings';
+import {
+  defaultSettings,
+  Settings,
+  withCalmingInterstitialEnabled,
+  withHapticsEnabled,
+  withSoundEnabled,
+  withTutorialSeen,
+} from './settings';
 import { loadSettings, saveSettings } from './settingsStore';
 
 /** A pure `Settings` update, replayable in order once the real loaded data
@@ -23,6 +30,7 @@ interface SettingsContextValue {
   readonly ready: boolean;
   setSoundEnabled(enabled: boolean): void;
   setHapticsEnabled(enabled: boolean): void;
+  setCalmingInterstitialEnabled(enabled: boolean): void;
   /** Marks a one-time tutorial overlay as shown, so it never appears again. */
   markTutorialSeen(tutorialId: string): void;
   hasSeenTutorial(tutorialId: string): boolean;
@@ -118,6 +126,13 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
     [applyMutation],
   );
 
+  const setCalmingInterstitialEnabled = useCallback(
+    (enabled: boolean) => {
+      applyMutation(current => withCalmingInterstitialEnabled(current, enabled));
+    },
+    [applyMutation],
+  );
+
   const markTutorialSeen = useCallback(
     (tutorialId: string) => {
       applyMutation(current => withTutorialSeen(current, tutorialId));
@@ -131,10 +146,11 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
       ready,
       setSoundEnabled,
       setHapticsEnabled,
+      setCalmingInterstitialEnabled,
       markTutorialSeen,
       hasSeenTutorial: (tutorialId: string) => settings.seenTutorials.includes(tutorialId),
     }),
-    [settings, ready, setSoundEnabled, setHapticsEnabled, markTutorialSeen],
+    [settings, ready, setSoundEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, markTutorialSeen],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

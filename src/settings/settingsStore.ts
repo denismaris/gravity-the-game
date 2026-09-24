@@ -35,6 +35,7 @@ export function parseSettings(raw: string | null): Settings {
     version?: unknown;
     soundEnabled?: unknown;
     hapticsEnabled?: unknown;
+    calmingInterstitialEnabled?: unknown;
     seenTutorials?: unknown;
   };
   if (typeof record.version !== 'number' || !READABLE_VERSIONS.includes(record.version)) {
@@ -45,6 +46,9 @@ export function parseSettings(raw: string | null): Settings {
     version: SETTINGS_VERSION,
     soundEnabled: typeof record.soundEnabled === 'boolean' ? record.soundEnabled : true,
     hapticsEnabled: typeof record.hapticsEnabled === 'boolean' ? record.hapticsEnabled : true,
+    // Absent on any settings blob saved before this feature shipped -
+    // defaults to `true`, matching `defaultSettings`.
+    calmingInterstitialEnabled: typeof record.calmingInterstitialEnabled === 'boolean' ? record.calmingInterstitialEnabled : true,
     seenTutorials: parseSeenTutorials(record.seenTutorials),
   };
 }

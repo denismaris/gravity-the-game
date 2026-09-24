@@ -10,4 +10,4 @@ export {
   traceBeam,
 } from './logic';
 export { assertValidMirrorMaze, revealHint, solveMirrorMaze } from './solver';
-export { getMirrorMazeById, MIRROR_MAZES } from './puzzles';
+export { getMirrorMazeById, getMirrorMazesByDifficulty, MIRROR_MAZES } from './puzzles';

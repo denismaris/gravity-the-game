@@ -1,5 +1,7 @@
 import { StorageBackend } from '../storage';
 import { StarRating } from '../game/scoring';
+import { GameKind, ROTATION } from '../game/journey';
+import { BatchPuzzleRef, BatchState } from './batches';
 import {
   DailyStatus,
   emptyProgress,
@@ -13,9 +15,10 @@ import {
 export const PLAYER_PROGRESS_KEY = 'gravity:player-progress';
 
 /** Schema versions this build knows how to read (newest first). v1 had no
- * `cursor`; v2 had no `daily`; v3 had no `bestDailyStreak`. All are migrated
+ * `cursor`; v2 had no `daily`; v3 had no `bestDailyStreak`; v4 had no
+ * `currentLevel`/`currentBatch`/`adFreeTimeRemainingMs`. All are migrated
  * forward by defaulting the missing field. */
-const READABLE_VERSIONS = [4, 3, 2, 1];
+const READABLE_VERSIONS = [5, 4, 3, 2, 1];
 
 function isStarRating(value: unknown): value is StarRating {
   return value === 1 || value === 2 || value === 3;
@@ -80,6 +83,68 @@ function parseBestDailyStreak(value: unknown, fallback: number): number {
   return fallback;
 }
 
+/** `currentLevel` is new in v5. Older data (or a corrupt value) defaults to
+ * 1, the level-batch system's own starting point. */
+function parseCurrentLevel(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 1) {
+    return Math.floor(value);
+  }
+  return 1;
+}
+
+const GAME_KINDS: ReadonlySet<string> = new Set(ROTATION);
+
+function isGameKind(value: unknown): value is GameKind {
+  return typeof value === 'string' && GAME_KINDS.has(value);
+}
+
+function parseBatchPuzzleRef(value: unknown): BatchPuzzleRef | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const ref = value as { kind?: unknown; puzzleId?: unknown };
+  if (!isGameKind(ref.kind) || typeof ref.puzzleId !== 'string') return null;
+  return { kind: ref.kind, puzzleId: ref.puzzleId };
+}
+
+/**
+ * `currentBatch` is new in v5 - older data (or anything malformed) has none,
+ * which `PlayerProgressProvider` treats as "generate level 1's batch on
+ * load" (see its own comment). A batch that partially fails to parse (one
+ * bad puzzle ref among otherwise-good ones) is discarded wholesale rather
+ * than salvaged cell-by-cell the way `parseLevels` does for individual
+ * levels - a batch's own puzzle list is a single fixed decision made at
+ * generation time, not independently-meaningful entries, so a partial
+ * batch isn't a meaningfully "smaller but still valid" one the way a
+ * partial `levels` map is.
+ */
+function parseCurrentBatch(value: unknown): BatchState | null {
+  if (typeof value !== 'object' || value === null) return null;
+  const batch = value as { levelNumber?: unknown; puzzles?: unknown; completedPuzzleIds?: unknown };
+  if (typeof batch.levelNumber !== 'number' || !Number.isFinite(batch.levelNumber) || batch.levelNumber < 1) return null;
+  if (!Array.isArray(batch.puzzles) || batch.puzzles.length === 0) return null;
+
+  const puzzles: BatchPuzzleRef[] = [];
+  for (const entry of batch.puzzles) {
+    const ref = parseBatchPuzzleRef(entry);
+    if (!ref) return null;
+    puzzles.push(ref);
+  }
+
+  const puzzleIds = new Set(puzzles.map(p => p.puzzleId));
+  const completedPuzzleIds = Array.isArray(batch.completedPuzzleIds)
+    ? batch.completedPuzzleIds.filter((id): id is string => typeof id === 'string' && puzzleIds.has(id))
+    : [];
+
+  return { levelNumber: Math.floor(batch.levelNumber), puzzles, completedPuzzleIds };
+}
+
+/** `adFreeTimeRemainingMs` is new in v5 - a stub for a future ad-free-time
+ * reward system (see its own comment in `playerProgress.ts`). `null` (the
+ * default) means "unused", the only meaningful value today. */
+function parseAdFreeTimeRemainingMs(value: unknown): number | null {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value;
+  return null;
+}
+
 /**
  * Parses whatever came back from storage into a trusted `PlayerProgress`.
  * Anything unexpected - missing key, malformed JSON, unreadable version, a
@@ -106,6 +171,9 @@ export function parseProgress(raw: string | null): PlayerProgress {
     cursor?: unknown;
     daily?: unknown;
     bestDailyStreak?: unknown;
+    currentLevel?: unknown;
+    currentBatch?: unknown;
+    adFreeTimeRemainingMs?: unknown;
   };
   if (typeof record.version !== 'number' || !READABLE_VERSIONS.includes(record.version)) {
     return emptyProgress();
@@ -122,6 +190,12 @@ export function parseProgress(raw: string | null): PlayerProgress {
     daily,
     // v1/v2/v3 have no bestDailyStreak; back-filled from the live streak.
     bestDailyStreak: parseBestDailyStreak(record.bestDailyStreak, daily.streak),
+    // v1-v4 have none of these three; all default to "level-batch system
+    // hasn't started yet" - `PlayerProgressProvider` generates level 1's
+    // batch on load when it sees `currentBatch === null`.
+    currentLevel: parseCurrentLevel(record.currentLevel),
+    currentBatch: parseCurrentBatch(record.currentBatch),
+    adFreeTimeRemainingMs: parseAdFreeTimeRemainingMs(record.adFreeTimeRemainingMs),
   };
 }
 

@@ -1,9 +1,21 @@
-export type { BinairoCell, BinairoConstraint, BinairoConstraintKind, BinairoPuzzle, BinairoState, BinairoValue } from './types';
+export type {
+  BinairoCell,
+  BinairoConstraint,
+  BinairoConstraintKind,
+  BinairoCountClue,
+  BinairoPuzzle,
+  BinairoState,
+  BinairoValue,
+} from './types';
 export type { BinairoLineSet, DuplicateLineGroups, TripleRunGroup } from './logic';
 export {
   colValues,
   constraintKey,
   constraintPartner,
+  countClueKey,
+  countClueNeighbours,
+  countClueOpenNeighbours,
+  countClueTally,
   duplicateLineGroups,
   duplicateLines,
   emptyBinairoState,
@@ -11,6 +23,7 @@ export {
   isBinairoSolved,
   isColHealthy,
   isConstraintViolated,
+  isCountClueViolated,
   isGiven,
   isRowHealthy,
   isTwinViolated,
@@ -23,7 +36,8 @@ export {
   twinPartner,
   unbalancedLines,
   violatedConstraints,
+  violatedCountClues,
   violatedTwins,
 } from './logic';
 export { assertValidBinairo, revealHint, solveBinairo } from './solver';
-export { BINAIRO, getBinairoById } from './puzzles';
+export { BINAIRO, getBinairoByDifficulty, getBinairoById } from './puzzles';

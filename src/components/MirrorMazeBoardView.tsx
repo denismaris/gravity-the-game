@@ -16,6 +16,7 @@ import {
   ObstacleBlock,
   TargetMarker,
   useAnimationClock,
+  useReducedMotion,
 } from '../game/rendering';
 import { theme } from '../theme';
 
@@ -245,6 +246,13 @@ const StaticMazeLayer = React.memo(function StaticMazeLayerImpl({
         <Circle key={`speck-${i}`} cx={speck.x} cy={speck.y} r={speck.r} color={theme.colors.mirrorSpeckle} opacity={speck.opacity} />
       ))}
 
+      {/* Each cell is a flat lit-tile fill plus one hairline (`CellBackground`
+          draws nothing else - no shadow, no corner highlight), sitting on
+          the one panel above whose own shadow and frame (this component's
+          own outer `RoundedRect`s) are the only elevation this board casts
+          - the same single-elevation rule `BinairoBoardView.tsx`'s
+          `renderTileChrome` was fixed to follow, already true here without
+          needing a change. */}
       {Array.from({ length: puzzle.rows }, (_row, r) =>
         Array.from({ length: puzzle.cols }, (_col, c) => {
           const origin = getCellOrigin(layout, r, c);
@@ -283,6 +291,26 @@ const StaticMazeLayer = React.memo(function StaticMazeLayerImpl({
         radius={targetRadius}
         color={theme.colors.accent}
         strokeWidth={targetStrokeWidth}
+      />
+
+      {/* The panel's own identity-colour frame - the same move
+          `BinairoBoardView.tsx`'s `renderTray` makes for the light board
+          (giving `mirrorAccent` real presence on the board itself, not
+          just the header's kicker/track), pushed to a higher opacity than
+          that cream tray's 0.55 uses: a faint tint reads fine against
+          luminous paper but would all but vanish against this panel's
+          near-black wash. Drawn last so the rim stays a crisp, unbroken
+          ring on top of every cell, obstacle and marker inside it. */}
+      <RoundedRect
+        x={1}
+        y={1}
+        width={layout.boardSize - 2}
+        height={layout.boardSize - 2}
+        r={Math.max(0, layout.cellSize * 0.16 - 1)}
+        color={theme.colors.mirrorAccent}
+        style="stroke"
+        strokeWidth={1.75}
+        opacity={0.85}
       />
     </Group>
   );
@@ -326,6 +354,7 @@ export function MirrorMazeBoardView({
   flashCell,
 }: MirrorMazeBoardViewProps): React.JSX.Element {
   const layout = useMemo(() => computeBoardLayout(puzzle.rows, size), [puzzle.rows, size]);
+  const reducedMotion = useReducedMotion();
 
   // Idle motion runs while there's still a puzzle to solve, and through the
   // ignition so the last gem's burst isn't cut off mid-flight.
@@ -341,7 +370,11 @@ export function MirrorMazeBoardView({
   const flourish = useMirrorFlourish(state.mirrors);
   const gemBursts = useGemBursts(litGemKeys);
 
-  const pulse = 0.5 + 0.5 * Math.sin(clock / 700);
+  // Frozen at its own midpoint under reduced motion, not fully removed -
+  // the beam still shows the same halo/core presence, it just stops
+  // breathing. `clock / 700` is a ~0.23Hz idle oscillation, inside the
+  // slow-loop band motion-sensitive users are most bothered by.
+  const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(clock / 700);
   // Light wants to be thin and sharp with a wide, faint bloom around it -
   // a thick core just reads as a glowing rod.
   const haloWidth = Math.max(4, layout.cellSize * 0.17) * (0.85 + 0.3 * pulse);
@@ -437,7 +470,7 @@ export function MirrorMazeBoardView({
         const center = getCellCenter(layout, cell.row, cell.col);
         const key = positionKey(cell.row, cell.col);
         const lit = litGemKeys.has(key);
-        const shimmer = 0.5 + 0.5 * Math.sin(clock / 820 + i * 0.9);
+        const shimmer = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(clock / 820 + i * 0.9);
 
         const burstAt = gemBursts.get(key);
         const burst = burstAt === undefined ? 1 : clamp01((Date.now() - burstAt) / GEM_BURST_MS);

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { BoardView, triggerFeedback, useAnimatedMovables } from '../game/rendering';
@@ -16,8 +16,10 @@ import {
 } from '../game/engine';
 import { createGameStateFromLevel, getStarThresholds, LevelDefinition } from '../game/levels';
 import {
+  BatchProgressDots,
   LevelCompleteCard,
   LevelFailedCard,
+  LevelSetComplete,
   MechanicsCarousel,
   PressableScale,
   renderGravityIllustration,
@@ -25,11 +27,11 @@ import {
   TutorialOverlay,
   useSwipeGesture,
 } from '../components';
-import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
+import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { copyForTutorial, GRAVITY_MECHANICS_SLIDES, mechanicsOf, pickTutorial, tutorialIdForGame, tutorialIdForMechanic } from '../game/tutorials';
-import { CompletionOutcome, getLevelResult, usePlayerProgress } from '../progression';
+import { BatchState, CompletionOutcome, getLevelResult, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { theme } from '../theme';
+import { motion, theme } from '../theme';
 
 const GAME_TUTORIAL_ID = tutorialIdForGame('gravity');
 const ICON_SIZE = 14;
@@ -66,7 +68,7 @@ export interface GameScreenProps {
   /** Called when the player wants to return to the level select screen. */
   onExit: () => void;
   /** Advance to the next entry in the Journey (any of the three games). */
-  onNextPuzzle: (kind: GameKind, puzzleId: string) => void;
+  onNextPuzzle: (kind: GameKind, puzzleId: string, options?: NextPuzzleOptions) => void;
 }
 
 /** The most recent action dispatched, used to decide whether the visible
@@ -111,6 +113,33 @@ function computeOnTargetIds(state: ReturnType<typeof getCurrentState>): Readonly
  * changes what the "current state" is, only what is drawn on the way
  * there, so engine determinism/testability is untouched.
  */
+/**
+ * The live move count, popping on each move.
+ *
+ * Gravity grades every attempt on moves against the level's PAR, but the
+ * header only ever showed PAR and BEST - both fixed for the whole attempt
+ * - so the one number actually being scored was the one the player could
+ * not see. `kick` rather than `pop`: this ticks on every single move, far
+ * too often for the reward-tier bounce, matching how the other four
+ * screens animate their own "N LEFT" kickers.
+ */
+function AnimatedMoveCount({ moves }: { moves: number }): React.JSX.Element {
+  const scale = useRef(new Animated.Value(1)).current;
+  const previous = useRef(moves);
+
+  useEffect(() => {
+    if (moves !== previous.current) {
+      scale.setValue(moves > previous.current ? 0.85 : 1.1);
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...motion.spring.kick }).start();
+    }
+    previous.current = moves;
+  }, [moves, scale]);
+
+  return (
+    <Animated.Text style={[styles.levelMoves, { transform: [{ scale }] }]}>{moves}</Animated.Text>
+  );
+}
+
 export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): React.JSX.Element {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -167,7 +196,18 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   // deals after this puzzle - not necessarily another Gravity level. `null`
   // at the very end of the Journey - the card then shows "Back to Home"
   // instead of "Next Puzzle".
-  const nextEntry = useMemo(() => getNextJourneyEntry(level.id), [level.id]);
+  const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
+  // The set this solve might complete. Captured before `recordCompletion`
+  // runs: finishing a set immediately generates the next one, so
+  // `progress.currentBatch` is already the *new* set afterwards. Mirrored
+  // through a ref so the solve effect need not depend on a value that the
+  // effect itself causes to change.
+  const finishedSetRef = useRef<BatchState | null>(null);
+  const currentBatchRef = useRef(progress.currentBatch);
+  currentBatchRef.current = progress.currentBatch;
+  // Finishing the last puzzle of a set shows the level card first, then
+  // the set card - two separate moments. See `LevelSetComplete`.
+  const [showSetComplete, setShowSetComplete] = useState(false);
 
   // Keep the resume cursor pointed at whatever level is on screen.
   useEffect(() => {
@@ -240,6 +280,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
         // Record the solve exactly once per settled win. Replays re-enter
         // here after `restart` flips `solved` back to false and clears the
         // guard, so a better replay still updates the persisted best.
+        finishedSetRef.current = currentBatchRef.current ?? null;
         setOutcome(recordCompletion(level.id, moveCount));
       }
     } else {
@@ -278,6 +319,15 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     }
   }, [failed, isAnimating, shake]);
 
+  // One flash value per edge, so firing a direction needs no re-render -
+  // the bars are always mounted and only the struck one animates.
+  const edgeFlashes = useRef<Record<Direction, Animated.Value>>({
+    up: new Animated.Value(0),
+    down: new Animated.Value(0),
+    left: new Animated.Value(0),
+    right: new Animated.Value(0),
+  }).current;
+
   const handleDirection = useCallback((direction: Direction) => {
     // Ignore new gravity input while a move is already committed or still
     // sliding into place - this is what keeps rapid taps/swipes from piling
@@ -292,8 +342,20 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     movePendingRef.current = true;
     lastActionRef.current = 'gravity';
     triggerFeedback('gravityChange');
+    // Fired only past the no-op guard above, so the flash always means
+    // "that input landed and moved something" - never "you swiped at a
+    // wall". It confirms the swipe well before the pieces finish sliding,
+    // which is the whole reason a swipe-only board needs it: there is no
+    // pressed state to fall back on.
+    const flash = edgeFlashes[direction];
+    flash.stopAnimation();
+    flash.setValue(0);
+    Animated.sequence([
+      Animated.timing(flash, { toValue: 1, duration: 70, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(flash, { toValue: 0, duration: 190, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+    ]).start();
     dispatch({ type: 'gravity', direction });
-  }, []);
+  }, [edgeFlashes]);
 
   const handleUndo = useCallback(() => {
     movePendingRef.current = false;
@@ -312,8 +374,8 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     // A no-op for a non-Gravity entry - `markLevelOpened` only moves the
     // resume cursor when it can resolve a world for the id.
     markLevelOpened(nextEntry.puzzleId);
-    onNextPuzzle(nextEntry.kind, nextEntry.puzzleId);
-  }, [nextEntry, onNextPuzzle, markLevelOpened]);
+    onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: outcome?.batchCompleted ?? false });
+  }, [nextEntry, onNextPuzzle, markLevelOpened, outcome]);
 
   const swipeHandlers = useSwipeGesture(handleDirection, isAnimating);
 
@@ -339,10 +401,15 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           <Text style={styles.levelName} numberOfLines={1}>
             {level.name}
           </Text>
-          <Text style={styles.levelPar}>
-            PAR {par}
-            {priorBest !== null ? `   ·   BEST ${priorBest}` : ''}
-          </Text>
+          <View style={styles.levelStats}>
+            <Text style={styles.levelPar}>MOVES </Text>
+            <AnimatedMoveCount moves={moveCount} />
+            <Text style={styles.levelPar}>
+              {' · '}PAR {par}
+              {priorBest !== null ? ` · BEST ${priorBest}` : ''}
+            </Text>
+          </View>
+          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
         </View>
         <PressableScale
           accessibilityRole="button"
@@ -377,19 +444,16 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
               pulsingIds={justLandedIds}
             />
           </Canvas>
-          {solved && !isAnimating && outcome && (
-            <LevelCompleteCard
-              stars={outcome.best.stars}
-              runStars={outcome.runStars}
-              moves={outcome.runMoves}
-              bestMoves={outcome.best.bestMoves}
-              hasNextLevel={nextEntry !== null}
-              onReplay={handleRestart}
-              onNext={handleNext}
-              onExit={onExit}
+          {/* The edge gravity just pulled toward, lit briefly. Inside the
+              board container so it tracks the board (shake included) - it
+              is feedback about the board, not about the screen. */}
+          {(['up', 'down', 'left', 'right'] as const).map(edge => (
+            <Animated.View
+              key={`pull-${edge}`}
+              pointerEvents="none"
+              style={[styles.pullEdge, styles[`pullEdge_${edge}` as const], { opacity: edgeFlashes[edge] }]}
             />
-          )}
-          {failed && !isAnimating && <LevelFailedCard onRetry={handleRestart} onExit={onExit} />}
+          ))}
         </Animated.View>
       </View>
 
@@ -406,6 +470,33 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           undoDisabled={!canUndo(session) || failed}
         />
       </View>
+
+      {/* Both outcome cards sit at the screen root, not inside the board.
+          They cover the screen with `absoluteFill`, so nested inside the
+          board container that only ever covered the *board* - and worse,
+          that container carries the board's own shake transform, so a card
+          rendered in it shook along with the board it was reporting on. */}
+      {solved && !isAnimating && outcome && (
+        <LevelCompleteCard
+          stars={outcome.best.stars}
+          runStars={outcome.runStars}
+          moves={outcome.runMoves}
+          bestMoves={outcome.best.bestMoves}
+          hasNextLevel={nextEntry !== null}
+          onReplay={handleRestart}
+          onNext={outcome.batchCompleted && finishedSetRef.current ? () => setShowSetComplete(true) : handleNext}
+          onExit={onExit}
+        />
+      )}
+
+      {showSetComplete && finishedSetRef.current && (
+        <LevelSetComplete
+          levelNumber={finishedSetRef.current.levelNumber}
+          kinds={finishedSetRef.current.puzzles.map((entry: BatchState['puzzles'][number]) => entry.kind)}
+          onContinue={handleNext}
+        />
+      )}
+      {failed && !isAnimating && <LevelFailedCard onRetry={handleRestart} onExit={onExit} />}
 
       {tutorialToShow === GAME_TUTORIAL_ID ? (
         <MechanicsCarousel
@@ -462,12 +553,28 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.title,
     fontWeight: theme.typography.weights.semibold,
   },
+  levelStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 2,
+  },
   levelPar: {
     fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.micro,
     letterSpacing: 1,
     color: theme.colors.secondary,
-    marginTop: 2,
+  },
+  /** The one number that changes during an attempt, so it carries a touch
+   * more weight than the fixed PAR/BEST either side of it. */
+  levelMoves: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.micro,
+    fontWeight: theme.typography.weights.bold,
+    letterSpacing: 1,
+    color: theme.colors.secondary,
+  },
+  batchDots: {
+    marginTop: theme.spacing.sm,
   },
   // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`.
   stage: {
@@ -487,6 +594,18 @@ const styles = StyleSheet.create({
   canvas: {
     flex: 1,
   },
+  /** The gravity-pull flash: a soft bar hugging the edge the board was
+   * just pulled toward. Kept thin and brief - a confirmation, not a
+   * spotlight. */
+  pullEdge: {
+    position: 'absolute',
+    backgroundColor: theme.colors.secondary,
+    borderRadius: 4,
+  },
+  pullEdge_up: { top: 0, left: 0, right: 0, height: 6 },
+  pullEdge_down: { bottom: 0, left: 0, right: 0, height: 6 },
+  pullEdge_left: { left: 0, top: 0, bottom: 0, width: 6 },
+  pullEdge_right: { right: 0, top: 0, bottom: 0, width: 6 },
   sessionControls: {
     marginTop: theme.spacing.xl,
   },

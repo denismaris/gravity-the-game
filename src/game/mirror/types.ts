@@ -6,6 +6,8 @@
  * self-contained, so one game is never a compile-time dependency of another,
  * even where the underlying concept (four cardinal directions) is identical.
  */
+import { PuzzleDifficulty } from '../puzzleDifficulty';
+
 export type Direction = 'up' | 'down' | 'left' | 'right';
 
 /** `/` reflects like the line row+col=const ("fwd"); `\` reflects like
@@ -20,6 +22,10 @@ export interface MirrorMazeCell {
 export interface MirrorMazePuzzle {
   readonly id: string;
   readonly name?: string;
+  /** See `PuzzleDifficulty`'s own comment. Assigned by grid size (this
+   * game's own complexity ramp): the four 4x4s easy, the four 5x5s medium,
+   * the four 6x6s hard. */
+  readonly difficulty: PuzzleDifficulty;
   readonly rows: number;
   readonly cols: number;
   /** Must be on an edge cell (row 0/rows-1 or col 0/cols-1). */

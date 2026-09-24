@@ -1,9 +1,10 @@
 /* eslint-disable react-native/no-inline-styles -- cell geometry is derived from `size` at render time */
 import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
 import { BinairoCell, BinairoPuzzle, BinairoState, constraintPartner, isConstraintViolated, isGiven } from '../game/binairo';
 import { computeBoardLayout, getCellOrigin } from '../game/rendering';
+import { theme } from '../theme';
 import { BinairoBoardView } from './BinairoBoardView';
 
 export interface BinairoBoardProps {
@@ -46,6 +47,22 @@ function constraintDescriptions(puzzle: BinairoPuzzle, state: BinairoState, row:
   return descriptions;
 }
 
+/** Describes any neighbour-count clue that `(row, col)` is counted *by* -
+ * relayed onto the editable cell itself rather than onto the clue, for
+ * the same reason `constraintDescriptions` is: a screen-reader player
+ * navigates the cells they can actually fill, and that is the moment the
+ * clue is worth hearing. A sighted player reads the digit directly. */
+function countClueDescriptions(puzzle: BinairoPuzzle, row: number, col: number): string[] {
+  const descriptions: string[] = [];
+  for (const clue of puzzle.countClues ?? []) {
+    const adjacent = Math.abs(clue.row - row) + Math.abs(clue.col - col) === 1;
+    if (!adjacent) continue;
+    const relative = clue.row === row ? (clue.col < col ? 'left' : 'right') : clue.row < row ? 'above' : 'below';
+    descriptions.push(`counted by the clue ${relative}, which needs ${clue.count} circles among its neighbours`);
+  }
+  return descriptions;
+}
+
 /**
  * Composes the Skia-drawn board (`BinairoBoardView`) with an
  * absolutely-positioned overlay of one `Pressable` per non-given cell on
@@ -84,11 +101,15 @@ export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashC
         // read as one physical slab resting above the page, not a flat
         // rectangle painted onto it. Offset down-right to match the same
         // upper-left light every tile/token/button already shades toward.
-        shadowColor: '#2A251F',
-        shadowOpacity: 0.22,
-        shadowRadius: 14,
-        shadowOffset: { width: 3, height: 6 },
-        elevation: 6,
+        // Kept light - this is the *only* shadow reads as "the board's
+        // own edge" now that the plinth beneath it (`BinairoScreen`'s
+        // `styles.stage`) carries no fill of its own; a heavy shadow here
+        // on top of a heavy plinth used to double up into one dark frame.
+        shadowColor: '#3B1F52',
+        shadowOpacity: 0.14,
+        shadowRadius: 9,
+        shadowOffset: { width: 2, height: 4 },
+        elevation: 4,
       }}
     >
       <Canvas style={StyleSheet.absoluteFill}>
@@ -98,7 +119,12 @@ export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashC
         {editableCells.map(({ row, col }) => {
           const origin = getCellOrigin(layout, row, col);
           const constraints = constraintDescriptions(puzzle, state, row, col);
-          const label = [`Row ${row + 1}, column ${col + 1}, ${valueLabel(state.values[row][col])}`, ...constraints].join(', ');
+          const counts = countClueDescriptions(puzzle, row, col);
+          const label = [
+            `Row ${row + 1}, column ${col + 1}, ${valueLabel(state.values[row][col])}`,
+            ...constraints,
+            ...counts,
+          ].join(', ');
           return (
             <Pressable
               key={`tap-${row}-${col}`}
@@ -115,6 +141,50 @@ export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashC
                 height: layout.cellSize,
               }}
             />
+          );
+        })}
+      </View>
+
+      {/* Neighbour-count clues, drawn as plain RN text above the Canvas
+          rather than inside it. There is no Skia font anywhere in this app
+          - adding one would mean shipping a font asset and handling the
+          frames before it loads - and the board already maintains an
+          absolutely-positioned overlay in exactly this coordinate space
+          for its tap targets, so the digit costs no new infrastructure.
+
+          Knocked out in the paper colour on top of the clue cell's own
+          symbol, the same cut-out idiom `HazardMarker` uses: the cell
+          keeps showing its circle or square (which the player still needs
+          for the row and column counts) and gains the digit on top of it,
+          rather than the number replacing the value. Non-interactive -
+          a clue cell is a given, so there is nothing to tap. */}
+      <View style={StyleSheet.absoluteFill} pointerEvents="none">
+        {(puzzle.countClues ?? []).map(clue => {
+          const origin = getCellOrigin(layout, clue.row, clue.col);
+          return (
+            <View
+              key={`count-${clue.row}-${clue.col}`}
+              style={{
+                position: 'absolute',
+                left: origin.x,
+                top: origin.y,
+                width: layout.cellSize,
+                height: layout.cellSize,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+            >
+              <Text
+                style={{
+                  fontFamily: theme.typography.families.mono,
+                  fontSize: layout.cellSize * 0.42,
+                  fontWeight: theme.typography.weights.bold,
+                  color: theme.colors.surfaceHi,
+                }}
+              >
+                {clue.count}
+              </Text>
+            </View>
           );
         })}
       </View>

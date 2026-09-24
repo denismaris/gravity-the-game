@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
+import React from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { PressableScale } from './PressableScale';
+import { useCardEntrance } from './useCardEntrance';
 import { motion, theme } from '../theme';
 
 export interface LevelFailedCardProps {
@@ -18,32 +19,34 @@ export interface LevelFailedCardProps {
  * "Home" is still reachable, but "Retry" is the primary action since that's
  * what a failed attempt almost always calls for.
  */
+/** Title, message, actions. */
+const ROW_COUNT = 3;
+
 export function LevelFailedCard({ onRetry, onExit }: LevelFailedCardProps): React.JSX.Element {
-  const progress = useRef(new Animated.Value(0)).current;
-
-  useEffect(() => {
-    progress.setValue(0);
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: motion.cardEnter.duration,
-      easing: motion.cardEnter.easing,
-      useNativeDriver: true,
-    }).start();
-  }, [progress]);
-
-  const opacity = progress;
-  const scale = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [motion.cardEnter.scaleFrom, 1],
-  });
+  // `subdued`: the same staged arrival every other card uses, but landing
+  // without overshoot and with no light sweep. A loss should feel like it
+  // settled onto the screen, not like it bounced in pleased with itself.
+  const { backdrop, card, rowStyle } = useCardEntrance(ROW_COUNT, { subdued: true });
 
   return (
     <View style={styles.overlay} pointerEvents="box-none">
-      <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
-        <Text style={styles.title}>DESTROYED</Text>
-        <Text style={styles.message}>A piece hit a hazard - this attempt is over.</Text>
+      <Animated.View style={[styles.scrim, { opacity: backdrop }]} pointerEvents="none" />
+      <Animated.View
+        style={[
+          styles.card,
+          {
+            opacity: card,
+            transform: [
+              { scale: card.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
+              { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },
+            ],
+          },
+        ]}
+      >
+        <Animated.Text style={[styles.title, rowStyle(0)]}>DESTROYED</Animated.Text>
+        <Animated.Text style={[styles.message, rowStyle(1)]}>A piece hit a hazard - this attempt is over.</Animated.Text>
 
-        <View style={styles.actions}>
+        <Animated.View style={[styles.actions, rowStyle(2)]}>
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Back to home"
@@ -63,7 +66,7 @@ export function LevelFailedCard({ onRetry, onExit }: LevelFailedCardProps): Reac
           >
             <Text style={styles.buttonPrimaryLabel}>Retry</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
       </Animated.View>
     </View>
   );
@@ -74,6 +77,11 @@ const styles = StyleSheet.create({
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  /** Separated so the dim fades on its own clock, matching the other
+   * outcome cards. */
+  scrim: {
+    ...StyleSheet.absoluteFill,
     backgroundColor: theme.colors.overlay,
   },
   card: {

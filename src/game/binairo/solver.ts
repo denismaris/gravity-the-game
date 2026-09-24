@@ -1,5 +1,13 @@
 import { BinairoCell, BinairoPuzzle, BinairoState, BinairoValue } from './types';
-import { constraintPartner, isBinairoSolved, isGiven, setValue, twinPartner } from './logic';
+import {
+  constraintPartner,
+  countClueNeighbours,
+  countClueTally,
+  isBinairoSolved,
+  isGiven,
+  setValue,
+  twinPartner,
+} from './logic';
 
 type WorkingGrid = BinairoValue[][];
 
@@ -121,6 +129,35 @@ function propagateTwins(puzzle: BinairoPuzzle, grid: WorkingGrid): LineResult {
   return changed ? 'changed' : 'unchanged';
 }
 
+/**
+ * Propagates every neighbour-count clue once. Structurally the same quota
+ * argument `propagateLine` makes about a row: once a clue already has all
+ * the circles it is allowed, every undecided neighbour must be a square;
+ * once it needs every remaining neighbour to reach its count, they must
+ * all be circles. Either bound being overshot is an immediate
+ * contradiction. A no-op pass over an empty `countClues` list, which is
+ * every puzzle authored before this mechanic existed.
+ */
+function propagateCountClues(puzzle: BinairoPuzzle, grid: WorkingGrid): LineResult {
+  let changed = false;
+  for (const clue of puzzle.countClues ?? []) {
+    const { ones, blanks } = countClueTally(puzzle.size, grid, clue);
+    if (ones > clue.count || ones + blanks < clue.count) return 'fail';
+    if (blanks === 0) continue;
+
+    const forced: BinairoValue = ones === clue.count ? 0 : ones + blanks === clue.count ? 1 : null;
+    if (forced === null) continue;
+
+    for (const neighbour of countClueNeighbours(puzzle.size, clue)) {
+      if (grid[neighbour.row][neighbour.col] === null) {
+        grid[neighbour.row][neighbour.col] = forced;
+        changed = true;
+      }
+    }
+  }
+  return changed ? 'changed' : 'unchanged';
+}
+
 /** Propagates every forced move to a fixed point, mutating `grid` in
  * place. Returns `false` the instant either rule finds a contradiction. */
 function propagate(puzzle: BinairoPuzzle, grid: WorkingGrid): boolean {
@@ -148,6 +185,10 @@ function propagate(puzzle: BinairoPuzzle, grid: WorkingGrid): boolean {
     const twinResult = propagateTwins(puzzle, grid);
     if (twinResult === 'fail') return false;
     if (twinResult === 'changed') changed = true;
+
+    const countResult = propagateCountClues(puzzle, grid);
+    if (countResult === 'fail') return false;
+    if (countResult === 'changed') changed = true;
   }
   return true;
 }
@@ -239,6 +280,21 @@ export function assertValidBinairo(puzzle: BinairoPuzzle): void {
   for (const row of puzzle.givens) {
     if (row.length !== puzzle.size) {
       throw new Error(`Binairo ${puzzle.id}: every givens row must have exactly ${puzzle.size} entries.`);
+    }
+  }
+
+  for (const clue of puzzle.countClues ?? []) {
+    // A clue cell carries a real value like any other cell - see
+    // `BinairoCountClue`'s own comment for why a valueless clue cell
+    // cannot work on this board.
+    if (!isGiven(puzzle, clue.row, clue.col)) {
+      throw new Error(`Binairo ${puzzle.id}: count clue at ${clue.row},${clue.col} must sit on a given cell.`);
+    }
+    const maximum = countClueNeighbours(puzzle.size, clue).length;
+    if (!Number.isInteger(clue.count) || clue.count < 0 || clue.count > maximum) {
+      throw new Error(
+        `Binairo ${puzzle.id}: count clue at ${clue.row},${clue.col} must be an integer in 0..${maximum}, got ${clue.count}.`,
+      );
     }
   }
 

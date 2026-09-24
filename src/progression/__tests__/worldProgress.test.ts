@@ -1,9 +1,9 @@
 import { FIRST_WORLD, WORLDS } from '../../game/worlds';
 import { getStarThresholds, getLevelById } from '../../game/levels';
-import { JOURNEY } from '../../game/journey';
-import { emptyProgress, recordCompletion } from '../playerProgress';
+import { BatchState } from '../batches';
+import { emptyProgress, PlayerProgress, recordCompletion } from '../playerProgress';
 import {
-  getJourneyPoint,
+  getLevelPoint,
   getUnlockedWorlds,
   getWorldSummary,
   isLevelUnlocked,
@@ -17,13 +17,6 @@ const W1 = FIRST_WORLD;
 function complete(progress: ReturnType<typeof emptyProgress>, levelId: string) {
   const level = getLevelById(levelId)!;
   return recordCompletion(progress, levelId, getStarThresholds(level).three, getStarThresholds(level));
-}
-
-/** Completes any puzzle id, from any game. */
-function completeAny(progress: ReturnType<typeof emptyProgress>, puzzleId: string) {
-  const level = getLevelById(puzzleId);
-  const thresholds = level ? getStarThresholds(level) : { two: 3, three: 1 };
-  return recordCompletion(progress, puzzleId, thresholds.three, thresholds);
 }
 
 describe('level unlocking within a world', () => {
@@ -117,38 +110,49 @@ describe('getWorldSummary', () => {
   });
 });
 
-describe('getJourneyPoint (the interleaved journey)', () => {
-  test('fresh player is at journey entry 1 - the first gravity puzzle', () => {
-    const jp = getJourneyPoint(emptyProgress());
-    expect(jp.entry).toBe(JOURNEY[0]);
-    expect(jp.entry.kind).toBe('gravity');
-    expect(jp.entry.puzzleId).toBe(W1.levelIds[0]);
-    expect(jp.position).toBe(1);
-    expect(jp.allDone).toBe(false);
-    expect(jp.total).toBe(JOURNEY.length);
+describe('getLevelPoint (the current level batch)', () => {
+  const TWO_PUZZLE_BATCH: BatchState = {
+    levelNumber: 1,
+    puzzles: [
+      { kind: 'gravity', puzzleId: W1.levelIds[0] },
+      { kind: 'mirror', puzzleId: 'mirror-001' },
+    ],
+    completedPuzzleIds: [],
+  };
+
+  function withBatch(progress: PlayerProgress, batch: BatchState): PlayerProgress {
+    return { ...progress, currentBatch: batch };
+  }
+
+  test('throws if no batch has been generated yet - the provider is expected to guarantee one', () => {
+    expect(() => getLevelPoint(emptyProgress())).toThrow();
   });
 
-  test('completing the first entry advances to the next entry (a different game)', () => {
-    const p = complete(emptyProgress(), JOURNEY[0].puzzleId);
-    const jp = getJourneyPoint(p);
-    expect(jp.entry).toBe(JOURNEY[1]);
-    expect(jp.position).toBe(2);
-    expect(jp.entry.kind).not.toBe(JOURNEY[0].kind); // 1-1-1, no repeat
+  test('points at the first incomplete puzzle in the batch', () => {
+    const p = withBatch(emptyProgress(), TWO_PUZZLE_BATCH);
+    const lp = getLevelPoint(p);
+    expect(lp.levelNumber).toBe(1);
+    expect(lp.entry.kind).toBe('gravity');
+    expect(lp.entry.puzzleId).toBe(W1.levelIds[0]);
+    expect(lp.batchPosition).toBe(1);
+    expect(lp.batchSize).toBe(2);
+    expect(lp.allDone).toBe(false);
   });
 
-  test('nextGravity points past a non-gravity entry to a playable gravity puzzle', () => {
-    const p = complete(emptyProgress(), JOURNEY[0].puzzleId);
-    const jp = getJourneyPoint(p);
-    expect(jp.entry.kind).not.toBe('gravity');
-    expect(jp.nextGravity?.kind).toBe('gravity');
-    expect(jp.nextGravity!.position).toBeGreaterThan(1);
+  test('advances to the next puzzle once the first is completed within the batch', () => {
+    const p = withBatch(emptyProgress(), { ...TWO_PUZZLE_BATCH, completedPuzzleIds: [W1.levelIds[0]] });
+    const lp = getLevelPoint(p);
+    expect(lp.entry.kind).toBe('mirror');
+    expect(lp.entry.puzzleId).toBe('mirror-001');
+    expect(lp.batchPosition).toBe(2);
+    expect(lp.allDone).toBe(false);
   });
 
-  test('completing every entry returns the final one with allDone', () => {
-    let p = emptyProgress();
-    for (const entry of JOURNEY) p = completeAny(p, entry.puzzleId);
-    const jp = getJourneyPoint(p);
-    expect(jp.allDone).toBe(true);
-    expect(jp.position).toBe(JOURNEY.length);
+  test('once every puzzle is completed, returns the last puzzle with allDone', () => {
+    const p = withBatch(emptyProgress(), { ...TWO_PUZZLE_BATCH, completedPuzzleIds: [W1.levelIds[0], 'mirror-001'] });
+    const lp = getLevelPoint(p);
+    expect(lp.allDone).toBe(true);
+    expect(lp.batchPosition).toBe(2);
+    expect(lp.entry.puzzleId).toBe('mirror-001');
   });
 });

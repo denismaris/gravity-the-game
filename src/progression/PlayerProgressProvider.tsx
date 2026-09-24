@@ -13,6 +13,7 @@ import { dailyKeyOf, getDailyEntry } from '../game/journey';
 import { computeStars, LevelResult, StarRating } from '../game/scoring';
 import { getWorldForLevel } from '../game/worlds';
 import { createDefaultBackend, StorageBackend } from '../storage';
+import { generateBatch, isBatchComplete, markPuzzleCompleted } from './batches';
 import {
   emptyProgress,
   getDisplayDailyStreak,
@@ -29,6 +30,39 @@ import {
 import { clearProgress, loadProgress, saveProgress } from './playerProgressStore';
 
 /**
+ * Part B's extension point for a future ad system - fires exactly once,
+ * the instant a batch is completed, before the next level's batch is
+ * generated. Intentionally a no-op today: no ad SDK, no reward logic, no
+ * UI exists yet, only this call site for a future implementation to hang
+ * off. Called from `recordCompletion` itself (not from inside the pure
+ * mutation it applies) specifically so a future real implementation - which
+ * will have actual side effects (firing an ad request) - runs exactly once
+ * per real batch completion, never re-invoked by the pending-mutation
+ * replay a pure `ProgressMutation` can be subject to (see `applyMutation`'s
+ * own comment).
+ */
+function onBatchComplete(): void {
+  // Intentionally empty - see the ads+ad-free-time spec (part B).
+}
+
+/**
+ * Guarantees `progress.currentBatch` is never null - generating level 1's
+ * batch (or whichever level `currentLevel` already backfilled to) the
+ * first time it's missing. Used in two places: the provider's own
+ * synchronous initial state (`useState(emptyProgress)` on its own would
+ * render with `currentBatch: null` for the brief window before the async
+ * `loadProgress()` below resolves - the same "render against a safe
+ * default before the real load resolves" tolerance this app already had
+ * for Journey position, just now needing an explicit batch instead of a
+ * stateless lookup into a static array) and the real load's own
+ * resolution, so a save from before this feature shipped picks one up too.
+ */
+function ensureBatch(progress: PlayerProgress): PlayerProgress {
+  if (progress.currentBatch) return progress;
+  return { ...progress, currentBatch: generateBatch(progress.currentLevel, progress, null) };
+}
+
+/**
  * Outcome of recording a single completion - handed back to the UI so the
  * completion screen can show "this run" alongside the persisted best.
  */
@@ -39,6 +73,12 @@ export interface CompletionOutcome {
   readonly runMoves: number;
   /** The merged best-ever result for the level after this solve. */
   readonly best: LevelResult;
+  /** True iff this exact solve was the one that completed the current
+   * level's batch (its last remaining puzzle) - the screen's own cue to
+   * route "Next" through the calming interstitial before opening the new
+   * level's first puzzle, rather than jumping straight there the way a
+   * mid-batch "Next" still does. */
+  readonly batchCompleted: boolean;
 }
 
 interface PlayerProgressContextValue {
@@ -99,7 +139,7 @@ export function PlayerProgressProvider({
   backend,
 }: PlayerProgressProviderProps): React.JSX.Element {
   const backendRef = useRef<StorageBackend>(backend ?? createDefaultBackend());
-  const [progress, setProgress] = useState<PlayerProgress>(emptyProgress);
+  const [progress, setProgress] = useState<PlayerProgress>(() => ensureBatch(emptyProgress()));
   const [ready, setReady] = useState(false);
 
   // Latest progress, readable synchronously from `recordCompletion` without
@@ -127,15 +167,22 @@ export function PlayerProgressProvider({
     loadProgress(backendRef.current).then(loaded => {
       if (cancelled) return;
 
+      // A fresh install, or any save from before the v5 migration, loads
+      // with `currentBatch: null` (see that migration's own comment in
+      // `playerProgressStore.ts`) - `ensureBatch` backfills it here, before
+      // any pending mutation queued during this same load race gets a
+      // chance to run (below).
+      const withBatch = ensureBatch(loaded);
+
       const pending = pendingRef.current;
       pendingRef.current = [];
       readyRef.current = true;
 
-      const resolved = pending.reduce((p, mutate) => mutate(p), loaded);
+      const resolved = pending.reduce((p, mutate) => mutate(p), withBatch);
       progressRef.current = resolved;
       setProgress(resolved);
       setReady(true);
-      if (pending.length > 0) saveProgress(backendRef.current, resolved);
+      if (pending.length > 0 || withBatch !== loaded) saveProgress(backendRef.current, resolved);
     });
     return () => {
       cancelled = true;
@@ -175,6 +222,7 @@ export function PlayerProgressProvider({
     const scored = level ? moves : moves + 1;
     const isDaily = levelId === getDailyEntry().puzzleId;
     const todayKey = dailyKeyOf(new Date());
+    const levelBefore = progressRef.current.currentLevel;
 
     const next = applyMutation(current => {
       let result = recordCompletionPure(current, levelId, scored, thresholds);
@@ -183,8 +231,28 @@ export function PlayerProgressProvider({
       // needs to know it opened the Daily card for this to work: every
       // completion already funnels through here by puzzle id.
       if (isDaily) result = recordDaily(result, todayKey);
+
+      // Batch progression: mark this puzzle completed within the current
+      // batch (a no-op via `markPuzzleCompleted` if `levelId` isn't actually
+      // one of its puzzles - e.g. the Daily puzzle landing outside today's
+      // batch), then roll over to the next level's batch the instant the
+      // current one is fully solved. `result` (not `current`) is what the
+      // new batch's own "avoid re-serving a completed puzzle" logic reads,
+      // so it correctly excludes the puzzle just completed right now, not
+      // just whatever was already completed before this call.
+      if (result.currentBatch) {
+        const updatedBatch = markPuzzleCompleted(result.currentBatch, levelId);
+        result = isBatchComplete(updatedBatch)
+          ? { ...result, currentLevel: result.currentLevel + 1, currentBatch: generateBatch(result.currentLevel + 1, result, updatedBatch) }
+          : { ...result, currentBatch: updatedBatch };
+      }
       return result;
     });
+
+    // Fired from here, not from inside the mutation above - see
+    // `onBatchComplete`'s own comment for why.
+    const batchCompleted = next.currentLevel > levelBefore;
+    if (batchCompleted) onBatchComplete();
 
     return {
       runStars: computeStars(scored, thresholds),
@@ -192,6 +260,7 @@ export function PlayerProgressProvider({
       // the completion screens actually show the player.
       runMoves: moves,
       best: getLevelResult(next, levelId)!,
+      batchCompleted,
     };
   }, [applyMutation]);
 

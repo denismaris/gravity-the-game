@@ -1,10 +1,31 @@
+import { BINAIRO } from '../../game/binairo';
+import { LEVELS } from '../../game/levels';
 import { MIRROR_MAZES } from '../../game/mirror';
-import { JOURNEY, ROTATION } from '../../game/journey';
+import { GameKind, ROTATION } from '../../game/journey';
+import { TENTS_TREES } from '../../game/tents';
+import { TOWERS } from '../../game/towers';
 import { FIRST_WORLD, WORLDS } from '../../game/worlds';
-import { ACHIEVEMENTS, getEarnedAchievements } from '../achievements';
+import { ACHIEVEMENTS, getEarnedAchievements, TOTAL_PUZZLE_COUNT } from '../achievements';
 import { emptyProgress, PlayerProgress, recordCompletion, recordDaily } from '../playerProgress';
 
 const T3 = { three: 1, two: 2 }; // hint-style thresholds: moves=1 -> 3 stars
+
+/** Every puzzle id in every game, `kind` alongside each - the same set
+ * `achievements.ts`'s own (private) `ALL_PUZZLE_IDS` is built from, kept
+ * independently here rather than imported so this test verifies the real
+ * behaviour against the real game pools, not against achievements.ts's own
+ * internal list circularly. */
+const ALL_ENTRIES: ReadonlyArray<{ kind: GameKind; puzzleId: string }> = [
+  ...LEVELS.map(level => ({ kind: 'gravity' as const, puzzleId: level.id })),
+  ...MIRROR_MAZES.map(puzzle => ({ kind: 'mirror' as const, puzzleId: puzzle.id })),
+  ...TENTS_TREES.map(puzzle => ({ kind: 'tents' as const, puzzleId: puzzle.id })),
+  ...TOWERS.map(puzzle => ({ kind: 'towers' as const, puzzleId: puzzle.id })),
+  ...BINAIRO.map(puzzle => ({ kind: 'binairo' as const, puzzleId: puzzle.id })),
+];
+
+function firstPuzzleOfKind(kind: GameKind): string {
+  return ALL_ENTRIES.find(e => e.kind === kind)!.puzzleId;
+}
 
 function complete(progress: PlayerProgress, id: string, stars: 1 | 2 | 3): PlayerProgress {
   const moves = stars === 3 ? 1 : stars === 2 ? 2 : 3;
@@ -88,8 +109,7 @@ describe('per-game completion achievements', () => {
     const flawless = findAchievement('skill:flawless');
     for (const kind of ROTATION) {
       if (kind === 'gravity') continue;
-      const entry = JOURNEY.find(e => e.kind === kind)!;
-      expect(flawless.isEarned(complete(emptyProgress(), entry.puzzleId, 3))).toBe(true);
+      expect(flawless.isEarned(complete(emptyProgress(), firstPuzzleOfKind(kind), 3))).toBe(true);
     }
   });
 });
@@ -109,7 +129,7 @@ describe('star milestones', () => {
   test('Full Almanac requires literally every star in the game', () => {
     const achievement = findAchievement('stars:all');
     let p = emptyProgress();
-    for (const entry of JOURNEY) p = complete(p, entry.puzzleId, 3);
+    for (const entry of ALL_ENTRIES) p = complete(p, entry.puzzleId, 3);
     expect(achievement.isEarned(p)).toBe(true);
 
     // Drop one entry back to 3 -> 3 (unchanged, still max) - sanity check the
@@ -152,13 +172,17 @@ describe('Flawless achievement', () => {
 });
 
 describe('Completionist', () => {
-  test('requires every single Journey entry', () => {
+  test('requires every single puzzle in every game', () => {
     const achievement = findAchievement('journey:complete');
     let p = emptyProgress();
-    for (const entry of JOURNEY.slice(0, -1)) p = complete(p, entry.puzzleId, 1);
+    for (const entry of ALL_ENTRIES.slice(0, -1)) p = complete(p, entry.puzzleId, 1);
     expect(achievement.isEarned(p)).toBe(false);
 
-    p = complete(p, JOURNEY[JOURNEY.length - 1].puzzleId, 1);
+    p = complete(p, ALL_ENTRIES[ALL_ENTRIES.length - 1].puzzleId, 1);
     expect(achievement.isEarned(p)).toBe(true);
+  });
+
+  test('TOTAL_PUZZLE_COUNT matches the real combined pool size', () => {
+    expect(TOTAL_PUZZLE_COUNT).toBe(ALL_ENTRIES.length);
   });
 });

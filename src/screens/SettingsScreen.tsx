@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { version } from '../../package.json';
-import { PressableScale } from '../components';
+import { GeometricRule, PressableScale } from '../components';
 import { usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { theme } from '../theme';
@@ -12,16 +12,18 @@ export interface SettingsScreenProps {
 }
 
 /**
- * The app's one settings screen: independent sound/haptics toggles and a
- * destructive, confirm-gated progress reset. No screen further down reads
- * these toggles directly - sound/haptics are read imperatively by
- * `game/rendering` from the flags `SettingsProvider` keeps in sync (see its
- * own doc comment), and `resetProgress` lives on `PlayerProgressProvider`
- * since progress is what's being reset, not a settings concern itself.
+ * The app's one settings screen: independent sound/haptics/calming-break
+ * toggles and a destructive, confirm-gated progress reset. Sound/haptics
+ * are read imperatively by `game/rendering` from the flags
+ * `SettingsProvider` keeps in sync (see its own doc comment); the calming-
+ * break toggle is read directly by `App.tsx` at the moment a level batch
+ * completes (see `src/interstitial/`). `resetProgress` lives on
+ * `PlayerProgressProvider` since progress is what's being reset, not a
+ * settings concern itself.
  */
 export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { settings, setSoundEnabled, setHapticsEnabled } = useSettings();
+  const { settings, setSoundEnabled, setHapticsEnabled, setCalmingInterstitialEnabled } = useSettings();
   const { resetProgress } = usePlayerProgress();
 
   const confirmReset = useCallback(() => {
@@ -56,12 +58,22 @@ export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Eleme
             onValueChange={setSoundEnabled}
             accessibilityLabel="Sound effects"
           />
-          <View style={styles.divider} />
+          <GeometricRule variant="quiet" style={styles.divider} />
           <Row
             label="Haptics"
             value={settings.hapticsEnabled}
             onValueChange={setHapticsEnabled}
             accessibilityLabel="Haptic feedback"
+          />
+        </View>
+
+        <Text style={styles.sectionLabel}>GAMEPLAY</Text>
+        <View style={styles.card}>
+          <Row
+            label="Calming Break Between Levels"
+            value={settings.calmingInterstitialEnabled}
+            onValueChange={setCalmingInterstitialEnabled}
+            accessibilityLabel="Show a calming swipe-maze break between levels"
           />
         </View>
 
@@ -165,8 +177,6 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weights.medium,
   },
   divider: {
-    height: 1,
-    backgroundColor: theme.colors.border,
     marginLeft: theme.spacing.lg,
   },
   resetRow: {

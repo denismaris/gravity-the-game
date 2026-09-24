@@ -12,7 +12,5 @@ export { BinairoScreen } from './BinairoScreen';
 export type { BinairoScreenProps } from './BinairoScreen';
 export { SettingsScreen } from './SettingsScreen';
 export type { SettingsScreenProps } from './SettingsScreen';
-export { BrowseScreen } from './BrowseScreen';
-export type { BrowseScreenProps } from './BrowseScreen';
 export { AchievementsScreen } from './AchievementsScreen';
 export type { AchievementsScreenProps } from './AchievementsScreen';

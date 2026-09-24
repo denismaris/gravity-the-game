@@ -29,7 +29,9 @@ export type HapticKind =
   | 'tentsPlant'
   | 'tentsError'
   | 'tentsRowComplete'
-  | 'tentsSolve';
+  | 'tentsSolve'
+  | 'mazeContact'
+  | 'mazeSolve';
 
 /**
  * Pattern in milliseconds passed to `Vibration.vibrate`. A single number is
@@ -94,6 +96,15 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   tentsError: 12,
   tentsRowComplete: 15,
   tentsSolve: [0, 14, 45, 14, 45, 22],
+
+  // The calming interstitial's maze. A wall contact is a definite, felt
+  // "thock" - firmer than any other game's per-move tick, since it fires
+  // far less often (gated on a minimum incoming speed, not every slide);
+  // the solve is its own longer rising triple, distinct from every game's
+  // since a maze filling is a bigger, slower-building moment than a
+  // single move.
+  mazeContact: 16,
+  mazeSolve: [0, 16, 50, 20, 50, 30],
 };
 
 let hapticsEnabled = true;

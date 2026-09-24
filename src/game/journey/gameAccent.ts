@@ -1,5 +1,5 @@
 import { theme } from '../../theme';
-import { GameKind } from './playlist';
+import { GameKind } from './gameKind';
 
 /**
  * One accent colour per game, so each reads as a distinct thing at a
@@ -9,6 +9,28 @@ import { GameKind } from './playlist';
  * secondary` - already established everywhere as the app's one loud colour,
  * not a new one introduced here.
  */
+/**
+ * Each game's own name, in the upper-case form its screen header already
+ * uses ("SKYSCRAPERS", not "towers"). Lives beside `accentColorForKind`
+ * for the same reason: it is game identity, and it was previously
+ * hardcoded separately in all five screen headers, so anything else
+ * wanting to name a game had nowhere to ask.
+ */
+export function gameLabelForKind(kind: GameKind): string {
+  switch (kind) {
+    case 'gravity':
+      return 'GRAVITY';
+    case 'mirror':
+      return 'MIRROR MAZE';
+    case 'tents':
+      return 'TENTS AND TREES';
+    case 'towers':
+      return 'SKYSCRAPERS';
+    case 'binairo':
+      return 'BINAIRO';
+  }
+}
+
 export function accentColorForKind(kind: GameKind): string {
   switch (kind) {
     case 'gravity':

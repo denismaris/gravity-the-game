@@ -16,6 +16,7 @@ import { getMirrorMazeById } from '../puzzles';
 
 const STRAIGHT: MirrorMazePuzzle = {
   id: 'test-straight',
+  difficulty: 'easy',
   rows: 3,
   cols: 3,
   source: { row: 0, col: 1 },
@@ -27,6 +28,7 @@ const STRAIGHT: MirrorMazePuzzle = {
 
 const WITH_TURN: MirrorMazePuzzle = {
   id: 'test-turn',
+  difficulty: 'easy',
   rows: 3,
   cols: 3,
   source: { row: 0, col: 0 },
@@ -38,6 +40,7 @@ const WITH_TURN: MirrorMazePuzzle = {
 
 const WITH_OBSTACLE: MirrorMazePuzzle = {
   id: 'test-obstacle',
+  difficulty: 'easy',
   rows: 3,
   cols: 3,
   source: { row: 0, col: 0 },
@@ -49,6 +52,7 @@ const WITH_OBSTACLE: MirrorMazePuzzle = {
 
 const WITH_GEM_ON_PATH: MirrorMazePuzzle = {
   id: 'test-gem-on-path',
+  difficulty: 'easy',
   rows: 3,
   cols: 1,
   source: { row: 0, col: 0 },
@@ -60,6 +64,7 @@ const WITH_GEM_ON_PATH: MirrorMazePuzzle = {
 
 const WITH_GEM_OFF_PATH: MirrorMazePuzzle = {
   id: 'test-gem-off-path',
+  difficulty: 'easy',
   rows: 3,
   cols: 3,
   source: { row: 0, col: 0 },
@@ -79,6 +84,7 @@ const WITH_GEM_OFF_PATH: MirrorMazePuzzle = {
 // like (that's what `assertValidMirrorMaze`'s edge/inward checks cover).
 const LOOP: MirrorMazePuzzle = {
   id: 'test-loop',
+  difficulty: 'easy',
   rows: 3,
   cols: 3,
   source: { row: 1, col: 1 },
@@ -210,6 +216,7 @@ describe('solveMirrorMaze', () => {
     // never reach a gem placed outside that corridor's only cell.
     const impossible: MirrorMazePuzzle = {
       id: 'test-impossible',
+      difficulty: 'easy',
       rows: 1,
       cols: 3,
       source: { row: 0, col: 0 },

@@ -1,4 +1,3 @@
-/* eslint-disable react-native/no-inline-styles -- cell geometry is derived from `size` at render time */
 import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
@@ -83,13 +82,20 @@ export function MirrorMazeBoard({
               accessibilityRole="button"
               accessibilityLabel={`Cell ${row + 1}, ${col + 1}, ${mirrorLabel(state.mirrors[row][col])}`}
               onPress={() => onCycleCell(row, col)}
-              style={{
+              // Sits above the Canvas, so this tint gives the cell an
+              // instant touch-down response without the Skia layer having
+              // to track press state. Light rather than ink: this is the
+              // one board on a dark panel, where only something brighter
+              // than the ground reads as "lit up".
+              style={({ pressed }) => ({
                 position: 'absolute',
                 left: origin.x,
                 top: origin.y,
                 width: layout.cellSize,
                 height: layout.cellSize,
-              }}
+                borderRadius: layout.cellSize * 0.18,
+                backgroundColor: pressed ? 'rgba(255,255,255,0.10)' : 'transparent',
+              })}
             />
           );
         })}

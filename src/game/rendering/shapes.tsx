@@ -1,12 +1,27 @@
 import React from 'react';
-import { Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
+import { Circle, Group, Path, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
 import type { Direction } from '../engine';
+import { shade } from './color';
 
 /**
  * Small, dumb, reusable Skia primitives used to draw a single game object.
  * Each one takes plain pixel geometry + a color - no game or theme
- * knowledge - so they stay easy to reuse and to test in isolation.
+ * knowledge - so they stay easy to reuse and to test in isolation. Any
+ * lighter/darker tone is derived from that one colour via `shade`, rather
+ * than taking a second colour, so call sites stay unchanged.
+ *
+ * Depth here is deliberately *geometric* - an offset shadow disc, an
+ * offset side face - plus a single radial gradient on the round pieces.
+ * There are no blur filters and no per-edge bevels: both were tried on
+ * this app's maze screen and read as muddy rather than dimensional, and a
+ * real blur under a shape that moves every frame is avoidable GPU cost.
  */
+
+/** The ink-based ground shadow every resting piece casts. Matches the
+ * palette's own `towersShadow`/`tentsShadow` concept - ground shadows are
+ * one visual idea across this app, not several - kept as a literal here so
+ * these primitives stay free of theme imports. */
+const GROUND_SHADOW = 'rgba(59,31,82,0.18)';
 
 export interface CellBackgroundProps {
   x: number;
@@ -52,9 +67,29 @@ export interface MovablePieceProps {
   color: string;
 }
 
-/** The player-controlled object: a simple filled circle (●). */
+/**
+ * The player-controlled object (●) - the one thing on the board that
+ * moves, so it's the one thing that reads as a real sphere resting *on*
+ * the paper: a ground shadow offset down-right, a radial gradient lit from
+ * the top left, and a soft specular highlight. The static markers around
+ * it stay flat by comparison, which is what makes this one look picked-up
+ * and alive rather than printed on.
+ */
 export function MovablePiece({ cx, cy, radius, color }: MovablePieceProps) {
-  return <Circle cx={cx} cy={cy} r={radius} color={color} />;
+  return (
+    <>
+      <Circle cx={cx + radius * 0.1} cy={cy + radius * 0.16} r={radius} color={GROUND_SHADOW} />
+      <Circle cx={cx} cy={cy} r={radius}>
+        <RadialGradient
+          c={vec(cx - radius * 0.38, cy - radius * 0.42)}
+          r={radius * 1.7}
+          colors={[shade(color, 1.45), color, shade(color, 0.74)]}
+          positions={[0, 0.5, 1]}
+        />
+      </Circle>
+      <Circle cx={cx - radius * 0.33} cy={cy - radius * 0.37} r={radius * 0.2} color="rgba(255,255,255,0.4)" />
+    </>
+  );
 }
 
 export interface AnchoredPieceProps {
@@ -88,7 +123,18 @@ export function AnchoredPiece({
   return (
     <>
       <Circle cx={cx} cy={cy} r={ringRadius} color={color} style="stroke" strokeWidth={strokeWidth} />
-      <Circle cx={cx} cy={cy} r={radius} color={color} />
+      {/* Deliberately casts no ground shadow, unlike the movable piece:
+          this one is bolted flush to the board, and "floats vs. sits
+          flush" is the cheapest way to show that at a glance. The gentle
+          gradient is enough to keep it from looking like a flat sticker. */}
+      <Circle cx={cx} cy={cy} r={radius}>
+        <RadialGradient
+          c={vec(cx - radius * 0.35, cy - radius * 0.4)}
+          r={radius * 1.6}
+          colors={[shade(color, 1.22), color, shade(color, 0.84)]}
+          positions={[0, 0.55, 1]}
+        />
+      </Circle>
     </>
   );
 }
@@ -116,9 +162,20 @@ export interface ObstacleBlockProps {
   cornerRadius?: number;
 }
 
-/** A blocking cell: a filled square (■) with a slightly sharper corner than the board. */
+/**
+ * A blocking cell (■) with a slightly sharper corner than the board, drawn
+ * as a short extruded block: the same silhouette in a darker tone pushed
+ * down behind the face, so the wall reads as having real height and the
+ * piece reads as genuinely unable to pass it. Two flat fills, no gradient.
+ */
 export function ObstacleBlock({ x, y, size, color, cornerRadius = 0 }: ObstacleBlockProps) {
-  return <RoundedRect x={x} y={y} width={size} height={size} r={cornerRadius} color={color} />;
+  const depth = Math.max(2, size * 0.1);
+  return (
+    <>
+      <RoundedRect x={x} y={y + depth} width={size} height={size} r={cornerRadius} color={shade(color, 0.62)} />
+      <RoundedRect x={x} y={y} width={size} height={size} r={cornerRadius} color={color} />
+    </>
+  );
 }
 
 export interface HazardMarkerProps {
@@ -182,6 +239,10 @@ export function DestroyedPieceMark({ cx, cy, radius, color, markColor }: Destroy
 
   return (
     <>
+      {/* Keeps the movable piece's ground shadow - it's still an object
+          lying on the board - but none of its gloss or gradient. Live
+          pieces gleam, spent ones don't. */}
+      <Circle cx={cx + radius * 0.1} cy={cy + radius * 0.16} r={radius} color={GROUND_SHADOW} />
       <Circle cx={cx} cy={cy} r={radius} color={color} />
       <Path path={xPath} color={markColor} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />
     </>

@@ -1,3 +1,4 @@
+import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { BinairoPuzzle, BinairoValue } from './types';
 
 type FullGrid = ReadonlyArray<ReadonlyArray<0 | 1>>;
@@ -58,6 +59,22 @@ const GRID_10_ALT = rotateGrid(BASE_10_ALT);
 const BASE_6_ALT: ReadonlyArray<0 | 1> = [0, 1, 0, 0, 1, 1];
 const GRID_6_ALT = rotateGrid(BASE_6_ALT);
 
+// binairo-014 (the first count-clue puzzle). Written out in full rather
+// than built from a rotated base like every grid above: this one came out
+// of the solver on an empty board during authoring, and it is genuinely
+// not a rotation - which is the point, since a rotation grid has a very
+// regular neighbourhood structure and would make the neighbour counts far
+// more guessable than they should be. Each of the three clue counts was
+// re-derived from this grid by hand before being frozen.
+const GRID_6_COUNT: FullGrid = [
+  [0, 0, 1, 0, 1, 1],
+  [0, 0, 1, 1, 0, 1],
+  [1, 1, 0, 0, 1, 0],
+  [0, 1, 0, 0, 1, 1],
+  [1, 0, 1, 1, 0, 0],
+  [1, 1, 0, 1, 0, 0],
+];
+
 function grid(rows: ReadonlyArray<ReadonlyArray<BinairoValue>>): ReadonlyArray<ReadonlyArray<BinairoValue>> {
   return rows;
 }
@@ -83,6 +100,7 @@ export const BINAIRO_SOLUTION_GRIDS: ReadonlyArray<FullGrid> = [
   swapValues(reflectHorizontal(GRID_10)),
   reflectHorizontal(swapValues(GRID_10_ALT)),
   GRID_6_ALT,
+  GRID_6_COUNT,
 ];
 
 /**
@@ -102,12 +120,19 @@ export const BINAIRO_SOLUTION_GRIDS: ReadonlyArray<FullGrid> = [
  * (never hand-guessed). Blank fraction climbs with difficulty for the
  * same reason it always did - a 10x10 leans harder on the ruleset than a
  * 6x6 does - but now leans further still, since the constraints carry
- * some of that deductive weight themselves: every single puzzle below
- * reached its *full* target (47-62% blank, versus 42-54% before
- * constraints existed at all) without the stripper hitting an ambiguity
- * wall anywhere. `assertValidBinairo` re-verifies uniqueness again
- * independently in the test suite, so this comment is provenance, not
- * the only proof.
+ * some of that deductive weight themselves.
+ *
+ * The pool was later *eased*: blanks came back down to 13 on the 6x6s, 27
+ * on the 8x8s and 46 on the 10x10s (from as high as 62). Boards this
+ * sparse were technically fair - every one had a unique solution reachable
+ * by pure propagation - but "solvable without guessing" is not the same as
+ * "enjoyable", and these were reading as work. Givens were restored by
+ * putting back whichever blank sat furthest from any existing given, so
+ * support spread evenly instead of clumping. Restoring a cell to its own
+ * solution value cannot introduce ambiguity, but uniqueness was re-proven
+ * with the real solver for all fourteen anyway rather than argued.
+ * `assertValidBinairo` re-verifies it again in the test suite, so this
+ * comment is provenance, not the only proof.
  *
  * `binairo-013` appends the first puzzle using `twinCells` - deliberately
  * on its own, no `constraints` alongside it, so a player meets the new
@@ -121,14 +146,21 @@ export const BINAIRO_SOLUTION_GRIDS: ReadonlyArray<FullGrid> = [
  * (Its name coincides with `binairo-002`'s "Twin Ranks," authored years
  * before this mechanic existed - that one has no twin cells at all, pure
  * flavor text; worth a future rename if it ever reads as confusing.)
+ *
+ * Difficulty (see `PuzzleDifficulty`'s comment in `types.ts`): the four 6x6s
+ * are easy, the three 8x8s are medium, the five 10x10s are hard - except
+ * #013, which despite reusing a 6x6 board is tagged medium, not easy: it
+ * exists purely to teach `twinCells` in isolation, and the real complexity
+ * that mechanic adds isn't reflected in its board size.
  */
 export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   {
     id: 'binairo-001',
+    difficulty: 'easy',
     name: 'Even Split',
     size: 6,
     givens: grid([
-      [null, 0, null, null, null, null],
+      [0, 0, 1, 1, 0, null],
       [0, null, null, 0, 1, null],
       [1, null, null, null, 0, null],
       [null, 0, null, 0, 0, 1],
@@ -142,11 +174,12 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-002',
+    difficulty: 'easy',
     name: 'Twin Ranks',
     size: 6,
     givens: grid([
-      [null, 1, 0, null, 1, null],
-      [1, null, 0, null, null, 1],
+      [1, 1, 0, 0, 1, 0],
+      [1, 0, 0, null, null, 1],
       [null, null, null, 0, null, null],
       [null, 1, 0, 1, null, 0],
       [1, 0, null, 1, 0, null],
@@ -159,11 +192,12 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-003',
+    difficulty: 'easy',
     name: 'Mirror Rows',
     size: 6,
     givens: grid([
-      [null, null, 1, null, 0, null],
-      [0, 1, 0, null, null, null],
+      [1, 0, 1, 1, 0, 0],
+      [0, 1, 0, 1, null, null],
       [0, null, 1, null, null, 1],
       [1, 0, 0, 1, 0, null],
       [1, 1, 0, null, 1, null],
@@ -177,11 +211,12 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-004',
+    difficulty: 'easy',
     name: 'Balanced Six',
     size: 6,
     givens: grid([
-      [null, 1, 0, 0, null, 1],
-      [1, 0, null, null, null, null],
+      [0, 1, 0, 0, 1, 1],
+      [1, 0, 1, 0, 0, null],
       [1, 1, null, null, null, 0],
       [null, 1, null, null, 1, null],
       [null, null, 1, null, null, 1],
@@ -195,10 +230,11 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-005',
+    difficulty: 'medium',
     name: 'Wide Grid',
     size: 8,
     givens: grid([
-      [null, null, 1, null, null, null, 0, null],
+      [0, 0, 1, 0, 1, 1, 0, 1],
       [null, null, null, 1, null, null, null, 0],
       [null, null, 1, null, 0, 1, null, 0],
       [null, 1, null, 0, null, null, 0, null],
@@ -215,12 +251,13 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-006',
+    difficulty: 'medium',
     name: 'Counterpoint',
     size: 8,
     givens: grid([
-      [1, null, 0, null, 0, null, 1, 0],
-      [1, 0, null, 0, null, null, null, null],
-      [null, null, null, 0, 1, 0, null, null],
+      [1, 1, 0, 1, 0, 0, 1, 0],
+      [1, 0, 1, 0, 0, 1, 0, null],
+      [null, null, null, 0, 1, 0, null, 1],
       [1, null, null, null, 0, 1, null, null],
       [null, null, 1, null, null, 1, 0, 1],
       [0, null, 0, null, null, 0, null, 0],
@@ -235,11 +272,12 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-007',
+    difficulty: 'medium',
     name: 'Reflected Eight',
     size: 8,
     givens: grid([
-      [1, null, null, null, null, null, null, null],
-      [null, 1, 0, 1, 1, null, null, null],
+      [1, 0, 1, 1, 0, 1, 0, 0],
+      [0, 1, 0, 1, 1, null, null, null],
       [0, null, 1, 0, 1, null, 0, null],
       [1, null, 0, 1, null, null, 1, 0],
       [0, null, 0, 0, 1, null, null, 1],
@@ -256,11 +294,12 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-008',
+    difficulty: 'hard',
     name: 'Grand Grid',
     size: 10,
     givens: grid([
-      [null, null, 1, null, 1, null, 0, null, null, 1],
-      [null, null, 0, null, 1, null, null, 1, null, 0],
+      [0, 0, 1, 0, 1, 1, 0, 0, 1, 1],
+      [0, 1, 0, 1, 1, 0, null, 1, null, 0],
       [1, 0, null, null, 0, 0, null, null, 0, null],
       [0, null, null, null, null, 1, 1, null, null, 1],
       [1, null, null, 0, 1, null, null, 0, 1, null],
@@ -279,12 +318,13 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-009',
+    difficulty: 'hard',
     name: 'Full Balance',
     size: 10,
     givens: grid([
-      [1, null, 0, null, 0, null, null, null, 0, null],
-      [null, null, 1, 0, 0, 1, null, 0, 0, 1],
-      [null, null, 0, null, null, null, null, null, 1, null],
+      [1, 1, 0, 1, 0, 0, 1, 1, 0, 0],
+      [1, 0, 1, 0, 0, 1, 1, 0, 0, 1],
+      [0, null, 0, null, null, null, null, null, 1, null],
       [null, 0, 0, 1, null, null, 0, 1, 1, null],
       [0, null, 1, 1, null, 0, 1, null, null, null],
       [null, 1, null, 0, null, null, 1, null, null, 0],
@@ -302,11 +342,12 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-010',
+    difficulty: 'hard',
     name: 'Final Split',
     size: 10,
     givens: grid([
-      [1, null, 0, 0, null, null, null, null, null, null],
-      [null, 1, 1, 0, null, 1, 1, 0, null, null],
+      [1, 1, 0, 0, 1, 1, 0, 1, 0, 0],
+      [0, 1, 1, 0, 0, 1, 1, 0, 1, 0],
       [0, null, null, 1, 0, 0, null, 1, null, null],
       [null, null, null, 1, null, null, 0, null, 1, 0],
       [0, null, 0, null, null, 1, null, null, 1, null],
@@ -314,7 +355,7 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
       [1, 1, 0, null, null, null, null, 1, null, 0],
       [0, null, null, null, 1, null, null, null, 1, 0],
       [null, null, 1, 1, 0, null, 0, null, null, null],
-      [null, null, null, null, null, 0, null, 0, 0, null],
+      [1, null, null, null, null, 0, null, 0, 0, null],
     ]),
     constraints: [
       { row: 3, col: 6, direction: 'right', kind: 'different' },
@@ -325,19 +366,20 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-011',
+    difficulty: 'hard',
     name: 'Crossed Signals',
     size: 10,
     givens: grid([
-      [0, null, null, null, 0, null, null, null, null, null],
-      [1, null, null, 1, null, 0, null, 1, null, null],
+      [0, 0, 1, 1, 0, 0, 1, 0, 1, 1],
+      [1, 0, 0, 1, 1, 0, 0, 1, null, null],
       [null, null, 0, 0, 1, 1, null, null, null, 0],
       [null, 1, null, 0, 0, 1, null, 0, 0, 1],
       [null, 0, null, null, 0, 0, null, null, 0, null],
       [0, null, null, null, null, null, null, 1, 1, null],
       [null, null, 1, null, null, null, 0, null, null, 1],
-      [null, null, null, 1, null, 1, null, 0, 0, 1],
+      [1, null, null, 1, null, 1, null, 0, 0, 1],
       [null, null, null, 0, null, 0, null, 1, null, null],
-      [null, null, 1, null, 0, null, 0, null, null, 0],
+      [0, null, 1, null, 0, null, 0, null, null, 0],
     ]),
     constraints: [
       { row: 6, col: 3, direction: 'right', kind: 'different' },
@@ -349,17 +391,18 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-012',
+    difficulty: 'hard',
     name: 'Final Signal',
     size: 10,
     givens: grid([
-      [null, 0, null, null, null, null, null, 1, null, null],
-      [null, null, null, null, 1, 1, null, 0, 1, null],
-      [0, null, null, null, null, null, 1, null, 0, null],
+      [1, 0, 0, 1, 1, 0, 0, 1, 0, 1],
+      [1, 1, 0, 0, 1, 1, 0, 0, 1, 0],
+      [0, 1, null, null, null, null, 1, null, 0, null],
       [null, 0, 1, 1, 0, null, null, 1, null, null],
       [null, 1, null, 1, null, null, 0, 1, null, 0],
       [0, 0, null, null, null, null, 0, null, null, 1],
       [null, null, 0, null, null, 1, null, null, 0, null],
-      [null, null, 0, null, null, 0, null, null, 0, null],
+      [1, null, 0, null, null, 0, null, null, 0, null],
       [null, null, 1, null, null, 1, 0, 1, null, 0],
       [0, null, null, null, 0, null, null, 0, null, 1],
     ]),
@@ -373,11 +416,12 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
   },
   {
     id: 'binairo-013',
+    difficulty: 'medium',
     name: 'Across the Center',
     size: 6,
     givens: grid([
-      [null, null, 0, null, 1, null],
-      [null, null, 0, 1, null, null],
+      [0, 1, 0, 0, 1, 1],
+      [1, 0, 0, 1, 1, 0],
       [null, null, 1, null, 0, null],
       [0, 1, null, 0, null, null],
       [null, 1, 0, 1, null, null],
@@ -385,8 +429,40 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
     ]),
     twinCells: [{ row: 1, col: 1 }],
   },
+  {
+    id: 'binairo-014',
+    difficulty: 'medium',
+    name: 'Look Around',
+    size: 6,
+    // Count clues in isolation - no `=`/`x` badges, no twins - the same
+    // teach-one-thing shape `binairo-013` uses for twin cells, and tagged
+    // by real complexity rather than its position in the ramp.
+    //
+    // Deliberately down to five givens: with the board this bare the three
+    // clues are doing most of the deductive work, which is the point of an
+    // introduction puzzle. Every clue sits on an interior cell with 3-4
+    // still-blank neighbours, so none of them merely restates what the
+    // givens already show (see `countClueOpenNeighbours`).
+    givens: grid([
+      [0, null, null, null, null, 1],
+      [null, null, 1, null, 0, null],
+      [1, null, null, null, null, null],
+      [null, null, 0, null, 1, 1],
+      [null, null, null, null, null, null],
+      [1, null, 0, null, null, null],
+    ]),
+    countClues: [
+      { row: 1, col: 2, count: 2 },
+      { row: 1, col: 4, count: 4 },
+      { row: 3, col: 4, count: 2 },
+    ],
+  },
 ];
 
 export function getBinairoById(id: string): BinairoPuzzle | undefined {
   return BINAIRO.find(puzzle => puzzle.id === id);
+}
+
+export function getBinairoByDifficulty(difficulty: PuzzleDifficulty): ReadonlyArray<BinairoPuzzle> {
+  return BINAIRO.filter(puzzle => puzzle.difficulty === difficulty);
 }

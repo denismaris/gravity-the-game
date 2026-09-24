@@ -4,6 +4,7 @@
  * matching the row and column counts along the way. Zero dependency on
  * React / Skia - pure data and functions, tested on their own.
  */
+import { PuzzleDifficulty } from '../puzzleDifficulty';
 
 export interface TentsTreesCell {
   readonly row: number;
@@ -13,6 +14,10 @@ export interface TentsTreesCell {
 export interface TentsTreesPuzzle {
   readonly id: string;
   readonly name?: string;
+  /** See `PuzzleDifficulty`'s own comment. Assigned by grid size (this
+   * game's own complexity ramp): 5x5 easy, 6x6 and the first 7x7 medium,
+   * the second 7x7 and both 8x8s hard. */
+  readonly difficulty: PuzzleDifficulty;
   readonly rows: number;
   readonly cols: number;
   readonly trees: ReadonlyArray<TentsTreesCell>;

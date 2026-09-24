@@ -1,4 +1,5 @@
 import { visibleCount } from './logic';
+import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { TowersPuzzle } from './types';
 
 /** Which sides keep their real, derived clue - the rest ship as `0`
@@ -24,6 +25,7 @@ const ALL_SIDES: ClueSides = { top: true, bottom: true, left: true, right: true 
 function fromGrid(
   id: string,
   name: string,
+  difficulty: PuzzleDifficulty,
   grid: ReadonlyArray<ReadonlyArray<number>>,
   sides: ClueSides = ALL_SIDES,
 ): TowersPuzzle {
@@ -34,6 +36,7 @@ function fromGrid(
   return {
     id,
     name,
+    difficulty,
     size,
     topClues: sides.top ? grid[0].map((_v, c) => visibleCount(col(c))) : zeros,
     bottomClues: sides.bottom ? grid[0].map((_v, c) => visibleCount([...col(c)].reverse())) : zeros,
@@ -113,19 +116,33 @@ const GRID_5_J = [
   [1, 5, 4, 3, 2],
 ];
 
+// Difficulty follows this game's own real complexity signal (see
+// `PuzzleDifficulty`'s comment in `types.ts` and `ClueSides`'s own comment
+// above): the four fully-clued 4x4s are easy, the fully-clued 4x4 plus the
+// three fully-clued 5x5s are medium, and the two reduced-clue 5x5s (the
+// only puzzles that actually drop a side) are hard.
 export const TOWERS: ReadonlyArray<TowersPuzzle> = [
-  fromGrid('towers-001', 'Skyline', GRID_4_A),
-  fromGrid('towers-002', 'Downtown', GRID_4_B),
-  fromGrid('towers-003', 'North Face', GRID_4_C),
-  fromGrid('towers-004', 'Rear View', GRID_4_D),
-  fromGrid('towers-005', 'High Rise', GRID_4_E),
-  fromGrid('towers-006', 'Grid Five', GRID_5_F),
-  fromGrid('towers-007', 'Avenue Five', GRID_5_G),
-  fromGrid('towers-008', 'Blueprint', GRID_5_H),
-  fromGrid('towers-009', 'Corner Office', GRID_5_I, { top: true, bottom: false, left: true, right: false }),
-  fromGrid('towers-010', 'Penthouse', GRID_5_J, { top: true, bottom: false, left: true, right: false }),
+  fromGrid('towers-001', 'Skyline', 'easy', GRID_4_A),
+  fromGrid('towers-002', 'Downtown', 'easy', GRID_4_B),
+  fromGrid('towers-003', 'North Face', 'easy', GRID_4_C),
+  fromGrid('towers-004', 'Rear View', 'easy', GRID_4_D),
+  fromGrid('towers-005', 'High Rise', 'medium', GRID_4_E),
+  fromGrid('towers-006', 'Grid Five', 'medium', GRID_5_F),
+  fromGrid('towers-007', 'Avenue Five', 'medium', GRID_5_G),
+  fromGrid('towers-008', 'Blueprint', 'medium', GRID_5_H),
+  // Three sides rather than two. Difficulty here comes only from size and
+  // how many clue sides are dropped, and 001-008 already carry all four -
+  // so the two-sided pair was the whole hard end of the ramp on its own,
+  // and a long way from the puzzle before it. Keeping one side dropped
+  // leaves them the hardest boards in the set without the cliff.
+  fromGrid('towers-009', 'Corner Office', 'hard', GRID_5_I, { top: true, bottom: false, left: true, right: true }),
+  fromGrid('towers-010', 'Penthouse', 'hard', GRID_5_J, { top: true, bottom: false, left: true, right: true }),
 ];
 
 export function getTowersById(id: string): TowersPuzzle | undefined {
   return TOWERS.find(puzzle => puzzle.id === id);
+}
+
+export function getTowersByDifficulty(difficulty: PuzzleDifficulty): ReadonlyArray<TowersPuzzle> {
+  return TOWERS.filter(puzzle => puzzle.difficulty === difficulty);
 }

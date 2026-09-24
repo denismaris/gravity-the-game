@@ -5,6 +5,7 @@
  * identical. Zero dependency on React / Skia - pure data and functions,
  * tested on their own.
  */
+import { PuzzleDifficulty } from '../puzzleDifficulty';
 
 /** `null` = blank. Unlike Sudoku's `0`, both real values (`0` and `1`) are
  * legitimate board values here, so blank needs its own, third state. */
@@ -29,9 +30,36 @@ export interface BinairoConstraint {
   readonly kind: BinairoConstraintKind;
 }
 
+/**
+ * A numeric clue printed on a given cell: exactly `count` of that cell's
+ * orthogonal neighbours hold `1` (the circle) in the finished grid.
+ *
+ * The clue cell is an ordinary given and keeps its own `0`/`1` value - the
+ * digit is drawn *on top of* its symbol rather than replacing it. That is
+ * load-bearing, not cosmetic: every cell on this board has to hold a value
+ * for `isBalancedAndFull`, the duplicate-line keys and the solver's quota
+ * rule to mean anything, so a valueless "clue-only" cell would make its
+ * row and column permanently unsolvable. A board with genuine holes is a
+ * different puzzle, not an extra rule on this one.
+ */
+export interface BinairoCountClue {
+  readonly row: number;
+  readonly col: number;
+  /** Bounded by how many orthogonal neighbours the cell actually has - 2
+   * at a corner, 3 along an edge, 4 in the interior. */
+  readonly count: number;
+}
+
 export interface BinairoPuzzle {
   readonly id: string;
   readonly name?: string;
+  /** See `PuzzleDifficulty`'s own comment. Assigned by hand, not derived
+   * from `size` alone - unlike this game's other three sibling games, the
+   * size ramp here has one deliberate exception (the last, smallest
+   * puzzle introduces `twinCells` in isolation on a 6x6 board rather than
+   * continuing the size progression, so it's tagged by its actual
+   * complexity, not its position). */
+  readonly difficulty: PuzzleDifficulty;
   /** Board is `size` x `size`. Always even - a row/column can't split
    * evenly between 0s and 1s otherwise. */
   readonly size: number;
@@ -52,6 +80,13 @@ export interface BinairoPuzzle {
    * puzzle authored before this mechanic existed, same as `constraints`.
    */
   readonly twinCells?: ReadonlyArray<BinairoCell>;
+  /**
+   * Numbered neighbour-count clues (see `BinairoCountClue`). Every entry's
+   * cell must also be a given, since a clue cell carries a real value like
+   * any other. Absent (or empty) on every puzzle authored before this
+   * mechanic existed, same as `constraints` and `twinCells`.
+   */
+  readonly countClues?: ReadonlyArray<BinairoCountClue>;
 }
 
 export interface BinairoState {

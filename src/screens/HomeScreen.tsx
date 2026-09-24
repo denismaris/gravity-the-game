@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { getJourneyPoint, usePlayerProgress } from '../progression';
+import { getCompletedCount, getLevelPoint, TOTAL_PUZZLE_COUNT, usePlayerProgress } from '../progression';
 import { getLevelById, getStarThresholds } from '../game/levels';
 import { accentColorForKind, GameKind, getDailyEntry } from '../game/journey';
-import { PressableScale } from '../components';
+import { GameEmblem, GeometricRule, PressableScale } from '../components';
+import { useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
 
 /** A fade/rise that finishes at `endsAt` (a fraction of the shared `mount`
@@ -27,41 +28,64 @@ function riseIn(mount: Animated.Value, endsAt: number) {
 }
 
 export interface HomeScreenProps {
-  /** Open a journey puzzle (any of the three games). */
+  /** Open a puzzle from the current level batch (any game). */
   onOpen: (target: { kind: GameKind; puzzleId: string }) => void;
   /** Open the Settings screen. */
   onOpenSettings: () => void;
-  /** Open the all-puzzles level-select/browse screen. */
-  onOpenBrowse: () => void;
   /** Open the achievements screen. */
   onOpenAchievements: () => void;
 }
 
 /**
  * Home - the cover page of a puzzle almanac. A masthead, one dominant
- * Continue card for the next Journey entry (whichever game that is), a
- * Daily card, and a line of figures. A small Settings gear, a "Browse All
- * Puzzles" link, and the stats line itself (which opens Achievements) are
- * the only other ways out of the single Continue-driven flow.
+ * Continue card for the current level batch's next puzzle (whichever game
+ * that is), a Daily card, and a line of figures. A small Settings gear and
+ * the stats line itself (which opens Achievements) are the only other ways
+ * out of the single Continue-driven flow - there is no level-select/browse
+ * screen (see `src/progression/batches.ts`'s own comment for why: the
+ * randomized level-batch system replaces that need entirely).
  */
 export function HomeScreen({
   onOpen,
   onOpenSettings,
-  onOpenBrowse,
   onOpenAchievements,
 }: HomeScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
+  // A slow, endless swell behind the primary action. Deliberately the only
+  // looping animation in the app: one quiet sign of life reads as alive,
+  // several read as restless. Skipped outright under reduced motion -
+  // this is decoration with no state behind it, so unlike the app's other
+  // motion there is nothing lost by stopping it.
+  const pulse = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    if (reducedMotion) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulse, { toValue: 1, duration: 1800, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.delay(900),
+      ]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [pulse, reducedMotion]);
   const { progress, totalStars, markLevelOpened, dailyStreak, dailyCompletedToday } =
     usePlayerProgress();
 
-  const journey = useMemo(() => getJourneyPoint(progress), [progress]);
-  const entry = journey.entry;
+  const levelPoint = useMemo(() => getLevelPoint(progress), [progress]);
+  const entry = levelPoint.entry;
   const isGravity = entry.kind === 'gravity';
 
   const gravityLevel = isGravity ? getLevelById(entry.puzzleId) : undefined;
   const par = gravityLevel ? getStarThresholds(gravityLevel).three : 0;
-  const solved = journey.completedCount;
-  const pct = journey.total ? solved / journey.total : 0;
+  // The hero card's own progress bar tracks *this batch* (a handful of
+  // puzzles, so it actually fills up and resets at a satisfying pace) - the
+  // lifetime total across every game lives in the stats line below instead
+  // (`solved`/`TOTAL_PUZZLE_COUNT`), which is what the old Journey-wide
+  // fraction actually meant before batches existed.
+  const batchSolved = progress.currentBatch?.completedPuzzleIds.length ?? 0;
+  const pct = levelPoint.batchSize ? batchSolved / levelPoint.batchSize : 0;
+  const solved = getCompletedCount(progress);
 
   const openEntry = (): void => {
     if (gravityLevel) markLevelOpened(gravityLevel.id);
@@ -124,28 +148,28 @@ export function HomeScreen({
       >
         <Animated.View style={[styles.masthead, riseIn(mount, 0.45)]}>
           <Text style={styles.wordmark}>GRAVITY</Text>
-          <View style={styles.rule} />
+          <GeometricRule variant="masthead" style={styles.rule} />
           <Text style={styles.tagline}>AN ALMANAC OF PUZZLES</Text>
         </Animated.View>
 
         <Animated.View style={riseIn(mount, 0.7)}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel={`${journey.allDone ? 'Replay' : 'Continue'}: ${entry.name}, No. ${
-              journey.position
-            } of ${journey.total}`}
+            accessibilityLabel={`${levelPoint.allDone ? 'Replay' : 'Continue'}: ${entry.name}, Level ${
+              levelPoint.levelNumber
+            }, puzzle ${levelPoint.batchPosition} of ${levelPoint.batchSize}`}
             onPress={openEntry}
             scaleTo={0.985}
             style={({ pressed }) => [styles.card, styles.cardHero, pressed && styles.cardPressed]}
           >
             <Text style={[styles.eyebrow, { color: accentColorForKind(entry.kind) }]}>
-              JOURNEY · {entry.chapter.toUpperCase()}
+              LEVEL {levelPoint.levelNumber} · {entry.chapter.toUpperCase()}
             </Text>
             <Text style={styles.heroTitle} numberOfLines={2}>
               {entry.name}
             </Text>
             <Text style={styles.heroMeta}>
-              No. {journey.position} of {journey.total}
+              Puzzle {levelPoint.batchPosition} of {levelPoint.batchSize}
               {'      '}
               {isGravity ? `PAR ${par}` : entry.chapter.toUpperCase()}
             </Text>
@@ -165,10 +189,49 @@ export function HomeScreen({
               />
             </View>
 
+            {/* The games this level is actually made of. The card already
+                said "Puzzle 2 of 5" - a number that says how far along you
+                are but nothing about what is coming. These say what the
+                rest of the set is, and a finished one is filled while the
+                ones ahead sit faded: a preview, not a mystery. */}
+            {progress.currentBatch && (
+              <View style={styles.setRow}>
+                {progress.currentBatch.puzzles.map((entryRef, i) => {
+                  const completed = progress.currentBatch!.completedPuzzleIds;
+                  const done = completed.includes(entryRef.puzzleId);
+                  // The one you are about to play reads as live too, not
+                  // pending - otherwise a fresh set shows five faded marks
+                  // and nothing on this card looks current.
+                  const isCurrent = !done && completed.length === i;
+                  return (
+                    <View key={`${entryRef.puzzleId}-${i}`} style={done || isCurrent ? undefined : styles.setAhead}>
+                      <GameEmblem kind={entryRef.kind} size={26} />
+                    </View>
+                  );
+                })}
+              </View>
+            )}
+
             <View style={styles.heroFoot}>
-              <Text style={styles.verb}>{journey.allDone ? 'Replay' : 'Continue'}</Text>
-              <View style={styles.play}>
-                <View style={styles.playTri} />
+              <Text style={styles.verb}>{levelPoint.allDone ? 'Replay' : 'Continue'}</Text>
+              <View style={styles.playWrap}>
+                {/* A halo breathing out of the button - the one thing on a
+                    resting Home screen that moves, so the page reads as
+                    idling rather than frozen. Sits *behind* the button and
+                    never intercepts touches. */}
+                <Animated.View
+                  pointerEvents="none"
+                  style={[
+                    styles.playHalo,
+                    {
+                      opacity: pulse.interpolate({ inputRange: [0, 1], outputRange: [0.3, 0] }),
+                      transform: [{ scale: pulse.interpolate({ inputRange: [0, 1], outputRange: [1, 1.5] }) }],
+                    },
+                  ]}
+                />
+                <View style={styles.play}>
+                  <View style={styles.playTri} />
+                </View>
               </View>
             </View>
           </PressableScale>
@@ -200,29 +263,22 @@ export function HomeScreen({
           </PressableScale>
         </Animated.View>
 
-        <Animated.View style={riseIn(mount, 1)}>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={`Achievements: ${solved} of ${journey.total} solved, ${totalStars} stars`}
-            onPress={onOpenAchievements}
-            style={({ pressed }) => [pressed && styles.statsPressed]}
-          >
-            <Text style={styles.stats}>
-              {solved} of {journey.total} solved
-              {'      '}
-              <Text style={styles.statsStar}>★</Text> {totalStars}
-            </Text>
-          </PressableScale>
+        <Animated.View style={riseIn(mount, 0.9)}>
+          <GeometricRule variant="quiet" style={styles.footerRule} />
         </Animated.View>
 
         <Animated.View style={riseIn(mount, 1)}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Browse all puzzles"
-            onPress={onOpenBrowse}
-            style={({ pressed }) => [styles.browseLink, pressed && styles.browseLinkPressed]}
+            accessibilityLabel={`Achievements: ${solved} of ${TOTAL_PUZZLE_COUNT} solved, ${totalStars} stars`}
+            onPress={onOpenAchievements}
+            style={({ pressed }) => [pressed && styles.statsPressed]}
           >
-            <Text style={styles.browseLinkText}>Browse All Puzzles</Text>
+            <Text style={styles.stats}>
+              {solved} of {TOTAL_PUZZLE_COUNT} solved
+              {'      '}
+              <Text style={styles.statsStar}>★</Text> {totalStars}
+            </Text>
           </PressableScale>
         </Animated.View>
       </ScrollView>
@@ -265,11 +321,16 @@ const styles = StyleSheet.create({
     letterSpacing: theme.typography.tracking.wordmark,
     color: theme.colors.textPrimary,
   },
+  /** Measured rather than fixed: the mark inside places itself at
+   * fractions of the real width, so it keeps its rhythm on any screen. */
   rule: {
-    height: 1,
-    alignSelf: 'stretch',
-    backgroundColor: theme.colors.borderStrong,
-    marginVertical: theme.spacing.sm,
+    marginVertical: theme.spacing.xs,
+  },
+  /** Closes the page the way the masthead opens it - the quietest variant,
+   * since by here the eye has already had the full phrase up top. */
+  footerRule: {
+    marginTop: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
   },
   tagline: {
     fontFamily: theme.typography.families.mono,
@@ -284,7 +345,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: theme.spacing.lg,
-    shadowColor: '#2A251F',
+    shadowColor: '#3B1F52',
     shadowOpacity: 0.08,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
@@ -353,6 +414,26 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
   },
+  setRow: {
+    flexDirection: 'row',
+    gap: theme.spacing.xs,
+    marginTop: theme.spacing.md,
+  },
+  /** Games still to come, held back so the finished ones read as done. */
+  setAhead: {
+    opacity: 0.35,
+  },
+  playWrap: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  playHalo: {
+    position: 'absolute',
+    width: 52,
+    height: 52,
+    borderRadius: 26,
+    backgroundColor: theme.colors.secondary,
+  },
   play: {
     width: 52,
     height: 52,
@@ -410,21 +491,5 @@ const styles = StyleSheet.create({
   },
   statsStar: {
     color: theme.colors.accent,
-  },
-  browseLink: {
-    alignSelf: 'center',
-    marginTop: theme.spacing.sm,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.xs,
-  },
-  browseLinkPressed: {
-    opacity: 0.6,
-  },
-  browseLinkText: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.caption,
-    letterSpacing: 1,
-    color: theme.colors.secondary,
-    fontWeight: theme.typography.weights.semibold,
   },
 });

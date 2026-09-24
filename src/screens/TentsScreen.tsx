@@ -16,11 +16,11 @@ import {
   totalTentsNeeded,
   touchingTentCells,
 } from '../game/tents';
-import { MechanicsCarousel, PressableScale, PuzzleSolved, TentsBoard, renderTentsIllustration } from '../components';
-import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
+import { BatchProgressDots, GeometricRule, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, TentsBoard, renderTentsIllustration } from '../components';
+import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
 import { TENTS_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
-import { usePlayerProgress } from '../progression';
+import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme } from '../theme';
 
@@ -47,7 +47,7 @@ export interface TentsScreenProps {
   /** Return to the hub. */
   onExit: () => void;
   /** Advance to the next entry in the Journey (any of the games). */
-  onNextPuzzle: (kind: GameKind, puzzleId: string) => void;
+  onNextPuzzle: (kind: GameKind, puzzleId: string, options?: NextPuzzleOptions) => void;
 }
 
 const RESERVED = 300;
@@ -66,7 +66,7 @@ const TRACK_MS = 220;
 export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const { recordCompletion } = usePlayerProgress();
+  const { progress, recordCompletion } = usePlayerProgress();
   const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
 
   const [showTutorial, setShowTutorial] = useState(false);
@@ -83,12 +83,29 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
   // component unmounts on dismiss and remounts fresh on the next open).
   const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
-  const nextEntry = useMemo(() => getNextJourneyEntry(puzzle.id), [puzzle.id]);
+  const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState(() => emptyTentsTreesState(puzzle));
   const [hints, setHints] = useState(0);
   const [flash, setFlash] = useState<TentsTreesCell | null>(null);
   const [stars, setStars] = useState<1 | 2 | 3 | null>(null);
   const recorded = useRef(false);
+  const batchCompletedRef = useRef(false);
+  // The batch this solve might complete. Captured *before* `recordCompletion`
+  // runs, because completing a set immediately generates the next one and
+  // `progress.currentBatch` is the new set by the time the card renders -
+  // the finished one is otherwise gone.
+  const finishedSetRef = useRef<BatchState | null>(null);
+  // Finishing the last puzzle of a set shows the per-puzzle card first,
+  // then this - two separate moments rather than one card trying to be
+  // both. See `LevelSetComplete`'s own comment.
+  const [showSetComplete, setShowSetComplete] = useState(false);
+  // Mirrored into a ref rather than read straight off `progress` inside
+  // the solve effect: completing a set replaces `currentBatch`, so making
+  // the effect depend on it would mean depending on something the effect
+  // itself causes to change. Refreshed every render, so when the effect
+  // runs it still holds the batch from the render that triggered it.
+  const currentBatchRef = useRef(progress.currentBatch);
+  currentBatchRef.current = progress.currentBatch;
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     return () => {
@@ -115,7 +132,9 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
   useEffect(() => {
     if (solved && !recorded.current) {
       recorded.current = true;
+      finishedSetRef.current = currentBatchRef.current ?? null;
       const outcome = recordCompletion(puzzle.id, hints);
+      batchCompletedRef.current = outcome.batchCompleted;
       setStars(outcome.best.stars);
       triggerFeedback('tentsSolve');
     }
@@ -164,13 +183,14 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
 
   const restart = useCallback(() => {
     recorded.current = false;
+    batchCompletedRef.current = false;
     setStars(null);
     setHints(0);
     setState(emptyTentsTreesState(puzzle));
   }, [puzzle]);
 
   const goNext = useCallback(() => {
-    if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId);
+    if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: batchCompletedRef.current });
   }, [nextEntry, onNextPuzzle]);
 
   const boardSize = Math.max(
@@ -199,6 +219,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
               ]}
             />
           </View>
+          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
         </View>
         <PressableScale
           accessibilityRole="button"
@@ -213,6 +234,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
 
       <View style={styles.boardArea}>
         <View style={styles.stage}>
+          <GeometricRule variant="stage" style={styles.stageRule} />
           <TentsBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} />
         </View>
       </View>
@@ -238,12 +260,21 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
 
       {solved && stars && (
         <PuzzleSolved
+          kind="tents"
           stars={stars}
           hintsUsed={hints}
           onReplay={restart}
           onDone={onExit}
           hasNext={nextEntry !== null}
-          onNext={goNext}
+          onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
+        />
+      )}
+
+      {showSetComplete && finishedSetRef.current && (
+        <LevelSetComplete
+          levelNumber={finishedSetRef.current.levelNumber}
+          kinds={finishedSetRef.current.puzzles.map(p => p.kind)}
+          onContinue={goNext}
         />
       )}
 
@@ -349,19 +380,29 @@ const styles = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: theme.colors.tentsAccent,
   },
+  batchDots: {
+    marginTop: theme.spacing.sm,
+  },
+  // Anchored to the header, not centred in leftover space - see
+  // `BinairoScreen.tsx`'s own `styles.boardArea`.
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    marginTop: theme.spacing.lg,
   },
-  // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`.
+  // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`. No
+  // fill of its own now - just the page's background plus a snug
+  // top/bottom rule hugging the board, not a second boxed card behind it.
+  /** The signature rule standing in for the stage's old plain top
+   * hairline - same job, carrying the app's own mark. */
+  stageRule: {
+    marginBottom: theme.spacing.sm,
+  },
   stage: {
-    backgroundColor: theme.colors.surfaceAlt,
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
-    paddingVertical: theme.spacing.xxl,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderStrong,
   },
@@ -380,7 +421,7 @@ const styles = StyleSheet.create({
     borderLeftColor: theme.colors.border,
     borderRightColor: theme.colors.border,
     borderBottomColor: theme.colors.border,
-    shadowColor: '#2A251F',
+    shadowColor: '#3B1F52',
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 2, height: 3 },

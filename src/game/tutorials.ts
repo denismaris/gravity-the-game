@@ -38,8 +38,10 @@ export interface TutorialSlide {
  * actually meets them: the base toggle first, then the three base
  * validity rules, then the two constraint-badge kinds (both used from the
  * very first puzzle onward - see `BINAIRO[0].constraints`), then twin
- * cells last, since it's the one rule that asks a player to hold a
- * whole-board relationship in their head rather than a purely local one.
+ * cells, since it's the one rule that asks a player to hold a whole-board
+ * relationship in their head rather than a purely local one, and finally
+ * neighbour-count clues, the newest mechanic and the only one that talks
+ * about a cell's surroundings rather than a line or a pair.
  */
 export const BINAIRO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
@@ -76,6 +78,11 @@ export const BINAIRO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     title: 'Twin cells',
     body: "A small dot marks a cell as twinned with its mirror opposite, straight across the board's center. Twins always match.",
     illustration: 'twin',
+  },
+  {
+    title: 'Counting clues',
+    body: 'A number counts the circles directly above, below, left and right of it - exactly that many, no more.',
+    illustration: 'count',
   },
 ];
 

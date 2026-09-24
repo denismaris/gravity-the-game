@@ -1,17 +1,24 @@
-import { defaultSettings, withHapticsEnabled, withSoundEnabled, withTutorialSeen } from '../settings';
+import {
+  defaultSettings,
+  withCalmingInterstitialEnabled,
+  withHapticsEnabled,
+  withSoundEnabled,
+  withTutorialSeen,
+} from '../settings';
 
 describe('defaultSettings', () => {
-  test('starts with sound and haptics on, and no tutorials seen', () => {
+  test('starts with sound, haptics and the calming break all on, and no tutorials seen', () => {
     expect(defaultSettings()).toEqual({
       version: 1,
       soundEnabled: true,
       hapticsEnabled: true,
+      calmingInterstitialEnabled: true,
       seenTutorials: [],
     });
   });
 });
 
-describe('withSoundEnabled / withHapticsEnabled', () => {
+describe('withSoundEnabled / withHapticsEnabled / withCalmingInterstitialEnabled', () => {
   test('toggle independently', () => {
     let s = defaultSettings();
     s = withSoundEnabled(s, false);
@@ -21,12 +28,18 @@ describe('withSoundEnabled / withHapticsEnabled', () => {
     s = withHapticsEnabled(s, false);
     expect(s.soundEnabled).toBe(false);
     expect(s.hapticsEnabled).toBe(false);
+    expect(s.calmingInterstitialEnabled).toBe(true);
+
+    s = withCalmingInterstitialEnabled(s, false);
+    expect(s.calmingInterstitialEnabled).toBe(false);
+    expect(s.hapticsEnabled).toBe(false); // untouched by the previous call
   });
 
   test('setting the same value returns the identical object (no-op)', () => {
     const s = defaultSettings();
     expect(withSoundEnabled(s, true)).toBe(s);
     expect(withHapticsEnabled(s, true)).toBe(s);
+    expect(withCalmingInterstitialEnabled(s, true)).toBe(s);
   });
 });
 

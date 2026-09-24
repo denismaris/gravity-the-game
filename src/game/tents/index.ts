@@ -18,4 +18,4 @@ export {
   touchingTentCells,
 } from './logic';
 export { assertValidTentsAndTrees, revealHint, solveTentsAndTrees } from './solver';
-export { getTentsTreesById, TENTS_TREES } from './puzzles';
+export { getTentsTreesById, getTentsTreesByDifficulty, TENTS_TREES } from './puzzles';

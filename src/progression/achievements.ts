@@ -1,9 +1,28 @@
 import { BINAIRO } from '../game/binairo';
-import { JOURNEY } from '../game/journey';
+import { LEVELS } from '../game/levels';
 import { MIRROR_MAZES } from '../game/mirror';
 import { TENTS_TREES } from '../game/tents';
 import { TOWERS } from '../game/towers';
 import { WORLDS } from '../game/worlds';
+
+/** Every puzzle in every game, for the two achievements that used to read
+ * this off the old interleaved Journey (`JOURNEY.length` / `JOURNEY.every`)
+ * - which was always exactly "every puzzle in every pool" in some order,
+ * never a subset, so computing it directly from the five pools here is
+ * behaviourally identical, not an approximation. */
+const ALL_PUZZLE_IDS: ReadonlyArray<string> = [
+  ...LEVELS.map(level => level.id),
+  ...MIRROR_MAZES.map(puzzle => puzzle.id),
+  ...TENTS_TREES.map(puzzle => puzzle.id),
+  ...TOWERS.map(puzzle => puzzle.id),
+  ...BINAIRO.map(puzzle => puzzle.id),
+];
+
+/** Every puzzle in every game, total - `HomeScreen`'s own "X of Y solved"
+ * stats line uses this alongside `getCompletedCount` (system-wide, exactly
+ * like this count), the same pairing `journey:complete`/`stars:all` below
+ * use internally. */
+export const TOTAL_PUZZLE_COUNT = ALL_PUZZLE_IDS.length;
 import { getLevelStars, getTotalStars, isLevelCompleted, PlayerProgress } from './playerProgress';
 import { isWorldComplete } from './worldProgress';
 
@@ -42,7 +61,7 @@ function anyFlawless(progress: PlayerProgress, pool: ReadonlyArray<{ id: string 
   return pool.some(puzzle => getLevelStars(progress, puzzle.id) === 3);
 }
 
-const TOTAL_STARS_POSSIBLE = JOURNEY.length * 3;
+const TOTAL_STARS_POSSIBLE = ALL_PUZZLE_IDS.length * 3;
 
 /**
  * The fixed set of achievements. Order here is display order. Ids are
@@ -128,8 +147,8 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
   {
     id: 'journey:complete',
     title: 'Completionist',
-    description: `Solve every puzzle in the Journey - all ${JOURNEY.length}.`,
-    isEarned: progress => JOURNEY.every(entry => isLevelCompleted(progress, entry.puzzleId)),
+    description: `Solve every puzzle in every game - all ${ALL_PUZZLE_IDS.length}.`,
+    isEarned: progress => ALL_PUZZLE_IDS.every(puzzleId => isLevelCompleted(progress, puzzleId)),
   },
 ];
 

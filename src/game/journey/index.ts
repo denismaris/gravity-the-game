@@ -1,4 +1,7 @@
-export type { GameKind, JourneyEntry } from './playlist';
-export { buildJourney, getNextJourneyEntry, JOURNEY, journeyEntryOf, nextEntryOfKind, ROTATION } from './playlist';
+export type { GameKind, NextPuzzleOptions } from './gameKind';
+export { puzzleDisplayInfo, ROTATION } from './gameKind';
+export type { DailyEntry } from './daily';
 export { dailyKeyOf, getDailyEntry } from './daily';
-export { accentColorForKind } from './gameAccent';
+export { accentColorForKind, gameLabelForKind } from './gameAccent';
+export type { EncouragementTier } from './encouragement';
+export { encouragementsFor, encouragementTier, pickEncouragement } from './encouragement';

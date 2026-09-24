@@ -20,11 +20,11 @@ import {
   tripleRunCells,
   unbalancedLines,
 } from '../game/binairo';
-import { BinairoBoard, MechanicsCarousel, PressableScale, PuzzleSolved, renderBinairoIllustration } from '../components';
-import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
+import { BatchProgressDots, BinairoBoard, GeometricRule, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, renderBinairoIllustration } from '../components';
+import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
 import { BINAIRO_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
-import { usePlayerProgress } from '../progression';
+import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme } from '../theme';
 
@@ -35,7 +35,7 @@ export interface BinairoScreenProps {
   /** Return to the hub. */
   onExit: () => void;
   /** Advance to the next entry in the Journey (any of the games). */
-  onNextPuzzle: (kind: GameKind, puzzleId: string) => void;
+  onNextPuzzle: (kind: GameKind, puzzleId: string, options?: NextPuzzleOptions) => void;
 }
 
 const RESERVED = 300;
@@ -60,14 +60,18 @@ const POPUP_DELAY_MS = 650;
 
 /** A small lightbulb - bulb outline plus a stepped-down base, all simple
  * strokes rather than arcs needing sweep-flag verification, since it's
- * decorative and never animates. */
+ * decorative and never animates. Tinted this game's own identity colour
+ * (`binairoAccent`, echoing the board's own frame and the header's
+ * kicker/progress-track) rather than plain ink - the two primary actions
+ * on this screen carry the same accent the board itself now does, instead
+ * of the accent being confined to one thin line up in the header. */
 function HintIcon(): React.JSX.Element {
   return (
     <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Circle cx={7} cy={5.8} r={4.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
-      <Path path="M 5.4 9.4 L 8.6 9.4" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} />
-      <Path path="M 5.7 11.2 L 8.3 11.2" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} />
-      <Path path="M 6.3 12.6 L 7.7 12.6" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.1} />
+      <Circle cx={7} cy={5.8} r={4.3} color={theme.colors.binairoAccent} style="stroke" strokeWidth={1.4} />
+      <Path path="M 5.4 9.4 L 8.6 9.4" color={theme.colors.binairoAccent} style="stroke" strokeWidth={1.3} />
+      <Path path="M 5.7 11.2 L 8.3 11.2" color={theme.colors.binairoAccent} style="stroke" strokeWidth={1.3} />
+      <Path path="M 6.3 12.6 L 7.7 12.6" color={theme.colors.binairoAccent} style="stroke" strokeWidth={1.1} />
     </Canvas>
   );
 }
@@ -75,12 +79,13 @@ function HintIcon(): React.JSX.Element {
 /** A circular restart arrow: a 270-degree open ring plus a small
  * arrowhead tangent to its open end, continuing the arc's own rotation -
  * verified against a full SVG-arc reconstruction before trusting the
- * sweep flag. */
+ * sweep flag. Same identity-colour tint as `HintIcon` - see its own
+ * comment for why. */
 function RestartIcon(): React.JSX.Element {
   return (
     <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.6} />
-      <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={theme.colors.textPrimary} />
+      <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={theme.colors.binairoAccent} style="stroke" strokeWidth={1.6} />
+      <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={theme.colors.binairoAccent} />
     </Canvas>
   );
 }
@@ -110,7 +115,7 @@ function HelpIcon(): React.JSX.Element {
 export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const { recordCompletion } = usePlayerProgress();
+  const { progress, recordCompletion } = usePlayerProgress();
   const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
 
   // Bumped on every restart so the board's own intro wave (see
@@ -134,12 +139,29 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
   // unmounts on dismiss and remounts fresh on the next open).
   const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
-  const nextEntry = useMemo(() => getNextJourneyEntry(puzzle.id), [puzzle.id]);
+  const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState(() => emptyBinairoState(puzzle));
   const [hints, setHints] = useState(0);
   const [flash, setFlash] = useState<BinairoCell | null>(null);
   const [stars, setStars] = useState<1 | 2 | 3 | null>(null);
   const recorded = useRef(false);
+  const batchCompletedRef = useRef(false);
+  // The batch this solve might complete. Captured *before* `recordCompletion`
+  // runs, because completing a set immediately generates the next one and
+  // `progress.currentBatch` is the new set by the time the card renders -
+  // the finished one is otherwise gone.
+  const finishedSetRef = useRef<BatchState | null>(null);
+  // Finishing the last puzzle of a set shows the per-puzzle card first,
+  // then this - two separate moments rather than one card trying to be
+  // both. See `LevelSetComplete`'s own comment.
+  const [showSetComplete, setShowSetComplete] = useState(false);
+  // Mirrored into a ref rather than read straight off `progress` inside
+  // the solve effect: completing a set replaces `currentBatch`, so making
+  // the effect depend on it would mean depending on something the effect
+  // itself causes to change. Refreshed every render, so when the effect
+  // runs it still holds the batch from the render that triggered it.
+  const currentBatchRef = useRef(progress.currentBatch);
+  currentBatchRef.current = progress.currentBatch;
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const popupTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
@@ -170,7 +192,9 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
   useEffect(() => {
     if (solved && !recorded.current) {
       recorded.current = true;
+      finishedSetRef.current = currentBatchRef.current ?? null;
       const outcome = recordCompletion(puzzle.id, hints);
+      batchCompletedRef.current = outcome.batchCompleted;
       triggerFeedback('binairoSolve');
       // The popup waits for the board's own ripple celebration to finish
       // rather than cutting it off - see `POPUP_DELAY_MS`. Progress is
@@ -240,6 +264,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
       popupTimeoutRef.current = null;
     }
     recorded.current = false;
+    batchCompletedRef.current = false;
     setStars(null);
     setHints(0);
     setState(emptyBinairoState(puzzle));
@@ -247,7 +272,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
   }, [puzzle]);
 
   const goNext = useCallback(() => {
-    if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId);
+    if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: batchCompletedRef.current });
   }, [nextEntry, onNextPuzzle]);
 
   const boardSize = Math.max(
@@ -278,6 +303,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
               ]}
             />
           </View>
+          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
         </View>
         <PressableScale
           accessibilityRole="button"
@@ -292,6 +318,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
 
       <View style={styles.boardArea}>
         <View style={styles.stage}>
+          <GeometricRule variant="stage" style={styles.stageRule} />
           <BinairoBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} introKey={introKey} />
         </View>
 
@@ -336,12 +363,21 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
 
       {solved && stars && (
         <PuzzleSolved
+          kind="binairo"
           stars={stars}
           hintsUsed={hints}
           onReplay={restart}
           onDone={onExit}
           hasNext={nextEntry !== null}
-          onNext={goNext}
+          onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
+        />
+      )}
+
+      {showSetComplete && finishedSetRef.current && (
+        <LevelSetComplete
+          levelNumber={finishedSetRef.current.levelNumber}
+          kinds={finishedSetRef.current.puzzles.map(p => p.kind)}
+          onContinue={goNext}
         />
       )}
 
@@ -371,7 +407,10 @@ function AnimatedKicker({ left, solved }: { left: number; solved: boolean }): Re
   useEffect(() => {
     if (left < previous.current) {
       scale.setValue(0.85);
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
+      // `kick`, not `pop` - this fires on every correct placement, up to
+      // ~100 times on a 10x10 board, far too often for `pop`'s reward-tier
+      // bounce (see `theme/motion.ts`).
+      Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...motion.spring.kick }).start();
     }
     previous.current = left;
   }, [left, scale]);
@@ -454,30 +493,48 @@ const styles = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: theme.colors.binairoAccent,
   },
+  batchDots: {
+    marginTop: theme.spacing.sm,
+  },
+  // Anchored to the header, not centred in whatever space happens to be
+  // left over - `flex: 1` still lets this area claim all the room between
+  // the header and the footer controls (so a tap anywhere below the board
+  // still lands here), but `justifyContent: 'flex-start'` plus a fixed
+  // `marginTop` means the board sits at the same, deliberate distance from
+  // the title on every puzzle size. Centring in the leftover space used to
+  // put a small board (a 6x6, say) adrift in the middle of a mostly-empty
+  // screen, with no clear relationship to the header above it - any spare
+  // room now collects in one place, below the controls' natural position,
+  // which reads as "the page ended" rather than "why is this floating".
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    marginTop: theme.spacing.lg,
   },
-  // The board's own plinth: a shallow, gently-tinted well the tray rests
-  // in, rather than the board floating directly on the page background.
-  // Padding is deliberately asymmetric - tight horizontally (every point
-  // there is a point the board itself loses, see `STAGE_H_PADDING`) and
-  // generous vertically, since vertical is the axis this screen actually
-  // has spare room on (the board is width-capped on every phone this app
-  // targets, never height-capped). The lighter top edge/deeper bottom
-  // edge is the same "catching the light" cue `pill`'s own border already
-  // uses on this screen, applied to a recessed surface instead of a
-  // raised one - light grazes the near lip of a well from above, so its
-  // top rule reads brighter and its bottom rule darker, the opposite of a
-  // raised card's own shading.
+  // The board's own plinth: a snug groove the tray sits inside, not a
+  // second tinted card behind it - the tray (drawn by `BinairoBoardView`'s
+  // own `renderTray`) already carries its own fill, border and shadow, so
+  // a filled plinth here used to stack a second box around the first,
+  // reading as nested frames rather than one confident surface. No fill
+  // now, just the page's own background showing through; the lighter top
+  // edge/deeper bottom edge (light grazing the near lip of a shallow
+  // recess from above) is the one remaining cue that this is a considered
+  // well the board rests in, not arbitrary padding - and that groove has
+  // to actually hug the board to read as one surface, so its own vertical
+  // padding stays modest (not the generous `xxl` this used when it was
+  // filling otherwise-empty centred space). Horizontal padding stays
+  // tight regardless - every point there is a point the board itself
+  // loses, see `STAGE_H_PADDING`.
+  /** The signature rule standing in for the stage's old plain top
+   * hairline - same job, carrying the app's own mark. */
+  stageRule: {
+    marginBottom: theme.spacing.sm,
+  },
   stage: {
-    backgroundColor: theme.colors.surfaceAlt,
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
-    paddingVertical: theme.spacing.xxl,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderStrong,
   },
@@ -526,7 +583,7 @@ const styles = StyleSheet.create({
     borderBottomColor: theme.colors.border,
     // Offset down-right, matching the one light source every other
     // element in this screen now shades toward.
-    shadowColor: '#2A251F',
+    shadowColor: '#3B1F52',
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 2, height: 3 },

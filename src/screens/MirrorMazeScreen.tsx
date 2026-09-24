@@ -13,11 +13,11 @@ import {
   setMirror,
   traceBeam,
 } from '../game/mirror';
-import { MechanicsCarousel, MirrorMazeBoard, PressableScale, PuzzleSolved, renderMirrorMazeIllustration } from '../components';
-import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
+import { BatchProgressDots, GeometricRule, LevelSetComplete, MechanicsCarousel, MirrorMazeBoard, PressableScale, PuzzleSolved, renderMirrorMazeIllustration } from '../components';
+import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback, useAnimatedBeamReveal } from '../game/rendering';
 import { MIRROR_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
-import { usePlayerProgress } from '../progression';
+import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme } from '../theme';
 
@@ -28,7 +28,7 @@ export interface MirrorMazeScreenProps {
   /** Return to the hub. */
   onExit: () => void;
   /** Advance to the next entry in the Journey (any of the eight games). */
-  onNextPuzzle: (kind: GameKind, puzzleId: string) => void;
+  onNextPuzzle: (kind: GameKind, puzzleId: string, options?: NextPuzzleOptions) => void;
 }
 
 const RESERVED = 300;
@@ -46,6 +46,34 @@ function gemKey(cell: MirrorMazeCell): string {
 }
 
 const ICON_SIZE = 14;
+
+/** A small lightbulb - see `BinairoScreen.tsx`'s identical `HintIcon` for
+ * the full rationale. Tinted this game's own identity colour
+ * (`mirrorAccent`, echoing the board's own frame and the header's
+ * kicker/progress-track) rather than plain ink, so the accent has a
+ * second, more prominent home than one thin line up in the header. */
+function HintIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Circle cx={7} cy={5.8} r={4.3} color={theme.colors.mirrorAccent} style="stroke" strokeWidth={1.4} />
+      <Path path="M 5.4 9.4 L 8.6 9.4" color={theme.colors.mirrorAccent} style="stroke" strokeWidth={1.3} />
+      <Path path="M 5.7 11.2 L 8.3 11.2" color={theme.colors.mirrorAccent} style="stroke" strokeWidth={1.3} />
+      <Path path="M 6.3 12.6 L 7.7 12.6" color={theme.colors.mirrorAccent} style="stroke" strokeWidth={1.1} />
+    </Canvas>
+  );
+}
+
+/** A circular restart arrow - see `BinairoScreen.tsx`'s identical
+ * `RestartIcon` for the full rationale. Same identity-colour tint as
+ * `HintIcon` above. */
+function RestartIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={theme.colors.mirrorAccent} style="stroke" strokeWidth={1.6} />
+      <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={theme.colors.mirrorAccent} />
+    </Canvas>
+  );
+}
 
 /** A plain "?" glyph - see `BinairoScreen.tsx`'s identical `HelpIcon` for
  * the full rationale. Reopens the same `MechanicsCarousel` the first-run
@@ -69,7 +97,7 @@ function HelpIcon(): React.JSX.Element {
 export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const { recordCompletion } = usePlayerProgress();
+  const { progress, recordCompletion } = usePlayerProgress();
   const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
 
   const [showTutorial, setShowTutorial] = useState(false);
@@ -82,12 +110,29 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
   }, [markTutorialSeen]);
   const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
-  const nextEntry = useMemo(() => getNextJourneyEntry(puzzle.id), [puzzle.id]);
+  const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState(() => emptyMirrorMazeState(puzzle));
   const [hints, setHints] = useState(0);
   const [flash, setFlash] = useState<MirrorMazeCell | null>(null);
   const [stars, setStars] = useState<1 | 2 | 3 | null>(null);
   const recorded = useRef(false);
+  const batchCompletedRef = useRef(false);
+  // The batch this solve might complete. Captured *before* `recordCompletion`
+  // runs, because completing a set immediately generates the next one and
+  // `progress.currentBatch` is the new set by the time the card renders -
+  // the finished one is otherwise gone.
+  const finishedSetRef = useRef<BatchState | null>(null);
+  // Finishing the last puzzle of a set shows the per-puzzle card first,
+  // then this - two separate moments rather than one card trying to be
+  // both. See `LevelSetComplete`'s own comment.
+  const [showSetComplete, setShowSetComplete] = useState(false);
+  // Mirrored into a ref rather than read straight off `progress` inside
+  // the solve effect: completing a set replaces `currentBatch`, so making
+  // the effect depend on it would mean depending on something the effect
+  // itself causes to change. Refreshed every render, so when the effect
+  // runs it still holds the batch from the render that triggered it.
+  const currentBatchRef = useRef(progress.currentBatch);
+  currentBatchRef.current = progress.currentBatch;
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     return () => {
@@ -117,7 +162,9 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
   useEffect(() => {
     if (solved && !recorded.current) {
       recorded.current = true;
+      finishedSetRef.current = currentBatchRef.current ?? null;
       const outcome = recordCompletion(puzzle.id, hints);
+      batchCompletedRef.current = outcome.batchCompleted;
       setStars(outcome.best.stars);
       triggerFeedback('mirrorSolve');
     }
@@ -161,13 +208,14 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
 
   const restart = useCallback(() => {
     recorded.current = false;
+    batchCompletedRef.current = false;
     setStars(null);
     setHints(0);
     setState(emptyMirrorMazeState(puzzle));
   }, [puzzle]);
 
   const goNext = useCallback(() => {
-    if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId);
+    if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: batchCompletedRef.current });
   }, [nextEntry, onNextPuzzle]);
 
   const boardSize = Math.max(
@@ -198,6 +246,7 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
               />
             </View>
           )}
+          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
         </View>
         <PressableScale
           accessibilityRole="button"
@@ -212,6 +261,7 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
 
       <View style={styles.boardArea}>
         <View style={styles.stage}>
+          <GeometricRule variant="stage" style={styles.stageRule} />
           <MirrorMazeBoard
             puzzle={puzzle}
             state={state}
@@ -232,6 +282,7 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
           onPress={useHint}
           style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         >
+          <HintIcon />
           <Text style={styles.pillText}>Hint</Text>
         </PressableScale>
         <PressableScale
@@ -240,18 +291,28 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
           onPress={restart}
           style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         >
+          <RestartIcon />
           <Text style={styles.pillText}>Restart</Text>
         </PressableScale>
       </View>
 
       {solved && stars && (
         <PuzzleSolved
+          kind="mirror"
           stars={stars}
           hintsUsed={hints}
           onReplay={restart}
           onDone={onExit}
           hasNext={nextEntry !== null}
-          onNext={goNext}
+          onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
+        />
+      )}
+
+      {showSetComplete && finishedSetRef.current && (
+        <LevelSetComplete
+          levelNumber={finishedSetRef.current.levelNumber}
+          kinds={finishedSetRef.current.puzzles.map(p => p.kind)}
+          onContinue={goNext}
         />
       )}
 
@@ -363,23 +424,33 @@ const styles = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: theme.colors.mirrorAccent,
   },
+  batchDots: {
+    marginTop: theme.spacing.sm,
+  },
+  // Anchored to the header, not centred in leftover space - see
+  // `BinairoScreen.tsx`'s own `styles.boardArea` for the full rationale
+  // (a small board used to float adrift in a mostly-empty screen; any
+  // spare room now collects below the controls instead).
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    marginTop: theme.spacing.lg,
   },
   // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage` for
-  // the full rationale (tight horizontal padding since width caps the
-  // board on every phone, generous vertical since that's the axis with
-  // spare room; lighter top/darker bottom border reads as a shallow
-  // recessed well catching light from above).
+  // the full rationale: no fill of its own now (the board's own panel
+  // already carries its own fill/border/shadow, so a filled plinth here
+  // stacked a second box around the first), just the page's own
+  // background plus a snug top/bottom rule hugging the board closely.
+  /** The signature rule standing in for the stage's old plain top
+   * hairline - same job, carrying the app's own mark. */
+  stageRule: {
+    marginBottom: theme.spacing.sm,
+  },
   stage: {
-    backgroundColor: theme.colors.surfaceAlt,
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
-    paddingVertical: theme.spacing.xxl,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderStrong,
   },
@@ -389,6 +460,9 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl,
   },
   pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.radii.pill,
@@ -401,7 +475,7 @@ const styles = StyleSheet.create({
     borderLeftColor: theme.colors.border,
     borderRightColor: theme.colors.border,
     borderBottomColor: theme.colors.border,
-    shadowColor: '#2A251F',
+    shadowColor: '#3B1F52',
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 2, height: 3 },

@@ -1,7 +1,8 @@
 /* eslint-disable react-native/no-inline-styles -- cell geometry is derived from `size` at render time */
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, TextStyle, View } from 'react-native';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { computeConflicts, isColComplete, isRowComplete, TowersCell, TowersPuzzle, TowersState } from '../game/towers';
+import { shade } from '../game/rendering';
 import { motion, theme } from '../theme';
 
 export interface TowersBoardProps {
@@ -161,8 +162,12 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
             height: n * layout.cell,
             backgroundColor: theme.colors.surfaceHi,
             borderRadius: 10,
-            borderWidth: 2,
-            borderColor: theme.colors.borderStrong,
+            // The grid's own frame is the board's only declared elevation
+            // (a border, no shadow of its own) - tinted with `towersAccent`
+            // rather than a neutral `borderStrong` so the skyline hue reads
+            // on the board itself, echoing Binairo's tray frame stroke.
+            borderWidth: 1.5,
+            borderColor: 'rgba(126, 61, 150, 0.55)', // towersAccent at 55%
             overflow: 'hidden',
           }}
         >
@@ -185,14 +190,26 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
                       accessibilityRole="button"
                       accessibilityLabel={`Row ${r + 1}, column ${c + 1}${value ? `, ${value}` : ', blank'}`}
                       onPress={() => onSelectCell(r, c)}
-                      style={{
+                      // `pressed` is folded into the same background chain
+                      // rather than layered on as an overlay so a cell
+                      // answers the finger on touch-down, instead of only
+                      // once `selected` has made the round trip back from
+                      // the parent's state. `surfaceAlt` is the palette's
+                      // own declared pressed tone, and it's what a selected
+                      // cell settles on anyway - so the press reads as the
+                      // selection arriving early, not as a second colour.
+                      style={({ pressed }) => ({
                         width: layout.cell,
                         height: layout.cell,
                         alignItems: 'center',
-                        justifyContent: 'center',
+                        // Buildings stand on the cell floor rather than
+                        // floating in its middle, so a row of them reads as
+                        // one skyline sitting on a common ground line.
+                        justifyContent: 'flex-end',
+                        paddingBottom: layout.cell * 0.11,
                         backgroundColor: flash
                           ? theme.colors.accent
-                          : isSelected
+                          : pressed || isSelected
                           ? theme.colors.surfaceAlt
                           : hasConflict
                           ? 'rgba(140, 35, 24, 0.10)'
@@ -205,7 +222,7 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
                         borderBottomWidth: StyleSheet.hairlineWidth,
                         borderRightColor: theme.colors.border,
                         borderBottomColor: theme.colors.border,
-                      }}
+                      })}
                     >
                       <Animated.View
                         pointerEvents="none"
@@ -215,17 +232,27 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
                         pointerEvents="none"
                         style={[StyleSheet.absoluteFill, styles.linePulse, { opacity: getColPulse(c) }]}
                       />
+                      {/* The height as a numeral too, sitting just above
+                          its own roof. The skyline alone makes the clue
+                          logic visible, but it leaves the exact value to
+                          be counted floor by floor - which is fine for a
+                          2 and genuinely slow for a 5. The label is kept
+                          small and secondary so the towers still carry
+                          the board. */}
                       {value !== 0 && (
-                        <AnimatedHeight
-                          value={value}
+                        <Text
                           style={{
                             fontFamily: theme.typography.families.display,
-                            fontSize: layout.cell * 0.44,
+                            fontSize: layout.cell * 0.2,
                             fontWeight: theme.typography.weights.semibold,
-                            color: hasConflict ? theme.colors.danger : theme.colors.towersAccent,
+                            color: hasConflict ? theme.colors.danger : theme.colors.towersClueText,
+                            marginBottom: layout.cell * 0.04,
                           }}
-                        />
+                        >
+                          {value}
+                        </Text>
                       )}
+                      <Building value={value} max={n} cell={layout.cell} conflict={hasConflict} />
                     </Pressable>
                   </Animated.View>
                 );
@@ -248,38 +275,102 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
   );
 }
 
-/** A cell's height, popping in with a spring whenever `value` changes to a
- * new non-zero height - mirrors `SudokuBoard`'s `AnimatedDigit` exactly
- * (every entry here is a player entry, so this always pops, never on
- * mount-with-a-given the way Sudoku's given digits don't). Also carries a
- * static height-cast shadow (no entrance animation of its own - an
- * animated shadow would read as a second object): a taller building casts
- * a longer, darker shadow, `translateY = height×1.1`, `opacity =
- * 0.12 + height×0.025`, riding along with the same scale transform so it
- * pops in with the digit rather than trailing behind it. */
-function AnimatedHeight({ value, style }: { value: number; style: TextStyle }): React.JSX.Element | null {
-  const scale = useRef(new Animated.Value(1)).current;
+/**
+ * One building, drawn as `value` stacked floors rather than the digit
+ * `value`.
+ *
+ * This is the point of Skyscrapers: every clue asks how many buildings are
+ * visible looking down a line, which is a question about *heights blocking
+ * each other*. A grid of numerals makes the player translate each digit
+ * into a height before they can answer that; a literal skyline lets them
+ * read it directly, and the floors stay countable one by one when two
+ * buildings are close in size.
+ *
+ * Floor height is derived from the grid's own maximum so the tallest
+ * building always fills about 78% of its cell, in a 4x4 and a 5x5 alike -
+ * a fixed per-floor size instead leaves a 5x5's towers either overflowing
+ * the cell or its 4x4's looking stunted.
+ *
+ * Placing one springs it up from the ground: `scaleY` from 0 with a
+ * matching `translateY` of `height*(1-s)/2`, which pins the base while it
+ * grows (React Native has no transform-origin, and both of these stay on
+ * the native driver, unlike animating `height`).
+ */
+function Building({
+  value,
+  max,
+  cell,
+  conflict,
+}: {
+  value: number;
+  /** Tallest building the grid allows - i.e. the puzzle's own size. */
+  max: number;
+  cell: number;
+  conflict: boolean;
+}): React.JSX.Element | null {
+  const grow = useRef(new Animated.Value(1)).current;
   const previous = useRef(value);
 
   useEffect(() => {
     if (previous.current !== value && value !== 0) {
-      scale.setValue(0.5);
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
+      grow.setValue(0);
+      Animated.spring(grow, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
     }
     previous.current = value;
-  }, [value, scale]);
+  }, [value, grow]);
 
   if (value === 0) return null;
 
-  const shadowStyle: TextStyle = {
-    // Ink base matches `theme.colors.towersShadow`; the alpha is recomputed
-    // per-height rather than using that token's own fixed 0.18 directly.
-    textShadowColor: `rgba(42, 37, 31, ${0.12 + value * 0.025})`,
-    textShadowOffset: { width: 0, height: value * 1.1 },
-    textShadowRadius: 0,
-  };
+  // A wide gap between floors is what makes them countable at a glance.
+  // At ~1px they visually merged into one bar and the height had to be
+  // judged rather than counted, which is the whole job here.
+  const floorGap = cell * 0.05;
+  const floorHeight = (cell * 0.6 - floorGap * (max - 1)) / max;
+  const width = cell * 0.44;
+  const height = value * floorHeight + (value - 1) * floorGap;
 
-  return <Animated.Text style={[style, shadowStyle, { transform: [{ scale }] }]}>{value}</Animated.Text>;
+  const base = conflict ? theme.colors.danger : theme.colors.towersAccent;
+
+  return (
+    <Animated.View
+      style={{
+        width,
+        height,
+        transform: [{ scaleY: grow }, { translateY: grow.interpolate({ inputRange: [0, 1], outputRange: [height / 2, 0] }) }],
+      }}
+    >
+      {/* The sunlit side, offset down-right behind the floors so it shows
+          through the gaps between them - depth from geometry rather than a
+          blurred shadow, matching how this app's other boards do it. */}
+      <View
+        style={{
+          position: 'absolute',
+          left: Math.max(2, cell * 0.035),
+          top: Math.max(2, cell * 0.035),
+          width,
+          height,
+          borderRadius: 3,
+          backgroundColor: shade(base, 0.62),
+        }}
+      />
+      {Array.from({ length: value }, (_unused, floor) => (
+        <View
+          key={`floor-${floor}`}
+          style={{
+            position: 'absolute',
+            left: 0,
+            bottom: floor * (floorHeight + floorGap),
+            width,
+            height: floorHeight,
+            borderRadius: 2,
+            // The top floor is the roof catching the light, which gives the
+            // stack a clear top edge to count down from.
+            backgroundColor: floor === value - 1 ? shade(base, 1.38) : base,
+          }}
+        />
+      ))}
+    </Animated.View>
+  );
 }
 
 const styles = StyleSheet.create({

@@ -11,6 +11,10 @@ export interface Settings {
   readonly version: 1;
   readonly soundEnabled: boolean;
   readonly hapticsEnabled: boolean;
+  /** Whether the calming swipe-maze interstitial shows between level
+   * batches (see `src/interstitial/`). Defaults to `true` - shown by
+   * default, matching the spec's own "default to shown" instruction. */
+  readonly calmingInterstitialEnabled: boolean;
   /** Ids of one-time tutorial overlays already shown - see
    * `src/game/tutorials.ts` for the fixed set of ids. Only ever grows. */
   readonly seenTutorials: ReadonlyArray<string>;
@@ -19,7 +23,13 @@ export interface Settings {
 export const SETTINGS_VERSION = 1 as const;
 
 export function defaultSettings(): Settings {
-  return { version: SETTINGS_VERSION, soundEnabled: true, hapticsEnabled: true, seenTutorials: [] };
+  return {
+    version: SETTINGS_VERSION,
+    soundEnabled: true,
+    hapticsEnabled: true,
+    calmingInterstitialEnabled: true,
+    seenTutorials: [],
+  };
 }
 
 export function withSoundEnabled(settings: Settings, enabled: boolean): Settings {
@@ -30,6 +40,11 @@ export function withSoundEnabled(settings: Settings, enabled: boolean): Settings
 export function withHapticsEnabled(settings: Settings, enabled: boolean): Settings {
   if (settings.hapticsEnabled === enabled) return settings;
   return { ...settings, hapticsEnabled: enabled };
+}
+
+export function withCalmingInterstitialEnabled(settings: Settings, enabled: boolean): Settings {
+  if (settings.calmingInterstitialEnabled === enabled) return settings;
+  return { ...settings, calmingInterstitialEnabled: enabled };
 }
 
 /** Marks `tutorialId` as shown. Idempotent - showing the same one twice

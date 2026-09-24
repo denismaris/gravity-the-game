@@ -11,4 +11,4 @@ export {
   visibleCount,
 } from './logic';
 export { assertValidTowers, revealHint, solveTowers } from './solver';
-export { getTowersById, TOWERS } from './puzzles';
+export { getTowersById, getTowersByDifficulty, TOWERS } from './puzzles';

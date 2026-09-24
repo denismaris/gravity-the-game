@@ -34,6 +34,7 @@ import { TentsTreesPuzzle, TentsTreesState } from '../types';
  */
 const SIMPLE: TentsTreesPuzzle = {
   id: 'test-simple',
+  difficulty: 'easy',
   rows: 4,
   cols: 4,
   trees: [
@@ -58,6 +59,7 @@ const SIMPLE_SOLUTION_TENTS = [
  */
 const IMPOSSIBLE: TentsTreesPuzzle = {
   id: 'test-impossible',
+  difficulty: 'easy',
   rows: 3,
   cols: 3,
   trees: [{ row: 1, col: 1 }],
@@ -74,6 +76,7 @@ const IMPOSSIBLE: TentsTreesPuzzle = {
  */
 const DENSE: TentsTreesPuzzle = {
   id: 'test-dense',
+  difficulty: 'easy',
   rows: 6,
   cols: 6,
   trees: [
@@ -101,6 +104,7 @@ const DENSE: TentsTreesPuzzle = {
  */
 const AMBIGUOUS: TentsTreesPuzzle = {
   id: 'test-ambiguous',
+  difficulty: 'easy',
   rows: 4,
   cols: 4,
   trees: [

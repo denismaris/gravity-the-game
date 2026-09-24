@@ -14,11 +14,11 @@ import {
   TowersCell,
   TowersPuzzle,
 } from '../game/towers';
-import { MechanicsCarousel, NumberKeypad, PressableScale, PuzzleSolved, renderTowersIllustration, TowersBoard } from '../components';
-import { accentColorForKind, GameKind, getNextJourneyEntry } from '../game/journey';
+import { BatchProgressDots, GeometricRule, LevelSetComplete, MechanicsCarousel, NumberKeypad, PressableScale, PuzzleSolved, TowersBoard, renderTowersIllustration } from '../components';
+import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
 import { TOWERS_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
-import { usePlayerProgress } from '../progression';
+import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme } from '../theme';
 
@@ -38,12 +38,40 @@ function HelpIcon(): React.JSX.Element {
   );
 }
 
+/** A small lightbulb - see `BinairoScreen.tsx`'s identical `HintIcon` for
+ * the full rationale. Tinted this game's own identity accent
+ * (`towersAccent`, echoing the board's own frame and the header's
+ * kicker/progress-track) rather than plain ink, so the two primary
+ * actions on this screen carry the same accent the board itself does. */
+function HintIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Circle cx={7} cy={5.8} r={4.3} color={theme.colors.towersAccent} style="stroke" strokeWidth={1.4} />
+      <Path path="M 5.4 9.4 L 8.6 9.4" color={theme.colors.towersAccent} style="stroke" strokeWidth={1.3} />
+      <Path path="M 5.7 11.2 L 8.3 11.2" color={theme.colors.towersAccent} style="stroke" strokeWidth={1.3} />
+      <Path path="M 6.3 12.6 L 7.7 12.6" color={theme.colors.towersAccent} style="stroke" strokeWidth={1.1} />
+    </Canvas>
+  );
+}
+
+/** A restart-arrow glyph, same `towersAccent` treatment as `HintIcon` above
+ * - see `BinairoScreen.tsx`'s identical `RestartIcon` for the sweep-flag
+ * rationale. */
+function RestartIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={theme.colors.towersAccent} style="stroke" strokeWidth={1.6} />
+      <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={theme.colors.towersAccent} />
+    </Canvas>
+  );
+}
+
 export interface TowersScreenProps {
   puzzle: TowersPuzzle;
   /** Return to the hub. */
   onExit: () => void;
   /** Advance to the next entry in the Journey (any of the games). */
-  onNextPuzzle: (kind: GameKind, puzzleId: string) => void;
+  onNextPuzzle: (kind: GameKind, puzzleId: string, options?: NextPuzzleOptions) => void;
 }
 
 const RESERVED = 360;
@@ -62,7 +90,7 @@ const TRACK_MS = 220;
 export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const { recordCompletion } = usePlayerProgress();
+  const { progress, recordCompletion } = usePlayerProgress();
   const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
 
   const digits = useMemo(() => Array.from({ length: puzzle.size }, (_v, i) => i + 1), [puzzle.size]);
@@ -77,13 +105,30 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
   }, [markTutorialSeen]);
   const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
-  const nextEntry = useMemo(() => getNextJourneyEntry(puzzle.id), [puzzle.id]);
+  const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState(() => emptyTowersState(puzzle));
   const [selected, setSelected] = useState<TowersCell | null>(null);
   const [hints, setHints] = useState(0);
   const [flash, setFlash] = useState<TowersCell | null>(null);
   const [stars, setStars] = useState<1 | 2 | 3 | null>(null);
   const recorded = useRef(false);
+  const batchCompletedRef = useRef(false);
+  // The batch this solve might complete. Captured *before* `recordCompletion`
+  // runs, because completing a set immediately generates the next one and
+  // `progress.currentBatch` is the new set by the time the card renders -
+  // the finished one is otherwise gone.
+  const finishedSetRef = useRef<BatchState | null>(null);
+  // Finishing the last puzzle of a set shows the per-puzzle card first,
+  // then this - two separate moments rather than one card trying to be
+  // both. See `LevelSetComplete`'s own comment.
+  const [showSetComplete, setShowSetComplete] = useState(false);
+  // Mirrored into a ref rather than read straight off `progress` inside
+  // the solve effect: completing a set replaces `currentBatch`, so making
+  // the effect depend on it would mean depending on something the effect
+  // itself causes to change. Refreshed every render, so when the effect
+  // runs it still holds the batch from the render that triggered it.
+  const currentBatchRef = useRef(progress.currentBatch);
+  currentBatchRef.current = progress.currentBatch;
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => {
     return () => {
@@ -115,7 +160,9 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
   useEffect(() => {
     if (solved && !recorded.current) {
       recorded.current = true;
+      finishedSetRef.current = currentBatchRef.current ?? null;
       const outcome = recordCompletion(puzzle.id, hints);
+      batchCompletedRef.current = outcome.batchCompleted;
       setStars(outcome.best.stars);
       triggerFeedback('towersSolve');
     }
@@ -179,6 +226,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
 
   const restart = useCallback(() => {
     recorded.current = false;
+    batchCompletedRef.current = false;
     setStars(null);
     setHints(0);
     setSelected(null);
@@ -186,7 +234,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
   }, [puzzle]);
 
   const goNext = useCallback(() => {
-    if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId);
+    if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: batchCompletedRef.current });
   }, [nextEntry, onNextPuzzle]);
 
   const boardSize = Math.max(
@@ -215,6 +263,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
               ]}
             />
           </View>
+          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
         </View>
         <PressableScale
           accessibilityRole="button"
@@ -229,6 +278,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
 
       <View style={styles.boardArea}>
         <View style={styles.stage}>
+          <GeometricRule variant="stage" style={styles.stageRule} />
           <TowersBoard
             puzzle={puzzle}
             state={state}
@@ -257,6 +307,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
           onPress={useHint}
           style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         >
+          <HintIcon />
           <Text style={styles.pillText}>Hint</Text>
         </PressableScale>
         <PressableScale
@@ -265,18 +316,28 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
           onPress={restart}
           style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
         >
+          <RestartIcon />
           <Text style={styles.pillText}>Restart</Text>
         </PressableScale>
       </View>
 
       {solved && stars && (
         <PuzzleSolved
+          kind="towers"
           stars={stars}
           hintsUsed={hints}
           onReplay={restart}
           onDone={onExit}
           hasNext={nextEntry !== null}
-          onNext={goNext}
+          onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
+        />
+      )}
+
+      {showSetComplete && finishedSetRef.current && (
+        <LevelSetComplete
+          levelNumber={finishedSetRef.current.levelNumber}
+          kinds={finishedSetRef.current.puzzles.map(p => p.kind)}
+          onContinue={goNext}
         />
       )}
 
@@ -382,19 +443,29 @@ const styles = StyleSheet.create({
     borderRadius: 1.5,
     backgroundColor: theme.colors.towersAccent,
   },
+  batchDots: {
+    marginTop: theme.spacing.sm,
+  },
+  // Anchored to the header, not centred in leftover space - see
+  // `BinairoScreen.tsx`'s own `styles.boardArea`.
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
+    marginTop: theme.spacing.lg,
   },
-  // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`.
+  // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`. No
+  // fill of its own now - just the page's background plus a snug
+  // top/bottom rule hugging the board, not a second boxed card behind it.
+  /** The signature rule standing in for the stage's old plain top
+   * hairline - same job, carrying the app's own mark. */
+  stageRule: {
+    marginBottom: theme.spacing.sm,
+  },
   stage: {
-    backgroundColor: theme.colors.surfaceAlt,
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
-    paddingVertical: theme.spacing.xxl,
-    borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    paddingVertical: theme.spacing.md,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderStrong,
   },
@@ -407,6 +478,9 @@ const styles = StyleSheet.create({
     paddingBottom: theme.spacing.xl,
   },
   pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.radii.pill,
@@ -416,7 +490,7 @@ const styles = StyleSheet.create({
     borderLeftColor: theme.colors.border,
     borderRightColor: theme.colors.border,
     borderBottomColor: theme.colors.border,
-    shadowColor: '#2A251F',
+    shadowColor: '#3B1F52',
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 2, height: 3 },

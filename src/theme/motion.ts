@@ -15,9 +15,21 @@ export const motion = {
     /** A button dipping under a press and springing back - stiff and quick,
      * controlled rather than playful. Used by `PressableScale`. */
     press: { stiffness: 500, damping: 30, mass: 1 },
-    /** A small glyph (a star) popping into place - the one spot a little
-     * overshoot is welcome, since it is a reward rather than UI chrome. */
+    /** A routine, high-frequency state tick - a "N left" kicker
+     * decrementing on every correct placement, dozens of times a puzzle.
+     * Quick and controlled, no real overshoot (damping ratio ~0.9): this
+     * fires far too often to earn `pop`'s reward-tier bounce. */
+    kick: { stiffness: 500, damping: 40, mass: 1 },
+    /** A small glyph (a star, a one-time "SOLVED" badge) popping into
+     * place - the one spot a little overshoot is welcome, since it is a
+     * reward rather than UI chrome. Reserved for genuinely rare, once-per-
+     * puzzle moments - see `kick` above for anything that repeats. */
     pop: { stiffness: 420, damping: 15, mass: 0.9 },
+    /** A card arriving with weight and *no* overshoot - slightly
+     * overdamped (critical damping at this stiffness is ~32). For a
+     * moment that isn't a reward: a loss shouldn't bounce into view the
+     * way a three-star finish does. Same plumbing, different physics. */
+    settle: { stiffness: 260, damping: 34, mass: 1 },
   },
   /** A card/overlay reacting to a moment (solved, failed, a tutorial) -
    * fade + scale up from `scaleFrom`. The same curve everywhere so those

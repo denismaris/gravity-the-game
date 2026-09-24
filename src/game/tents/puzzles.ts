@@ -1,3 +1,4 @@
+import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { TentsTreesCell, TentsTreesPuzzle } from './types';
 
 /**
@@ -13,6 +14,7 @@ import { TentsTreesCell, TentsTreesPuzzle } from './types';
 function fromGrids(
   id: string,
   name: string,
+  difficulty: PuzzleDifficulty,
   treeRows: ReadonlyArray<string>,
   tentRows: ReadonlyArray<string>,
 ): TentsTreesPuzzle {
@@ -53,67 +55,81 @@ function fromGrids(
     rowCounts.push(count);
   });
 
-  return { id, name, rows, cols, trees, rowCounts, colCounts };
+  return { id, name, difficulty, rows, cols, trees, rowCounts, colCounts };
 }
 
+// Difficulty follows this game's own real complexity signal, grid size (see
+// `PuzzleDifficulty`'s comment in `types.ts`): the three 5x5s are easy, the
+// three 6x6s plus the first 7x7 are medium, the second 7x7 plus both 8x8s
+// are hard - matching the size ramp already baked into this array's order.
 export const TENTS_TREES: ReadonlyArray<TentsTreesPuzzle> = [
   fromGrids(
     'tents-001',
     'First Grove',
+    'easy',
     ['.T...', '.....', '..T..', '.....', 'T....'],
     ['.....', '.t...', '.....', 't.t..', '.....'],
   ),
   fromGrids(
     'tents-002',
     'Twin Rows',
+    'easy',
     ['.....', '.T.T.', '.....', '.T.T.', '.....'],
     ['.t.t.', '.....', '.....', '.....', '.t.t.'],
   ),
   fromGrids(
     'tents-003',
     'Scattered Grove',
+    'easy',
     ['..T..', '.....', 'T...T', '.....', '..T..'],
     ['.....', 't.t..', '.....', '....t', '.t...'],
   ),
   fromGrids(
     'tents-004',
     'Four Corners',
+    'medium',
     ['T....T', '......', '..T...', '......', '......', 'T....T'],
     ['......', 't....t', '......', '..t...', 't....t', '......'],
   ),
   fromGrids(
     'tents-005',
     'Inner Ring',
+    'medium',
     ['......', '.T..T.', '......', '......', '.T..T.', '......'],
     ['.t..t.', '......', '......', '......', '......', '.t..t.'],
   ),
   fromGrids(
     'tents-006',
     'Twin Columns',
+    'medium',
     ['......', 'T.T.T.', '......', '......', '.T.T.T', '......'],
     ['t.t.t.', '......', '......', '......', '......', '.t.t.t'],
   ),
   fromGrids(
     'tents-007',
     'Wide Grove',
+    'medium',
     ['T.....T', '.......', '.......', '...T...', '.......', '.......', 'T.....T'],
     ['.......', 't.....t', '...t...', '.......', '.......', 't.....t', '.......'],
   ),
   fromGrids(
     'tents-008',
     'Checkered Grove',
+    'hard',
     ['.......', '.T...T.', '.......', '...T...', '.......', '.T...T.', '.......'],
     ['.t...t.', '.......', '...t...', '.......', '.......', '.......', '.t...t.'],
   ),
   fromGrids(
     'tents-009',
     'Deep Woods',
+    'hard',
     ['T......T', '........', '........', '...T....', '....T...', '........', '........', 'T......T'],
     ['........', 't......t', '...t....', '........', '........', '....t...', 't......t', '........'],
   ),
   fromGrids(
     'tents-010',
     'Old Forest',
+    'hard',
     ['T......T', '........', '..T..T..', '........', '........', '..T..T..', '........', 'T......T'],
     ['........', 't......t', '........', '..t..t..', '........', '........', 't.t..t.t', '........'],
   ),
@@ -121,4 +137,8 @@ export const TENTS_TREES: ReadonlyArray<TentsTreesPuzzle> = [
 
 export function getTentsTreesById(id: string): TentsTreesPuzzle | undefined {
   return TENTS_TREES.find(puzzle => puzzle.id === id);
+}
+
+export function getTentsTreesByDifficulty(difficulty: PuzzleDifficulty): ReadonlyArray<TentsTreesPuzzle> {
+  return TENTS_TREES.filter(puzzle => puzzle.difficulty === difficulty);
 }

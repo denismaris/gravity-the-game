@@ -1,4 +1,4 @@
-import { BinairoConstraint, BinairoPuzzle, BinairoState, BinairoValue } from './types';
+import { BinairoConstraint, BinairoCountClue, BinairoPuzzle, BinairoState, BinairoValue } from './types';
 
 export function isGiven(puzzle: BinairoPuzzle, row: number, col: number): boolean {
   return puzzle.givens[row][col] !== null;
@@ -313,6 +313,89 @@ export function violatedTwins(puzzle: BinairoPuzzle, state: BinairoState): Reado
   return violated;
 }
 
+/** The orthogonal neighbours of `cell` that actually exist on a
+ * `size`x`size` board - 2 at a corner, 3 along an edge, 4 in the interior.
+ * The only place the "orthogonal" part of a count clue is defined. */
+export function countClueNeighbours(size: number, cell: { row: number; col: number }): Array<{ row: number; col: number }> {
+  const neighbours: Array<{ row: number; col: number }> = [];
+  if (cell.row > 0) neighbours.push({ row: cell.row - 1, col: cell.col });
+  if (cell.row < size - 1) neighbours.push({ row: cell.row + 1, col: cell.col });
+  if (cell.col > 0) neighbours.push({ row: cell.row, col: cell.col - 1 });
+  if (cell.col < size - 1) neighbours.push({ row: cell.row, col: cell.col + 1 });
+  return neighbours;
+}
+
+/** How many of a clue's neighbours are already `1`, and how many are still
+ * undecided. Takes a raw value grid rather than a `BinairoState` so the
+ * solver's own working grid can share it. */
+export function countClueTally(
+  size: number,
+  values: ReadonlyArray<ReadonlyArray<BinairoValue>>,
+  cell: { row: number; col: number },
+): { ones: number; blanks: number } {
+  let ones = 0;
+  let blanks = 0;
+  for (const neighbour of countClueNeighbours(size, cell)) {
+    const value = values[neighbour.row][neighbour.col];
+    if (value === 1) ones += 1;
+    else if (value === null) blanks += 1;
+  }
+  return { ones, blanks };
+}
+
+/** Canonical string key for one count clue - stable across renders, usable
+ * as a Map/Set key or a React `key`. */
+export function countClueKey(cell: { row: number; col: number }): string {
+  return `count:${cell.row}:${cell.col}`;
+}
+
+/**
+ * Unlike a constraint or a twin - neither of which can be judged until
+ * *both* its cells are filled - a count clue can be proven impossible
+ * early, and this says so the moment it is: either too many neighbours are
+ * already circles, or too few neighbours remain for the count to still be
+ * reached. Anything short of that is merely unfinished, never flagged.
+ */
+export function isCountClueViolated(puzzle: BinairoPuzzle, state: BinairoState, clue: BinairoCountClue): boolean {
+  const { ones, blanks } = countClueTally(puzzle.size, state.values, clue);
+  return ones > clue.count || ones + blanks < clue.count;
+}
+
+/** Every neighbour decided *and* the count exactly matched - the stronger
+ * bar `isBinairoSolved` needs, mirroring `isConstraintFullyMet` and
+ * `isTwinFullyMet`. */
+function isCountClueFullyMet(puzzle: BinairoPuzzle, state: BinairoState, clue: BinairoCountClue): boolean {
+  const { ones, blanks } = countClueTally(puzzle.size, state.values, clue);
+  return blanks === 0 && ones === clue.count;
+}
+
+/** Keys (see `countClueKey`) of every count clue that can no longer come
+ * good - a sixth error geometry alongside `tripleRunCells`/
+ * `unbalancedLines`/`duplicateLines`/`violatedConstraints`/
+ * `violatedTwins`. Empty for any puzzle with no `countClues` at all. */
+export function violatedCountClues(puzzle: BinairoPuzzle, state: BinairoState): ReadonlySet<string> {
+  const violated = new Set<string>();
+  for (const clue of puzzle.countClues ?? []) {
+    if (isCountClueViolated(puzzle, state, clue)) violated.add(countClueKey(clue));
+  }
+  return violated;
+}
+
+/**
+ * How many of a clue's neighbours the player actually has to work out -
+ * i.e. how much the clue is really worth. A clue ringed by givens is
+ * decoration: it states something the board already told you.
+ *
+ * Deliberately *not* enforced by `assertValidBinairo`, which exists to
+ * reject incorrect puzzles rather than boring ones. The shipped content
+ * is held to a minimum by a test instead (see the count-clue suite), so
+ * a hand-authored puzzle can never quietly ship a worthless clue while an
+ * unusual-but-valid one stays possible.
+ */
+export function countClueOpenNeighbours(puzzle: BinairoPuzzle, clue: BinairoCountClue): number {
+  return countClueNeighbours(puzzle.size, clue).filter(n => !isGiven(puzzle, n.row, n.col)).length;
+}
+
 /** Whether row `row` is finished on its own terms: full, evenly split, no
  * triple run - independent of whether it happens to duplicate another
  * line elsewhere (that is a separate, error-worthy question). Used to
@@ -332,7 +415,8 @@ export function isColHealthy(puzzle: BinairoPuzzle, state: BinairoState, col: nu
  * A puzzle is solved when every cell is filled, no row or column has a
  * triple, every row and column is evenly split, no two rows - or two
  * columns - repeat, every `=`/`x` constraint (if the puzzle has any) is
- * met, and every twin pair (if the puzzle has any) matches. Player
+ * met, every twin pair (if the puzzle has any) matches, and every
+ * neighbour-count clue (if the puzzle has any) is exactly satisfied. Player
  * mistakes are simply wrong the moment they're made; there is no
  * separate "check" step.
  */
@@ -359,6 +443,10 @@ export function isBinairoSolved(puzzle: BinairoPuzzle, state: BinairoState): boo
 
   for (const cell of puzzle.twinCells ?? []) {
     if (!isTwinFullyMet(puzzle, state, cell)) return false;
+  }
+
+  for (const clue of puzzle.countClues ?? []) {
+    if (!isCountClueFullyMet(puzzle, state, clue)) return false;
   }
 
   return true;

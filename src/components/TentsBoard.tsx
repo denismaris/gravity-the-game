@@ -113,13 +113,22 @@ export function TentsBoard({ puzzle, state, size, solved, onToggleCell, flashCel
                 accessibilityRole="button"
                 accessibilityLabel={`Row ${row + 1}, column ${col + 1}, ${markLabel(state.marks[row][col])}`}
                 onPress={() => onToggleCell(row, col)}
-                style={{
+                // The tap targets sit *above* the Canvas, so a translucent
+                // press tint here lands on the cell without the Skia layer
+                // needing to know about press state at all - the board
+                // answers the finger on touch-down rather than only once
+                // the toggled mark has been drawn. Same ink base as the
+                // palette's own ground shadows, so it reads as the paper
+                // darkening under a thumb, not a new colour.
+                style={({ pressed }) => ({
                   position: 'absolute',
                   left: col * layout.cell,
                   top: row * layout.cell,
                   width: layout.cell,
                   height: layout.cell,
-                }}
+                  borderRadius: layout.cell * 0.18,
+                  backgroundColor: pressed ? 'rgba(59,31,82,0.10)' : 'transparent',
+                })}
               />
             ))}
           </View>

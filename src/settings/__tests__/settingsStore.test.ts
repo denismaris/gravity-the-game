@@ -23,6 +23,7 @@ describe('parseSettings', () => {
         version: 1,
         soundEnabled: false,
         hapticsEnabled: false,
+        calmingInterstitialEnabled: false,
         seenTutorials: ['game:gravity', 'mechanic:hazard'],
       }),
     );
@@ -30,14 +31,23 @@ describe('parseSettings', () => {
       version: 1,
       soundEnabled: false,
       hapticsEnabled: false,
+      calmingInterstitialEnabled: false,
       seenTutorials: ['game:gravity', 'mechanic:hazard'],
     });
   });
 
   test('malformed toggle fields fall back to the safe default (on)', () => {
-    const parsed = parseSettings(JSON.stringify({ version: 1, soundEnabled: 'nope', hapticsEnabled: 1 }));
+    const parsed = parseSettings(
+      JSON.stringify({ version: 1, soundEnabled: 'nope', hapticsEnabled: 1, calmingInterstitialEnabled: 'nope' }),
+    );
     expect(parsed.soundEnabled).toBe(true);
     expect(parsed.hapticsEnabled).toBe(true);
+    expect(parsed.calmingInterstitialEnabled).toBe(true);
+  });
+
+  test('a settings blob saved before this toggle existed defaults it to on', () => {
+    const parsed = parseSettings(JSON.stringify({ version: 1, soundEnabled: false, hapticsEnabled: true }));
+    expect(parsed.calmingInterstitialEnabled).toBe(true);
   });
 
   test('a non-array or mixed-type seenTutorials drops only the bad entries', () => {

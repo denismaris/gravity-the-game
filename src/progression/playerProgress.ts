@@ -5,6 +5,7 @@ import {
   mergeLevelResult,
   StarRating,
 } from '../game/scoring';
+import { BatchState } from './batches';
 
 /** Where the player last was, so the app can resume there. */
 export interface ProgressCursor {
@@ -43,18 +44,42 @@ export const EMPTY_DAILY: DailyStatus = { streak: 0, lastCompletedKey: null };
  *    `recordDaily` resets it to 1 the day after a miss - so a streak-based
  *    achievement ("reach a 7-day streak") needs its own monotonically
  *    non-decreasing field to stay earned once it's earned.
+ *  - `currentLevel` - the randomized level-batch progression's own cursor
+ *    (v5). Starts at 1; advances by one each time `currentBatch` is fully
+ *    completed.
+ *  - `currentBatch` - the in-progress batch's fixed composition and
+ *    per-puzzle completion state (see `./batches.ts`). `null` only before
+ *    the very first batch has been generated (immediately backfilled by
+ *    `PlayerProgressProvider` on load) - a batch, once generated, is never
+ *    regenerated or reshuffled mid-way, only ever completed and replaced by
+ *    the next level's batch. Deliberately *not* re-derivable from `levels`
+ *    the way unlocks/totals are - which specific puzzles belong to the
+ *    current batch is a real decision made once, at generation time, not a
+ *    pure function of completion history.
+ *  - `adFreeTimeRemainingMs` - a placeholder for a future ad-free-time
+ *    reward system. `null` means "unused / no effect on current behaviour"
+ *    - there is no ad system yet, so nothing reads this field for any
+ *    decision today. Deliberately not `Infinity`: `JSON.stringify(Infinity)`
+ *    silently serializes to `"null"`, which would round-trip back as the
+ *    number `0` through `JSON.parse` on naive numeric parsing - using the
+ *    real `null` sentinel throughout avoids ever depending on that
+ *    footgun. See `onBatchComplete` in `PlayerProgressProvider.tsx` for the
+ *    (currently no-op) extension point a future ad system would hang off.
  *
  * This module is pure - it never talks to storage (see `playerProgressStore`).
  */
 export interface PlayerProgress {
-  readonly version: 4;
+  readonly version: 5;
   readonly levels: Readonly<Record<string, LevelResult>>;
   readonly cursor: ProgressCursor | null;
   readonly daily: DailyStatus;
   readonly bestDailyStreak: number;
+  readonly currentLevel: number;
+  readonly currentBatch: BatchState | null;
+  readonly adFreeTimeRemainingMs: number | null;
 }
 
-export const PLAYER_PROGRESS_VERSION = 4 as const;
+export const PLAYER_PROGRESS_VERSION = 5 as const;
 
 export function emptyProgress(): PlayerProgress {
   return {
@@ -63,6 +88,9 @@ export function emptyProgress(): PlayerProgress {
     cursor: null,
     daily: EMPTY_DAILY,
     bestDailyStreak: 0,
+    currentLevel: 1,
+    currentBatch: null,
+    adFreeTimeRemainingMs: null,
   };
 }
 

@@ -15,29 +15,44 @@
  */
 export const colors = {
   // --- paper ---
-  background: '#F3EEE3', // warm cream ground
-  surface: '#FBF8F1', // cards, panels, board cells - a touch lighter than the ground
-  surfaceAlt: '#EAE2D2', // pressed, or a completed chip
-  surfaceHi: '#FFFFFF', // the brightest tappable surface
+  background: '#EDE5D3', // warm sand-cream ground
+  surface: '#F8F2E5', // cards, panels, board cells - a touch lighter than the ground
+  surfaceAlt: '#E3D8C0', // pressed, or a completed chip
+  surfaceHi: '#FFFDF8', // the brightest tappable surface
 
-  border: '#E4DBC8', // soft rule
-  borderStrong: '#CFC3A9', // card edge / focus
+  border: '#DFD3BA', // soft rule
+  borderStrong: '#C8B894', // card edge / focus
+
+  // The poster's own artwork ground (Pantone P 15-2 C, measured). The
+  // reference does *not* flood a screen with this - it sits sand artwork
+  // inside a near-white surround, which is exactly the page-vs-board split
+  // this app already has. So this is the tone for board plinths and hero
+  // panels, never for a whole screen: at full width it swamps text
+  // contrast and reads muddy rather than warm.
+  sand: '#DFCDA4',
+  sandDeep: '#CDB98C',
 
   // --- ink + accent ---
-  primary: '#2A251F', // ink - primary buttons are ink on cream
-  secondary: '#BE5A38', // warm coral-terracotta, tuned toward Claude's own brand orange - portals, Gravity's own accent, and the app's one loud colour
+  primary: '#3B1F52', // violet ink - primary buttons are ink on sand
+  secondary: '#C46C33', // warm coral-terracotta, tuned toward Claude's own brand orange - portals, Gravity's own accent, and the app's one loud colour
   accent: '#B7892F', // ochre - target rings and stars only
 
   // --- per-game identity accents ---
-  // One muted, distinct colour per game (Gravity's is `secondary` above,
-  // already established everywhere) so each game reads as a different
-  // thing at a glance - Home's hero card, each screen's kicker line, and
+  // One distinct colour per game (Gravity's is `secondary` above, already
+  // established everywhere) so each game reads as a different thing at a
+  // glance - Home's hero card, each screen's kicker line, board frames, and
   // Browse's section headers - without introducing new hues that clash with
   // the functional board colours above (danger/success/accent/pieceBlue).
-  mirrorAccent: '#4D6A80', // dusty steel-blue - a mirror's reflective surface
-  tentsAccent: '#45684D', // muted sage-green - a pitched tent among the trees
-  towersAccent: '#714B81', // dusty violet - a city skyline at dusk
-  binairoAccent: '#6A713D', // dusty olive-gold - neutral, ledger-like
+  // Deepened and more saturated than this app's first pass at these four -
+  // same hue family each (a mirror's still reads as steel-blue, a tent's
+  // still reads as sage), just with real chroma behind it instead of a
+  // dusty near-grey, so each accent actually reads as a colour choice
+  // rather than a tinted neutral once it's carrying real weight (a board's
+  // own frame, not just a thin kicker line).
+  mirrorAccent: '#2E5A78', // steel-blue - a mirror's reflective surface
+  tentsAccent: '#2C6B3C', // forest green - a pitched tent among the trees
+  towersAccent: '#7E3D96', // plum-violet - a city skyline at dusk
+  binairoAccent: '#8C7A1E', // mustard-gold - neutral, ledger-like
 
   // --- Skyscrapers' clue/answer split ---
   // A clue and a player's answer used to differ only by which colour token
@@ -46,40 +61,49 @@ export const colors = {
   // not `towersAccent` itself - clue and answer must never share one value.
   towersClueChip: 'rgba(113, 75, 129, 0.10)', // plaque behind each edge clue
   towersClueText: '#5A3F66',
-  towersShadow: 'rgba(42, 37, 31, 0.18)', // ink-based; Tents and Trees' ground shadow shares this same ink base
+  towersShadow: 'rgba(59, 31, 82, 0.18)', // ink-based; Tents and Trees' ground shadow shares this same ink base
 
   // --- Tents and Trees' ground shadow ---
   // Same ink base as `towersShadow` (a slightly lower alpha - trees and
   // tents sit lower/flatter in their cell than a skyscraper's digit) -
   // ground shadows are one visual concept in this palette, not several.
-  tentsShadow: 'rgba(42, 37, 31, 0.14)',
+  tentsShadow: 'rgba(59, 31, 82, 0.14)',
 
-  // --- Binairo's tactile tile board ---
-  // The one board where each cell is its own raised tile rather than a
-  // square on a shared flat surface. `binairoTileShadow` is the same
-  // ink-based shadow *family* as `towersShadow`/`tentsShadow` above, just a
-  // tighter alpha tuned for a small offset tile shadow rather than a ground
-  // shadow. Every tile *face* stays this app's plain `surfaceHi` paper
-  // colour regardless of value - colour never spreads across the tile
-  // itself, only the mark drawn on top of it (`binairoMarkFilled`/
-  // `binairoMarkOutline` below) carries it, so a filled cell never reads
-  // as "this whole tile is now a different colour". A given (printed)
-  // cell and a player's own entry still share the exact same mark colour -
-  // they're told apart by `BinairoBoardView.tsx`'s own `TILE_SHADOW_DY`/
-  // border-weight (a given tile sits more raised, with a heavier rule).
-  binairoTileShadow: 'rgba(42, 37, 31, 0.18)',
-  // The two fillable values' own ink - a warm gold disc, a cool blue
-  // square, so colour and shape agree rather than only one of them
-  // carrying the distinction (colour alone isn't colourblind-safe; shape
-  // alone reads as flatter/harder to scan at speed - together they're
-  // both fast to read and robust without it). Flat, solid fills, no
-  // gradient or bevel - the point is to read as ink stamped on the page,
-  // not a glossy game token. Reuses this app's own existing warm/cool
-  // pair (`pieceBlue`'s exact blue; a gold pitched to sit clearly apart
-  // from `accent`'s own ochre, so a mark is never mistaken for a hint
-  // flash or a star) rather than inventing new hues.
-  binairoMarkFilled: '#D99A2B',
-  binairoMarkOutline: '#3E5C99',
+  // --- Binairo's ruled tile board ---
+  // The one board with its own per-cell grid rather than a flat washed
+  // surface - each cell is a ruled square within the one tray the whole
+  // board casts its shadow as (see `BinairoBoardView.tsx`'s own
+  // `renderTray`/`renderTileChrome`), not a raised tile with a shadow of
+  // its own - a shadow stacked under a border on the same small surface is
+  // the "ghost card" double-elevation this app avoids everywhere else.
+  // Every tile face stays a plain paper colour regardless of value -
+  // colour never spreads across the tile itself, only the mark drawn on
+  // top of it (`binairoMarkFilled`/`binairoMarkOutline` below) carries it,
+  // so a filled cell never reads as "this whole tile is now a different
+  // colour". A given (printed) cell and a player's own entry still share
+  // the exact same mark colour - they're told apart by the tile face
+  // itself (`surface`, a touch toned down, vs. `surfaceHi`, "the brightest
+  // tappable surface" - a given cell isn't tappable) plus a heavier rule.
+  // The two fillable values' own ink - a rich terracotta-orange disc, a
+  // deep teal square: a genuinely warm/cool complementary pair, so colour
+  // and shape agree rather than only one of them carrying the distinction
+  // (colour alone isn't colourblind-safe; shape alone reads as flatter/
+  // harder to scan at speed - together they're both fast to read and
+  // robust without it). Replaces an earlier gold/blue pair that read as
+  // flat and drab against this board's own warm paper tray - these two
+  // are both saturated enough to hold their own as the board's one
+  // colourful thing, and neither reads as a washed-out pastel the way the
+  // old gold did. `_LIGHT`/`_DARK` give each mark a quiet top-to-bottom
+  // satin gradient (see `BinairoBoardView.tsx`'s `renderCircleMark`/
+  // `renderSquareMark`) - real but gentle dimension, short of a glossy
+  // game-token bevel, since a flat single fill is exactly what read as
+  // "boring" here.
+  binairoMarkFilled: '#C1552A',
+  binairoMarkFilledLight: '#E2905E',
+  binairoMarkFilledDark: '#8A3A18',
+  binairoMarkOutline: '#1D6B5C',
+  binairoMarkOutlineLight: '#4B9C8C',
+  binairoMarkOutlineDark: '#0F3F36',
 
   // --- Mirror Maze's board ---
   // The one board in the app that inverts to a dark ground. Light can only
@@ -96,16 +120,16 @@ export const colors = {
   mirrorBeamGlow: '#7FA8C9', // the beam's blue halo
   mirrorBeamCore: '#FFF6E2', // the beam's warm-white centre
 
-  textPrimary: '#2A251F', // ink
-  textSecondary: '#726A5C', // warm grey
-  textTertiary: '#9E9482', // faint warm grey
-  textDisabled: '#BDB4A0',
+  textPrimary: '#3B1F52', // violet ink
+  textSecondary: '#6B5A7A', // violet-grey
+  textTertiary: '#9A8BA6', // faint violet-grey
+  textDisabled: '#BDB0C4',
 
   success: '#5C7C4A', // muted leaf green - a piece resting on its target
   warning: '#B7892F',
   danger: '#8C2318', // alarm red - hazards and failure only, kept apart from the terracotta secondary
 
-  overlay: 'rgba(42, 37, 31, 0.32)',
+  overlay: 'rgba(59, 31, 82, 0.38)',
   transparent: 'transparent',
 
   // --- board object colours (functional, tuned for the cream ground) ---

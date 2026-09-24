@@ -3,6 +3,7 @@ import ReactTestRenderer, { act } from 'react-test-renderer';
 import { createMemoryBackend, StorageBackend } from '../../storage';
 import { getDailyEntry } from '../../game/journey';
 import { PLAYER_PROGRESS_KEY } from '../playerProgressStore';
+import { getLevelPoint } from '../worldProgress';
 import { CompletionOutcome, PlayerProgressProvider, usePlayerProgress } from '../PlayerProgressProvider';
 
 /**
@@ -251,5 +252,41 @@ describe('PlayerProgressProvider - resetProgress', () => {
     // relaunch right after resetting should not bring the old stars back.
     const raw = await backend.getItem(PLAYER_PROGRESS_KEY);
     expect(raw).toBeNull();
+  });
+});
+
+/**
+ * Regression test for a real crash: `HomeScreen` calls `getLevelPoint`
+ * every render, including the very first one - which happens synchronously
+ * on mount, before `loadProgress()`'s promise has had any chance to
+ * resolve. `getLevelPoint` throws if `progress.currentBatch` is `null`, and
+ * the provider's initial `useState(emptyProgress)` used to produce exactly
+ * that: a `PlayerProgress` with no batch yet, only backfilled once the
+ * async load resolved. Confirmed on a real device build: this crashed
+ * `HomeScreen` on every cold launch. `ensureBatch` now runs against the
+ * provider's own synchronous initial state, not just the resolved load.
+ */
+describe('PlayerProgressProvider - batch exists synchronously, before load resolves', () => {
+  test('the very first render already has a current batch', () => {
+    const api: { current: ReturnType<typeof usePlayerProgress> | null } = { current: null };
+
+    function Capture() {
+      api.current = usePlayerProgress();
+      return null;
+    }
+
+    // Deliberately a plain synchronous `act`, not `act(async () => ...)` -
+    // this captures state at the very first render, before the load
+    // effect's promise has had any chance to resolve.
+    act(() => {
+      ReactTestRenderer.create(
+        <PlayerProgressProvider backend={createMemoryBackend()}>
+          <Capture />
+        </PlayerProgressProvider>,
+      );
+    });
+
+    expect(api.current!.progress.currentBatch).not.toBeNull();
+    expect(() => getLevelPoint(api.current!.progress)).not.toThrow();
   });
 });

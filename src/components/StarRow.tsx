@@ -45,18 +45,43 @@ export function StarRow({ earned, size = 16, style, animateIn = false }: StarRow
       accessibilityRole="text"
       accessibilityLabel={`${Math.max(0, Math.min(3, earned))} of 3 stars`}
     >
-      {SLOTS.map((slot, i) => (
-        <Animated.Text
-          key={slot}
-          style={[
-            styles.star,
-            { fontSize: size, transform: [{ scale: pop[i] }] },
-            slot <= earned ? styles.earned : styles.empty,
-          ]}
-        >
-          {'★'}
-        </Animated.Text>
-      ))}
+      {SLOTS.map((slot, i) => {
+        const isEarned = slot <= earned;
+        return (
+          <View key={slot} style={styles.slot}>
+            {/* A ring snapping outward as the star lands, then fading -
+                the little "impact" that makes an earned star feel won
+                rather than just displayed. Earned stars only: firing it
+                behind an empty outline would celebrate a miss. Purely
+                decorative, so it never intercepts touches. */}
+            {animateIn && isEarned && (
+              <Animated.View
+                pointerEvents="none"
+                style={[
+                  styles.burst,
+                  {
+                    width: size,
+                    height: size,
+                    borderRadius: size / 2,
+                    borderWidth: Math.max(1.5, size * 0.06),
+                    opacity: pop[i].interpolate({ inputRange: [0, 0.55, 1], outputRange: [0, 0.5, 0] }),
+                    transform: [{ scale: pop[i].interpolate({ inputRange: [0, 1], outputRange: [0.5, 2] }) }],
+                  },
+                ]}
+              />
+            )}
+            <Animated.Text
+              style={[
+                styles.star,
+                { fontSize: size, transform: [{ scale: pop[i] }] },
+                isEarned ? styles.earned : styles.empty,
+              ]}
+            >
+              {'★'}
+            </Animated.Text>
+          </View>
+        );
+      })}
     </View>
   );
 }
@@ -64,6 +89,14 @@ export function StarRow({ earned, size = 16, style, animateIn = false }: StarRow
 const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
+  },
+  slot: {
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  burst: {
+    position: 'absolute',
+    borderColor: theme.colors.accent,
   },
   star: {
     marginHorizontal: 1.5,

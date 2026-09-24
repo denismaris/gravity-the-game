@@ -9,7 +9,7 @@ import {
   TentsTreesState,
   touchingTentCells,
 } from '../game/tents';
-import { useAnimationClock } from '../game/rendering';
+import { useAnimationClock, useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
 
 /** Ground shadow: shared by both objects (`tentsShadow`'s own rationale -
@@ -270,6 +270,7 @@ export interface TentsBoardViewProps {
  */
 export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: TentsBoardViewProps): React.JSX.Element {
   useAnimationClock(!solved);
+  const reducedMotion = useReducedMotion();
   const now = Date.now();
 
   const touching = useMemo(() => touchingTentCells(puzzle, state), [puzzle, state]);
@@ -327,6 +328,23 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
 
   return (
     <Group>
+      {/* The grid's own outer edge, in this game's own identity colour -
+          the same move `BinairoBoardView.tsx`'s `renderTray` makes for its
+          own frame: one place on the board itself that says "Tents and
+          Trees" at a glance, rather than leaving `tentsAccent` to do all
+          its work in the header's thin kicker/progress-track alone. This
+          board never had a perimeter stroke at all (only the internal
+          hairline dividers below) - a bare rectangle of dividers with no
+          outer edge read as an unbounded field rather than a bounded
+          board, and there's no second border/shadow anywhere on this
+          board's own surface for a tinted one to double up against. */}
+      <Path
+        path={`M 1.5 1.5 L ${puzzle.cols * cellSize - 1.5} 1.5 L ${puzzle.cols * cellSize - 1.5} ${puzzle.rows * cellSize - 1.5} L 1.5 ${puzzle.rows * cellSize - 1.5} Z`}
+        color={theme.colors.tentsAccent}
+        style="stroke"
+        strokeWidth={1.5}
+        opacity={0.55}
+      />
       {/* Hairline grid + hint flash */}
       {Array.from({ length: puzzle.cols - 1 }, (_v, i) => i + 1).map(i => (
         <Path
@@ -373,7 +391,11 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
           const inWindow = cyclePhase < 0.12; // ~1s visible out of 8s
           const fireflyT = inWindow ? cyclePhase / 0.12 : 0;
           const fireflyOpacity = inWindow ? Math.sin(fireflyT * Math.PI) * 0.5 : 0;
-          const fireflyAngle = seed * Math.PI * 2 + now / 900;
+          // The brief fade-in/out itself isn't a vestibular trigger, but the
+          // continuous orbit is - frozen at a fixed per-tree angle under
+          // reduced motion, so a firefly still appears and fades, it just
+          // doesn't circle while it's visible.
+          const fireflyAngle = seed * Math.PI * 2 + (reducedMotion ? 0 : now / 900);
           const fireflyX = cx + Math.cos(fireflyAngle) * cellSize * 0.22;
           const fireflyY = canopyY - cellSize * 0.08 + Math.sin(fireflyAngle) * cellSize * 0.1;
 
@@ -382,7 +404,7 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
               <Path path={ellipsePath(cx, trunkBottomY + shadowH * 0.3, shadowW / 2, shadowH / 2)} color={theme.colors.tentsShadow} />
               <Path
                 path={canopyPath(cx + cellSize * CANOPY_SHADOW_OFFSET_FACTOR, canopyY + cellSize * CANOPY_SHADOW_OFFSET_FACTOR, cellSize)}
-                color={`rgba(42,37,31,${CANOPY_SHADOW_ALPHA})`}
+                color={`rgba(59,31,82,${CANOPY_SHADOW_ALPHA})`}
               />
               <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_COLOR} />
               <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_OUTLINE} style="stroke" strokeWidth={Math.max(1, cellSize * 0.012)} />
@@ -424,7 +446,11 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
         const glowTransition = glowTransitions.get(key);
         const crossfadeT = glowTransition ? clamp01((now - glowTransition.changedAt) / GLOW_CROSSFADE_MS) : 1;
         const glowLevel = glowTransition?.value ? crossfadeT : 1 - crossfadeT;
-        const breathe = 0.5 + 0.5 * Math.sin(now / 1100 + (r * 7 + c * 13));
+        // Frozen at its own midpoint under reduced motion (still lit, just
+        // not breathing) - `now / 1100` is a ~0.14Hz idle oscillation,
+        // inside the slow-loop band motion-sensitive users are most
+        // bothered by.
+        const breathe = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(now / 1100 + (r * 7 + c * 13));
         const glowOpacity = glowLevel * (0.55 + 0.35 * breathe);
 
         // Solve-wave flare: a brief brightness boost, staggered by reading
