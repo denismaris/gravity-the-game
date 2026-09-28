@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityActionEvent, AccessibilityInfo, Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { BoardView, triggerFeedback, useAnimatedMovables } from '../game/rendering';
+import { triggerFeedback } from '../game/rendering';
 import {
   canUndo,
   createGameSession,
@@ -17,6 +17,10 @@ import {
 import { createGameStateFromLevel, getStarThresholds, LevelDefinition } from '../game/levels';
 import {
   BatchProgressDots,
+  DifficultyChip,
+  directionForAccessibilityAction,
+  GeometricRule,
+  GravityBoard,
   LevelCompleteCard,
   LevelFailedCard,
   LevelSetComplete,
@@ -32,6 +36,9 @@ import { copyForTutorial, GRAVITY_MECHANICS_SLIDES, mechanicsOf, pickTutorial, t
 import { BatchState, CompletionOutcome, getLevelResult, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme } from '../theme';
+import { PageBloom } from '../components/PageBloom';
+import { CoinBalance, useCoinPurchase } from '../components/Coins';
+import { UNDO_COST } from '../progression/coins';
 
 const GAME_TUTORIAL_ID = tutorialIdForGame('gravity');
 const ICON_SIZE = 14;
@@ -218,20 +225,20 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   // settles into a solved state, cleared when it leaves one (undo). Drives
   // the completion card; never re-recorded by incidental re-renders.
   const [outcome, setOutcome] = useState<CompletionOutcome | null>(null);
+  const { coins, shortBy, buy } = useCoinPurchase();
 
   // Which kind of transition produced the current `gameState`, so we know
   // whether to animate (gravity) or snap instantly (undo/restart/mount).
   const lastActionRef = useRef<LastAction>('init');
   const instant = lastActionRef.current !== 'gravity';
 
-  const { movables: displayMovables, isAnimating, justLandedIds } = useAnimatedMovables(
-    gameState.movables,
-    instant,
-  );
-  const displayState = useMemo(
-    () => ({ ...gameState, movables: displayMovables }),
-    [gameState, displayMovables],
-  );
+  // Owned here rather than read back out of the slide animation, and set
+  // to `true` synchronously the moment a move is dispatched. The board
+  // reports only the settle (see `GravityBoard`): if the rising edge came
+  // back from there instead, a winning move would commit, `solved` would
+  // flip, and the win haptic and the solved card would both fire a frame
+  // before the winning piece had visibly moved.
+  const [isAnimating, setIsAnimating] = useState(false);
 
   const onTargetIds = useMemo(() => computeOnTargetIds(gameState), [gameState]);
   const previousOnTargetRef = useRef<ReadonlySet<string>>(onTargetIds);
@@ -281,12 +288,21 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
         // here after `restart` flips `solved` back to false and clears the
         // guard, so a better replay still updates the persisted best.
         finishedSetRef.current = currentBatchRef.current ?? null;
-        setOutcome(recordCompletion(level.id, moveCount));
+        const result = recordCompletion(level.id, moveCount);
+        setOutcome(result);
+        // The sighted/haptic "solved" cue above has no VoiceOver
+        // equivalent otherwise - this board has no per-cell accessible
+        // elements to announce it through, so the moment has to be
+        // spoken directly.
+        AccessibilityInfo.announceForAccessibility(`Solved with ${result.best.stars} star${result.best.stars === 1 ? '' : 's'}.`);
       }
     } else {
       previousSolvedRef.current = false;
       if (outcome !== null) setOutcome(null);
-      if (gainedTarget) triggerFeedback('targetReached');
+      if (gainedTarget) {
+        triggerFeedback('targetReached');
+        AccessibilityInfo.announceForAccessibility('Piece on target.');
+      }
     }
   }, [onTargetIds, solved, isAnimating, moveCount, level.id, recordCompletion, outcome]);
 
@@ -307,6 +323,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
       if (!previousFailedRef.current) {
         previousFailedRef.current = true;
         triggerFeedback('failed');
+        AccessibilityInfo.announceForAccessibility('A piece was destroyed.');
         shake.setValue(0);
         Animated.sequence(
           [1, -1, 0.6, -0.6, 0.3, 0].map(to =>
@@ -319,14 +336,6 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     }
   }, [failed, isAnimating, shake]);
 
-  // One flash value per edge, so firing a direction needs no re-render -
-  // the bars are always mounted and only the struck one animates.
-  const edgeFlashes = useRef<Record<Direction, Animated.Value>>({
-    up: new Animated.Value(0),
-    down: new Animated.Value(0),
-    left: new Animated.Value(0),
-    right: new Animated.Value(0),
-  }).current;
 
   const handleDirection = useCallback((direction: Direction) => {
     // Ignore new gravity input while a move is already committed or still
@@ -341,27 +350,20 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
 
     movePendingRef.current = true;
     lastActionRef.current = 'gravity';
+    setIsAnimating(true);
     triggerFeedback('gravityChange');
-    // Fired only past the no-op guard above, so the flash always means
-    // "that input landed and moved something" - never "you swiped at a
-    // wall". It confirms the swipe well before the pieces finish sliding,
-    // which is the whole reason a swipe-only board needs it: there is no
-    // pressed state to fall back on.
-    const flash = edgeFlashes[direction];
-    flash.stopAnimation();
-    flash.setValue(0);
-    Animated.sequence([
-      Animated.timing(flash, { toValue: 1, duration: 70, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(flash, { toValue: 0, duration: 190, easing: Easing.in(Easing.quad), useNativeDriver: true }),
-    ]).start();
     dispatch({ type: 'gravity', direction });
-  }, [edgeFlashes]);
-
-  const handleUndo = useCallback(() => {
-    movePendingRef.current = false;
-    lastActionRef.current = 'undo';
-    dispatch({ type: 'undo' });
   }, []);
+
+  // Charged before it is applied; the button is already disabled whenever
+  // there is nothing to undo, so a press always buys a real step back.
+  const handleUndo = useCallback(() => {
+    buy(UNDO_COST, () => {
+      movePendingRef.current = false;
+      lastActionRef.current = 'undo';
+      dispatch({ type: 'undo' });
+    });
+  }, [buy]);
 
   const handleRestart = useCallback(() => {
     movePendingRef.current = false;
@@ -379,6 +381,30 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
 
   const swipeHandlers = useSwipeGesture(handleDirection, isAnimating);
 
+  // VoiceOver intercepts a left/right/up/down swipe for its own navigation,
+  // so the gesture above is effectively unreachable with it on - this board
+  // was otherwise a bare Canvas with no accessible element at all. Custom
+  // accessibility actions (surfaced through VoiceOver's rotor) call the
+  // exact same `handleDirection` the swipe gesture calls, so there is one
+  // code path for "make a move," not a second one to keep in sync.
+  const gravityAccessibilityActions = useMemo(
+    () => [
+      { name: 'up', label: 'Pull up' },
+      { name: 'down', label: 'Pull down' },
+      { name: 'left', label: 'Pull left' },
+      { name: 'right', label: 'Pull right' },
+    ],
+    [],
+  );
+  const handleGravityAccessibilityAction = useCallback(
+    (event: AccessibilityActionEvent) => {
+      const direction = directionForAccessibilityAction(event.nativeEvent.actionName);
+      if (direction) handleDirection(direction);
+    },
+    [handleDirection],
+  );
+  const boardAccessibilityValue = `${onTargetIds.size} of ${gameState.movables.length} pieces on target, ${moveCount} move${moveCount === 1 ? '' : 's'} so far.`;
+
   const padding = theme.spacing.lg;
   const availableWidth = width - padding * 2 - STAGE_H_PADDING * 2;
   const availableHeight =
@@ -387,7 +413,8 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
+      <PageBloom />
+      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel="Back to home"
@@ -398,13 +425,18 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           <Text style={styles.backButtonLabel}>{'‹ Home'}</Text>
         </PressableScale>
         <View style={styles.headerCenter}>
-          <Text style={styles.levelName} numberOfLines={1}>
+          <Text style={styles.levelName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
             {level.name}
           </Text>
           <View style={styles.levelStats}>
+            <DifficultyChip
+              difficulty={level.difficulty === 'expert' ? 'hard' : level.difficulty}
+              expert={level.difficulty === 'expert'}
+              style={styles.difficultyChip}
+            />
             <Text style={styles.levelPar}>MOVES </Text>
             <AnimatedMoveCount moves={moveCount} />
-            <Text style={styles.levelPar}>
+            <Text style={styles.levelPar} numberOfLines={1}>
               {' · '}PAR {par}
               {priorBest !== null ? ` · BEST ${priorBest}` : ''}
             </Text>
@@ -423,6 +455,10 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
       </View>
 
       <View style={styles.stage}>
+        {/* The same ruled ornament every other game's stage opens with -
+            Gravity was the one board without it, so moving between games
+            in a batch made this screen look like it belonged elsewhere. */}
+        <GeometricRule variant="stage" style={styles.stageRule} />
         <Animated.View
           style={[
             styles.board,
@@ -435,25 +471,22 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
             },
           ]}
           {...swipeHandlers}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel={`${level.name} board`}
+          accessibilityValue={{ text: boardAccessibilityValue }}
+          accessibilityHint="Swipe, or use the rotor actions, to pull every piece up, down, left, or right."
+          accessibilityActions={gravityAccessibilityActions}
+          onAccessibilityAction={handleGravityAccessibilityAction}
         >
-          <Canvas style={styles.canvas}>
-            <BoardView
-              state={displayState}
-              size={boardSize}
-              onTargetIds={onTargetIds}
-              pulsingIds={justLandedIds}
-            />
-          </Canvas>
-          {/* The edge gravity just pulled toward, lit briefly. Inside the
-              board container so it tracks the board (shake included) - it
-              is feedback about the board, not about the screen. */}
-          {(['up', 'down', 'left', 'right'] as const).map(edge => (
-            <Animated.View
-              key={`pull-${edge}`}
-              pointerEvents="none"
-              style={[styles.pullEdge, styles[`pullEdge_${edge}` as const], { opacity: edgeFlashes[edge] }]}
-            />
-          ))}
+          <GravityBoard
+            state={gameState}
+            instant={instant}
+            size={boardSize}
+            onTargetIds={onTargetIds}
+            solved={solved && !isAnimating}
+            onAnimatingChange={setIsAnimating}
+          />
         </Animated.View>
       </View>
 
@@ -468,7 +501,9 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           // deliberate "try for a better run" path, not an escape from a
           // stated loss condition.
           undoDisabled={!canUndo(session) || failed}
+          undoCost={UNDO_COST}
         />
+        <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
       </View>
 
       {/* Both outcome cards sit at the screen root, not inside the board.
@@ -478,6 +513,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           rendered in it shook along with the board it was reporting on. */}
       {solved && !isAnimating && outcome && (
         <LevelCompleteCard
+          coinsEarned={outcome.coinsEarned}
           stars={outcome.best.stars}
           runStars={outcome.runStars}
           moves={outcome.runMoves}
@@ -550,12 +586,15 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontFamily: theme.typography.families.display,
     color: theme.colors.textPrimary,
-    fontSize: theme.typography.sizes.title,
-    fontWeight: theme.typography.weights.semibold,
+    fontSize: theme.typography.sizes.headline,
+    lineHeight: theme.typography.lineHeights.headline,
+    fontWeight: theme.typography.weights.bold,
   },
   levelStats: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
     marginTop: 2,
   },
   levelPar: {
@@ -563,7 +602,11 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.micro,
     letterSpacing: 1,
     color: theme.colors.secondary,
+    // The chip is fixed-width and the back/help buttons are immovable, so
+    // PAR/BEST is the one thing on this row that may give ground.
+    flexShrink: 1,
   },
+  difficultyChip: { marginRight: 6 },
   /** The one number that changes during an attempt, so it carries a touch
    * more weight than the fixed PAR/BEST either side of it. */
   levelMoves: {
@@ -581,11 +624,15 @@ const styles = StyleSheet.create({
     backgroundColor: theme.colors.surfaceAlt,
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
-    paddingVertical: theme.spacing.xxl,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.xxl,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderStrong,
+  },
+  stageRule: {
+    marginBottom: theme.spacing.md,
   },
   board: {
     borderRadius: theme.radii.md,
@@ -594,19 +641,9 @@ const styles = StyleSheet.create({
   canvas: {
     flex: 1,
   },
-  /** The gravity-pull flash: a soft bar hugging the edge the board was
-   * just pulled toward. Kept thin and brief - a confirmation, not a
-   * spotlight. */
-  pullEdge: {
-    position: 'absolute',
-    backgroundColor: theme.colors.secondary,
-    borderRadius: 4,
-  },
-  pullEdge_up: { top: 0, left: 0, right: 0, height: 6 },
-  pullEdge_down: { bottom: 0, left: 0, right: 0, height: 6 },
-  pullEdge_left: { left: 0, top: 0, bottom: 0, width: 6 },
-  pullEdge_right: { right: 0, top: 0, bottom: 0, width: 6 },
   sessionControls: {
     marginTop: theme.spacing.xl,
+    alignItems: 'center',
   },
+  coinBalance: { marginTop: theme.spacing.md },
 });

@@ -1,5 +1,5 @@
-import React, { useMemo } from 'react';
-import { Group } from '@shopify/react-native-skia';
+import React, { useMemo, useRef } from 'react';
+import { Circle, Group } from '@shopify/react-native-skia';
 import { GameState, StaticCellType } from '../engine';
 import { BoardLayout, computeBoardLayout, getCellCenter, getCellOrigin } from './layout';
 import {
@@ -13,6 +13,8 @@ import {
   PortalMark,
   TargetMarker,
 } from './shapes';
+import { useAnimationClock } from './useAnimationClock';
+import { useReducedMotion } from './useReducedMotion';
 import { theme } from '../../theme';
 
 export interface BoardViewProps {
@@ -28,7 +30,26 @@ export interface BoardViewProps {
   /** Ids of movables that just finished sliding - rendered briefly larger
    * as a subtle "settled" cue. */
   pulsingIds?: ReadonlySet<string>;
+  /** Every object is home - runs the board's finish flare. */
+  solved?: boolean;
 }
+
+/**
+ * The finish: a ring expands off each target in turn.
+ *
+ * Gravity was the one game in the app with no board celebration at all -
+ * a solve simply stopped, and the completion card arrived over a board
+ * that had not acknowledged anything. The ring is the shape this game
+ * already uses to mean "this is where a piece belongs", so letting each
+ * one open outward is the board saying the pieces are home in its own
+ * existing vocabulary rather than in a new one.
+ *
+ * Staggered to land inside `SOLVE_CELEBRATION_MS`, the beat the
+ * completion card waits out - at four targets the last opens at 210ms
+ * and is gone by 590ms.
+ */
+const TARGET_FLARE_STAGGER_MS = 70;
+const TARGET_FLARE_MS = 380;
 
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 
@@ -190,8 +211,29 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
  *      claimed them). Only this layer changes during a slide; anchored and
  *      destroyed pieces never move.
  */
-export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = EMPTY_IDS }: BoardViewProps) {
+export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = EMPTY_IDS, solved = false }: BoardViewProps) {
   const layout = useMemo(() => computeBoardLayout(state.cols, size), [state.cols, size]);
+  const reducedMotion = useReducedMotion();
+
+  const targets = useMemo(() => {
+    const cells: Array<{ row: number; col: number }> = [];
+    for (let row = 0; row < state.rows; row += 1) {
+      for (let col = 0; col < state.cols; col += 1) {
+        if (state.staticGrid[row][col] === StaticCellType.Target) cells.push({ row, col });
+      }
+    }
+    return cells;
+  }, [state.staticGrid, state.rows, state.cols]);
+
+  const solvedAtRef = useRef<number | null>(null);
+  if (solved && solvedAtRef.current === null) solvedAtRef.current = Date.now();
+  if (!solved && solvedAtRef.current !== null) solvedAtRef.current = null;
+  const solvedAt = solvedAtRef.current;
+
+  const now = Date.now();
+  const flareWindow = targets.length * TARGET_FLARE_STAGGER_MS + TARGET_FLARE_MS;
+  const flaring = solvedAt !== null && !reducedMotion && now - solvedAt < flareWindow;
+  useAnimationClock(flaring, 60);
 
   const cellInset = layout.cellSize * 0.05;
   const cellCornerRadius = layout.cellSize * 0.14;
@@ -271,6 +313,27 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
           />
         );
       })}
+
+      {/* The finish flare - a ring opening off each target in turn. */}
+      {flaring &&
+        targets.map((cell, index) => {
+          const t = (now - solvedAt! - index * TARGET_FLARE_STAGGER_MS) / TARGET_FLARE_MS;
+          if (t < 0 || t >= 1) return null;
+          const center = getCellCenter(layout, cell.row, cell.col);
+          const eased = 1 - (1 - t) ** 3;
+          return (
+            <Circle
+              key={`flare-${cell.row}-${cell.col}`}
+              cx={center.x}
+              cy={center.y}
+              r={targetRadius * (1 + eased * 1.6)}
+              color={theme.colors.accent}
+              style="stroke"
+              strokeWidth={targetStrokeWidth * (1 - eased * 0.55)}
+              opacity={1 - eased}
+            />
+          );
+        })}
     </Group>
   );
 }

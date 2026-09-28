@@ -2,7 +2,12 @@ import { LEVELS } from '../levels';
 import { MIRROR_MAZES } from '../mirror';
 import { TENTS_TREES } from '../tents';
 import { TOWERS } from '../towers';
+import { ARUKONE } from '../arukone';
 import { BINAIRO } from '../binairo';
+import { FILLAPIX } from '../fillapix';
+import { LIGHTS_OUT } from '../lightsout';
+import { BLOOM } from '../bloom';
+import { ADJACENT } from '../adjacent';
 import { GameKind, puzzleDisplayInfo, ROTATION } from './gameKind';
 
 /**
@@ -37,7 +42,12 @@ function buildAllPuzzles(): ReadonlyArray<PuzzleRef> {
   const tents: PuzzleRef[] = TENTS_TREES.map(puzzle => ({ kind: 'tents' as const, puzzleId: puzzle.id }));
   const towers: PuzzleRef[] = TOWERS.map(puzzle => ({ kind: 'towers' as const, puzzleId: puzzle.id }));
   const binairo: PuzzleRef[] = BINAIRO.map(puzzle => ({ kind: 'binairo' as const, puzzleId: puzzle.id }));
-  const byKind: Record<GameKind, PuzzleRef[]> = { gravity, mirror, tents, towers, binairo };
+  const arukone: PuzzleRef[] = ARUKONE.map(puzzle => ({ kind: 'arukone' as const, puzzleId: puzzle.id }));
+  const fillapix: PuzzleRef[] = FILLAPIX.map(puzzle => ({ kind: 'fillapix' as const, puzzleId: puzzle.id }));
+  const lightsout: PuzzleRef[] = LIGHTS_OUT.map(puzzle => ({ kind: 'lightsout' as const, puzzleId: puzzle.id }));
+  const adjacent: PuzzleRef[] = ADJACENT.map(puzzle => ({ kind: 'adjacent' as const, puzzleId: puzzle.id }));
+  const bloom: PuzzleRef[] = BLOOM.map(puzzle => ({ kind: 'bloom' as const, puzzleId: puzzle.id }));
+  const byKind: Record<GameKind, PuzzleRef[]> = { gravity, mirror, tents, towers, binairo, arukone, fillapix, lightsout, adjacent, bloom };
   return ROTATION.flatMap(kind => byKind[kind]);
 }
 

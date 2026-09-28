@@ -30,8 +30,21 @@ export type HapticKind =
   | 'tentsError'
   | 'tentsRowComplete'
   | 'tentsSolve'
+  | 'arukoneStep'
+  | 'arukoneJoin'
+  | 'arukoneReject'
+  | 'arukoneSolve'
+  | 'fillapixToggle'
+  | 'fillapixClueSatisfied'
+  | 'fillapixSolve'
+  | 'lightsOutTap'
+  | 'lightsOutDarker'
+  | 'lightsOutSolve'
   | 'mazeContact'
-  | 'mazeSolve';
+  | 'mazeSolve'
+  | 'bloomTurn'
+  | 'bloomClose'
+  | 'bloomSolve';
 
 /**
  * Pattern in milliseconds passed to `Vibration.vibrate`. A single number is
@@ -97,14 +110,61 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   tentsRowComplete: 15,
   tentsSolve: [0, 14, 45, 14, 45, 22],
 
+  // Arukone+. A drag fires `arukoneStep` once per square crossed - as
+  // frequent as Binairo's own toggle, so it stays just as light (matching
+  // the shared `step` it replaces); joining a pair is this game's own
+  // real milestone, weighted like Towers'/Tents' row-complete; a reject
+  // (the drag hit a wall or another path) sits between Towers' conflict
+  // and Tents' error - a real "no", not yet the loudest one in the app;
+  // the solve is its own short rising pair, distinct from every other
+  // game's own shape.
+  arukoneStep: 5,
+  arukoneJoin: 15,
+  arukoneReject: 11,
+  arukoneSolve: [0, 14, 42, 20],
+
+  // Fill-a-Pix. A tap is a deliberate single action (not a drag), so it
+  // sits with Mirror Maze's/Towers' own "place" weight rather than
+  // Binairo's rapid-fire toggle; a clue newly satisfied is a real but
+  // common signal - lighter than the other three games' own milestones,
+  // since a single tap can satisfy several clues at once and this should
+  // read as steady positive feedback, not a fanfare every time. No error
+  // kind - like Mirror Maze, there is no illegal move here. The solve is
+  // its own short rising pair.
+  fillapixToggle: 6,
+  fillapixClueSatisfied: 12,
+  fillapixSolve: [0, 13, 44, 19],
+
+  // Lights Out. A press flips five lights at once, so its base tick sits
+  // a touch firmer than the one-mark "place" actions elsewhere; a press
+  // that leaves the board darker than it found it is the only progress
+  // this game has, and gets the heavier of the two (but well short of a
+  // row-complete - it happens roughly every other press). The solve is
+  // the one shape in the app that *falls* rather than rises: four pulses
+  // thinning out, lights going off one after another.
+  lightsOutTap: 7,
+  lightsOutDarker: 11,
+  lightsOutSolve: [0, 24, 38, 18, 38, 13, 38, 9],
+
   // The calming interstitial's maze. A wall contact is a definite, felt
   // "thock" - firmer than any other game's per-move tick, since it fires
   // far less often (gated on a minimum incoming speed, not every slide);
   // the solve is its own longer rising triple, distinct from every game's
   // since a maze filling is a bigger, slower-building moment than a
   // single move.
-  mazeContact: 16,
-  mazeSolve: [0, 16, 50, 20, 50, 30],
+  // Android honours these durations literally, and 16ms sits at the edge
+  // of what many phone motors can spin up for at all - a wall hit reported
+  // as "no vibration". 30ms is a clearly felt tap; iOS ignores the value
+  // and plays its own fixed system buzz either way.
+  mazeContact: 30,
+  mazeSolve: [0, 30, 60, 30, 60, 40],
+
+  // Bloom: a light click per quarter turn (it is the most frequent action
+  // in the game, so the softest), a firmer tap when a loop closes, and a
+  // rising triple for the whole board.
+  bloomTurn: 5,
+  bloomClose: 14,
+  bloomSolve: [0, 14, 45, 18, 45, 26],
 };
 
 let hapticsEnabled = true;

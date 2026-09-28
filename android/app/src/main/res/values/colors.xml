@@ -3,6 +3,10 @@
          (app icon background, window background) that can't reach the JS
          theme before the bundle loads. Keep these in sync by hand if the
          palette changes. -->
-    <color name="ic_launcher_background">#2A251F</color>
+    <!-- The app icon's ground: the magenta tools/make_icon.py paints the
+         azulejo tile in. Sits between Skyscrapers' plum and Arukone+'s wine
+         on purpose, so it reads as the app's own colour rather than as any
+         one game's. -->
+    <color name="ic_launcher_background">#8E2F76</color>
     <color name="window_background">#F3EEE3</color>
 </resources>

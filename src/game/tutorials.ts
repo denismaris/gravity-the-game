@@ -198,6 +198,131 @@ export const TOWERS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
 ];
 
+/**
+ * Arukone+'s own mechanics. Three slides, in the order the player meets
+ * them: what you are doing, the one thing that makes this game itself,
+ * then what "finished" means.
+ *
+ * Slide 2 says more than the rule does. The board mirrors every step as it
+ * is drawn (see `src/game/arukone/play.ts`), so "paths must be mirror-
+ * symmetric" would describe a constraint the player cannot actually
+ * break - and would leave them wondering why a second line appeared on
+ * the far side of the board. Naming the mirroring is the difference
+ * between the game's best moment reading as a feature and reading as a
+ * bug.
+ */
+export const ARUKONE_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Join the pairs',
+    body: 'Connect matching number pairs with paths - touch a number and drag through the squares beside it.',
+    illustration: 'connect',
+  },
+  {
+    title: 'The board folds',
+    body: 'All paths are mirror-symmetric and route around obstacles. Draw one side and the other side draws itself, folded across the middle.',
+    illustration: 'symmetry',
+  },
+  {
+    title: 'Fill every square',
+    body: 'Complete all pairs without crossing paths - and leave no square empty. Every square belongs to exactly one path.',
+    illustration: 'crossing',
+  },
+];
+
+/**
+ * Fill-a-Pix's own mechanics. Three slides, in the order a player actually
+ * needs them: the goal first (what tapping cells even does - there is no
+ * board game precedent to lean on here the way "connect the pairs" or
+ * "one tent per tree" can), then the one rule in full (counting *and*
+ * diagonals together, since splitting them into two slides left the
+ * diagonal rule floating with nothing concrete attached to it), then what
+ * finishing looks like. The rule slide's own illustration shows an actual
+ * clue digit rather than an abstract ring - the earlier version could
+ * never do this (no Skia font, and the ring alone doesn't explain what a
+ * number *means*), fixed in `FillaPixMechanicsIllustrations.tsx` with a
+ * small hand-drawn digit renderer, the same technique this app's own
+ * hand-stroked icons (the header's "?", the Undo/Restart arrows) already
+ * use in place of a font.
+ */
+export const FILLAPIX_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Paint the hidden picture',
+    body: 'Tap a cell to fill it in. The filled cells you leave behind form a small picture.',
+    illustration: 'goal',
+  },
+  {
+    title: 'A number counts its own 3x3',
+    body: 'Each clue counts the filled cells in the block around it - all nine squares, corners and the clue\'s own square included. So a 0 means none of those nine are filled, and a 9 means every one of them is.',
+    illustration: 'clue',
+  },
+  {
+    title: 'Match every clue to solve it',
+    body: 'Once every clue matches its number, the picture is complete.',
+    illustration: 'reveal',
+  },
+];
+
+/**
+ * Lights Out's own mechanics. Three slides, the user's own copy expanded
+ * only where it had to be: slide 2 is the whole game (a press flips a
+ * *cross*, not a cell), and it is also the rule a player would otherwise
+ * meet as a surprise and read as a bug - so its illustration draws the
+ * cross rather than describing it, with the diagonals pointedly dark.
+ */
+export const LIGHTSOUT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Tap to toggle',
+    body: 'Tap any light to switch it - on to off, off to on.',
+    illustration: 'tap',
+  },
+  {
+    title: 'Neighbours flip too',
+    body: 'A tap never lands alone: the four lights directly above, below and beside it flip with it. Diagonals stay put.',
+    illustration: 'cross',
+  },
+  {
+    title: 'Turn them all off',
+    body: 'The board is solved the moment every light is dark.',
+    illustration: 'dark',
+  },
+];
+
+export const BLOOM_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Tap to turn',
+    body: 'Tap a tile to turn it a quarter. Every line has to meet another line - none may stop in the open or run off the edge.',
+    illustration: 'turn',
+  },
+  {
+    title: 'Pins never turn',
+    body: 'A tile with an ochre pin is fixed, and so is every knot - the tiles with two arcs. Read outward from them, and from the rim.',
+    illustration: 'knot',
+  },
+  {
+    title: 'Closed loops bloom',
+    body: 'A loop that closes fills with colour. Close every loop, with no loose ends anywhere, to finish the board.',
+    illustration: 'bloom',
+  },
+];
+
+export const ADJACENT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Tap a tile',
+    body: 'Tap any tile that touches another of its own colour, and the whole connected run clears at once.',
+    illustration: 'run',
+  },
+  {
+    title: 'The tray falls in',
+    body: 'Whatever sat above the gap drops straight down into it. Columns never slide sideways - what is in a column stays in it.',
+    illustration: 'fall',
+  },
+  {
+    title: 'Reach the target',
+    body: 'Bigger runs are worth much more per tile, so hold your colours together. Hit the target score - or clear the tray outright - to finish.',
+    illustration: 'target',
+  },
+];
+
 const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   gravity: {
     title: 'Gravity',
@@ -218,6 +343,26 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   binairo: {
     title: 'Binairo',
     body: 'Tap a cell to cycle a square, a circle, then blank. No three of the same in a row or column, and each needs an equal split of both, to solve it.',
+  },
+  arukone: {
+    title: 'Arukone+',
+    body: 'Drag from a number to its twin to join them, routing around the blocked squares. The board is folded down the middle: draw one side and the other side draws itself. Join every pair without two paths crossing, and fill every square, to solve it.',
+  },
+  fillapix: {
+    title: 'Fill-a-Pix',
+    body: 'Tap a cell to fill it, tap again to clear it. The filled cells form a hidden picture. Each clue counts the filled squares in its own 3x3 block - all nine, including the square the number sits on - match every clue to complete it.',
+  },
+  lightsout: {
+    title: 'Lights Out',
+    body: 'Tap a light to flip it - and the four lights directly above, below and beside it flip with it. Diagonals stay put. Turn every light off to solve the board.',
+  },
+  adjacent: {
+    title: 'Adjacent',
+    body: 'Tap any tile touching another of its own colour to clear the whole run, and whatever sat above it falls in. Bigger runs score far more per tile - reach the target score, or clear the tray, to finish.',
+  },
+  bloom: {
+    title: 'Bloom',
+    body: 'Tap a tile to turn it a quarter. Every line must meet another line - none may end in the open or run off the edge. Pinned knots never turn: read outward from them and from the rim. A loop that closes blooms; close them all to finish.',
   },
 };
 

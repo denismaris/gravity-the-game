@@ -36,6 +36,16 @@ const FILES: Record<HapticKind, string> = {
   tentsError: 'sfx_tents_error.wav',
   tentsRowComplete: 'sfx_tents_row_complete.wav',
   tentsSolve: 'sfx_tents_solve.wav',
+  arukoneStep: 'sfx_arukone_step.wav',
+  arukoneJoin: 'sfx_arukone_join.wav',
+  arukoneReject: 'sfx_arukone_reject.wav',
+  arukoneSolve: 'sfx_arukone_solve.wav',
+  fillapixToggle: 'sfx_fillapix_toggle.wav',
+  fillapixClueSatisfied: 'sfx_fillapix_clue.wav',
+  fillapixSolve: 'sfx_fillapix_solve.wav',
+  lightsOutTap: 'sfx_lightsout_tap.wav',
+  lightsOutDarker: 'sfx_lightsout_darker.wav',
+  lightsOutSolve: 'sfx_lightsout_solve.wav',
   // Filenames keep their original `ink_trail` naming (already linked into
   // both native projects - see `ios/add_sounds_to_xcodeproj.rb`) even
   // though the `HapticKind` itself is now named for the interstitial's
@@ -43,6 +53,13 @@ const FILES: Record<HapticKind, string> = {
   // mean re-linking it into the Xcode project for no real benefit.
   mazeContact: 'sfx_ink_trail_contact.wav',
   mazeSolve: 'sfx_ink_trail_solve.wav',
+  // Bloom borrows three existing voices rather than shipping new files: a
+  // new sound asset needs a full native rebuild to link, and these already
+  // say the right thing - a small mechanical click, a bright chime, a
+  // resolving solve.
+  bloomTurn: 'sfx_mirror_place.wav',
+  bloomClose: 'sfx_fillapix_clue.wav',
+  bloomSolve: 'sfx_arukone_solve.wav',
 };
 
 let soundEnabled = true;

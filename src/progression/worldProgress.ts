@@ -1,5 +1,6 @@
 import { getStarThresholds, getLevelById } from '../game/levels';
 import { puzzleDisplayInfo } from '../game/journey';
+import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { StarRating } from '../game/scoring';
 import { getLevelPositionInWorld, WorldDefinition, WORLDS } from '../game/worlds';
 import { BatchPuzzleRef, nextInBatch } from './batches';
@@ -144,6 +145,11 @@ export function getUnlockedWorlds(progress: PlayerProgress): ReadonlyArray<World
 export interface LevelPointEntry extends BatchPuzzleRef {
   readonly name: string;
   readonly chapter: string;
+  /** How hard the puzzle actually is, on the shared three-tier scale, so
+   * Home can say so before the player commits to it. Read live from the
+   * puzzle pool via `puzzleDisplayInfo`, not stored - a re-tiered puzzle
+   * takes effect immediately and no save needs migrating. */
+  readonly difficulty: PuzzleDifficulty;
 }
 
 export interface LevelPoint {
@@ -179,11 +185,18 @@ export function getLevelPoint(progress: PlayerProgress): LevelPoint {
   const ref = next ?? batch.puzzles[batch.puzzles.length - 1];
   const batchPosition = batch.puzzles.findIndex(p => p.puzzleId === ref.puzzleId) + 1;
 
-  const info = puzzleDisplayInfo(ref.kind, ref.puzzleId) ?? { name: ref.puzzleId, chapter: '' };
+  const info = puzzleDisplayInfo(ref.kind, ref.puzzleId) ?? { name: ref.puzzleId, chapter: '', difficulty: 'medium' as const };
 
   return {
     levelNumber: batch.levelNumber,
-    entry: { kind: ref.kind, puzzleId: ref.puzzleId, name: info.name, chapter: info.chapter },
+    entry: {
+      kind: ref.kind,
+      puzzleId: ref.puzzleId,
+      name: info.name,
+      chapter: info.chapter,
+      difficulty: info.difficulty,
+      ...(ref.challenge ? { challenge: true as const } : {}),
+    },
     batchPosition,
     batchSize: batch.puzzles.length,
     allDone,

@@ -8,6 +8,7 @@ import { StarRow } from './StarRow';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, encouragementTier, GameKind, gameLabelForKind, pickEncouragement } from '../game/journey';
 import { motion, theme } from '../theme';
+import { CoinsEarned } from './Coins';
 
 export interface PuzzleSolvedProps {
   title?: string;
@@ -32,6 +33,8 @@ export interface PuzzleSolvedProps {
   hasNext?: boolean;
   /** Advance to the next Journey entry (only meaningful when `hasNext`). */
   onNext?: () => void;
+  /** Coins this solve paid out, shown under the note (nothing when 0). */
+  coinsEarned?: number;
 }
 
 /**
@@ -68,6 +71,7 @@ export function PuzzleSolved({
   onDone,
   hasNext = false,
   onNext,
+  coinsEarned = 0,
 }: PuzzleSolvedProps): React.JSX.Element {
   const { backdrop, card, hero, sheen, rowStyle } = useCardEntrance(ROW_COUNT);
 
@@ -162,6 +166,9 @@ export function PuzzleSolved({
           <Animated.Text style={[styles.note, rowStyle(3)]}>
             {note ?? (hintsUsed === 0 ? 'No hints used' : `${hintsUsed} hint${hintsUsed > 1 ? 's' : ''} used`)}
           </Animated.Text>
+          <Animated.View style={rowStyle(3)}>
+            <CoinsEarned amount={coinsEarned} style={styles.coins} />
+          </Animated.View>
 
 
           <Animated.View style={[styles.cardRule, rowStyle(4)]}>
@@ -302,6 +309,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textTertiary,
     marginBottom: theme.spacing.md,
   },
+  coins: { marginTop: -theme.spacing.xs, marginBottom: theme.spacing.md },
   actions: { flexDirection: 'row', gap: theme.spacing.sm },
   button: {
     paddingHorizontal: theme.spacing.lg,

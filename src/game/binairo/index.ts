@@ -19,6 +19,7 @@ export {
   duplicateLineGroups,
   duplicateLines,
   emptyBinairoState,
+  errorLines,
   hasTripleRun,
   isBinairoSolved,
   isColHealthy,

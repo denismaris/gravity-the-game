@@ -566,15 +566,15 @@ export const LEVELS: ReadonlyArray<LevelDefinition> = [
   {
     id: 'level-036',
     order: 36,
-    name: 'Halfway Down',
+    name: 'One Short of the Wall',
     rows: 7,
     cols: 7,
-    objects: [{ row: 0, col: 3 }],
-    targets: [{ row: 3, col: 6 }],
+    objects: [{ row: 6, col: 2 }],
+    targets: [{ row: 0, col: 5 }],
     obstacles: [],
-    anchors: [{ row: 4, col: 3 }],
+    anchors: [{ row: 0, col: 6 }],
     difficulty: 'medium',
-    metadata: { minMoves: 2, stars: { two: 4, three: 2 }, tags: ['anchors'], notes: 'The anchor gives a precise mid-column stop; from there one slide reaches the wall on the target row.' },
+    metadata: { minMoves: 2, stars: { two: 4, three: 2 }, tags: ['anchors'], notes: 'Replaced a board that was level 23 padded out to a bigger grid - a different size wearing the same shape. Here the anchor sits in the corner the slide would otherwise run to, so the piece stops one square short, which is exactly where the target is. Take the anchor away and the board no longer solves in two.' },
   },
   {
     id: 'level-037',
@@ -2129,15 +2129,15 @@ export const LEVELS: ReadonlyArray<LevelDefinition> = [
   {
     id: 'level-143',
     order: 143,
-    name: 'Wrong Way Down, Mirrored',
+    name: 'The Near Side',
     rows: 5,
     cols: 5,
-    objects: [{ row: 0, col: 4 }],
-    targets: [{ row: 4, col: 0 }],
+    objects: [{ row: 4, col: 3 }],
+    targets: [{ row: 0, col: 4 }],
     obstacles: [],
-    hazards: [{ row: 4, col: 4 }],
+    hazards: [{ row: 4, col: 2 }],
     difficulty: 'easy',
-    metadata: { minMoves: 2, stars: { two: 4, three: 2 }, tags: ['hazard', 'tutorial'], notes: 'Same lesson as 142, mirrored - confirms it generalizes: whichever corner the hazard sits in, that corner is a trap.' },
+    metadata: { minMoves: 2, stars: { two: 4, three: 2 }, tags: ['hazard', 'tutorial'], notes: 'Replaced a level that was only 142 mirrored. The hazard sits directly beside the piece rather than across the board, so the danger is not something to spot at a distance - it is already touching, and sliding left ends the attempt at once. Rising out of that row first is what makes the move right safe.' },
   },
   {
     id: 'level-144',
@@ -2155,15 +2155,15 @@ export const LEVELS: ReadonlyArray<LevelDefinition> = [
   {
     id: 'level-145',
     order: 145,
-    name: 'Detour Around Danger, Mirrored',
+    name: 'Along the Floor',
     rows: 6,
     cols: 6,
-    objects: [{ row: 0, col: 5 }],
-    targets: [{ row: 5, col: 0 }],
-    obstacles: [{ row: 5, col: 5 }],
-    hazards: [{ row: 0, col: 0 }],
+    objects: [{ row: 5, col: 0 }],
+    targets: [{ row: 5, col: 5 }],
+    obstacles: [{ row: 4, col: 4 }],
+    hazards: [{ row: 5, col: 1 }],
     difficulty: 'medium',
-    metadata: { minMoves: 3, stars: { two: 6, three: 3 }, tags: ['hazard', 'obstacles', 'planning'], notes: 'Mirror of 144 - the obstacle that looked like just an obstacle is what keeps the safe route safe.' },
+    metadata: { minMoves: 3, stars: { two: 6, three: 3 }, tags: ['hazard', 'obstacles', 'planning'], notes: 'Replaced a level that was only 144 mirrored. Piece and target share the bottom row, and the hazard is the very first square of that obvious route - so the direct line is the fatal one. Going up, across the top and back down costs three moves and is the only way there.' },
   },
   {
     id: 'level-146',
@@ -2208,15 +2208,15 @@ export const LEVELS: ReadonlyArray<LevelDefinition> = [
   {
     id: 'level-149',
     order: 149,
-    name: 'Twin Threats',
+    name: 'Low Road',
     rows: 8,
     cols: 8,
-    objects: [{ row: 0, col: 0 }],
-    targets: [{ row: 7, col: 7 }],
-    obstacles: [{ row: 2, col: 0 }, { row: 1, col: 4 }],
-    hazards: [{ row: 0, col: 7 }],
+    objects: [{ row: 7, col: 5 }],
+    targets: [{ row: 6, col: 0 }],
+    obstacles: [{ row: 3, col: 2 }, { row: 7, col: 0 }],
+    hazards: [{ row: 4, col: 5 }],
     difficulty: 'hard',
-    metadata: { minMoves: 4, stars: { two: 8, three: 4 }, tags: ['hazard', 'obstacles', 'planning'], notes: 'This time it is the very first slide right that is fatal - the safe opening move is down, capped early by an obstacle.' },
+    metadata: { minMoves: 4, stars: { two: 8, three: 4 }, tags: ['hazard', 'obstacles', 'planning'], notes: 'Replaced a level that was the same board as 148 turned, presented as a different puzzle. Rising is fatal here - the hazard waits straight up column 5. The route runs along the floor first, and the corner obstacle is what leaves the piece one square short on the final drop, on the target rather than past it.' },
   },
   {
     id: 'level-150',
@@ -2288,16 +2288,16 @@ export const LEVELS: ReadonlyArray<LevelDefinition> = [
   {
     id: 'level-154',
     order: 154,
-    name: 'Gateway to Danger, Mirrored',
+    name: 'Past the Gate',
     rows: 8,
     cols: 8,
-    objects: [{ row: 0, col: 7 }],
-    targets: [{ row: 7, col: 0 }],
+    objects: [{ row: 4, col: 0 }],
+    targets: [{ row: 7, col: 7 }],
     obstacles: [],
-    hazards: [{ row: 7, col: 7 }],
-    portals: [[{ row: 0, col: 4 }, { row: 6, col: 4 }]],
+    hazards: [{ row: 4, col: 2 }],
+    portals: [[{ row: 4, col: 3 }, { row: 7, col: 0 }]],
     difficulty: 'hard',
-    metadata: { minMoves: 2, stars: { two: 5, three: 2 }, tags: ['hazard', 'portals', 'planning'], notes: 'Mirror of 153 - the gateway sits under the top-left slide instead.' },
+    metadata: { minMoves: 2, stars: { two: 5, three: 2 }, tags: ['hazard', 'portals', 'planning'], notes: 'Replaced a level that was only 153 mirrored. Sliding right runs into the hazard two squares along; dropping instead carries the piece into the portal on the floor of column 0, out at the gateway mid-board and on down, leaving a clear run right to the target.' },
   },
   {
     id: 'level-155',
@@ -2329,6 +2329,207 @@ export const LEVELS: ReadonlyArray<LevelDefinition> = [
     difficulty: 'expert',
     metadata: { minMoves: 2, stars: { two: 5, three: 2 }, tags: ['hazard', 'gravity-zone', 'portals', 'planning'], notes: 'Mirror of 155, and the true finale - every mechanic in the game, read correctly, is still just two confident moves.' },
   },
+
+  // ======================================================================
+  // World 7 (levels 157-170): The Long Fall.
+  //
+  // No new mechanic - deliberately. Every level here uses only gravity,
+  // obstacles, anchors and multiple objects, the same vocabulary World 1
+  // teaches in its first five minutes. What is new is length: 156 levels
+  // in, only two ever asked for more than five moves (level-059 at six,
+  // level-060 at seven), and the game's own advertised finale (level-156,
+  // "every mechanic in the game") solves in two once you see it. This
+  // world is the missing top of that curve - 5 to 8 moves, found by
+  // random search over anchor/obstacle/object placements on 5x5 through
+  // 7x7 boards and kept only when the real BFS solver (not a guess)
+  // confirmed the shortest solution was exactly the intended length, then
+  // hand-picked for a level that reads as one coherent idea rather than
+  // a random scatter. 157-159 open at five moves across growing board
+  // sizes; 160-162 add a second decision at six; 163-166 reach four
+  // objects at seven; 167-170 close at eight, ending - unlike 156 - on a
+  // puzzle that is still eight moves deep with every mechanic stripped
+  // back to none at all.
+  // ======================================================================
+  {
+    id: 'level-157',
+    order: 157,
+    name: 'The Long Fall',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 0, col: 0 }, { row: 1, col: 3 }],
+    targets: [{ row: 4, col: 0 }, { row: 4, col: 2 }],
+    obstacles: [{ row: 2, col: 0 }, { row: 2, col: 1 }, { row: 0, col: 4 }],
+    anchors: [{ row: 4, col: 1 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 5, stars: { two: 9, three: 5 }, tags: ['planning', 'anchored'], notes: 'The floor this world opens on: two objects, one anchor, five moves with no shortcut.' },
+  },
+  {
+    id: 'level-158',
+    order: 158,
+    name: 'Wider Ground',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 1, col: 3 }, { row: 4, col: 2 }],
+    targets: [{ row: 4, col: 0 }, { row: 5, col: 0 }],
+    obstacles: [{ row: 0, col: 3 }, { row: 5, col: 4 }, { row: 2, col: 0 }],
+    anchors: [{ row: 2, col: 5 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 5, stars: { two: 9, three: 5 }, tags: ['planning', 'anchored'], notes: 'Same idea as 157, one size up - more empty board is not the same as more room.' },
+  },
+  {
+    id: 'level-159',
+    order: 159,
+    name: 'Open Country',
+    rows: 7,
+    cols: 7,
+    objects: [{ row: 3, col: 0 }, { row: 4, col: 6 }],
+    targets: [{ row: 0, col: 0 }, { row: 5, col: 0 }],
+    obstacles: [{ row: 4, col: 0 }, { row: 6, col: 3 }, { row: 1, col: 0 }, { row: 6, col: 5 }],
+    anchors: [{ row: 3, col: 3 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 5, stars: { two: 9, three: 5 }, tags: ['planning', 'anchored'], notes: '7x7, the biggest board in the game so far, and still exactly five moves - the space does not make it easier.' },
+  },
+  {
+    id: 'level-160',
+    order: 160,
+    name: 'No Shortcuts',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 2, col: 3 }, { row: 4, col: 2 }],
+    targets: [{ row: 2, col: 4 }, { row: 1, col: 0 }],
+    obstacles: [{ row: 2, col: 2 }, { row: 1, col: 1 }, { row: 3, col: 4 }, { row: 2, col: 0 }, { row: 3, col: 0 }],
+    anchors: [{ row: 4, col: 4 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 6, stars: { two: 10, three: 6 }, tags: ['planning', 'anchored'], notes: 'Five obstacles on a 5x5 board - the densest layout in this world, and every one of them earns its place.' },
+  },
+  {
+    id: 'level-161',
+    order: 161,
+    name: 'Four at Once',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 1, col: 1 }, { row: 4, col: 0 }, { row: 3, col: 4 }, { row: 2, col: 1 }],
+    targets: [{ row: 0, col: 0 }, { row: 0, col: 4 }, { row: 0, col: 3 }, { row: 1, col: 4 }],
+    obstacles: [{ row: 0, col: 1 }, { row: 3, col: 0 }],
+    anchors: [{ row: 2, col: 4 }, { row: 3, col: 1 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 6, stars: { two: 10, three: 6 }, tags: ['planning', 'anchored', 'multi-object'], notes: 'Four objects, two anchors - six moves is barely enough room to get all four home in order.' },
+  },
+  {
+    id: 'level-162',
+    order: 162,
+    name: 'Room to Think',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 4, col: 5 }, { row: 5, col: 2 }],
+    targets: [{ row: 5, col: 0 }, { row: 1, col: 0 }],
+    obstacles: [{ row: 4, col: 2 }, { row: 2, col: 3 }, { row: 2, col: 5 }],
+    anchors: [{ row: 0, col: 1 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 6, stars: { two: 10, three: 6 }, tags: ['planning', 'anchored'], notes: 'The most open layout in this world - and still six real moves, not a free ride.' },
+  },
+  {
+    id: 'level-163',
+    order: 163,
+    name: 'Three-Body Problem',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 0, col: 0 }, { row: 3, col: 3 }, { row: 2, col: 2 }],
+    targets: [{ row: 1, col: 3 }, { row: 2, col: 0 }, { row: 1, col: 4 }],
+    obstacles: [{ row: 4, col: 0 }, { row: 2, col: 1 }],
+    anchors: [{ row: 3, col: 0 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 7, stars: { two: 11, three: 7 }, tags: ['planning', 'anchored', 'multi-object'], notes: 'Three objects that keep getting in each others way - moving one first is rarely the move that pays off.' },
+  },
+  {
+    id: 'level-164',
+    order: 164,
+    name: 'Boxed In',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 0, col: 1 }, { row: 4, col: 1 }, { row: 4, col: 3 }],
+    targets: [{ row: 2, col: 2 }, { row: 3, col: 4 }, { row: 2, col: 3 }],
+    obstacles: [{ row: 2, col: 1 }, { row: 3, col: 3 }],
+    anchors: [{ row: 0, col: 0 }, { row: 4, col: 4 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 7, stars: { two: 11, three: 7 }, tags: ['planning', 'anchored', 'multi-object'], notes: 'Two anchors pinning the corners turn this small board into a much tighter maze than it looks.' },
+  },
+  {
+    id: 'level-165',
+    order: 165,
+    name: 'No Anchors Needed',
+    rows: 7,
+    cols: 7,
+    objects: [{ row: 5, col: 2 }, { row: 1, col: 0 }],
+    targets: [{ row: 6, col: 6 }, { row: 6, col: 0 }],
+    obstacles: [{ row: 5, col: 1 }, { row: 0, col: 0 }, { row: 3, col: 4 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 7, stars: { two: 11, three: 7 }, tags: ['planning'], notes: 'No anchors at all, on the biggest board in this world - just two objects, three obstacles, and seven moves of real planning.' },
+  },
+  {
+    id: 'level-166',
+    order: 166,
+    name: 'Everyone Moves',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 2, col: 2 }, { row: 3, col: 1 }, { row: 3, col: 3 }, { row: 4, col: 3 }],
+    targets: [{ row: 1, col: 4 }, { row: 4, col: 4 }, { row: 1, col: 3 }, { row: 3, col: 4 }],
+    obstacles: [{ row: 2, col: 1 }, { row: 0, col: 2 }, { row: 0, col: 1 }, { row: 2, col: 4 }],
+    anchors: [{ row: 2, col: 0 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 7, stars: { two: 11, three: 7 }, tags: ['planning', 'anchored', 'multi-object'], notes: 'Four objects sharing one small board - there is no move that only affects one of them.' },
+  },
+  {
+    id: 'level-167',
+    order: 167,
+    name: 'Three Ways Wrong',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 4, col: 3 }, { row: 2, col: 3 }, { row: 0, col: 4 }],
+    targets: [{ row: 3, col: 4 }, { row: 1, col: 0 }, { row: 4, col: 2 }],
+    obstacles: [{ row: 2, col: 4 }, { row: 4, col: 1 }, { row: 3, col: 3 }],
+    anchors: [{ row: 2, col: 1 }, { row: 0, col: 0 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 8, stars: { two: 12, three: 8 }, tags: ['planning', 'anchored', 'multi-object'], notes: 'The world opens its finale here - three objects, two anchors, and far more ways to go eight moves down a dead end than the one that works.' },
+  },
+  {
+    id: 'level-168',
+    order: 168,
+    name: 'Narrow Margins',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 5, col: 2 }, { row: 5, col: 1 }, { row: 0, col: 4 }],
+    targets: [{ row: 1, col: 3 }, { row: 0, col: 5 }, { row: 0, col: 2 }],
+    obstacles: [{ row: 4, col: 4 }],
+    anchors: [{ row: 2, col: 4 }, { row: 0, col: 3 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 8, stars: { two: 12, three: 8 }, tags: ['planning', 'anchored', 'multi-object'], notes: 'Only one obstacle - the two anchors alone are enough to make eight moves earn every one of them.' },
+  },
+  {
+    id: 'level-169',
+    order: 169,
+    name: 'The Whole Board',
+    rows: 7,
+    cols: 7,
+    objects: [{ row: 4, col: 5 }, { row: 5, col: 4 }],
+    targets: [{ row: 0, col: 3 }, { row: 5, col: 1 }],
+    obstacles: [{ row: 0, col: 4 }, { row: 2, col: 2 }, { row: 4, col: 1 }, { row: 1, col: 0 }, { row: 3, col: 4 }],
+    anchors: [{ row: 6, col: 2 }, { row: 6, col: 0 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 8, stars: { two: 12, three: 8 }, tags: ['planning', 'anchored'], notes: 'Just two objects, but the biggest board and the busiest layout in the game - eight moves to cross all of it.' },
+  },
+  {
+    id: 'level-170',
+    order: 170,
+    name: 'Everything Learned, Again',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 1, col: 0 }, { row: 4, col: 2 }, { row: 4, col: 1 }, { row: 0, col: 0 }],
+    targets: [{ row: 0, col: 2 }, { row: 0, col: 4 }, { row: 0, col: 1 }, { row: 2, col: 3 }],
+    obstacles: [{ row: 1, col: 3 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 8, stars: { two: 12, three: 8 }, tags: ['planning', 'multi-object'], notes: 'The real finale: no anchors, one obstacle, four objects - every mechanic stripped back to none, and still eight moves deep. Level 156 called itself "everything learned" at two moves; this is what that phrase should have cost.' },
+  },
 ];
 
 /**
@@ -2357,12 +2558,21 @@ export function getLevelByOrder(order: number): LevelDefinition | undefined {
 /**
  * Levels at one of the three shared `PuzzleDifficulty` tiers (see its own
  * comment in `src/game/puzzleDifficulty.ts`) - for the batch generator, so
- * it can query Gravity the same way it queries every other game. Gravity's
- * own `expert` tier is deliberately unreachable through this function: the
- * parameter type itself has no `'expert'` value, so no call site can ever
- * ask for one - this is the literal difficulty ceiling the batch generator
- * relies on, not a filter it has to remember to apply.
+ * it can query Gravity the same way it queries every other game.
+ *
+ * Gravity's own fourth tier, `expert`, answers to `'hard'` here.
+ *
+ * It used to answer to nothing. The shared vocabulary has three tiers and
+ * Gravity has four, so `expert` matched no query and twenty levels - the
+ * hardest eighth of the game, and the most interesting of it - could never
+ * be dealt into a batch at all. That was described as a deliberate
+ * difficulty ceiling, and it did work as one; what it also did was quietly
+ * withhold the best content from the only system that serves levels, and
+ * leave the top of the curve feeling like it never arrived.
  */
 export function getLevelsByDifficulty(difficulty: PuzzleDifficulty): ReadonlyArray<LevelDefinition> {
+  if (difficulty === 'hard') {
+    return LEVELS.filter(level => level.difficulty === 'hard' || level.difficulty === 'expert');
+  }
   return LEVELS.filter(level => level.difficulty === difficulty);
 }

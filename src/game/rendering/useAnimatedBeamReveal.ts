@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 
 const MIN_MS = 320;
-const MAX_MS = 1100;
+/** Capped to the beat the completion card waits out
+ * (`SOLVE_CELEBRATION_MS`): a long route used to ignite for over a
+ * second, most of it behind the card's own scrim. */
+const MAX_MS = 600;
 
 function durationFor(cellCount: number): number {
   return Math.min(MAX_MS, Math.max(MIN_MS, 90 * cellCount));

@@ -32,6 +32,12 @@ function levelIdsInOrderRange(from: number, to: number): string[] {
  *    the stakes with tighter multi-step gauntlets; 151-156 fold in gravity
  *    zones and portals from Worlds 3-5 (a "belt" that carries an object one
  *    cell past its own far edge, into a waiting hazard).
+ *  - World 7 - The Long Fall: 14 levels (play order 157-170), no new
+ *    mechanic at all - only length. 156 levels in, only one exceeded five
+ *    moves; this world is 5-8 moves on nothing but gravity, obstacles,
+ *    anchors and multiple objects, found by random search over the BFS
+ *    solver and hand-picked for coherence rather than authored move by
+ *    move. See `levelData.ts`'s own comment on this world for how.
  *
  * Each world's `levelIds` are derived from `LEVELS` by play-order range
  * (rather than hand-copied) so a world can never drift out of sync with the
@@ -88,6 +94,14 @@ export const WORLDS: ReadonlyArray<WorldDefinition> = [
     subtitle: 'One wrong move and it is over.',
     mechanics: ['gravity', 'targets', 'obstacles', 'anchored', 'hazard', 'gravity-zone', 'portals'],
     levelIds: levelIdsInOrderRange(141, 156),
+  },
+  {
+    id: 'world-7',
+    order: 7,
+    name: 'The Long Fall',
+    subtitle: 'No new tricks. Just further to plan ahead.',
+    mechanics: ['gravity', 'targets', 'obstacles', 'multi-object', 'anchored'],
+    levelIds: levelIdsInOrderRange(157, 170),
   },
 ];
 

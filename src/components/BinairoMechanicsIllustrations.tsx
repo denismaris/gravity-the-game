@@ -183,7 +183,7 @@ function TripleIllustration(): React.JSX.Element {
           the same "always the entire line" treatment the real board uses,
           not a tight box around just the three offending cells. */}
       <Group clip={clip}>
-        {hazardStripePaths(startX, ty, fullWidth, STRIP_TILE, 4, 0).map((d, i) => (
+        {hazardStripePaths(startX, ty, fullWidth, STRIP_TILE, 4).map((d, i) => (
           <Path key={i} path={d} color={theme.colors.danger} style="stroke" strokeWidth={4} opacity={0.55} />
         ))}
       </Group>

@@ -30,8 +30,9 @@ function tint(hex: string, alpha: number): string {
  * not from an arbitrary icon set: Skyscrapers is a skyline of rising bars,
  * Binairo is its own two fillable symbols side by side, Mirror Maze is a
  * beam turning a corner off a mirror, Tents and Trees is a tent beside a
- * tree, Gravity is a piece falling to its target ring. A player who has
- * played the game should recognise its emblem without being told.
+ * tree, Gravity is a piece falling to its target ring, Arukone+ is two
+ * paths folded around a centre line. A player who has played the game
+ * should recognise its emblem without being told.
  *
  * Deliberately flat and square-cornered inside a rounded plate, in one
  * colour: these sit next to each other in the batch summary, and five
@@ -63,6 +64,16 @@ function renderMark(kind: GameKind, size: number, accent: string, plate: string)
       return <TentsMark size={size} accent={accent} plate={plate} />;
     case 'gravity':
       return <GravityMark size={size} accent={accent} plate={plate} />;
+    case 'arukone':
+      return <ArukoneMark size={size} accent={accent} plate={plate} />;
+    case 'fillapix':
+      return <FillaPixMark size={size} accent={accent} plate={plate} />;
+    case 'lightsout':
+      return <LightsOutMark size={size} accent={accent} plate={plate} />;
+    case 'adjacent':
+      return <AdjacentMark size={size} accent={accent} plate={plate} />;
+    case 'bloom':
+      return <BloomMark size={size} accent={accent} plate={plate} />;
   }
 }
 
@@ -282,6 +293,204 @@ function GravityMark({ size, accent }: MarkProps): React.JSX.Element {
   );
 }
 
+/**
+ * Two paths folded about the board's own centre line, each running from
+ * one number to another around a blocked square - the whole game in one
+ * mark. The right-hand path is drawn as the exact mirror of the left, so
+ * the emblem is doing the thing it depicts.
+ *
+ * The numbers are rings rather than discs (a knocked-out centre, like the
+ * other marks' detail) - a solid dot at this size reads as a bullet, and
+ * these want to read as *terminals*, something a line arrives at.
+ */
+function ArukoneMark({ size, accent, plate }: MarkProps): React.JSX.Element {
+  const fold = size / 2;
+  const stroke = Math.max(2, size * 0.075);
+  const nodeR = size * 0.072;
+  const top = size * 0.26;
+  const bottom = size * 0.7;
+  const outer = size * 0.22;
+  const inner = size * 0.365;
+  const blockSize = size * 0.15;
+
+  // The right-hand path is literally `2 * fold - x` of the left - the same
+  // reflection `mirrorCell` applies to the real board.
+  const arm = (x0: number, x1: number): string =>
+    `M ${x0} ${top} L ${x1} ${top} L ${x1} ${bottom} L ${x0} ${bottom}`;
+
+  return (
+    <Group>
+      {/* The fold the board is symmetric about. */}
+      <Path
+        path={`M ${fold} ${size * 0.13} L ${fold} ${size * 0.87}`}
+        color={accent}
+        opacity={0.28}
+        style="stroke"
+        strokeWidth={Math.max(1, size * 0.02)}
+      />
+      {[arm(outer, inner), arm(size - outer, size - inner)].map((path, i) => (
+        <Path
+          key={`arm-${i}`}
+          path={path}
+          color={accent}
+          style="stroke"
+          strokeWidth={stroke}
+          strokeCap="round"
+          strokeJoin="round"
+        />
+      ))}
+      {/* The blocked square both paths had to route around. */}
+      <RoundedRect
+        x={fold - blockSize / 2}
+        y={size * 0.48 - blockSize / 2}
+        width={blockSize}
+        height={blockSize}
+        r={size * 0.025}
+        color={accent}
+      />
+      {[top, bottom].flatMap(y =>
+        [outer, size - outer].map(x => (
+          <Group key={`node-${x}-${y}`}>
+            <Circle cx={x} cy={y} r={nodeR} color={accent} />
+            <Circle cx={x} cy={y} r={nodeR * 0.42} color={plate} />
+          </Group>
+        )),
+      )}
+    </Group>
+  );
+}
+
+/**
+ * A tiny 3x3 mosaic - a small plus of filled tiles among empty ones, the
+ * same "picture made of squares" the real board asks a player to build,
+ * shrunk to the smallest shape that still reads as a picture rather than
+ * a random scatter.
+ */
+function FillaPixMark({ size, accent, plate }: MarkProps): React.JSX.Element {
+  const cell = size * 0.2;
+  const gap = size * 0.025;
+  const span = cell * 3 + gap * 2;
+  const originX = (size - span) / 2;
+  const originY = (size - span) / 2;
+  const filled = new Set([1, 3, 4, 5, 7]); // a plus, indices 0..8 row-major
+
+  return (
+    <Group>
+      {Array.from({ length: 9 }).map((_, i) => {
+        const r = Math.floor(i / 3);
+        const c = i % 3;
+        const x = originX + c * (cell + gap);
+        const y = originY + r * (cell + gap);
+        return <RoundedRect key={`cell-${i}`} x={x} y={y} width={cell} height={cell} r={cell * 0.22} color={filled.has(i) ? accent : plate} />;
+      })}
+    </Group>
+  );
+}
+
+/**
+ * The cross a single press lights up: five lamps lit in a plus, the four
+ * diagonals left dark. That shape *is* the game's one rule, which is what
+ * earns it the emblem.
+ *
+ * Deliberately round lamps with a halo, where `FillaPixMark` next door is
+ * square tiles - both marks are a plus in a 3x3, and shape is what keeps
+ * them from reading as the same emblem at card size.
+ */
+function LightsOutMark({ size, accent, plate }: MarkProps): React.JSX.Element {
+  const step = size * 0.235;
+  const centre = size / 2;
+  const lampR = size * 0.085;
+  const isLit = (r: number, c: number): boolean => Math.abs(r - 1) + Math.abs(c - 1) <= 1;
+
+  return (
+    <Group>
+      {[0, 1, 2].map(r =>
+        [0, 1, 2].map(c => {
+          const cx = centre + (c - 1) * step;
+          const cy = centre + (r - 1) * step;
+          if (!isLit(r, c)) {
+            return <Circle key={`off-${r}-${c}`} cx={cx} cy={cy} r={lampR * 0.72} color={plate} />;
+          }
+          return (
+            <Group key={`on-${r}-${c}`}>
+              <Circle cx={cx} cy={cy} r={lampR * 1.75} color={accent} opacity={0.22} />
+              <Circle cx={cx} cy={cy} r={lampR} color={accent} />
+            </Group>
+          );
+        }),
+      )}
+    </Group>
+  );
+}
+
+/**
+ * A connected run of four tiles picked out of a tray of nine - the exact
+ * thing a tap does, which is the whole game.
+ *
+ * The run is solid and its neighbours are the same colour held right
+ * back, rather than a second hue: Adjacent's board is the one place in
+ * this app that genuinely uses five colours at once, and an emblem that
+ * tried to say so would be the cluttered outlier in a row of flat
+ * single-colour marks. What distinguishes this game is not *that* it has
+ * colours, it is that touching ones go together - and that reads in one
+ * ink.
+ */
+function AdjacentMark({ size, accent }: MarkProps): React.JSX.Element {
+  const cell = size * 0.2;
+  const gap = size * 0.035;
+  const span = cell * 3 + gap * 2;
+  const originX = (size - span) / 2;
+  const originY = (size - span) / 2;
+  // An L, so the run reads as *connected* rather than as a row or a
+  // block - a straight line of three could be a coincidence, a corner
+  // could not.
+  const run = new Set([0, 3, 4, 7]); // indices 0..8, row-major
+
+  return (
+    <Group>
+      {Array.from({ length: 9 }).map((_, i) => {
+        const r = Math.floor(i / 3);
+        const c = i % 3;
+        return (
+          <RoundedRect
+            key={`tile-${i}`}
+            x={originX + c * (cell + gap)}
+            y={originY + r * (cell + gap)}
+            width={cell}
+            height={cell}
+            r={cell * 0.24}
+            color={accent}
+            opacity={run.has(i) ? 1 : 0.26}
+          />
+        );
+      })}
+    </Group>
+  );
+}
+
+/** A quatrefoil - four overlapping discs - which is what the smallest
+ * closed loop on a Bloom board fills in as: four quarter arcs, lobed. The
+ * plate-coloured eye in the middle keeps it a flower rather than a blob
+ * at 26 points. */
+function BloomMark({ size, accent, plate }: MarkProps): React.JSX.Element {
+  const c = size / 2;
+  const offset = size * 0.12;
+  const petal = size * 0.15;
+  return (
+    <Group>
+      {[
+        [0, -offset],
+        [offset, 0],
+        [0, offset],
+        [-offset, 0],
+      ].map(([dx, dy], i) => (
+        <Circle key={`petal-${i}`} cx={c + dx} cy={c + dy} r={petal} color={accent} />
+      ))}
+      <Circle cx={c} cy={c} r={size * 0.055} color={plate} />
+    </Group>
+  );
+}
+
 export interface FinishedGamesRowProps {
   /** Every game in the set just finished, in the order it was played. */
   readonly kinds: ReadonlyArray<GameKind>;
@@ -300,8 +509,8 @@ const ROW_STAGGER_MS = 90;
  * A level here is a *combination* of games (see `batches.ts`), which until
  * now the player only ever saw as a line of coloured dots while playing.
  * At the moment the set is finished that composition is worth actually
- * showing: these are the five games, and this is which of them you just
- * got through. Staggered rather than appearing at once, so it reads as a
+ * showing: these are the games, and this is which of them you just got
+ * through. Staggered rather than appearing at once, so it reads as a
  * tally being counted out.
  */
 export function FinishedGamesRow({ kinds, size = 44, delayMs = 0 }: FinishedGamesRowProps): React.JSX.Element {

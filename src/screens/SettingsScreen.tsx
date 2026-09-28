@@ -6,6 +6,7 @@ import { GeometricRule, PressableScale } from '../components';
 import { usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { theme } from '../theme';
+import { PageBloom } from '../components/PageBloom';
 
 export interface SettingsScreenProps {
   onExit: () => void;
@@ -39,6 +40,7 @@ export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Eleme
 
   return (
     <View style={styles.container}>
+      <PageBloom />
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
           <Text style={styles.back}>‹ Home</Text>
@@ -90,7 +92,7 @@ export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Eleme
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerTitle}>GRAVITY</Text>
+          <Text style={styles.footerTitle}>TESSERA</Text>
           <Text style={styles.footerMeta}>Version {version}</Text>
           <Text style={styles.footerTagline}>An Almanac of Puzzles</Text>
         </View>

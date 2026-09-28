@@ -1,0 +1,51 @@
+import { StarRating } from '../game/scoring';
+
+/**
+ * The coin economy: every number in one place, and the one pure function
+ * that decides what a solve is worth.
+ *
+ * Coins are earned by *progress*, never by repetition - a puzzle pays out
+ * the first time it is solved and again only for stars it had not earned
+ * before, so replaying an easy board cannot farm them. And hints already
+ * cost stars, so a player who leans on hints also earns fewer coins to buy
+ * the next ones: the economy balances itself rather than needing a cap.
+ */
+
+/** What a new player (and an existing save on its first load with coins)
+ * starts with - enough to try a few hints before earning any. */
+export const STARTING_COINS = 50;
+
+/** One hint, in every game that has them. */
+export const HINT_COST = 10;
+/** One undo (Gravity, Fill-a-Pix, Adjacent). Deliberately cheap: an undo
+ * fixes a slip, it does not solve anything. */
+export const UNDO_COST = 2;
+
+/** A first solve, by the stars it earned. */
+export const FIRST_SOLVE_COINS: Readonly<Record<StarRating, number>> = { 1: 4, 2: 7, 3: 10 };
+/** Each star a replay earns that the puzzle had not had before. */
+export const STAR_UPGRADE_COINS = 3;
+/** The Daily, on top of its own solve - once per day. */
+export const DAILY_BONUS = 15;
+/** Finishing a whole level set. */
+export const SET_BONUS = 20;
+
+export interface SolveReward {
+  /** Best stars before this solve, or 0 if it had never been solved. */
+  readonly previousStars: 0 | StarRating;
+  /** Best stars after it. */
+  readonly bestStars: StarRating;
+  /** This solve was today's Daily, and the Daily was not already done. */
+  readonly firstDailyToday: boolean;
+  /** This solve completed the level set. */
+  readonly setCompleted: boolean;
+}
+
+export function coinsForSolve({ previousStars, bestStars, firstDailyToday, setCompleted }: SolveReward): number {
+  let coins = 0;
+  if (previousStars === 0) coins += FIRST_SOLVE_COINS[bestStars];
+  else if (bestStars > previousStars) coins += (bestStars - previousStars) * STAR_UPGRADE_COINS;
+  if (firstDailyToday) coins += DAILY_BONUS;
+  if (setCompleted) coins += SET_BONUS;
+  return coins;
+}

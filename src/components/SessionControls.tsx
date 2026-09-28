@@ -1,12 +1,16 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
+import { Canvas, Path } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
 import { theme } from '../theme';
+import { CoinCost } from './Coins';
 
 export interface SessionControlsProps {
   onUndo: () => void;
   onRestart: () => void;
   undoDisabled?: boolean;
+  /** Coins an undo costs, shown on the button when set. */
+  undoCost?: number;
 }
 
 /**
@@ -21,12 +25,19 @@ function SessionControlsImpl({
   onUndo,
   onRestart,
   undoDisabled = false,
+  undoCost,
 }: SessionControlsProps): React.JSX.Element {
   return (
     <View style={styles.container}>
-      <SessionButton label="Undo" onPress={onUndo} disabled={undoDisabled} />
+      <SessionButton
+        label="Undo"
+        icon={<UndoIcon />}
+        onPress={onUndo}
+        disabled={undoDisabled}
+        cost={undoCost === undefined ? undefined : <CoinCost cost={undoCost} muted={undoDisabled} />}
+      />
       <View style={styles.spacer} />
-      <SessionButton label="Restart" onPress={onRestart} />
+      <SessionButton label="Restart" icon={<RestartIcon />} onPress={onRestart} />
     </View>
   );
 }
@@ -37,13 +48,40 @@ function SessionControlsImpl({
  */
 export const SessionControls = React.memo(SessionControlsImpl);
 
+const ICON_SIZE = 14;
+
+/** The same restart arrow every other play screen's Restart pill carries,
+ * in Gravity's own terracotta (`secondary`, the colour its header kicker
+ * already uses), so this row stops being the one set of bare-text buttons
+ * in the app. */
+function RestartIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={theme.colors.secondary} style="stroke" strokeWidth={1.6} />
+      <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={theme.colors.secondary} />
+    </Canvas>
+  );
+}
+
+/** `RestartIcon` mirrored - "one step back" as the opposite of "start over". */
+function UndoIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Path path="M 9.83 3.63 A 4.4 4.4 0 1 1 3.63 4.17" color={theme.colors.secondary} style="stroke" strokeWidth={1.6} />
+      <Path path="M 4.34 3.33 L 1.21 4.1 L 4.12 6.54 Z" color={theme.colors.secondary} />
+    </Canvas>
+  );
+}
+
 interface SessionButtonProps {
   label: string;
+  icon: React.ReactNode;
+  cost?: React.ReactNode;
   onPress: () => void;
   disabled?: boolean;
 }
 
-function SessionButton({ label, onPress, disabled = false }: SessionButtonProps) {
+function SessionButton({ label, icon, cost, onPress, disabled = false }: SessionButtonProps) {
   return (
     <PressableScale
       accessibilityRole="button"
@@ -58,7 +96,9 @@ function SessionButton({ label, onPress, disabled = false }: SessionButtonProps)
         disabled && styles.buttonDisabled,
       ]}
     >
+      {icon}
       <Text style={[styles.buttonLabel, disabled && styles.buttonLabelDisabled]}>{label}</Text>
+      {cost}
     </PressableScale>
   );
 }
@@ -72,7 +112,10 @@ const styles = StyleSheet.create({
     width: theme.spacing.md,
   },
   button: {
-    paddingHorizontal: theme.spacing.lg,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
+    paddingHorizontal: theme.spacing.md,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surface,

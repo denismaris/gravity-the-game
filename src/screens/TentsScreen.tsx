@@ -16,13 +16,17 @@ import {
   totalTentsNeeded,
   touchingTentCells,
 } from '../game/tents';
-import { BatchProgressDots, GeometricRule, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, TentsBoard, renderTentsIllustration } from '../components';
+import { BatchProgressDots, DifficultyChip, GeometricRule, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, TentsBoard, renderTentsIllustration, useSolveCelebration } from '../components';
+import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
 import { TENTS_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme } from '../theme';
+import { PageBloom } from '../components/PageBloom';
+import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
+import { HINT_COST } from '../progression/coins';
 
 const TUTORIAL_ID = tutorialIdForGame('tents');
 const ICON_SIZE = 14;
@@ -38,6 +42,32 @@ function HelpIcon(): React.JSX.Element {
       <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
       <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
       <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
+    </Canvas>
+  );
+}
+
+/** A small lightbulb - the same glyph the other play screens carry on
+ * their Hint pill, in this game's own accent. Tents and Arukone+ were the
+ * two screens whose pills were still bare text while Binairo, Skyscrapers
+ * and Mirror Maze had icons; three out of five is the kind of gap that
+ * reads as unfinished rather than as restraint. */
+function HintIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Circle cx={7} cy={5.8} r={4.3} color={theme.colors.tentsAccent} style="stroke" strokeWidth={1.4} />
+      <Path path="M 5.4 9.4 L 8.6 9.4" color={theme.colors.tentsAccent} style="stroke" strokeWidth={1.3} />
+      <Path path="M 5.7 11.2 L 8.3 11.2" color={theme.colors.tentsAccent} style="stroke" strokeWidth={1.3} />
+      <Path path="M 6.3 12.6 L 7.7 12.6" color={theme.colors.tentsAccent} style="stroke" strokeWidth={1.1} />
+    </Canvas>
+  );
+}
+
+/** A restart-arrow glyph, same treatment as `HintIcon` above. */
+function RestartIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={theme.colors.tentsAccent} style="stroke" strokeWidth={1.6} />
+      <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={theme.colors.tentsAccent} />
     </Canvas>
   );
 }
@@ -85,6 +115,8 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState(() => emptyTentsTreesState(puzzle));
+  const { coins, shortBy, buy } = useCoinPurchase();
+  const [coinsEarned, setCoinsEarned] = useState(0);
   const [hints, setHints] = useState(0);
   const [flash, setFlash] = useState<TentsTreesCell | null>(null);
   const [stars, setStars] = useState<1 | 2 | 3 | null>(null);
@@ -114,6 +146,10 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
   }, []);
 
   const solved = useMemo(() => isTentsTreesSolved(puzzle, state), [puzzle, state]);
+
+  // The completion card waits for the board's own finish animation to
+  // play - without this it drops a scrim straight over the top of it.
+  const showSolvedCard = useSolveCelebration(solved);
   const left = remainingTents(puzzle, state);
   const totalTents = totalTentsNeeded(puzzle);
 
@@ -136,6 +172,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
       const outcome = recordCompletion(puzzle.id, hints);
       batchCompletedRef.current = outcome.batchCompleted;
       setStars(outcome.best.stars);
+      setCoinsEarned(outcome.coinsEarned);
       triggerFeedback('tentsSolve');
     }
   }, [solved, hints, puzzle.id, recordCompletion]);
@@ -168,18 +205,22 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
     [puzzle],
   );
 
+  // Charged only when there is a hint to give, and before applying it, so
+  // a refused purchase leaves the board untouched. Worked out from the live
+  // \`state\` rather than inside a \`setState\` updater: React may run an
+  // updater twice, which would charge twice.
   const useHint = useCallback(() => {
-    setState(s => {
-      const h = revealHint(s, puzzle);
-      if (!h) return s;
+    const h = revealHint(state, puzzle);
+    if (!h) return;
+    buy(HINT_COST, () => {
+      setState(h.state);
       setHints(n => n + 1);
       setFlash(h.cell);
       if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
       flashTimeoutRef.current = setTimeout(() => setFlash(null), 450);
       triggerFeedback('targetReached');
-      return h.state;
     });
-  }, [puzzle]);
+  }, [puzzle, state, buy]);
 
   const restart = useCallback(() => {
     recorded.current = false;
@@ -200,15 +241,16 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
+      <PageBloom />
+      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
           <Text style={styles.back}>‹ Home</Text>
         </PressableScale>
         <View style={styles.headerCenter}>
-          <Text style={styles.name} numberOfLines={1}>
+          <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
             {puzzle.name ?? 'Tents and Trees'}
           </Text>
-          <AnimatedKicker left={left} solved={solved} />
+          <AnimatedKicker left={left} solved={solved} difficulty={puzzle.difficulty} />
           <View style={styles.track}>
             <Animated.View
               style={[
@@ -237,32 +279,38 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
           <GeometricRule variant="stage" style={styles.stageRule} />
           <TentsBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} />
         </View>
+
+        <View style={styles.controls}>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Reveal a hint"
+            onPress={useHint}
+            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+          >
+            <HintIcon />
+            <Text style={styles.pillText}>Hint</Text>
+            <CoinCost cost={HINT_COST} />
+          </PressableScale>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Restart puzzle"
+            onPress={restart}
+            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+          >
+            <RestartIcon />
+            <Text style={styles.pillText}>Restart</Text>
+          </PressableScale>
+        </View>
+        <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
       </View>
 
-      <View style={styles.controls}>
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="Reveal a hint"
-          onPress={useHint}
-          style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-        >
-          <Text style={styles.pillText}>Hint</Text>
-        </PressableScale>
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="Restart puzzle"
-          onPress={restart}
-          style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-        >
-          <Text style={styles.pillText}>Restart</Text>
-        </PressableScale>
-      </View>
 
-      {solved && stars && (
+      {showSolvedCard && stars && (
         <PuzzleSolved
           kind="tents"
           stars={stars}
           hintsUsed={hints}
+          coinsEarned={coinsEarned}
           onReplay={restart}
           onDone={onExit}
           hasNext={nextEntry !== null}
@@ -292,7 +340,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
 
 /** The "N LEFT" kicker, popping (`spring.pop`) on each decrement only -
  * mirrors `BinairoScreen.tsx`'s own `AnimatedKicker` exactly. */
-function AnimatedKicker({ left, solved }: { left: number; solved: boolean }): React.JSX.Element {
+function AnimatedKicker({ left, solved, difficulty }: { left: number; solved: boolean; difficulty: PuzzleDifficulty }): React.JSX.Element {
   const scale = useRef(new Animated.Value(1)).current;
   const previous = useRef(left);
   const solvedScale = useRef(new Animated.Value(0)).current;
@@ -316,7 +364,8 @@ function AnimatedKicker({ left, solved }: { left: number; solved: boolean }): Re
 
   return (
     <View style={styles.kickerRow}>
-      <Animated.Text style={[styles.kicker, { transform: [{ scale }] }]}>
+      <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
+      <Animated.Text numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
         {solved ? 'TENTS AND TREES · SOLVED' : `TENTS AND TREES · ${left} LEFT`}
       </Animated.Text>
       {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
@@ -345,13 +394,16 @@ const styles = StyleSheet.create({
   headerRightSpacer: { width: 56, alignItems: 'center' },
   name: {
     fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.title,
-    fontWeight: theme.typography.weights.semibold,
+    fontSize: theme.typography.sizes.headline,
+    lineHeight: theme.typography.lineHeights.headline,
+    fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
   },
   kickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
     marginTop: 2,
   },
   kicker: {
@@ -359,7 +411,9 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.micro,
     letterSpacing: 1,
     color: theme.colors.tentsAccent,
+    flexShrink: 1,
   },
+  kickerChip: { marginRight: 6 },
   solvedBadge: {
     width: 10,
     height: 10,
@@ -385,11 +439,16 @@ const styles = StyleSheet.create({
   },
   // Anchored to the header, not centred in leftover space - see
   // `BinairoScreen.tsx`'s own `styles.boardArea`.
+  // Centred between the header and the controls, not pinned under the
+  // header. Every board here is square and limited by the screen's width,
+  // so on a tall phone there is always vertical slack - top-aligning it
+  // pooled all of that into one dead block beneath the board, which read
+  // as a layout that had run out rather than a composed page. Split either
+  // side, the same slack reads as margin.
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    marginTop: theme.spacing.lg,
+    justifyContent: 'center',
   },
   // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`. No
   // fill of its own now - just the page's background plus a snug
@@ -406,12 +465,20 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderStrong,
   },
+  // Sits with the board inside the centred group rather than pinned to the
+  // bottom of the screen - the arrangement Gravity's own board already
+  // used, and the reason its screen read as composed while the other five
+  // read as a board at the top and two buttons stranded at the bottom.
   controls: {
     flexDirection: 'row',
     gap: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+    marginTop: theme.spacing.xl,
   },
+  coinBalance: { marginTop: theme.spacing.md },
   pill: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: theme.spacing.xs,
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.radii.pill,

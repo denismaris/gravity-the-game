@@ -1,5 +1,7 @@
 import { visibleCount } from './logic';
 import { PuzzleDifficulty } from '../puzzleDifficulty';
+import { endlessName, parseEndlessId } from '../endlessId';
+import { generateTowers } from './generator';
 import { TowersPuzzle } from './types';
 
 /** Which sides keep their real, derived clue - the rest ship as `0`
@@ -121,6 +123,43 @@ const GRID_5_J = [
 // above): the four fully-clued 4x4s are easy, the fully-clued 4x4 plus the
 // three fully-clued 5x5s are medium, and the two reduced-clue 5x5s (the
 // only puzzles that actually drop a side) are hard.
+// Four more, found by searching random Latin squares and keeping only
+// those whose derived clues have exactly one solution (checked with the
+// real solver, same as everything above). Appended rather than
+// interleaved: ids are frozen, and a board slotted into the middle would
+// hand an existing id a different puzzle.
+const GRID_5_K = [
+  [2, 4, 1, 3, 5],
+  [3, 5, 2, 4, 1],
+  [1, 3, 5, 2, 4],
+  [4, 1, 3, 5, 2],
+  [5, 2, 4, 1, 3],
+];
+const GRID_5_L = [
+  [5, 3, 2, 1, 4],
+  [2, 4, 3, 5, 1],
+  [4, 5, 1, 3, 2],
+  [1, 2, 5, 4, 3],
+  [3, 1, 4, 2, 5],
+];
+const GRID_5_M = [
+  [1, 4, 5, 3, 2],
+  [3, 2, 1, 4, 5],
+  [5, 3, 2, 1, 4],
+  [2, 1, 4, 5, 3],
+  [4, 5, 3, 2, 1],
+];
+/** The pool's first 6x6 - the one genuinely new thing at the hard end,
+ * where difficulty had been carried entirely by dropping a clue side. */
+const GRID_6_A = [
+  [5, 6, 1, 4, 3, 2],
+  [6, 1, 2, 5, 4, 3],
+  [4, 5, 6, 3, 2, 1],
+  [1, 2, 3, 6, 5, 4],
+  [3, 4, 5, 2, 1, 6],
+  [2, 3, 4, 1, 6, 5],
+];
+
 export const TOWERS: ReadonlyArray<TowersPuzzle> = [
   fromGrid('towers-001', 'Skyline', 'easy', GRID_4_A),
   fromGrid('towers-002', 'Downtown', 'easy', GRID_4_B),
@@ -137,10 +176,24 @@ export const TOWERS: ReadonlyArray<TowersPuzzle> = [
   // leaves them the hardest boards in the set without the cliff.
   fromGrid('towers-009', 'Corner Office', 'hard', GRID_5_I, { top: true, bottom: false, left: true, right: true }),
   fromGrid('towers-010', 'Penthouse', 'hard', GRID_5_J, { top: true, bottom: false, left: true, right: true }),
+  fromGrid('towers-011', 'Five Storeys', 'medium', GRID_5_K),
+  fromGrid('towers-012', 'The Embankment', 'medium', GRID_5_L),
+  fromGrid('towers-013', 'Long Shadow', 'hard', GRID_5_M, { top: true, bottom: false, left: true, right: true }),
+  fromGrid('towers-014', 'The Whole Block', 'hard', GRID_6_A, { top: true, bottom: false, left: true, right: true }),
 ];
 
+const endlessCache = new Map<string, TowersPuzzle>();
+
 export function getTowersById(id: string): TowersPuzzle | undefined {
-  return TOWERS.find(puzzle => puzzle.id === id);
+  const found = TOWERS.find(puzzle => puzzle.id === id);
+  if (found) return found;
+  const endless = parseEndlessId(id);
+  if (!endless || endless.kind !== 'towers') return undefined;
+  const cached = endlessCache.get(id);
+  if (cached) return cached;
+  const puzzle = generateTowers(id, endless.tier, endlessName(endless.index));
+  endlessCache.set(id, puzzle);
+  return puzzle;
 }
 
 export function getTowersByDifficulty(difficulty: PuzzleDifficulty): ReadonlyArray<TowersPuzzle> {

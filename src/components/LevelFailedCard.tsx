@@ -9,6 +9,15 @@ export interface LevelFailedCardProps {
   onRetry: () => void;
   /** Leave to the home hub. */
   onExit: () => void;
+  /**
+   * What ended the attempt, for a game whose ending is not Gravity's.
+   * Both default to the hazard wording this card was written for, so
+   * every existing caller is unchanged - Adjacent runs a board out of
+   * moves rather than destroying anything, and "DESTROYED" would be
+   * simply untrue there.
+   */
+  title?: string;
+  message?: string;
 }
 
 /**
@@ -22,7 +31,12 @@ export interface LevelFailedCardProps {
 /** Title, message, actions. */
 const ROW_COUNT = 3;
 
-export function LevelFailedCard({ onRetry, onExit }: LevelFailedCardProps): React.JSX.Element {
+export function LevelFailedCard({
+  onRetry,
+  onExit,
+  title = 'DESTROYED',
+  message = 'A piece hit a hazard - this attempt is over.',
+}: LevelFailedCardProps): React.JSX.Element {
   // `subdued`: the same staged arrival every other card uses, but landing
   // without overshoot and with no light sweep. A loss should feel like it
   // settled onto the screen, not like it bounced in pleased with itself.
@@ -43,8 +57,8 @@ export function LevelFailedCard({ onRetry, onExit }: LevelFailedCardProps): Reac
           },
         ]}
       >
-        <Animated.Text style={[styles.title, rowStyle(0)]}>DESTROYED</Animated.Text>
-        <Animated.Text style={[styles.message, rowStyle(1)]}>A piece hit a hazard - this attempt is over.</Animated.Text>
+        <Animated.Text style={[styles.title, rowStyle(0)]}>{title}</Animated.Text>
+        <Animated.Text style={[styles.message, rowStyle(1)]}>{message}</Animated.Text>
 
         <Animated.View style={[styles.actions, rowStyle(2)]}>
           <PressableScale

@@ -1,4 +1,9 @@
+import { getArukoneById } from '../../arukone';
 import { getBinairoById } from '../../binairo';
+import { getFillaPixById } from '../../fillapix';
+import { getLightsOutById } from '../../lightsout';
+import { getAdjacentById } from '../../adjacent';
+import { getBloomById } from '../../bloom';
 import { getLevelById } from '../../levels';
 import { getMirrorMazeById } from '../../mirror';
 import { getTentsTreesById } from '../../tents';
@@ -29,6 +34,16 @@ function realPuzzleExists(entry: ReturnType<typeof getDailyEntry>): boolean {
       return getTowersById(entry.puzzleId) !== undefined;
     case 'binairo':
       return getBinairoById(entry.puzzleId) !== undefined;
+    case 'arukone':
+      return getArukoneById(entry.puzzleId) !== undefined;
+    case 'fillapix':
+      return getFillaPixById(entry.puzzleId) !== undefined;
+    case 'lightsout':
+      return getLightsOutById(entry.puzzleId) !== undefined;
+    case 'adjacent':
+      return getAdjacentById(entry.puzzleId) !== undefined;
+    case 'bloom':
+      return getBloomById(entry.puzzleId) !== undefined;
   }
 }
 

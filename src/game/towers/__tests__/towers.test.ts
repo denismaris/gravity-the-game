@@ -264,9 +264,16 @@ describe('the shipped Skyscrapers pool', () => {
     expect(getTowersById('nope')).toBeUndefined();
   });
 
-  test('sizes are only 4 or 5, ramping from 4 up to 5', () => {
+  test('sizes only ever ramp upward through the pool', () => {
+    // 6x6 arrived with `towers-014`, the pool's first board bigger than
+    // 5x5 - until then the hard end was carried entirely by dropping a
+    // clue side, which is a narrower lever than it sounds. The ordering
+    // is the real invariant: a board must never be smaller than the one
+    // before it, so any addition goes on the end at or above the current
+    // size. Ids are frozen, so inserting into the middle is not an
+    // option anyway.
     const sizes = TOWERS.map(p => p.size);
-    expect(new Set(sizes)).toEqual(new Set([4, 5]));
+    expect(new Set(sizes)).toEqual(new Set([4, 5, 6]));
     expect(sizes).toEqual([...sizes].sort((a, b) => a - b));
   });
 

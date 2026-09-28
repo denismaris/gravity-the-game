@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GestureResponderHandlers, PanResponder, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Canvas, Circle, Group, RadialGradient, Rect, vec } from '@shopify/react-native-skia';
-import { ConfettiBurst, PressableScale } from '../components';
+import { ConfettiBurst, PageBloom, PressableScale } from '../components';
 import { Direction } from '../game/engine';
 import { Cell, cellKey, DIRS, edgeKey, hasOpenEdge, MazeShape } from '../game/maze';
 import { shade, triggerFeedback, useReducedMotion } from '../game/rendering';
@@ -87,9 +87,11 @@ const IMPACT_JOLT_PX = 4;
  * next one replaces it. */
 const CELEBRATE_PAUSE_MS = 750;
 
-/** A plain, bright page - the reference's own backdrop is a plain white
- * card, not a themed dark panel. */
-const SCREEN_BG = '#FFFFFF';
+/** The app's own paper. This was plain white, matching the reference
+ * screenshot's surround, but the break sits *between* puzzles in this app
+ * and a white page there read as a different app entirely - the maze's
+ * wall tops now cut into the same paper every other screen is printed on. */
+const SCREEN_BG = theme.colors.background;
 // Every colour below is sampled directly out of the saved reference file
 // (`android/design-reference/Screenshot 2026-09-24 at 12.11.49.png`) with
 // a Python/PIL script, not estimated by eye - the exact value is quoted in
@@ -109,7 +111,6 @@ const WALL_FACE = '#626568';
 const WALL_FACE_LIP = '#74767E';
 /** The contact line at a wall's base - the floor in its own shadow. */
 const WALL_FOOT = '#343539';
-const TITLE_COLOR = '#1F2025';
 /** The ball, measured off the reference: a cool polished pewter, lit from
  * the top left like every other object in this app. */
 const BALL_LIGHT = '#EDF2F7';
@@ -857,6 +858,7 @@ export function CalmingInterstitialScreen({ onDone }: CalmingInterstitialScreenP
 
   return (
     <View style={styles.container}>
+      <PageBloom />
       <PressableScale
         accessibilityRole="button"
         accessibilityLabel="Skip"
@@ -1010,28 +1012,40 @@ const styles = StyleSheet.create({
     right: theme.spacing.lg,
     zIndex: 5,
   },
+  // The same pill every play screen's controls use, rather than a grey
+  // system-style chip that belonged to no screen in this app.
   skip: {
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.sm,
     borderRadius: theme.radii.pill,
-    backgroundColor: 'rgba(0,0,0,0.06)',
+    backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderColor: 'rgba(0,0,0,0.1)',
+    borderTopColor: '#FBF6EB',
+    borderLeftColor: theme.colors.border,
+    borderRightColor: theme.colors.border,
+    borderBottomColor: theme.colors.border,
+    shadowColor: '#3B1F52',
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    shadowOffset: { width: 2, height: 3 },
+    elevation: 2,
   },
   skipPressed: {
-    backgroundColor: 'rgba(0,0,0,0.12)',
+    backgroundColor: theme.colors.surfaceAlt,
   },
   skipText: {
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
-    color: TITLE_COLOR,
+    color: theme.colors.textPrimary,
   },
+  // Set in the display serif and violet ink every screen title here uses.
   mazeLabel: {
+    fontFamily: theme.typography.families.display,
     fontSize: theme.typography.sizes.title + 6,
-    fontWeight: '900',
-    letterSpacing: 0.5,
+    fontWeight: theme.typography.weights.bold,
+    letterSpacing: 1,
     textAlign: 'center',
-    color: TITLE_COLOR,
+    color: theme.colors.primary,
     marginBottom: theme.spacing.xl,
   },
 });

@@ -9,6 +9,7 @@ import {
   duplicateLineGroups,
   duplicateLines,
   emptyBinairoState,
+  errorLines,
   hasTripleRun,
   isBinairoSolved,
   isColHealthy,
@@ -246,6 +247,76 @@ describe('duplicateLines', () => {
     const result = duplicateLines(SIMPLE, SIMPLE_SOLUTION);
     expect(result.rows.size).toBe(0);
     expect(result.cols.size).toBe(0);
+  });
+});
+
+/**
+ * Regression coverage for a real bug reported from a phone: three
+ * identical adjacent tiles produced no visible error at all until the
+ * player happened to fill the rest of that same row. `errorLines` is the
+ * pure function `BinairoBoardView`'s hazard-tape rendering reads its
+ * "which lines are wrong" answer from - see its own doc comment for why a
+ * triple run gets no completeness gate while the other two violations do.
+ */
+describe('errorLines', () => {
+  test('a triple run washes its row immediately, with the rest of the row still blank', () => {
+    const state: BinairoState = { values: [[0, 0, 0, null], [null, null, null, null], [null, null, null, null], [null, null, null, null]] };
+    expect(errorLines(SIMPLE, state).rows.has(0)).toBe(true);
+  });
+
+  test('a triple run washes its column immediately too', () => {
+    const state: BinairoState = {
+      values: [[0, null, null, null], [0, null, null, null], [0, null, null, null], [null, null, null, null]],
+    };
+    expect(errorLines(SIMPLE, state).cols.has(0)).toBe(true);
+  });
+
+  test('no run, no unequal count, no duplicate - nothing washes', () => {
+    const state: BinairoState = { values: [[0, 1, 0, null], [null, null, null, null], [null, null, null, null], [null, null, null, null]] };
+    const result = errorLines(SIMPLE, state);
+    expect(result.rows.size).toBe(0);
+    expect(result.cols.size).toBe(0);
+  });
+
+  // Unlike a triple run, these two genuinely cannot be judged until the
+  // line is complete - and still shouldn't be, through this same function.
+  test('an unequal count still waits for the row to be complete', () => {
+    const state: BinairoState = { values: [[0, 0, 0, null], [null, null, null, null], [null, null, null, null], [null, null, null, null]] };
+    // Row 0 is flagged here for its triple run, not its count (still
+    // incomplete) - `unbalancedLines` on its own confirms the count half.
+    expect(unbalancedLines(SIMPLE, state).rows.has(0)).toBe(false);
+  });
+
+  test('a duplicate row still waits for both rows to be complete', () => {
+    const state: BinairoState = {
+      values: [[0, 0, 1, null], [0, 0, 1, 1], [null, null, null, null], [null, null, null, null]],
+    };
+    expect(errorLines(SIMPLE, state).rows.has(0)).toBe(false);
+    expect(errorLines(SIMPLE, state).rows.has(1)).toBe(false);
+  });
+
+  test('the real solution has nothing wrong anywhere', () => {
+    const result = errorLines(SIMPLE, SIMPLE_SOLUTION);
+    expect(result.rows.size).toBe(0);
+    expect(result.cols.size).toBe(0);
+  });
+
+  test('agrees with the three underlying checks it combines, on a mixed board', () => {
+    // Row 0: a triple run, incomplete otherwise. Row 1/2: a duplicate
+    // pair, both complete. Row 3: unbalanced, complete.
+    const state: BinairoState = {
+      values: [
+        [1, 1, 1, null],
+        [0, 0, 1, 1],
+        [0, 0, 1, 1],
+        [1, 1, 0, 1],
+      ],
+    };
+    const result = errorLines(SIMPLE, state);
+    expect(result.rows.has(0)).toBe(true); // triple run
+    expect(result.rows.has(1)).toBe(true); // duplicate
+    expect(result.rows.has(2)).toBe(true); // duplicate
+    expect(result.rows.has(3)).toBe(true); // unbalanced (3 ones, 1 zero)
   });
 });
 

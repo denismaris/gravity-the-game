@@ -215,6 +215,39 @@ export function duplicateLines(puzzle: BinairoPuzzle, state: BinairoState): Bina
   return { rows, cols };
 }
 
+/**
+ * Every row/column that is currently wrong for any reason, for the
+ * board's own hazard-tape rendering: a triple run somewhere in it, an
+ * unequal count, or duplicating another line. The three are not equally
+ * decidable mid-fill, and this function is exactly the line between them
+ * - `unbalancedLines`/`duplicateLineGroups` already gate themselves on a
+ * line being complete (you cannot know its final count, or whether it
+ * will end up matching another, until every cell in it is placed), but a
+ * triple run has no such ambiguity: three identical adjacent values are
+ * wrong the instant they exist, independent of what the rest of the line
+ * goes on to hold, so it is included here unconditionally. An earlier
+ * version of this app's board gated the triple run on completeness too,
+ * which meant three matching tiles produced no visible error at all until
+ * the player happened to fill the rest of that same row or column.
+ *
+ * Pure and rendering-agnostic on purpose - `BinairoBoardView` turns this
+ * into pixel-space hazard-tape boxes, but *which lines are wrong* is a
+ * game rule, not a rendering concern, and belongs here with every other
+ * one of this game's rules rather than inlined in the view.
+ */
+export function errorLines(puzzle: BinairoPuzzle, state: BinairoState): BinairoLineSet {
+  const triple = tripleRunGroups(state);
+  const unbalanced = unbalancedLines(puzzle, state);
+  const duplicate = duplicateLineGroups(puzzle, state);
+
+  const rows = new Set<number>(unbalanced.rows);
+  const cols = new Set<number>(unbalanced.cols);
+  for (const group of duplicate.rows) for (const r of group) rows.add(r);
+  for (const group of duplicate.cols) for (const c of group) cols.add(c);
+  for (const g of triple) (g.orientation === 'row' ? rows : cols).add(g.index);
+  return { rows, cols };
+}
+
 /** Canonical string key for one constraint - stable across renders, usable
  * as a Map/Set key or a React `key`. */
 export function constraintKey(constraint: BinairoConstraint): string {

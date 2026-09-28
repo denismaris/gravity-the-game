@@ -11,6 +11,16 @@ const SWIPE_THRESHOLD = 32;
  * get intercepted as a gesture in the first place. */
 const CAPTURE_THRESHOLD = 10;
 
+/** The four custom `accessibilityActions` names a Gravity board exposes,
+ * one per swipe direction - VoiceOver's rotor can trigger one without a
+ * physical swipe, which it would otherwise intercept for its own
+ * navigation. Kept as a pure, exported mapping (not inlined in
+ * `GameScreen.tsx`'s own `onAccessibilityAction` handler) so it has a real
+ * unit test independent of rendering a screen. */
+export function directionForAccessibilityAction(actionName: string): Direction | null {
+  return actionName === 'up' || actionName === 'down' || actionName === 'left' || actionName === 'right' ? actionName : null;
+}
+
 /**
  * Detects a single directional swipe gesture on whatever View spreads the
  * returned handlers onto its props. Reports at most one `Direction` per

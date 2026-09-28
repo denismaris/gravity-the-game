@@ -23,5 +23,19 @@ module.exports = {
   Rect: makeStub('SkiaRectMock'),
   RoundedRect: makeStub('SkiaRoundedRectMock'),
   Path: makeStub('SkiaPathMock'),
+  // Paint-effect children (a gradient/dash pattern nested inside a shape,
+  // never rendered on their own) - added for Binairo's board, the first
+  // board view whose smoke test needed them. Same plain stand-in as
+  // everything else here: enough to exist as a valid element type so the
+  // tree renders, nothing about the effect itself is under test.
+  LinearGradient: makeStub('SkiaLinearGradientMock'),
+  RadialGradient: makeStub('SkiaRadialGradientMock'),
+  DashPathEffect: makeStub('SkiaDashPathEffectMock'),
   vec: (x, y) => ({ x, y }),
+  rect: (x, y, width, height) => ({ x, y, width, height }),
+  rrect: (r, rx, ry) => ({ rect: r, rx, ry }),
+  // Pre-built path objects (Bloom's board parses each path once per move
+  // rather than per frame). The mock hands the SVG string back, which is
+  // all a test renderer needs to compare.
+  Skia: { Path: { MakeFromSVGString: svg => ({ svg }) } },
 };

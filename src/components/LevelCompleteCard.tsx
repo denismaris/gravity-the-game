@@ -9,6 +9,7 @@ import { StarRow } from './StarRow';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, encouragementTier, gameLabelForKind, pickEncouragement } from '../game/journey';
 import { motion, theme } from '../theme';
+import { CoinsEarned } from './Coins';
 
 /** Kicker, stars, praise, the moves/best rows, rule, actions - staggered
  * in that reading order, matching `PuzzleSolved`. Must equal the number of
@@ -41,6 +42,8 @@ export interface LevelCompleteCardProps {
   onNext: () => void;
   /** Leave to the home hub (used when there is no next level). */
   onExit: () => void;
+  /** Coins this solve paid out (nothing shown when 0). */
+  coinsEarned?: number;
 }
 
 /**
@@ -61,6 +64,7 @@ export function LevelCompleteCard({
   onReplay,
   onNext,
   onExit,
+  coinsEarned = 0,
 }: LevelCompleteCardProps): React.JSX.Element {
   const isNewBest = moves === bestMoves;
   const keptBetterResult = runStars < stars;
@@ -152,6 +156,7 @@ export function LevelCompleteCard({
             </Text>
             {isNewBest && !keptBetterResult && <Text style={styles.note}>New best</Text>}
             {keptBetterResult && <Text style={styles.note}>Your best result is kept</Text>}
+            <CoinsEarned amount={coinsEarned} style={styles.coins} />
           </Animated.View>
 
           <Animated.View style={[styles.cardRule, rowStyle(4)]}>
@@ -291,6 +296,7 @@ const styles = StyleSheet.create({
     color: theme.colors.textPrimary,
     fontWeight: theme.typography.weights.semibold,
   },
+  coins: { marginTop: theme.spacing.sm },
   note: {
     marginTop: theme.spacing.xs,
     color: theme.colors.textSecondary,

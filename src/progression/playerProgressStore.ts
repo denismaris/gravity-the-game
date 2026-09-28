@@ -10,6 +10,7 @@ import {
   PlayerProgress,
   ProgressCursor,
 } from './playerProgress';
+import { STARTING_COINS } from './coins';
 
 /** Single key everything player-progress-related is stored under. */
 export const PLAYER_PROGRESS_KEY = 'gravity:player-progress';
@@ -100,8 +101,14 @@ function isGameKind(value: unknown): value is GameKind {
 
 function parseBatchPuzzleRef(value: unknown): BatchPuzzleRef | null {
   if (typeof value !== 'object' || value === null) return null;
-  const ref = value as { kind?: unknown; puzzleId?: unknown };
+  const ref = value as { kind?: unknown; puzzleId?: unknown; challenge?: unknown };
   if (!isGameKind(ref.kind) || typeof ref.puzzleId !== 'string') return null;
+  // `challenge` post-dates v5 and is deliberately not a version bump: a
+  // batch saved without it is a valid batch with no challenge slot, which
+  // is exactly what an absent flag already means. Kept off the object
+  // entirely when false so a round-trip through storage is byte-identical
+  // to what `generateBatch` produced.
+  if (ref.challenge === true) return { kind: ref.kind, puzzleId: ref.puzzleId, challenge: true };
   return { kind: ref.kind, puzzleId: ref.puzzleId };
 }
 
@@ -140,6 +147,14 @@ function parseCurrentBatch(value: unknown): BatchState | null {
 /** `adFreeTimeRemainingMs` is new in v5 - a stub for a future ad-free-time
  * reward system (see its own comment in `playerProgress.ts`). `null` (the
  * default) means "unused", the only meaningful value today. */
+/** A save from before coins existed reads as holding the starting grant;
+ * anything malformed does too, rather than a negative or fractional
+ * balance leaking into the UI. */
+function parseCoins(value: unknown): number {
+  if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return Math.floor(value);
+  return STARTING_COINS;
+}
+
 function parseAdFreeTimeRemainingMs(value: unknown): number | null {
   if (typeof value === 'number' && Number.isFinite(value) && value >= 0) return value;
   return null;
@@ -174,6 +189,7 @@ export function parseProgress(raw: string | null): PlayerProgress {
     currentLevel?: unknown;
     currentBatch?: unknown;
     adFreeTimeRemainingMs?: unknown;
+    coins?: unknown;
   };
   if (typeof record.version !== 'number' || !READABLE_VERSIONS.includes(record.version)) {
     return emptyProgress();
@@ -196,6 +212,7 @@ export function parseProgress(raw: string | null): PlayerProgress {
     currentLevel: parseCurrentLevel(record.currentLevel),
     currentBatch: parseCurrentBatch(record.currentBatch),
     adFreeTimeRemainingMs: parseAdFreeTimeRemainingMs(record.adFreeTimeRemainingMs),
+    coins: parseCoins(record.coins),
   };
 }
 

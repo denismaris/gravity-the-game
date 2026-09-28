@@ -3,7 +3,13 @@ import { getMirrorMazesByDifficulty } from '../game/mirror';
 import { getTentsTreesByDifficulty } from '../game/tents';
 import { getTowersByDifficulty } from '../game/towers';
 import { getBinairoByDifficulty } from '../game/binairo';
+import { getArukoneByDifficulty } from '../game/arukone';
+import { getFillaPixByDifficulty } from '../game/fillapix';
+import { getLightsOutByDifficulty } from '../game/lightsout';
+import { getBloomByDifficulty } from '../game/bloom';
+import { getAdjacentByDifficulty } from '../game/adjacent';
 import { GameKind, ROTATION } from '../game/journey';
+import { endlessId } from '../game/endlessId';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { PlayerProgress } from './playerProgress';
 
@@ -22,6 +28,12 @@ import { PlayerProgress } from './playerProgress';
 export interface BatchPuzzleRef {
   readonly kind: GameKind;
   readonly puzzleId: string;
+  /** The deliberately hard one, planted on a fixed rhythm (see
+   * `CHALLENGE_EVERY`) and announced everywhere it shows up rather than
+   * sprung on the player. Absent rather than `false` on ordinary slots,
+   * so a batch saved before this existed reads back correctly as "no
+   * challenge" with no migration. */
+  readonly challenge?: boolean;
 }
 
 export interface BatchState {
@@ -60,15 +72,81 @@ interface TierBand {
 }
 
 const TIER_CURVE: ReadonlyArray<TierBand> = [
-  { maxLevel: 3, batchSize: 3, weights: { easy: 1.0, medium: 0, hard: 0 } },
-  { maxLevel: 8, batchSize: 3, weights: { easy: 0.6, medium: 0.4, hard: 0 } },
-  { maxLevel: 15, batchSize: 4, weights: { easy: 0.5, medium: 0.5, hard: 0 } },
-  { maxLevel: 25, batchSize: 4, weights: { easy: 0.35, medium: 0.55, hard: 0.1 } },
-  { maxLevel: Infinity, batchSize: 5, weights: { easy: 0.15, medium: 0.5, hard: 0.35 } }, // the permanent plateau
+  { maxLevel: 2, batchSize: 3, weights: { easy: 1.0, medium: 0, hard: 0 } },
+  { maxLevel: 5, batchSize: 3, weights: { easy: 0.55, medium: 0.45, hard: 0 } },
+  { maxLevel: 9, batchSize: 4, weights: { easy: 0.3, medium: 0.55, hard: 0.15 } },
+  { maxLevel: 18, batchSize: 4, weights: { easy: 0.12, medium: 0.53, hard: 0.35 } },
+  { maxLevel: Infinity, batchSize: 5, weights: { easy: 0.05, medium: 0.45, hard: 0.5 } }, // the permanent plateau
 ];
+
+/** The first level number whose band can deal a hard-tier puzzle - read
+ * off `TIER_CURVE` rather than written down twice, so re-tuning the table
+ * cannot leave this behind. */
+export const HARD_TIER_FIRST_LEVEL: number = (() => {
+  for (let level = 1; level <= 200; level += 1) {
+    if (tierBandForLevel(level).weights.hard > 0) return level;
+  }
+  return 1;
+})();
 
 function tierBandForLevel(levelNumber: number): TierBand {
   return TIER_CURVE.find(band => levelNumber <= band.maxLevel) ?? TIER_CURVE[TIER_CURVE.length - 1];
+}
+
+/**
+ * How often a deliberately hard, signposted puzzle lands: every sixth
+ * one, counted continuously across levels rather than per batch, so the
+ * rhythm survives batch size changing from three to five along the curve.
+ * Five gentler puzzles, then one that asks something.
+ *
+ * This cadence is the whole point of the redesign: difficulty used to be
+ * drawn independently per slot, which meant a level could deal three hard
+ * puzzles in a row or none at all, with nothing anywhere saying which was
+ * which. Players read that as the game being arbitrary rather than as
+ * variety - which is exactly what it was.
+ */
+export const CHALLENGE_EVERY = 6;
+
+/** How many puzzles came before `levelNumber` begins - the offset that
+ * turns a within-batch slot into a continuous puzzle number. The explicit
+ * bands are few and short, and every batch past the plateau is the same
+ * size, so the tail is arithmetic rather than a loop that grows without
+ * bound as the level count climbs. */
+function puzzlesBeforeLevel(levelNumber: number): number {
+  const plateau = TIER_CURVE[TIER_CURVE.length - 1];
+  const lastExplicitLevel = TIER_CURVE[TIER_CURVE.length - 2].maxLevel;
+  let total = 0;
+  for (let level = 1; level <= Math.min(levelNumber - 1, lastExplicitLevel); level += 1) {
+    total += tierBandForLevel(level).batchSize;
+  }
+  if (levelNumber - 1 > lastExplicitLevel) {
+    total += (levelNumber - 1 - lastExplicitLevel) * plateau.batchSize;
+  }
+  return total;
+}
+
+/** Whether the puzzle at continuous index `puzzleIndex` (0-based) is the
+ * challenge. Hard tier has to actually be reachable at this level for the
+ * answer to be yes, so a new player's opening levels stay a clean ramp
+ * with no spikes at all. */
+function isChallengeSlot(levelNumber: number, puzzleIndex: number): boolean {
+  if (levelNumber < HARD_TIER_FIRST_LEVEL) return false;
+  return puzzleIndex % CHALLENGE_EVERY === CHALLENGE_EVERY - 1;
+}
+
+/**
+ * The tier mix for an ordinary, non-challenge slot: the band's own weights
+ * with `hard` retired and its weight split evenly between the two tiers
+ * left. Hard now arrives on the cadence instead of at random, so leaving
+ * it in here as well would put the unannounced spikes straight back - but
+ * simply deleting its weight would also delete the curve's climb, leaving
+ * the plateau a flat wall of medium. Splitting it keeps both: higher
+ * levels still lean harder within easy/medium, and every hard puzzle is
+ * one the player was told about beforehand.
+ */
+function restWeights(weights: TierWeights): TierWeights {
+  const half = weights.hard / 2;
+  return { easy: weights.easy + half, medium: weights.medium + half, hard: 0 };
 }
 
 /** Every puzzle id at one game+tier - the batch generator's only read path
@@ -87,6 +165,16 @@ function poolForKindAndTier(kind: GameKind, tier: PuzzleDifficulty): ReadonlyArr
       return getTowersByDifficulty(tier).map(puzzle => puzzle.id);
     case 'binairo':
       return getBinairoByDifficulty(tier).map(puzzle => puzzle.id);
+    case 'arukone':
+      return getArukoneByDifficulty(tier).map(puzzle => puzzle.id);
+    case 'fillapix':
+      return getFillaPixByDifficulty(tier).map(puzzle => puzzle.id);
+    case 'lightsout':
+      return getLightsOutByDifficulty(tier).map(puzzle => puzzle.id);
+    case 'adjacent':
+      return getAdjacentByDifficulty(tier).map(puzzle => puzzle.id);
+    case 'bloom':
+      return getBloomByDifficulty(tier).map(puzzle => puzzle.id);
   }
 }
 
@@ -125,17 +213,47 @@ function gameWeight(kind: GameKind, tier: PuzzleDifficulty): number {
   return Math.sqrt(poolForKindAndTier(kind, tier).length);
 }
 
-/** The available puzzle ids for one game+tier, given what's already been
+/**
+ * Games that can build a board from an id instead of looking one up, and
+ * so never run out.
+ *
+ * The rest still have finite, hand-authored pools. Nothing breaks when
+ * they exhaust - they fall back to replaying, exactly as the whole app
+ * used to - they simply stop contributing *new* puzzles, and the endless
+ * games carry the long tail.
+ */
+const ENDLESS_KINDS: ReadonlySet<GameKind> = new Set<GameKind>(['lightsout', 'arukone', 'adjacent', 'towers', 'bloom']);
+
+/** The first endless id of this game+tier the player has neither
+ * completed nor already been dealt in this batch. Scans upward from zero,
+ * which is cheap (a map lookup per completed board) and, unlike a random
+ * draw, guarantees the puzzle is genuinely new every single time. */
+function nextEndlessId(kind: GameKind, tier: PuzzleDifficulty, progress: PlayerProgress, usedInBatch: ReadonlySet<string>): string {
+  for (let index = 0; ; index += 1) {
+    const id = endlessId(kind, tier, index);
+    if (progress.levels[id] === undefined && !usedInBatch.has(id)) return id;
+  }
+}
+
+/**
+ * The available puzzle ids for one game+tier, given what's already been
  * completed (system-wide, from `progress.levels` - no separate "seen"
- * tracking needed) and what's already used earlier in *this* batch. Falls
- * back to the full tier pool, then (if still exhausted, e.g. a very small
- * pool fully used within one batch) to the full pool minus only the
- * in-batch usage, so a slot is never left with zero candidates. */
+ * tracking needed) and what's already used earlier in *this* batch.
+ *
+ * The curated pool always comes first: those boards are authored, and a
+ * player should meet all of them before the app starts inventing any. It
+ * is only once a tier is genuinely used up that this reaches for an
+ * endless id - which is the behaviour that replaced simply replaying the
+ * pool, the point at which the app previously began handing back puzzles
+ * a player had already solved with no acknowledgement that it had run
+ * out of new ones.
+ */
 function availablePuzzleIds(kind: GameKind, tier: PuzzleDifficulty, progress: PlayerProgress, usedInBatch: ReadonlySet<string>): ReadonlyArray<string> {
   const pool = poolForKindAndTier(kind, tier);
   const notCompleted = pool.filter(id => progress.levels[id] === undefined);
   const notUsed = notCompleted.filter(id => !usedInBatch.has(id));
   if (notUsed.length > 0) return notUsed;
+  if (ENDLESS_KINDS.has(kind)) return [nextEndlessId(kind, tier, progress, usedInBatch)];
   const poolNotUsed = pool.filter(id => !usedInBatch.has(id));
   if (poolNotUsed.length > 0) return poolNotUsed;
   return pool;
@@ -154,9 +272,11 @@ export function generateBatch(levelNumber: number, progress: PlayerProgress, pre
   const puzzles: BatchPuzzleRef[] = [];
   const usedIds = new Set<string>();
   let lastKind: GameKind | null = null;
+  const firstPuzzleIndex = puzzlesBeforeLevel(levelNumber);
 
   for (let slot = 0; slot < band.batchSize; slot += 1) {
-    const tier = sampleTier(band.weights, rng);
+    const challenge = isChallengeSlot(levelNumber, firstPuzzleIndex + slot);
+    const tier: PuzzleDifficulty = challenge ? 'hard' : sampleTier(restWeights(band.weights), rng);
 
     const weighted = ROTATION.map((kind): readonly [GameKind, number] => {
       const weight = gameWeight(kind, tier) * (previousKinds.has(kind) ? 0.5 : 1); // soft cross-level penalty
@@ -174,7 +294,7 @@ export function generateBatch(levelNumber: number, progress: PlayerProgress, pre
     const ids = availablePuzzleIds(kind, tier, progress, usedIds);
     const puzzleId = ids[Math.floor(rng() * ids.length)];
 
-    puzzles.push({ kind, puzzleId });
+    puzzles.push(challenge ? { kind, puzzleId, challenge: true } : { kind, puzzleId });
     usedIds.add(puzzleId);
     lastKind = kind;
   }

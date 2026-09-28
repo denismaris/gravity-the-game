@@ -3,7 +3,7 @@ import { assertValidLevel, createGameStateFromLevel } from '../../levels/level';
 import { LEVELS, getLevelById, getLevelByOrder } from '../../levels/levelData';
 import { isPuzzleSolved } from '../completion';
 
-const LEVEL_COUNT = 156;
+const LEVEL_COUNT = 170;
 
 /**
  * Validates the entire hand-authored level pack: structural integrity of
@@ -125,7 +125,7 @@ describe('LEVELS (the hand-authored level pack)', () => {
         // anchored objects or portals.
         expect(level.zone).toBeDefined();
         expect(portalCount + anchorCount).toBeGreaterThanOrEqual(1);
-      } else {
+      } else if (level.order <= 156) {
         // World 6 - Hazards: always at least one hazard. 141-150 keep it
         // isolated (no zone/portal); 151-156 fold in a zone and/or portal.
         expect(level.hazards?.length ?? 0).toBeGreaterThanOrEqual(1);
@@ -135,13 +135,28 @@ describe('LEVELS (the hand-authored level pack)', () => {
         } else {
           expect(level.zone !== undefined || portalCount >= 1).toBe(true);
         }
+      } else {
+        // World 7 - The Long Fall: no new mechanic at all, deliberately -
+        // no hazard, no zone, no portal. Anchors are common but not
+        // required (165 and 170 are pure obstacles-and-objects on purpose).
+        expect(level.hazards).toBeUndefined();
+        expect(level.zone).toBeUndefined();
+        expect(portalCount).toBe(0);
       }
     }
   });
 
-  test('the longest solution in the pack (7 moves) is the anchor-world finale', () => {
+  test('the longest solutions in the pack (8 moves) are World 7\'s own finale band', () => {
     const hardest = Math.max(...LEVELS.map(level => level.metadata?.minMoves ?? 0));
     const hardestLevels = LEVELS.filter(level => level.metadata?.minMoves === hardest);
+    expect(hardest).toBe(8);
+    expect(hardestLevels.map(l => l.order).sort((a, b) => a - b)).toEqual([167, 168, 169, 170]);
+  });
+
+  test('the longest solution in the first six worlds (7 moves) is still the anchor-world finale', () => {
+    const withoutWorld7 = LEVELS.filter(level => level.order <= 156);
+    const hardest = Math.max(...withoutWorld7.map(level => level.metadata?.minMoves ?? 0));
+    const hardestLevels = withoutWorld7.filter(level => level.metadata?.minMoves === hardest);
     expect(hardest).toBe(7);
     expect(hardestLevels).toHaveLength(1);
     expect(hardestLevels[0].order).toBe(60);
@@ -576,5 +591,59 @@ describe('LEVELS (the hand-authored level pack)', () => {
     const moves = world6.map(l => l.metadata?.minMoves ?? 0);
     expect(Math.min(...moves)).toBe(1);
     expect(Math.max(...moves)).toBe(4);
+  });
+
+  // ---- World 7 tiers (The Long Fall - no new mechanic, only length) ----
+
+  describe.each([
+    ['tier 30 (157-159): the floor this world opens on', 157, 159, 5, 5],
+    ['tier 31 (160-162): a second real decision', 160, 162, 6, 6],
+    ['tier 32 (163-166): four objects enter', 163, 166, 7, 7],
+    ['tier 33 (167-170): the finale band', 167, 170, 8, 8],
+  ] as const)('%s', (_label, from, to, minBand, maxBand) => {
+    const tier = LEVELS.filter(level => level.order >= from && level.order <= to);
+
+    test(`has exactly ${to - from + 1} levels`, () => {
+      expect(tier).toHaveLength(to - from + 1);
+    });
+
+    test('every level is tagged expert', () => {
+      for (const level of tier) expect(level.difficulty).toBe('expert');
+    });
+
+    test(`solution lengths are exactly ${minBand}`, () => {
+      for (const level of tier) {
+        const m = level.metadata?.minMoves ?? 0;
+        expect(m).toBeGreaterThanOrEqual(minBand);
+        expect(m).toBeLessThanOrEqual(maxBand);
+      }
+    });
+
+    test('no level introduces a hazard, zone or portal - length is the whole point', () => {
+      for (const level of tier) {
+        expect(level.hazards).toBeUndefined();
+        expect(level.zone).toBeUndefined();
+        expect(level.portals).toBeUndefined();
+      }
+    });
+  });
+
+  test("two levels in World 7 need no anchor at all, proving the length isn't borrowed from another mechanic", () => {
+    const noAnchor = LEVELS.filter(level => level.order >= 157 && level.order <= 170 && (level.anchors?.length ?? 0) === 0);
+    expect(noAnchor.map(l => l.id).sort()).toEqual(['level-165', 'level-170']);
+  });
+
+  test('World 7 raises the ceiling, not just the floor - it starts where the old pack topped out', () => {
+    const world7 = LEVELS.filter(level => level.order >= 157 && level.order <= 170);
+    const everythingElse = LEVELS.filter(level => level.order < 157);
+    const world7Min = Math.min(...world7.map(l => l.metadata?.minMoves ?? 0));
+    const world7Max = Math.max(...world7.map(l => l.metadata?.minMoves ?? 0));
+    const priorMax = Math.max(...everythingElse.map(l => l.metadata?.minMoves ?? 0));
+    expect(world7).toHaveLength(14);
+    // Opens right at the old ceiling (5, one past the old pack's own
+    // 1-in-156 outlier at 7) rather than skipping straight past it, and
+    // closes a full move-count band beyond anything that came before.
+    expect(world7Min).toBeLessThanOrEqual(priorMax);
+    expect(world7Max).toBeGreaterThan(priorMax);
   });
 });

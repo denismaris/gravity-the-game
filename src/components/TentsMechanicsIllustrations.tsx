@@ -9,7 +9,6 @@ import {
   TENT_LIGHT,
   TRUNK_COLOR,
   canopyPath,
-  guyLinePath,
   tentDoorPath,
   tentGeometry,
   tentLeftFacePath,
@@ -85,7 +84,6 @@ function illustrationTent(cx: number, baseY: number, cellSize: number, violated:
   const g = tentGeometry(cx, baseY, cellSize);
   return (
     <Group>
-      <Path path={guyLinePath(cx, baseY, cellSize)} color={violated ? theme.colors.danger : TENT_DARK} style="stroke" strokeWidth={1.5} />
       {violated ? (
         <Path path={`${tentLeftFacePath(g)} ${tentRightFacePath(g)}`} color={theme.colors.danger} />
       ) : (

@@ -2,29 +2,50 @@ import { useEffect, useRef, useState } from 'react';
 import { MovableObject } from '../engine';
 
 /**
- * Slide duration is scaled slightly by how far the furthest piece travels, so
- * a long slide reads with a touch more physical weight than a one-cell nudge -
- * while both stay fast. The bounds are the important part: never slower than
- * `MIN_SLIDE_MS` (so it can't feel sluggish) and never faster than a duration
- * that would read as a teleport on a short move.
+ * How long a slide takes, by how far the furthest piece travels.
+ *
+ * Square root, not linear: a piece released under constant acceleration
+ * covers distance proportional to the square of time, so the time to fall
+ * `n` cells goes as the square root of `n`. Falling eight cells therefore
+ * takes about three times as long as falling one, not eight times - which
+ * is why a long drop can stay quick without the short one crawling.
+ *
+ * The previous curve was linear and capped at 240ms, which made a long
+ * fall *slower per cell* than a short one - precisely backwards for
+ * something meant to be accelerating.
  */
-const MIN_SLIDE_MS = 110;
-const MAX_SLIDE_MS = 240;
+const BASE_SLIDE_MS = 92;
+const PER_ROOT_CELL_MS = 62;
 
 function slideDurationFor(cellsTravelled: number): number {
-  return Math.min(MAX_SLIDE_MS, Math.max(MIN_SLIDE_MS, 70 + cellsTravelled * 22));
+  return BASE_SLIDE_MS + PER_ROOT_CELL_MS * Math.sqrt(cellsTravelled);
 }
 
 /** How long the "just landed" pulse hint is reported for, after a slide
  * finishes. Purely a hint for the rendering layer - see `justLandedIds`. */
 const LANDED_PULSE_MS = 100;
 
-/** Smooth deceleration - starts fast, settles gently, reading as weight
- * rather than a linear/mechanical glide. Never overshoots, so a piece always
- * stops cleanly exactly on its resting cell. */
-function easeOutCubic(t: number): number {
-  const inv = 1 - t;
-  return 1 - inv * inv * inv;
+/**
+ * A fall: still at the start, fastest at the moment of impact.
+ *
+ * This is the literal equation of motion under constant acceleration from
+ * rest (`s = t^2`), softened very slightly at the end so a piece does not
+ * stop dead on a single frame.
+ *
+ * It replaces an ease-*out* cubic, which was the cause of the pieces
+ * reading as teleporting rather than travelling: an ease-out leaves at
+ * three times its own average speed and then crawls, so a long slide
+ * covered most of its distance in the first few frames and spent the rest
+ * of its time almost stationary. The eye reads that as a jump followed by
+ * a settle, not as a fall. Gravity pulls, so the pieces have to accelerate
+ * - the landing cue (`justLandedIds`) is what sells the stop.
+ */
+function easeInFall(t: number): number {
+  const accelerated = t * t;
+  // The last sliver blends toward linear, which takes the hard edge off
+  // the final frame without flattening the acceleration that precedes it.
+  const softening = t * t * t * (1 - t);
+  return accelerated + softening * 0.45;
 }
 
 /** Position-wise equality (ignores object identity but checks id + cell). */
@@ -116,7 +137,7 @@ export function useAnimatedMovables(
     const tick = (): void => {
       const elapsed = Date.now() - startTime;
       const t = Math.min(1, elapsed / duration);
-      const eased = easeOutCubic(t);
+      const eased = easeInFall(t);
 
       const next = target.map(movable => {
         const start = startById.get(movable.id) ?? movable;

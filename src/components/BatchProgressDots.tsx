@@ -68,10 +68,19 @@ export function BatchProgressDots({ batch, style }: BatchProgressDotsProps): Rea
         const fill = fillsRef.current.get(puzzle.puzzleId)!;
         const isCurrent = index === currentIndex;
         return (
-          <View key={puzzle.puzzleId} style={[styles.dot, { borderColor: color }, isCurrent && styles.dotCurrent]}>
+          <View
+            key={puzzle.puzzleId}
+            style={[
+              styles.dot,
+              { borderColor: color },
+              isCurrent && styles.dotCurrent,
+              puzzle.challenge && styles.dotChallenge,
+            ]}
+          >
             <Animated.View
               style={[
                 styles.dotFill,
+                puzzle.challenge && styles.dotFillChallenge,
                 {
                   backgroundColor: color,
                   opacity: fill.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 1, 1], extrapolate: 'clamp' }),
@@ -106,6 +115,18 @@ const styles = StyleSheet.create({
     width: CURRENT_DOT_SIZE,
     height: CURRENT_DOT_SIZE,
     borderRadius: CURRENT_DOT_SIZE / 2,
+  },
+  // The batch's challenge slot, turned on its corner. Shape, not colour -
+  // colour on this row already means "which game", and a second meaning
+  // layered onto the same channel would read as a sixth game rather than
+  // as a flag. A diamond survives being 8 points wide in a way a glyph
+  // would not, and stays legible whether the dot is filled or hollow.
+  dotChallenge: {
+    borderRadius: 1.5,
+    transform: [{ rotate: '45deg' }],
+  },
+  dotFillChallenge: {
+    borderRadius: 1,
   },
   dotFill: {
     position: 'absolute',

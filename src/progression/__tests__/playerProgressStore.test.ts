@@ -137,6 +137,60 @@ describe('parseProgress', () => {
     expect(parsed.adFreeTimeRemainingMs).toBe(60000);
   });
 
+  /** `challenge` was added to a batch's puzzle refs without a version
+   * bump, on the grounds that a batch saved without one is a valid batch
+   * that simply has no challenge slot. That only holds if a save written
+   * before the flag existed still reads back cleanly - which is what the
+   * second half of this checks. */
+  test("a batch's challenge flag round-trips, and a batch saved without one reads back unmarked", () => {
+    const withFlag = parseProgress(
+      JSON.stringify({
+        version: 5,
+        levels: {},
+        currentBatch: {
+          levelNumber: 8,
+          puzzles: [
+            { kind: 'gravity', puzzleId: 'level-050' },
+            { kind: 'mirror', puzzleId: 'mirror-003', challenge: true },
+          ],
+          completedPuzzleIds: [],
+        },
+      }),
+    );
+    expect(withFlag.currentBatch?.puzzles[0].challenge).toBeUndefined();
+    expect(withFlag.currentBatch?.puzzles[1].challenge).toBe(true);
+
+    // A pre-flag save: no `challenge` key anywhere, and nothing invented.
+    const withoutFlag = parseProgress(
+      JSON.stringify({
+        version: 5,
+        levels: {},
+        currentBatch: {
+          levelNumber: 8,
+          puzzles: [{ kind: 'gravity', puzzleId: 'level-050' }],
+          completedPuzzleIds: [],
+        },
+      }),
+    );
+    expect(withoutFlag.currentBatch?.puzzles).toEqual([{ kind: 'gravity', puzzleId: 'level-050' }]);
+
+    // Anything other than a literal `true` is not a challenge - a stray
+    // truthy value must not promote an ordinary puzzle into the slot the
+    // whole rhythm is signposted around.
+    const junk = parseProgress(
+      JSON.stringify({
+        version: 5,
+        levels: {},
+        currentBatch: {
+          levelNumber: 8,
+          puzzles: [{ kind: 'gravity', puzzleId: 'level-050', challenge: 'yes' }],
+          completedPuzzleIds: [],
+        },
+      }),
+    );
+    expect(junk.currentBatch?.puzzles[0].challenge).toBeUndefined();
+  });
+
   test('a malformed currentLevel/adFreeTimeRemainingMs falls back to its default rather than propagating garbage', () => {
     const parsed = parseProgress(JSON.stringify({ version: 5, levels: {}, currentLevel: -3, adFreeTimeRemainingMs: 'soon' }));
     expect(parsed.currentLevel).toBe(1);

@@ -4,6 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '../components';
 import { ACHIEVEMENTS, usePlayerProgress } from '../progression';
 import { theme } from '../theme';
+import { PageBloom } from '../components/PageBloom';
 
 export interface AchievementsScreenProps {
   onExit: () => void;
@@ -56,6 +57,7 @@ export function AchievementsScreen({ onExit }: AchievementsScreenProps): React.J
 
   return (
     <View style={styles.container}>
+      <PageBloom />
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
           <Text style={styles.back}>‹ Home</Text>

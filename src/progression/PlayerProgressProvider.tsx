@@ -28,6 +28,7 @@ import {
   setCursor as setCursorPure,
 } from './playerProgress';
 import { clearProgress, loadProgress, saveProgress } from './playerProgressStore';
+import { coinsForSolve } from './coins';
 
 /**
  * Part B's extension point for a future ad system - fires exactly once,
@@ -79,6 +80,8 @@ export interface CompletionOutcome {
    * level's first puzzle, rather than jumping straight there the way a
    * mid-batch "Next" still does. */
   readonly batchCompleted: boolean;
+  /** Coins this solve paid out (0 for a replay that earned no new star). */
+  readonly coinsEarned: number;
 }
 
 interface PlayerProgressContextValue {
@@ -95,6 +98,12 @@ interface PlayerProgressContextValue {
   /** Wipes every star and completion, in memory and on disk. Irreversible -
    * the Settings screen is expected to confirm with the player first. */
   resetProgress(): void;
+  /** The coin balance. */
+  readonly coins: number;
+  /** Takes `amount` coins if the player has them. Returns whether it did -
+   * a caller spends *before* applying what it bought, so a refused spend
+   * leaves the board untouched. */
+  spendCoins(amount: number): boolean;
   levelResult(levelId: string): LevelResult | undefined;
   levelStars(levelId: string): 0 | StarRating;
   isCompleted(levelId: string): boolean;
@@ -224,7 +233,13 @@ export function PlayerProgressProvider({
     const todayKey = dailyKeyOf(new Date());
     const levelBefore = progressRef.current.currentLevel;
 
+    // Worked out inside the mutation, from exactly the progress it applies
+    // to, so a solve recorded before the save has loaded (and replayed onto
+    // it) is still paid against the real save, not the placeholder.
+    let coinsEarned = 0;
     const next = applyMutation(current => {
+      const previousStars = getLevelStars(current, levelId);
+      const firstDailyToday = isDaily && !isDailyCompleted(current, todayKey);
       let result = recordCompletionPure(current, levelId, scored, thresholds);
       // Any completion - Gravity or any other game alike - also extends the
       // Daily streak when it happens to be today's Daily entry. No screen
@@ -240,13 +255,17 @@ export function PlayerProgressProvider({
       // new batch's own "avoid re-serving a completed puzzle" logic reads,
       // so it correctly excludes the puzzle just completed right now, not
       // just whatever was already completed before this call.
+      let setCompleted = false;
       if (result.currentBatch) {
         const updatedBatch = markPuzzleCompleted(result.currentBatch, levelId);
-        result = isBatchComplete(updatedBatch)
+        setCompleted = isBatchComplete(updatedBatch);
+        result = setCompleted
           ? { ...result, currentLevel: result.currentLevel + 1, currentBatch: generateBatch(result.currentLevel + 1, result, updatedBatch) }
           : { ...result, currentBatch: updatedBatch };
       }
-      return result;
+
+      coinsEarned = coinsForSolve({ previousStars, bestStars: getLevelStars(result, levelId) || 1, firstDailyToday, setCompleted });
+      return coinsEarned > 0 ? { ...result, coins: result.coins + coinsEarned } : result;
     });
 
     // Fired from here, not from inside the mutation above - see
@@ -261,6 +280,7 @@ export function PlayerProgressProvider({
       runMoves: moves,
       best: getLevelResult(next, levelId)!,
       batchCompleted,
+      coinsEarned,
     };
   }, [applyMutation]);
 
@@ -276,6 +296,18 @@ export function PlayerProgressProvider({
   // screen couldn't render the current progress to reset otherwise), and it
   // should win outright rather than be treated as one more mutation to
   // reconcile with whatever `loadProgress` returns.
+  const spendCoins = useCallback(
+    (amount: number): boolean => {
+      if (progressRef.current.coins < amount) return false;
+      // Re-checked inside the mutation: if it is replayed onto a freshly
+      // loaded save that turns out to hold less, it charges nothing rather
+      // than going negative.
+      applyMutation(current => (current.coins >= amount ? { ...current, coins: current.coins - amount } : current));
+      return true;
+    },
+    [applyMutation],
+  );
+
   const resetProgress = useCallback((): void => {
     const fresh = emptyProgress();
     progressRef.current = fresh;
@@ -291,6 +323,8 @@ export function PlayerProgressProvider({
       recordCompletion,
       markLevelOpened,
       resetProgress,
+      coins: progress.coins,
+      spendCoins,
       levelResult: (levelId: string) => getLevelResult(progress, levelId),
       levelStars: (levelId: string) => getLevelStars(progress, levelId),
       isCompleted: (levelId: string) => isLevelCompleted(progress, levelId),
@@ -298,7 +332,7 @@ export function PlayerProgressProvider({
       dailyStreak: getDisplayDailyStreak(progress, dailyKeyOf(new Date())),
       dailyCompletedToday: isDailyCompleted(progress, dailyKeyOf(new Date())),
     }),
-    [progress, ready, recordCompletion, markLevelOpened, resetProgress],
+    [progress, ready, recordCompletion, markLevelOpened, resetProgress, spendCoins],
   );
 
   return (

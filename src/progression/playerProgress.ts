@@ -6,6 +6,7 @@ import {
   StarRating,
 } from '../game/scoring';
 import { BatchState } from './batches';
+import { STARTING_COINS } from './coins';
 
 /** Where the player last was, so the app can resume there. */
 export interface ProgressCursor {
@@ -77,6 +78,10 @@ export interface PlayerProgress {
   readonly currentLevel: number;
   readonly currentBatch: BatchState | null;
   readonly adFreeTimeRemainingMs: number | null;
+  /** The coin balance - see `coins.ts`. Added without a version bump, the
+   * same way `challenge` was: a save without it is read as holding
+   * `STARTING_COINS`. */
+  readonly coins: number;
 }
 
 export const PLAYER_PROGRESS_VERSION = 5 as const;
@@ -91,6 +96,7 @@ export function emptyProgress(): PlayerProgress {
     currentLevel: 1,
     currentBatch: null,
     adFreeTimeRemainingMs: null,
+    coins: STARTING_COINS,
   };
 }
 
@@ -120,6 +126,18 @@ export function getTotalStars(progress: PlayerProgress): number {
   return total;
 }
 
+/**
+ * How many entries the save holds - **not** how many of the app's current
+ * puzzles have been solved, and the two genuinely differ.
+ *
+ * `levels` is keyed by puzzle id and nothing ever prunes it, so a save
+ * that predates a retired game or a regenerated pool still carries those
+ * ids. That is deliberate (a puzzle that comes back should come back
+ * solved) but it means this count can exceed the number of puzzles that
+ * actually exist. Anything shown to the player as "X of Y solved" wants
+ * `computeAptitude`'s own `solved`/`total` instead, which only counts ids
+ * still present in a pool.
+ */
 export function getCompletedCount(progress: PlayerProgress): number {
   return Object.keys(progress.levels).length;
 }

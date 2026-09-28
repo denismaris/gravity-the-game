@@ -13,13 +13,17 @@ import {
   setMirror,
   traceBeam,
 } from '../game/mirror';
-import { BatchProgressDots, GeometricRule, LevelSetComplete, MechanicsCarousel, MirrorMazeBoard, PressableScale, PuzzleSolved, renderMirrorMazeIllustration } from '../components';
+import { BatchProgressDots, DifficultyChip, GeometricRule, LevelSetComplete, MechanicsCarousel, MirrorMazeBoard, PressableScale, PuzzleSolved, renderMirrorMazeIllustration, useSolveCelebration } from '../components';
+import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback, useAnimatedBeamReveal } from '../game/rendering';
 import { MIRROR_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme } from '../theme';
+import { PageBloom } from '../components/PageBloom';
+import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
+import { HINT_COST } from '../progression/coins';
 
 const TUTORIAL_ID = tutorialIdForGame('mirror');
 
@@ -112,6 +116,8 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState(() => emptyMirrorMazeState(puzzle));
+  const { coins, shortBy, buy } = useCoinPurchase();
+  const [coinsEarned, setCoinsEarned] = useState(0);
   const [hints, setHints] = useState(0);
   const [flash, setFlash] = useState<MirrorMazeCell | null>(null);
   const [stars, setStars] = useState<1 | 2 | 3 | null>(null);
@@ -142,6 +148,10 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
 
   const path = useMemo(() => traceBeam(puzzle, state), [puzzle, state]);
   const solved = useMemo(() => isMirrorMazeSolved(puzzle, state), [puzzle, state]);
+
+  // The completion card waits for the board's own finish animation to
+  // play - without this it drops a scrim straight over the top of it.
+  const showSolvedCard = useSolveCelebration(solved);
   const { revealProgress } = useAnimatedBeamReveal(path, solved);
   const left = remainingGems(puzzle, state);
   const totalGems = puzzle.gems.length;
@@ -166,6 +176,7 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
       const outcome = recordCompletion(puzzle.id, hints);
       batchCompletedRef.current = outcome.batchCompleted;
       setStars(outcome.best.stars);
+      setCoinsEarned(outcome.coinsEarned);
       triggerFeedback('mirrorSolve');
     }
   }, [solved, hints, puzzle.id, recordCompletion]);
@@ -193,18 +204,22 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
     [puzzle],
   );
 
+  // Charged only when there is a hint to give, and before applying it, so
+  // a refused purchase leaves the board untouched. Worked out from the live
+  // \`state\` rather than inside a \`setState\` updater: React may run an
+  // updater twice, which would charge twice.
   const useHint = useCallback(() => {
-    setState(s => {
-      const h = revealHint(s, puzzle);
-      if (!h) return s;
+    const h = revealHint(state, puzzle);
+    if (!h) return;
+    buy(HINT_COST, () => {
+      setState(h.state);
       setHints(n => n + 1);
       setFlash(h.cell);
       if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
       flashTimeoutRef.current = setTimeout(() => setFlash(null), 450);
       triggerFeedback('targetReached');
-      return h.state;
     });
-  }, [puzzle]);
+  }, [puzzle, state, buy]);
 
   const restart = useCallback(() => {
     recorded.current = false;
@@ -225,15 +240,16 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
 
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
+      <PageBloom />
+      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
           <Text style={styles.back}>‹ Home</Text>
         </PressableScale>
         <View style={styles.headerCenter}>
-          <Text style={styles.name} numberOfLines={1}>
+          <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
             {puzzle.name ?? 'Mirror Maze'}
           </Text>
-          <AnimatedKicker left={left} total={totalGems} solved={solved} />
+          <AnimatedKicker left={left} total={totalGems} solved={solved} difficulty={puzzle.difficulty} />
           {totalGems > 0 && (
             <View style={styles.track}>
               <Animated.View
@@ -273,34 +289,38 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
             flashCell={flash}
           />
         </View>
+
+        <View style={styles.controls}>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Reveal a hint"
+            onPress={useHint}
+            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+          >
+            <HintIcon />
+            <Text style={styles.pillText}>Hint</Text>
+            <CoinCost cost={HINT_COST} />
+          </PressableScale>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Restart puzzle"
+            onPress={restart}
+            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+          >
+            <RestartIcon />
+            <Text style={styles.pillText}>Restart</Text>
+          </PressableScale>
+        </View>
+        <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
       </View>
 
-      <View style={styles.controls}>
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="Reveal a hint"
-          onPress={useHint}
-          style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-        >
-          <HintIcon />
-          <Text style={styles.pillText}>Hint</Text>
-        </PressableScale>
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="Restart puzzle"
-          onPress={restart}
-          style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-        >
-          <RestartIcon />
-          <Text style={styles.pillText}>Restart</Text>
-        </PressableScale>
-      </View>
 
-      {solved && stars && (
+      {showSolvedCard && stars && (
         <PuzzleSolved
           kind="mirror"
           stars={stars}
           hintsUsed={hints}
+          coinsEarned={coinsEarned}
           onReplay={restart}
           onDone={onExit}
           hasNext={nextEntry !== null}
@@ -332,7 +352,7 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
  * mirrors `BinairoScreen.tsx`'s own `AnimatedKicker` exactly, so every
  * puzzle screen's header counter moves the same way. On solve, it swaps to
  * "SOLVED" with a small filled dot popping in beside it. */
-function AnimatedKicker({ left, total, solved }: { left: number; total: number; solved: boolean }): React.JSX.Element {
+function AnimatedKicker({ left, total, solved, difficulty }: { left: number; total: number; solved: boolean; difficulty: PuzzleDifficulty }): React.JSX.Element {
   const scale = useRef(new Animated.Value(1)).current;
   const previous = useRef(left);
   const solvedScale = useRef(new Animated.Value(0)).current;
@@ -356,7 +376,8 @@ function AnimatedKicker({ left, total, solved }: { left: number; total: number; 
 
   return (
     <View style={styles.kickerRow}>
-      <Animated.Text style={[styles.kicker, { transform: [{ scale }] }]}>
+      <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
+      <Animated.Text numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
         {solved ? 'MIRROR MAZE · SOLVED' : `MIRROR MAZE${total > 0 ? ` · ${left} GEM${left === 1 ? '' : 'S'} LEFT` : ''}`}
       </Animated.Text>
       {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
@@ -385,13 +406,16 @@ const styles = StyleSheet.create({
   headerRightSpacer: { width: 56, alignItems: 'center' },
   name: {
     fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.title,
-    fontWeight: theme.typography.weights.semibold,
+    fontSize: theme.typography.sizes.headline,
+    lineHeight: theme.typography.lineHeights.headline,
+    fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
   },
   kickerRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    alignSelf: 'stretch',
     marginTop: 2,
   },
   kicker: {
@@ -399,7 +423,9 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.micro,
     letterSpacing: 1,
     color: theme.colors.mirrorAccent,
+    flexShrink: 1,
   },
+  kickerChip: { marginRight: 6 },
   solvedBadge: {
     width: 10,
     height: 10,
@@ -431,11 +457,16 @@ const styles = StyleSheet.create({
   // `BinairoScreen.tsx`'s own `styles.boardArea` for the full rationale
   // (a small board used to float adrift in a mostly-empty screen; any
   // spare room now collects below the controls instead).
+  // Centred between the header and the controls, not pinned under the
+  // header. Every board here is square and limited by the screen's width,
+  // so on a tall phone there is always vertical slack - top-aligning it
+  // pooled all of that into one dead block beneath the board, which read
+  // as a layout that had run out rather than a composed page. Split either
+  // side, the same slack reads as margin.
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'flex-start',
-    marginTop: theme.spacing.lg,
+    justifyContent: 'center',
   },
   // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage` for
   // the full rationale: no fill of its own now (the board's own panel
@@ -454,11 +485,16 @@ const styles = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderStrong,
   },
+  // Sits with the board inside the centred group rather than pinned to the
+  // bottom of the screen - the arrangement Gravity's own board already
+  // used, and the reason its screen read as composed while the other five
+  // read as a board at the top and two buttons stranded at the bottom.
   controls: {
     flexDirection: 'row',
     gap: theme.spacing.md,
-    paddingBottom: theme.spacing.xl,
+    marginTop: theme.spacing.xl,
   },
+  coinBalance: { marginTop: theme.spacing.md },
   pill: {
     flexDirection: 'row',
     alignItems: 'center',

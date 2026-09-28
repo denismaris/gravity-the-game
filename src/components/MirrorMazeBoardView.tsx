@@ -14,7 +14,9 @@ import {
   getCellCenter,
   getCellOrigin,
   ObstacleBlock,
+  shade,
   TargetMarker,
+  IDLE_MOTION_FPS,
   useAnimationClock,
   useReducedMotion,
 } from '../game/rendering';
@@ -69,6 +71,30 @@ export function mirrorPath(cx: number, cy: number, halfLength: number, mirror: M
   const dx = Math.cos(angle) * halfLength * scale;
   const dy = Math.sin(angle) * halfLength * scale;
   return `M ${cx - dx} ${cy - dy} L ${cx + dx} ${cy + dy}`;
+}
+
+const MIRROR_HALO_COLOR = shade(theme.colors.mirrorGlass, 1.35);
+
+/**
+ * A placed mirror, drawn as a soft halo behind a crisp core - the same
+ * two-layer idiom the beam itself uses (`livePathString`'s own halo/mid/
+ * core), applied here instead of a shadow: this board is a dark, lit
+ * scene, not paper on a page, so a mirror reads as "catching light"
+ * rather than "casting one" - a cast shadow would not even be visible
+ * against a near-black panel. `mirrorGlass`'s own doc comment already
+ * calls this "polished silver"; the halo is what actually makes it read
+ * as polished rather than flat, without reaching for a gradient fill
+ * (see this project's own standing depth-vs-flat guidance: geometry, not
+ * bevels, and a mirror is not a sphere).
+ */
+export function renderMirror(key: string, cx: number, cy: number, halfLength: number, mirror: MirrorKind, extraRadians: number, scale: number, strokeWidth: number): React.JSX.Element {
+  const path = mirrorPath(cx, cy, halfLength, mirror, extraRadians, scale);
+  return (
+    <Group key={key}>
+      <Path path={path} color={MIRROR_HALO_COLOR} style="stroke" strokeWidth={strokeWidth * 2.2} strokeCap="round" opacity={0.35} />
+      <Path path={path} color={theme.colors.mirrorGlass} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />
+    </Group>
+  );
 }
 
 /** A small diamond marking a gem - distinct from the mirror's straight
@@ -316,6 +342,69 @@ const StaticMazeLayer = React.memo(function StaticMazeLayerImpl({
   );
 });
 
+interface StaticGemsProps {
+  layout: BoardLayout;
+  gems: ReadonlyArray<MirrorMazeCell>;
+  gemSize: number;
+  /** Comma-joined keys of gems currently unlit (shimmering) or mid-burst -
+   * the same `transitioningKeys`-as-a-primitive-string idiom
+   * `StaticBinairoTiles` uses, so `React.memo`'s shallow prop comparison
+   * can actually tell "nothing changed" apart from "something changed"
+   * between ticks. Everything *not* in this set is lit and settled, which
+   * is a fixed, clock-independent shape - the steady state a solved
+   * board's gems (all of them) sit in for good. */
+  activeKeys: string;
+}
+
+/**
+ * Every gem that is lit and done bursting, at its own fixed resting
+ * shape - no shimmer term, no burst ring, because neither applies once a
+ * gem has settled. Memoized so a board that is mostly or fully lit stops
+ * paying the idle clock's cost for gems that no longer have anything left
+ * to animate; still-unlit gems (which do need the shimmer) are drawn by a
+ * separate, unmemoized layer in `MirrorMazeBoardView` itself.
+ */
+const StaticGems = React.memo(function StaticGemsImpl({ layout, gems, gemSize, activeKeys }: StaticGemsProps) {
+  const skip = useMemo(() => new Set(activeKeys ? activeKeys.split(',') : []), [activeKeys]);
+  return (
+    <Group>
+      {gems.map((cell, i) => {
+        const key = positionKey(cell.row, cell.col);
+        if (skip.has(key)) return null;
+        const center = getCellCenter(layout, cell.row, cell.col);
+        return <Path key={`gem-${i}`} path={gemPath(center.x, center.y, gemSize * 1.08)} color={theme.colors.accent} opacity={1} />;
+      })}
+    </Group>
+  );
+});
+
+interface StaticMirrorsProps {
+  layout: BoardLayout;
+  mirrors: MirrorMazeState['mirrors'];
+  mirrorHalfLength: number;
+  mirrorStrokeWidth: number;
+  /** The single cell currently mid-flourish (`useMirrorFlourish` only ever
+   * tracks one at a time), or `null` - every other placed mirror is at
+   * rest and genuinely never needs the clock again once its own flourish
+   * finishes. */
+  flourishingKey: string | null;
+}
+
+const StaticMirrors = React.memo(function StaticMirrorsImpl({ layout, mirrors, mirrorHalfLength, mirrorStrokeWidth, flourishingKey }: StaticMirrorsProps) {
+  return (
+    <Group>
+      {mirrors.map((line, r) =>
+        line.map((mirror, c) => {
+          if (!mirror) return null;
+          if (flourishingKey === positionKey(r, c)) return null;
+          const center = getCellCenter(layout, r, c);
+          return renderMirror(`mirror-${r}-${c}`, center.x, center.y, mirrorHalfLength, mirror, 0, 1, mirrorStrokeWidth);
+        }),
+      )}
+    </Group>
+  );
+});
+
 export interface MirrorMazeBoardViewProps {
   puzzle: MirrorMazePuzzle;
   state: MirrorMazeState;
@@ -358,7 +447,15 @@ export function MirrorMazeBoardView({
 
   // Idle motion runs while there's still a puzzle to solve, and through the
   // ignition so the last gem's burst isn't cut off mid-flight.
-  const clock = useAnimationClock(!solved || revealProgress < 1);
+  // The beam reveal is real motion and keeps the full rate; the idle
+  // shimmer and pulse are decoration and do not. Under reduced motion both
+  // are pinned to constants, so once the beam has finished revealing there
+  // is nothing left for a clock to drive.
+  // `solved &&` matters: `revealProgress` sits at 0 for the whole time a
+  // puzzle is unsolved, so without it this read as "revealing" throughout
+  // ordinary play and the idle shimmer ran at the full 60fps instead of
+  // `IDLE_MOTION_FPS` - five times the steady render cost it was tuned to.
+  const revealing = solved && revealProgress < 1;
 
   const seed = useMemo(() => [...puzzle.id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0), [puzzle.id]);
   const speckle = useSpeckle(layout.boardSize, seed);
@@ -369,6 +466,49 @@ export function MirrorMazeBoardView({
 
   const flourish = useMirrorFlourish(state.mirrors);
   const gemBursts = useGemBursts(litGemKeys);
+
+  // A mirror flipping (260ms) or a gem bursting (420ms) is real motion.
+  // On the 12fps idle clock a flip got about three frames and read as lag,
+  // so while either is in flight the clock runs at full rate, dropping back
+  // to idle the frame the last one settles. Declared after both hooks so it
+  // can see them.
+  const renderNow = Date.now();
+  let placing = !reducedMotion && flourish !== null && renderNow - flourish.startedAt < FLOURISH_MS;
+  if (!placing && !reducedMotion) {
+    for (const at of gemBursts.values()) {
+      if (renderNow - at < GEM_BURST_MS) {
+        placing = true;
+        break;
+      }
+    }
+  }
+  const fullRate = revealing || placing;
+  const clock = useAnimationClock(fullRate || (!solved && !reducedMotion), fullRate ? 60 : IDLE_MOTION_FPS);
+  const flourishingKey = flourish ? positionKey(flourish.cell.row, flourish.cell.col) : null;
+
+  // Which gems still need the clock this tick: not yet lit, or lit but
+  // still within their own burst window - recomputed every tick (cheap,
+  // just key membership checks), but only turned into a *new string* when
+  // the actual membership changes, so `StaticGems`' own memo comparison
+  // keeps bailing out across every tick where nothing about "which gems
+  // are settled" changed - which, on a mostly-lit board, is most of them.
+  const activeGemKeySet = useMemo(() => {
+    const set = new Set<string>();
+    for (const cell of puzzle.gems) {
+      const key = positionKey(cell.row, cell.col);
+      const lit = litGemKeys.has(key);
+      const burstAt = gemBursts.get(key);
+      const burst = burstAt === undefined ? 1 : clamp01((Date.now() - burstAt) / GEM_BURST_MS);
+      if (!lit || burst < 1) set.add(key);
+    }
+    return set;
+    // `clock` isn't read directly (the burst check uses `Date.now()`,
+    // which eslint can't see as reactive) - it's here purely so this
+    // recomputes every tick, the only way to notice a burst crossing
+    // `GEM_BURST_MS` and settling.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [puzzle.gems, litGemKeys, gemBursts, clock]);
+  const activeGemKeys = useMemo(() => Array.from(activeGemKeySet).join(','), [activeGemKeySet]);
 
   // Frozen at its own midpoint under reduced motion, not fully removed -
   // the beam still shows the same halo/core presence, it just stops
@@ -464,11 +604,14 @@ export function MirrorMazeBoardView({
         color={theme.colors.background}
       />
 
-      {/* Gems: a slow shimmer while waiting, a ring thrown outward the moment
-          the beam first reaches one. */}
+      <StaticGems layout={layout} gems={puzzle.gems} gemSize={gemSize} activeKeys={activeGemKeys} />
+      {/* Gems still worth the clock: a slow shimmer while waiting, a ring
+          thrown outward the moment the beam first reaches one. Everything
+          settled (lit, burst finished) is `StaticGems`' job instead. */}
       {puzzle.gems.map((cell, i) => {
-        const center = getCellCenter(layout, cell.row, cell.col);
         const key = positionKey(cell.row, cell.col);
+        if (!activeGemKeySet.has(key)) return null;
+        const center = getCellCenter(layout, cell.row, cell.col);
         const lit = litGemKeys.has(key);
         const shimmer = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(clock / 820 + i * 0.9);
 
@@ -498,29 +641,29 @@ export function MirrorMazeBoardView({
         );
       })}
 
-      {/* Mirrors: polished silver, spun into place on the tap that set them. */}
-      {state.mirrors.map((line, r) =>
-        line.map((mirror, c) => {
-          if (!mirror) return null;
-          const center = getCellCenter(layout, r, c);
-
-          const isFlourishing = flourish?.cell.row === r && flourish?.cell.col === c;
-          const raw = isFlourishing ? clamp01((Date.now() - flourish.startedAt) / FLOURISH_MS) : 1;
-          const eased = easeOutCubic(raw);
-          const extraRadians = (1 - eased) * (Math.PI / 2);
-          const scale = 1 + Math.sin(eased * Math.PI) * 0.16;
-
-          return (
-            <Path
-              key={`mirror-${r}-${c}`}
-              path={mirrorPath(center.x, center.y, mirrorHalfLength, mirror, extraRadians, scale)}
-              color={theme.colors.mirrorGlass}
-              style="stroke"
-              strokeWidth={mirrorStrokeWidth}
-              strokeCap="round"
-            />
-          );
-        }),
+      <StaticMirrors
+        layout={layout}
+        mirrors={state.mirrors}
+        mirrorHalfLength={mirrorHalfLength}
+        mirrorStrokeWidth={mirrorStrokeWidth}
+        flourishingKey={flourishingKey}
+      />
+      {/* The one mirror still mid-flourish, if any - every other placed
+          mirror is `StaticMirrors`' job. */}
+      {flourish && (
+        <Group>
+          {(() => {
+            const { row: r, col: c } = flourish.cell;
+            const mirror = state.mirrors[r][c];
+            if (!mirror) return null;
+            const center = getCellCenter(layout, r, c);
+            const raw = clamp01((Date.now() - flourish.startedAt) / FLOURISH_MS);
+            const eased = easeOutCubic(raw);
+            const extraRadians = (1 - eased) * (Math.PI / 2);
+            const scale = 1 + Math.sin(eased * Math.PI) * 0.16;
+            return renderMirror('flourishing', center.x, center.y, mirrorHalfLength, mirror, extraRadians, scale, mirrorStrokeWidth);
+          })()}
+        </Group>
       )}
     </Group>
   );

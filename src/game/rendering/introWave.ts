@@ -64,3 +64,23 @@ export function introCellProgress(elapsed: number, row: number, col: number): nu
 export function isIntroActive(elapsed: number, reducedMotion: boolean): boolean {
   return !reducedMotion && elapsed < INTRO_TOTAL_MS;
 }
+
+/**
+ * Frame rate for a board's continuous idle motion (a shimmer, a firefly,
+ * a breathing glow). These run for the whole time a puzzle is unsolved,
+ * so they are the app's single largest source of steady render work - and
+ * at 0.1-0.2Hz none of them is remotely distinguishable from 60fps. Real
+ * interaction feedback is a different matter and is not throttled: it is
+ * short, and it is the thing a player is actually looking at.
+ *
+ * Lowered from 30 after the app was reported as not smooth on a phone.
+ * Three boards (Binairo, Mirror Maze, Tents) hold this clock open for
+ * every second a puzzle is on screen, and each published tick is a full
+ * React render plus a Skia reconcile. Twelve still gives a 5-second
+ * breathing cycle sixty steps to move through - far more than the eye
+ * resolves on a slow fade - while cutting that steady work to 40% of
+ * what it was. This is the highest-leverage number in the app for
+ * sustained cost, precisely because nothing about it is ever the thing
+ * being looked at.
+ */
+export const IDLE_MOTION_FPS = 12;

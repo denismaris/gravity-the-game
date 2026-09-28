@@ -1,6 +1,6 @@
 import React from 'react';
 import { Group, Path, RoundedRect } from '@shopify/react-native-skia';
-import { arrowPath, gemPath, mirrorPath } from './MirrorMazeBoardView';
+import { arrowPath, gemPath, renderMirror } from './MirrorMazeBoardView';
 import { CellBackground, TargetMarker } from '../game/rendering';
 import { ILLUSTRATION_HEIGHT, ILLUSTRATION_WIDTH } from './MechanicsCarousel';
 import { theme } from '../theme';
@@ -70,20 +70,8 @@ function PlaceIllustration(): React.JSX.Element {
         <Group key={i}>{panelCell(cellX(i), y)}</Group>
       ))}
       {/* No mirror, then `/`, then `\` - the real tap cycle in `nextMirror`. */}
-      <Path
-        path={mirrorPath(cellX(1) + CELL / 2, y + CELL / 2, halfLength, 'fwd', 0, 1)}
-        color={theme.colors.mirrorGlass}
-        style="stroke"
-        strokeWidth={strokeWidth}
-        strokeCap="round"
-      />
-      <Path
-        path={mirrorPath(cellX(2) + CELL / 2, y + CELL / 2, halfLength, 'back', 0, 1)}
-        color={theme.colors.mirrorGlass}
-        style="stroke"
-        strokeWidth={strokeWidth}
-        strokeCap="round"
-      />
+      {renderMirror('fwd', cellX(1) + CELL / 2, y + CELL / 2, halfLength, 'fwd', 0, 1, strokeWidth)}
+      {renderMirror('back', cellX(2) + CELL / 2, y + CELL / 2, halfLength, 'back', 0, 1, strokeWidth)}
     </Group>
   );
 }
@@ -127,13 +115,7 @@ function ReflectIllustration(): React.JSX.Element {
         path={arrowPath(entryCenter.x - CELL * 0.3, entryCenter.y, CELL * 0.16, 'right')}
         color={theme.colors.background}
       />
-      <Path
-        path={mirrorPath(bendCenter.x, bendCenter.y, halfLength, 'back', 0, 1)}
-        color={theme.colors.mirrorGlass}
-        style="stroke"
-        strokeWidth={Math.max(2.5, CELL * 0.09)}
-        strokeCap="round"
-      />
+      {renderMirror('bend', bendCenter.x, bendCenter.y, halfLength, 'back', 0, 1, Math.max(2.5, CELL * 0.09))}
     </Group>
   );
 }

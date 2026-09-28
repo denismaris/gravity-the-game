@@ -1,22 +1,43 @@
+import { getArukoneByDifficulty } from '../../game/arukone';
 import { getBinairoByDifficulty } from '../../game/binairo';
+import { getFillaPixByDifficulty } from '../../game/fillapix';
+import { getLightsOutByDifficulty } from '../../game/lightsout';
+import { getAdjacentByDifficulty } from '../../game/adjacent';
+import { getBloomByDifficulty } from '../../game/bloom';
 import { getLevelsByDifficulty, LEVELS } from '../../game/levels';
 import { getMirrorMazesByDifficulty } from '../../game/mirror';
 import { GameKind, ROTATION } from '../../game/journey';
 import { getTentsTreesByDifficulty } from '../../game/tents';
 import { getTowersByDifficulty } from '../../game/towers';
-import { generateBatch, isBatchComplete, markPuzzleCompleted, nextInBatch } from '../batches';
+import { CHALLENGE_EVERY, generateBatch, HARD_TIER_FIRST_LEVEL, isBatchComplete, markPuzzleCompleted, nextInBatch } from '../batches';
 import { emptyProgress, PlayerProgress, recordCompletion } from '../playerProgress';
 
-/** Every puzzle id tagged `hard` in its own game's pool, across all five
- * games - the ceiling check below needs to catch a hard-tier draw from
- * *any* game, not just Gravity/Mirror Maze. */
-const HARD_IDS: ReadonlySet<string> = new Set([
-  ...getLevelsByDifficulty('hard').map(l => l.id),
-  ...getMirrorMazesByDifficulty('hard').map(p => p.id),
-  ...getTentsTreesByDifficulty('hard').map(p => p.id),
-  ...getTowersByDifficulty('hard').map(p => p.id),
-  ...getBinairoByDifficulty('hard').map(p => p.id),
-]);
+/**
+ * Every puzzle id tagged `hard` in its own game's pool, across every game
+ * - the checks below need to catch a hard-tier draw from *any* game, not
+ * just the ones that happened to exist when they were written.
+ *
+ * Keyed by `GameKind` rather than spread from a hand-written list for
+ * exactly that reason: this started as a list, Arukone was added to the
+ * app without being added here, and the gap silently weakened every test
+ * that reads this set. A `Record<GameKind, ...>` makes the next omission
+ * a compile error instead, the same way `App.tsx`'s default-less switch
+ * does.
+ */
+const HARD_POOLS: Record<GameKind, ReadonlyArray<string>> = {
+  gravity: getLevelsByDifficulty('hard').map(l => l.id),
+  mirror: getMirrorMazesByDifficulty('hard').map(p => p.id),
+  tents: getTentsTreesByDifficulty('hard').map(p => p.id),
+  towers: getTowersByDifficulty('hard').map(p => p.id),
+  binairo: getBinairoByDifficulty('hard').map(p => p.id),
+  arukone: getArukoneByDifficulty('hard').map(p => p.id),
+  fillapix: getFillaPixByDifficulty('hard').map(p => p.id),
+  lightsout: getLightsOutByDifficulty('hard').map(p => p.id),
+  adjacent: getAdjacentByDifficulty('hard').map(p => p.id),
+  bloom: getBloomByDifficulty('hard').map(p => p.id),
+};
+
+const HARD_IDS: ReadonlySet<string> = new Set(Object.values(HARD_POOLS).flat());
 
 /** A deterministic PRNG (mulberry32) so tests can exercise many draws
  * without real randomness making a failure unreproducible. */
@@ -44,11 +65,11 @@ describe('tier curve (levels 1-40 explicit, 41+ a permanent plateau)', () => {
     expect(batch.puzzles).toHaveLength(3);
   });
 
-  test('batch size grows to 4 by level 9, and to 5 by level 26', () => {
-    expect(generateBatch(8, emptyProgress(), null, seededRng(2)).puzzles).toHaveLength(3);
-    expect(generateBatch(9, emptyProgress(), null, seededRng(3)).puzzles).toHaveLength(4);
-    expect(generateBatch(25, emptyProgress(), null, seededRng(4)).puzzles).toHaveLength(4);
-    expect(generateBatch(26, emptyProgress(), null, seededRng(5)).puzzles).toHaveLength(5);
+  test('batch size grows to 4 by level 6, and to 5 by level 19', () => {
+    expect(generateBatch(5, emptyProgress(), null, seededRng(2)).puzzles).toHaveLength(3);
+    expect(generateBatch(6, emptyProgress(), null, seededRng(3)).puzzles).toHaveLength(4);
+    expect(generateBatch(18, emptyProgress(), null, seededRng(4)).puzzles).toHaveLength(4);
+    expect(generateBatch(19, emptyProgress(), null, seededRng(5)).puzzles).toHaveLength(5);
   });
 
   test('the plateau is genuinely permanent - level 41 and level 5000 draw from the same distribution', () => {
@@ -61,8 +82,9 @@ describe('tier curve (levels 1-40 explicit, 41+ a permanent plateau)', () => {
     expect(at5000.puzzles).toHaveLength(5);
   });
 
-  test('never draws a hard-tier puzzle before level 16, across many draws', () => {
-    for (let level = 1; level < 16; level += 1) {
+  test('never draws a hard-tier puzzle before the curve allows one', () => {
+    expect(HARD_TIER_FIRST_LEVEL).toBeGreaterThan(1);
+    for (let level = 1; level < HARD_TIER_FIRST_LEVEL; level += 1) {
       for (let seed = 0; seed < 5; seed += 1) {
         const batch = generateBatch(level, emptyProgress(), null, seededRng(level * 100 + seed));
         for (const ref of batch.puzzles) {
@@ -72,18 +94,110 @@ describe('tier curve (levels 1-40 explicit, 41+ a permanent plateau)', () => {
     }
   });
 
-  test('Gravity levels tagged "expert" are structurally unreachable at any level number', () => {
+  // Gravity's fourth tier used to match no query at all, which kept its
+  // twenty hardest levels out of every batch ever generated. They now
+  // answer to the hard tier - so they are reachable, but only from the
+  // point in the curve where hard puzzles start appearing.
+  test('Gravity levels tagged "expert" can actually be dealt, but never early', () => {
     const expertIds = new Set(LEVELS.filter(l => l.difficulty === 'expert').map(l => l.id));
-    expect(expertIds.size).toBeGreaterThan(0); // sanity: the fixture actually has expert levels to avoid
+    expect(expertIds.size).toBeGreaterThan(0);
 
-    for (const level of [1, 25, 50, 51, 10000]) {
-      for (let seed = 0; seed < 20; seed += 1) {
+    let seenLate = 0;
+    for (const level of [30, 50, 120, 10000]) {
+      for (let seed = 0; seed < 40; seed += 1) {
         const batch = generateBatch(level, emptyProgress(), null, seededRng(level * 1000 + seed));
+        for (const ref of batch.puzzles) {
+          if (ref.kind === 'gravity' && expertIds.has(ref.puzzleId)) seenLate += 1;
+        }
+      }
+    }
+    expect(seenLate).toBeGreaterThan(0);
+
+    // Still gated behind the hard tier, so an expert level cannot turn up
+    // while the curve is only dealing easy and medium.
+    for (let level = 1; level < HARD_TIER_FIRST_LEVEL; level += 1) {
+      for (let seed = 0; seed < 10; seed += 1) {
+        const batch = generateBatch(level, emptyProgress(), null, seededRng(level * 77 + seed));
         for (const ref of batch.puzzles) {
           if (ref.kind === 'gravity') expect(expertIds.has(ref.puzzleId)).toBe(false);
         }
       }
     }
+  });
+});
+
+/**
+ * The rhythm. Difficulty used to be sampled independently per slot, which
+ * is why it felt arbitrary - a level could deal three hard puzzles in a
+ * row or none, and nothing anywhere said which was which. These check the
+ * two halves of the replacement: hard arrives on a fixed cadence, and it
+ * arrives *only* there.
+ */
+describe('the challenge cadence', () => {
+  /** Plays levels 1..`throughLevel` in order, flattening them into the one
+   * continuous run of puzzles a player actually experiences - which is the
+   * sequence the cadence is defined over, and the only place a per-batch
+   * check could not see it. */
+  function playThrough(throughLevel: number, seed: number) {
+    const run: Array<{ level: number; challenge: boolean; puzzleId: string }> = [];
+    let previous = null as ReturnType<typeof generateBatch> | null;
+    for (let level = 1; level <= throughLevel; level += 1) {
+      const batch = generateBatch(level, emptyProgress(), previous, seededRng(seed * 1000 + level));
+      for (const ref of batch.puzzles) {
+        run.push({ level, challenge: ref.challenge === true, puzzleId: ref.puzzleId });
+      }
+      previous = batch;
+    }
+    return run;
+  }
+
+  test('lands on exactly every sixth puzzle, counted across levels rather than within one', () => {
+    for (let seed = 1; seed <= 5; seed += 1) {
+      const run = playThrough(30, seed);
+      run.forEach((puzzle, index) => {
+        const onCadence = index % CHALLENGE_EVERY === CHALLENGE_EVERY - 1;
+        // Before the curve opens the hard tier there is nothing to deal,
+        // so those cadence positions are skipped rather than softened.
+        const expected = onCadence && puzzle.level >= HARD_TIER_FIRST_LEVEL;
+        expect(puzzle.challenge).toBe(expected);
+      });
+    }
+  });
+
+  test('every challenge is genuinely a hard-tier puzzle', () => {
+    for (let seed = 1; seed <= 5; seed += 1) {
+      for (const puzzle of playThrough(40, seed)) {
+        if (puzzle.challenge) expect(HARD_IDS.has(puzzle.puzzleId)).toBe(true);
+      }
+    }
+  });
+
+  /** The half that makes the signposting worth anything: if hard puzzles
+   * could still turn up in ordinary slots, marking one of them would be a
+   * decoration rather than a promise. */
+  test('no ordinary slot ever deals a hard puzzle, at any level', () => {
+    for (let seed = 1; seed <= 6; seed += 1) {
+      for (const puzzle of playThrough(60, seed)) {
+        if (!puzzle.challenge) expect(HARD_IDS.has(puzzle.puzzleId)).toBe(false);
+      }
+    }
+  });
+
+  test('is a property of the position, not of the draw - different seeds flag the same slots', () => {
+    const positionsFor = (seed: number) =>
+      playThrough(25, seed)
+        .map((puzzle, index) => (puzzle.challenge ? index : -1))
+        .filter(index => index >= 0);
+    expect(positionsFor(2)).toEqual(positionsFor(1));
+    expect(positionsFor(3)).toEqual(positionsFor(1));
+    expect(positionsFor(1).length).toBeGreaterThan(0);
+  });
+
+  test('the plateau keeps dealing them - the rhythm does not stop once the curve flattens', () => {
+    const batches = [200, 201, 202, 203].map(level => generateBatch(level, emptyProgress(), null, seededRng(level)));
+    const challenges = batches.flatMap(batch => batch.puzzles.filter(ref => ref.challenge));
+    // Four plateau batches of five is twenty puzzles, so three or four.
+    expect(challenges.length).toBeGreaterThanOrEqual(3);
   });
 });
 

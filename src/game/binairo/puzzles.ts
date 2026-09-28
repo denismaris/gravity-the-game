@@ -438,18 +438,29 @@ export const BINAIRO: ReadonlyArray<BinairoPuzzle> = [
     // teach-one-thing shape `binairo-013` uses for twin cells, and tagged
     // by real complexity rather than its position in the ramp.
     //
-    // Deliberately down to five givens: with the board this bare the three
-    // clues are doing most of the deductive work, which is the point of an
-    // introduction puzzle. Every clue sits on an interior cell with 3-4
-    // still-blank neighbours, so none of them merely restates what the
-    // givens already show (see `countClueOpenNeighbours`).
+    // Was down to ten givens (28% of the board), on the reasoning that
+    // with the board this bare the three clues would do most of the
+    // deductive work. Measured against the rest of the pool, that reasoning
+    // didn't hold up: every other puzzle here sits at 54-64% given, and this
+    // one was sparser than even the hardest 10x10s while tagged `medium` -
+    // which is what "too hard" actually meant. Raised to 21 givens (58%),
+    // landing inside this size's own 54-64% tier, by revealing more of the
+    // same solution rather than re-authoring the puzzle. The exact set was
+    // chosen by brute-force search over every combination of the candidate
+    // reveals (`solveBinairo` run with and without `countClues` on each),
+    // keeping the largest one that still leaves the board ambiguous with
+    // the clues stripped out - i.e. the clues are still load-bearing, not
+    // decorative, which `binairo.test.ts`'s pool-wide test enforces. Every
+    // clue keeps its full ring of blank neighbours untouched (see
+    // `countClueOpenNeighbours`) - only cells away from all three clues
+    // were candidates for reveal.
     givens: grid([
-      [0, null, null, null, null, 1],
+      [0, 0, null, 0, null, 1],
       [null, null, 1, null, 0, null],
-      [1, null, null, null, null, null],
-      [null, null, 0, null, 1, 1],
-      [null, null, null, null, null, null],
-      [1, null, 0, null, null, null],
+      [1, 1, null, 0, null, null],
+      [0, 1, 0, null, 1, 1],
+      [null, 0, 1, 1, null, null],
+      [1, 1, 0, 1, null, null],
     ]),
     countClues: [
       { row: 1, col: 2, count: 2 },

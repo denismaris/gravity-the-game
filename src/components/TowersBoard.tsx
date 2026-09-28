@@ -2,7 +2,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { computeConflicts, isColComplete, isRowComplete, TowersCell, TowersPuzzle, TowersState } from '../game/towers';
-import { shade } from '../game/rendering';
+import { shade, useReducedMotion } from '../game/rendering';
 import { motion, theme } from '../theme';
 
 export interface TowersBoardProps {
@@ -15,6 +15,8 @@ export interface TowersBoardProps {
   onSelectCell: (row: number, col: number) => void;
   /** Cell to flash briefly (a hint reveal). */
   flashCell?: TowersCell | null;
+  /** The grid is finished - runs the one celebration this board has. */
+  solved?: boolean;
 }
 
 /** Cell wash for a just-completed row/column: `success` at a fixed 14% -
@@ -54,8 +56,9 @@ function fireShake(anim: Animated.Value): void {
  * (`towersAccent`), matching this app's given-vs-player colour split even
  * though, unlike Sudoku, no grid cell itself is ever pre-filled.
  */
-export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flashCell }: TowersBoardProps): React.JSX.Element {
+export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flashCell, solved = false }: TowersBoardProps): React.JSX.Element {
   const n = puzzle.size;
+  const reducedMotion = useReducedMotion();
 
   const layout = useMemo(() => {
     const gutter = Math.max(26, Math.round(size / (n + 2) / 1.3));
@@ -125,11 +128,16 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
   const prevConflicts = useRef<ReadonlySet<string>>(new Set());
   useEffect(() => {
     for (const key of conflicts) {
-      if (!prevConflicts.current.has(key)) fireShake(getShake(key));
+      // The shake is pure movement with no state of its own riding on it -
+      // a conflicting cell's digit and building already turn `danger` red
+      // regardless (see `renderClue`/`Building` below), so under reduced
+      // motion this simply doesn't fire rather than needing a reduced
+      // substitute.
+      if (!prevConflicts.current.has(key) && !reducedMotion) fireShake(getShake(key));
     }
     prevConflicts.current = conflicts;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [conflicts]);
+  }, [conflicts, reducedMotion]);
 
   const renderClue = (clue: number, key: string): React.JSX.Element => (
     <View key={key} style={[styles.clueCell, { width: layout.cell, height: layout.cell }]}>
@@ -142,6 +150,15 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
   );
 
   const boardSize = layout.gutter * 2 + n * layout.cell;
+  const wellInset = Math.max(2, layout.cell * 0.06);
+  const wellBox = {
+    position: 'absolute' as const,
+    left: wellInset,
+    top: wellInset,
+    right: wellInset,
+    bottom: wellInset,
+    borderRadius: (layout.cell - wellInset * 2) * 0.22,
+  };
 
   return (
     <View style={{ width: boardSize }}>
@@ -198,7 +215,7 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
                       // own declared pressed tone, and it's what a selected
                       // cell settles on anyway - so the press reads as the
                       // selection arriving early, not as a second colour.
-                      style={({ pressed }) => ({
+                      style={{
                         width: layout.cell,
                         height: layout.cell,
                         alignItems: 'center',
@@ -207,30 +224,44 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
                         // one skyline sitting on a common ground line.
                         justifyContent: 'flex-end',
                         paddingBottom: layout.cell * 0.11,
-                        backgroundColor: flash
-                          ? theme.colors.accent
-                          : pressed || isSelected
-                          ? theme.colors.surfaceAlt
-                          : hasConflict
-                          ? 'rgba(140, 35, 24, 0.10)'
-                          : matchesSelectedValue
-                          ? 'rgba(113, 75, 129, 0.14)'
-                          : inSelectedLine
-                          ? theme.colors.background
-                          : theme.colors.surfaceHi,
-                        borderRightWidth: StyleSheet.hairlineWidth,
-                        borderBottomWidth: StyleSheet.hairlineWidth,
-                        borderRightColor: theme.colors.border,
-                        borderBottomColor: theme.colors.border,
-                      })}
+                      }}
                     >
-                      <Animated.View
+                      {({ pressed }) => (
+                        <>
+                      {/* A framed well rather than a ruled grid cell - the
+                          same inset, radius and hairline stroke as every
+                          Skia board's wells, so an empty skyline reads as
+                          building plots rather than a blank form. The
+                          cell's state colour lives on the well, and the
+                          selected well picks up the accent rim. */}
+                      <View
                         pointerEvents="none"
-                        style={[StyleSheet.absoluteFill, styles.linePulse, { opacity: getRowPulse(r) }]}
+                        style={[
+                          wellBox,
+                          {
+                            borderWidth: isSelected ? 1.5 : 1,
+                            borderColor: isSelected ? theme.colors.towersAccent : theme.colors.border,
+                            backgroundColor: flash
+                              ? theme.colors.accent
+                              : pressed || isSelected
+                              ? theme.colors.surfaceAlt
+                              : hasConflict
+                              ? 'rgba(140, 35, 24, 0.10)'
+                              : matchesSelectedValue
+                              ? 'rgba(113, 75, 129, 0.14)'
+                              : inSelectedLine
+                              ? theme.colors.background
+                              : theme.colors.surfaceHi,
+                          },
+                        ]}
                       />
                       <Animated.View
                         pointerEvents="none"
-                        style={[StyleSheet.absoluteFill, styles.linePulse, { opacity: getColPulse(c) }]}
+                        style={[styles.linePulse, wellBox, { opacity: getRowPulse(r) }]}
+                      />
+                      <Animated.View
+                        pointerEvents="none"
+                        style={[styles.linePulse, wellBox, { opacity: getColPulse(c) }]}
                       />
                       {/* The height as a numeral too, sitting just above
                           its own roof. The skyline alone makes the clue
@@ -252,7 +283,17 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
                           {value}
                         </Text>
                       )}
-                      <Building value={value} max={n} cell={layout.cell} conflict={hasConflict} />
+                      <Building
+                        value={value}
+                        max={n}
+                        cell={layout.cell}
+                        conflict={hasConflict}
+                        seed={r * 31 + c}
+                        celebrate={solved && !reducedMotion}
+                        celebrateDelay={(r + c) * CELEBRATE_STAGGER_MS}
+                      />
+                        </>
+                      )}
                     </Pressable>
                   </Animated.View>
                 );
@@ -296,20 +337,66 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
  * grows (React Native has no transform-origin, and both of these stay on
  * the native driver, unlike animating `height`).
  */
+/**
+ * Whether the window at `index` on `floor` of the building at `seed` has
+ * its light on.
+ *
+ * Deterministic, and deliberately not random: a window that re-rolled on
+ * every render would flicker the whole skyline every time anything on the
+ * board changed. Roughly two in three are lit, which is what stops a
+ * building reading as a regular grid of dots - a real block at dusk is
+ * patchy, and the patchiness is most of what sells it.
+ */
+function windowIsLit(seed: number, floor: number, index: number): boolean {
+  const h = Math.imul(seed * 73856093 + floor * 19349663 + index * 83492791, 2654435761);
+  // eslint-disable-next-line no-bitwise -- a hash is bitwise by definition
+  return ((h >>> 16) & 0xff) % 3 !== 0;
+}
+
+/**
+ * The finish: the city lights up.
+ *
+ * Staggered on `row + col` rather than reading order, so the wave runs
+ * diagonally out from the near corner and reads as one sweep across a
+ * skyline instead of line-by-line scanning. Every step lands inside
+ * `SOLVE_CELEBRATION_MS`, the beat the completion card waits out: the
+ * furthest building on a 7x7 starts at 12 * 34 = 408ms and its flash is
+ * done by 608ms.
+ */
+const CELEBRATE_STAGGER_MS = 34;
+const CELEBRATE_FLASH_MS = 200;
+
 function Building({
   value,
   max,
   cell,
   conflict,
+  seed,
+  celebrate,
+  celebrateDelay,
 }: {
   value: number;
   /** Tallest building the grid allows - i.e. the puzzle's own size. */
   max: number;
   cell: number;
   conflict: boolean;
+  /** Fixes this building's own window pattern - see `windowIsLit`. */
+  seed: number;
+  celebrate: boolean;
+  celebrateDelay: number;
 }): React.JSX.Element | null {
   const grow = useRef(new Animated.Value(1)).current;
   const previous = useRef(value);
+  const flash = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    if (!celebrate) return;
+    Animated.sequence([
+      Animated.delay(celebrateDelay),
+      Animated.timing(flash, { toValue: 1, duration: CELEBRATE_FLASH_MS * 0.4, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      Animated.timing(flash, { toValue: 0, duration: CELEBRATE_FLASH_MS * 0.6, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+    ]).start();
+  }, [celebrate, celebrateDelay, flash]);
 
   useEffect(() => {
     if (previous.current !== value && value !== 0) {
@@ -329,7 +416,17 @@ function Building({
   const width = cell * 0.44;
   const height = value * floorHeight + (value - 1) * floorGap;
 
-  const base = conflict ? theme.colors.danger : theme.colors.towersAccent;
+  const base = conflict ? theme.colors.danger : theme.colors.towersBuilding;
+  const roof = conflict ? shade(theme.colors.danger, 1.3) : theme.colors.towersBuildingRoof;
+
+  // Two windows per floor, inset from both edges. Sized off the floor bar
+  // rather than fixed, so they stay in proportion between a 4x4's chunky
+  // towers and a 5x5's slimmer ones, and floored at a pixel so they never
+  // vanish entirely on the tightest grid.
+  const windowW = Math.max(1.5, width * 0.19);
+  const windowH = Math.max(1.5, floorHeight * 0.44);
+  const windowY = (floorHeight - windowH) / 2;
+  const windowXs = [width * 0.28 - windowW / 2, width * 0.72 - windowW / 2];
 
   return (
     <Animated.View
@@ -339,6 +436,25 @@ function Building({
         transform: [{ scaleY: grow }, { translateY: grow.interpolate({ inputRange: [0, 1], outputRange: [height / 2, 0] }) }],
       }}
     >
+      {/* The celebration: a warm wash in the same colour the windows are
+          lit with, swelling out past the building's own edge so a whole
+          skyline of them reads as the lights coming on rather than as
+          each tower being outlined. Behind the floors, so the building
+          keeps its own silhouette. */}
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: -width * 0.18,
+          right: -width * 0.18,
+          bottom: -height * 0.04,
+          height: height * 1.12,
+          borderRadius: width * 0.3,
+          backgroundColor: theme.colors.towersWindow,
+          opacity: flash.interpolate({ inputRange: [0, 1], outputRange: [0, 0.55] }),
+          transform: [{ scale: flash.interpolate({ inputRange: [0, 1], outputRange: [0.86, 1.06] }) }],
+        }}
+      />
       {/* The sunlit side, offset down-right behind the floors so it shows
           through the gaps between them - depth from geometry rather than a
           blurred shadow, matching how this app's other boards do it. */}
@@ -365,9 +481,29 @@ function Building({
             borderRadius: 2,
             // The top floor is the roof catching the light, which gives the
             // stack a clear top edge to count down from.
-            backgroundColor: floor === value - 1 ? shade(base, 1.38) : base,
+            backgroundColor: floor === value - 1 ? roof : base,
           }}
-        />
+        >
+          {windowXs.map((wx, index) => (
+            <View
+              key={`w-${index}`}
+              style={{
+                position: 'absolute',
+                left: wx,
+                top: windowY,
+                width: windowW,
+                height: windowH,
+                borderRadius: Math.min(1, windowW / 3),
+                // An unlit window is not a hole - it is glass with nothing
+                // behind it, so it stays a faint lift off the wall rather
+                // than a dark cut-out.
+                backgroundColor: windowIsLit(seed, floor, index)
+                  ? theme.colors.towersWindow
+                  : theme.colors.towersWindowDark,
+              }}
+            />
+          ))}
+        </View>
       ))}
     </Animated.View>
   );

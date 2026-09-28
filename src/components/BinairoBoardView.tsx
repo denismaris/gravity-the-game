@@ -8,12 +8,10 @@ import {
   BinairoValue,
   constraintKey,
   constraintPartner,
-  duplicateLineGroups,
+  errorLines,
   isGiven,
-  tripleRunGroups,
   twinKey,
   twinPartner,
-  unbalancedLines,
   violatedConstraints,
   violatedTwins,
 } from '../game/binairo';
@@ -24,6 +22,7 @@ import {
   INTRO_STAGGER_MS,
   INTRO_TILE_MS,
   INTRO_TOTAL_MS,
+  IDLE_MOTION_FPS,
   useAnimationClock,
   useIntroWave,
   useReducedMotion,
@@ -371,25 +370,42 @@ function rectPath(x: number, y: number, w: number, h: number): string {
   return `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h} Z`;
 }
 
+/** Distance along the diagonal between consecutive stripe centres, for a
+ * given stroke thickness - equal stripe and gap, measured perpendicular. */
+export function hazardStripePeriod(stripeWidth: number): number {
+  return stripeWidth * 2 * Math.SQRT2;
+}
+
 /**
  * Absolute-coordinate 45-degree stripe centrelines covering a `w`x`h` box
  * anchored at `(bx, by)`, spaced so the *true perpendicular* gap between
  * consecutive `stripeWidth`-thick strokes is also `stripeWidth` (an equal
  * stripe/gap hazard-tape look) - each line is drawn far past the box on
  * both ends and left to a clip to crop, rather than computed to the exact
- * box edges, so no per-line trimming math is needed. `phaseOffset` (in the
- * same diagonal-offset units used internally) slides every stripe along
- * the diagonal for the idle scroll.
+ * box edges, so no per-line trimming math is needed.
+ *
+ * Deliberately has no phase parameter. The idle scroll used to be built in
+ * here, which meant rebuilding every one of these strings - around 26 per
+ * errored line - on every frame, for every errored line on the board. That
+ * was the single most expensive thing this board did, and it ran at 60fps
+ * for as long as a mistake sat on screen. The stripes are now generated
+ * once per box and scrolled by translating the group that holds them (a
+ * diagonal phase shift of `d` is exactly a translation of `-d` in y), so
+ * the geometry is stable and the per-frame cost is one transform.
+ *
+ * One extra period of lead-in is generated beyond the box so that a
+ * translation of up to a full period never drags the first stripe into
+ * view from nowhere.
  */
-export function hazardStripePaths(bx: number, by: number, w: number, h: number, stripeWidth: number, phaseOffset: number): string[] {
-  const period = stripeWidth * 2 * Math.SQRT2; // consecutive stroke centres, in x-y units
+export function hazardStripePaths(bx: number, by: number, w: number, h: number, stripeWidth: number): string[] {
+  const period = hazardStripePeriod(stripeWidth);
   const margin = w + h;
-  const dMin = -h - stripeWidth;
+  const dMin = -h - stripeWidth - period;
   const dMax = w + stripeWidth;
   const paths: string[] = [];
   const t0 = -margin;
   const t1 = w + h + margin;
-  for (let d = dMin + (phaseOffset % period); d <= dMax; d += period) {
+  for (let d = dMin; d <= dMax; d += period) {
     paths.push(`M ${bx + t0} ${by + t0 - d} L ${bx + t1} ${by + t1 - d}`);
   }
   return paths;
@@ -801,33 +817,19 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
   const introActive = !reducedMotion && introElapsed < INTRO_TOTAL_MS;
   const pressGlow = usePressGlow(pressedCell, now);
 
-  const tripleGroups = useMemo(() => tripleRunGroups(state), [state]);
-  const unbalanced = useMemo(() => unbalancedLines(puzzle, state), [puzzle, state]);
-  const duplicateGroups = useMemo(() => duplicateLineGroups(puzzle, state), [puzzle, state]);
-
+  // Which rows/columns are actually wrong is a game rule (see
+  // `errorLines`'s own comment for why a triple run washes immediately
+  // while an unequal count or a duplicated line wait for the row/column to
+  // be complete) - this view only turns that answer into pixel-space
+  // hazard-tape boxes.
+  const wrongLines = useMemo(() => errorLines(puzzle, state), [puzzle, state]);
   const errorBoxes = useMemo(() => {
     const map = new Map<string, ErrorZoneBox>();
     const cellSize = layout.cellSize;
-    const isRowComplete = (r: number): boolean => state.values[r].every(v => v !== null);
-    const isColComplete = (c: number): boolean => state.values.every(row => row[c] !== null);
-
-    // Every row/column that's wrong for any reason (a triple run
-    // somewhere in it, an unequal count, or duplicating another line)
-    // gets exactly one full-line zone - never a tight box around just
-    // the 3 or 4 offending cells, and never before that line is actually
-    // *complete*. `unbalancedLines`/`duplicateLineGroups` already only
-    // flag a fully-filled line; a triple run alone can exist mid-fill
-    // (the player is still working through the rest of that row), so it
-    // waits for the same bar here - a run doesn't wash its line the
-    // instant it forms, only once every cell alongside it is placed and
-    // the line is provably still broken. This keeps the hazard tape from
-    // flaring up mid-cycle on a line the player hasn't finished yet.
-    const washedRows = new Set<number>([...unbalanced.rows, ...duplicateGroups.rows.flat(), ...tripleGroups.filter(g => g.orientation === 'row' && isRowComplete(g.index)).map(g => g.index)]);
-    const washedCols = new Set<number>([...unbalanced.cols, ...duplicateGroups.cols.flat(), ...tripleGroups.filter(g => g.orientation === 'col' && isColComplete(g.index)).map(g => g.index)]);
-    for (const r of washedRows) map.set(`line:row:${r}`, { x: 0, y: r * cellSize, w: layout.boardSize, h: cellSize });
-    for (const c of washedCols) map.set(`line:col:${c}`, { x: c * cellSize, y: 0, w: cellSize, h: layout.boardSize });
+    for (const r of wrongLines.rows) map.set(`line:row:${r}`, { x: 0, y: r * cellSize, w: layout.boardSize, h: cellSize });
+    for (const c of wrongLines.cols) map.set(`line:col:${c}`, { x: c * cellSize, y: 0, w: cellSize, h: layout.boardSize });
     return map;
-  }, [tripleGroups, unbalanced, duplicateGroups, layout, state]);
+  }, [wrongLines, layout]);
 
   const readyErrorKeys = useDelayedKeys(errorBoxes.keys(), now, ERROR_DELAY_MS);
   const delayedErrorBoxes = useMemo(() => {
@@ -866,6 +868,24 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
   //    actively violated, since it keeps breathing;
   //  - the solve wave, the intro wave, or an in-flight press glow, exactly
   //    as before.
+  // Stripe geometry, cached by the box it covers. Bounded by the number of
+  // distinct row/column zones a board can have (at most `2 * size`), so it
+  // never needs eviction - and a zone fading out keeps hitting the cache
+  // after its box has left `delayedErrorBoxes`.
+  const stripeCacheRef = useRef(new Map<string, { clip: string; stripes: string[] }>());
+  const stripeGeometry = (box: ErrorZoneBox): { clip: string; stripes: string[] } => {
+    const cacheKey = `${box.x}:${box.y}:${box.w}:${box.h}`;
+    let hit = stripeCacheRef.current.get(cacheKey);
+    if (!hit) {
+      hit = {
+        clip: rectPath(box.x, box.y, box.w, box.h),
+        stripes: hazardStripePaths(box.x, box.y, box.w, box.h, ERROR_STRIPE_WIDTH),
+      };
+      stripeCacheRef.current.set(cacheKey, hit);
+    }
+    return hit;
+  };
+
   const errorEntering = Array.from(errorLifecycles.values()).some(
     lifecycle =>
       (lifecycle.removedAt === null && now - lifecycle.firstSeenAt < ERROR_ENTER_MS) ||
@@ -874,12 +894,39 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
   const badgePopping =
     Array.from(badgeLifecycles.values()).some(lifecycle => now - lifecycle.changedAt < CONSTRAINT_POP_MS) ||
     Array.from(twinBadgeLifecycles.values()).some(lifecycle => now - lifecycle.changedAt < CONSTRAINT_POP_MS);
-  const idleMotion = !reducedMotion && (errorLifecycles.size > 0 || readyViolatedKeys.size > 0 || readyViolatedTwinKeys.size > 0);
-  useAnimationClock(errorEntering || badgePopping || idleMotion || waveActive || introActive || pressGlow !== null);
-
-  const tileSize = Math.max(0, layout.cellSize - TILE_GAP * 2);
-  const R = tileSize * 0.32;
-
+  // A key that just became wrong but hasn't yet cleared `ERROR_DELAY_MS`
+  // isn't in `readyErrorKeys`/`readyViolatedKeys` yet, and so isn't
+  // reflected in `errorLifecycles`/`badgeLifecycles` either - none of the
+  // three "is something showing" checks above see it. Without this, the
+  // clock went idle for exactly that pending window, since nothing on
+  // screen looked like it needed a frame; nothing then woke this
+  // component up once the delay actually elapsed, so a fresh mistake sat
+  // invisible until some *other* prop change (the player's next move)
+  // forced a re-render at a `now` that happened to have cleared it. That
+  // render made the violation appear to onset in one uneven jump instead
+  // of on its own timer - reported as "the error isn't visible until I do
+  // another move, and it's buggy". Counting the pending set here keeps
+  // the clock (at the idle throttle - there is nothing to actually paint
+  // yet) alive through exactly that window, so the delay always resolves
+  // on its own.
+  const errorPending = errorBoxes.size > readyErrorKeys.size;
+  const constraintPending = violatedConstraintKeys.size > readyViolatedKeys.size;
+  const twinPending = violatedTwinKeys.size > readyViolatedTwinKeys.size;
+  const idleMotion =
+    !reducedMotion &&
+    (errorLifecycles.size > 0 ||
+      readyViolatedKeys.size > 0 ||
+      readyViolatedTwinKeys.size > 0 ||
+      errorPending ||
+      constraintPending ||
+      twinPending);
+  // Split by what is actually on screen. The short transitions - a zone
+  // fading in, a badge popping, the solve/intro waves, a press glow - are
+  // the moments a player is looking straight at, and they get real frames.
+  // The idle half (hazard tape scrolling, a violated badge breathing) is
+  // ambient and runs for as long as a mistake sits there, so it takes the
+  // same throttle Mirror Maze and Tents already use. This board was the one
+  // that never got it, and it is the heaviest of the three.
   // Which cells are still within their `TOGGLE_MS` rotation window right
   // now - typically none. `toggles` never shrinks (finished transitions
   // just age past `TOGGLE_MS` rather than being deleted), so this is a
@@ -890,6 +937,18 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
     if (now - entry[1].startedAt < TOGGLE_MS) transitioningEntries.push(entry);
   }
   const transitioningKeys = transitioningEntries.map(([key]) => key).join(',');
+
+  // The stamp itself is in here now. It was not, so a placed piece only
+  // animated smoothly while the press glow happened to be keeping the
+  // clock at full rate - a quick tap, or a hint, landed it on whatever
+  // the idle throttle gave it (or on no frames at all), which is the lag
+  // players felt on every move.
+  const needsFullRate =
+    errorEntering || badgePopping || waveActive || introActive || pressGlow !== null || transitioningEntries.length > 0;
+  useAnimationClock(needsFullRate || idleMotion, needsFullRate ? 60 : IDLE_MOTION_FPS);
+
+  const tileSize = Math.max(0, layout.cellSize - TILE_GAP * 2);
+  const R = tileSize * 0.32;
 
   return (
     <Group>
@@ -922,25 +981,33 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
 
         const cx = box.x + box.w / 2;
         const cy = box.y + box.h / 2;
-        const w = box.w * scale;
-        const h = box.h * scale;
-        const x = cx - w / 2;
-        const y = cy - h / 2;
         // The idle diagonal scroll is pure decoration on top of the
         // zone's own presence (already the real signal) - reduced motion
         // freezes it at a fixed phase instead of turning it off, so the
         // tape still reads as "hazard tape", just still.
         const scrollPhase = reducedMotion
           ? 0
-          : (((now - firstSeenAt) % ERROR_SCROLL_PERIOD_MS) / ERROR_SCROLL_PERIOD_MS) * (ERROR_STRIPE_WIDTH * 2 * Math.SQRT2);
-        const clip = rectPath(x, y, w, h);
+          : (((now - firstSeenAt) % ERROR_SCROLL_PERIOD_MS) / ERROR_SCROLL_PERIOD_MS) * hazardStripePeriod(ERROR_STRIPE_WIDTH);
+        // Geometry for the *unscaled* box, cached. The enter/exit grow is
+        // applied as a transform about the box's own centre instead of by
+        // rebuilding the paths at a new size, so nothing in here changes
+        // shape from one frame to the next - only three numbers do.
+        const { clip, stripes } = stripeGeometry(box);
 
         return (
-          <Group key={key} clip={clip}>
-            {hazardStripePaths(x, y, w, h, ERROR_STRIPE_WIDTH, scrollPhase).map((d, i) => (
-              <Path key={i} path={d} color={theme.colors.danger} style="stroke" strokeWidth={ERROR_STRIPE_WIDTH} opacity={opacity * ERROR_STRIPE_OPACITY} />
-            ))}
-            <Path path={clip} color={theme.colors.danger} style="stroke" strokeWidth={1.5} opacity={opacity * ERROR_BORDER_OPACITY} />
+          <Group
+            key={key}
+            opacity={opacity}
+            transform={[{ translateX: cx }, { translateY: cy }, { scale }, { translateX: -cx }, { translateY: -cy }]}
+          >
+            <Group clip={clip}>
+              <Group transform={[{ translateY: -scrollPhase }]}>
+                {stripes.map((d, i) => (
+                  <Path key={i} path={d} color={theme.colors.danger} style="stroke" strokeWidth={ERROR_STRIPE_WIDTH} opacity={ERROR_STRIPE_OPACITY} />
+                ))}
+              </Group>
+            </Group>
+            <Path path={clip} color={theme.colors.danger} style="stroke" strokeWidth={1.5} opacity={ERROR_BORDER_OPACITY} />
           </Group>
         );
       })}

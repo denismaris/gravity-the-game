@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { Circle, Group, Path, vec } from '@shopify/react-native-skia';
+import { Circle, Group, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import {
   isRowSatisfied,
   isColSatisfied,
@@ -9,8 +9,9 @@ import {
   TentsTreesState,
   touchingTentCells,
 } from '../game/tents';
-import { useAnimationClock, useReducedMotion } from '../game/rendering';
+import { IDLE_MOTION_FPS, useAnimationClock, useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
+import { CellWell, PaperTray } from './boardChrome';
 
 /** Ground shadow: shared by both objects (`tentsShadow`'s own rationale -
  * "one visual concept in this palette, not several"), sized off a fixed
@@ -46,8 +47,6 @@ const TENT_HEIGHT = 0.3;
 const TENT_HALF_BASE = 0.44;
 const NOTCH_WIDTH = 0.1;
 const NOTCH_HEIGHT_RATIO = 0.35; // of the tent's own height
-const GUY_LENGTH = 0.22;
-const GUY_ANGLE_DEG = 35;
 /** The tent's two canvas faces, lit from the same upper-right direction
  * the tree's own canopy highlight comes from - a flat single-colour A-frame
  * read as a cardboard cutout with no volume; splitting it at the ridge
@@ -83,6 +82,8 @@ const MARK_STROKE_FACTOR = 0.045;
 const PITCH_IN_MS = 150;
 const PITCH_OVERSHOOT_SCALE = 1.3;
 const MARK_FADE_IN_MS = 120;
+/** The longest placement animation - how long a fresh mark needs full-rate frames. */
+const PLACE_ANIMATION_MS = Math.max(PITCH_IN_MS, MARK_FADE_IN_MS);
 
 /** `0,-3,3,-2,2,0` over 220ms, linear per 44ms segment - Skyscrapers'
  * exact conflict shake, reused for a touching-tents violation. Skia has no
@@ -102,7 +103,11 @@ const GLOW_CROSSFADE_MS = 140;
 const SPARK_MS = 520;
 const SPARK_STAGGER_MS = 60;
 const FLARE_MS = 320;
-const FLARE_STAGGER_MS = 40;
+/** Staggered by *cell* index, not by tent, so on a big board the last
+ * cell's delay is `rows * cols` steps out - at the old 40ms that was two
+ * and a half seconds for an 8x8, far past the beat the completion card
+ * waits (`SOLVE_CELEBRATION_MS`). */
+const FLARE_STAGGER_MS = 4;
 
 function clamp01(t: number): number {
   return t < 0 ? 0 : t > 1 ? 1 : t;
@@ -187,13 +192,6 @@ export function tentDoorPath(g: TentGeometry): string {
   return `M ${g.leftNotch.x} ${g.leftNotch.y} L ${g.notchTop.x} ${g.notchTop.y} L ${g.rightNotch.x} ${g.rightNotch.y} Z`;
 }
 
-export function guyLinePath(cx: number, baseY: number, cellSize: number): string {
-  const startX = cx + cellSize * TENT_HALF_BASE;
-  const angle = (GUY_ANGLE_DEG * Math.PI) / 180;
-  const length = cellSize * GUY_LENGTH;
-  return `M ${startX} ${baseY} L ${startX + length * Math.cos(angle)} ${baseY + length * Math.sin(angle)}`;
-}
-
 /** Diffs a boolean-per-key map against the previous render, returning the
  * timestamp of the most recent false->true transition for each key that
  * has ever fired - the same during-render-diff idiom used throughout this
@@ -247,6 +245,101 @@ function useMarkChangeTimestamps(marks: TentsTreesState['marks']): Map<string, n
   return eventsRef.current;
 }
 
+/**
+ * The board's fixed chrome - floor, accent border, hairline grid, hint
+ * flash. Depends only on `puzzle`/`cellSize`/`flashCell`, never on the
+ * animation clock, so it is memoized away from the continuous idle
+ * clock the rest of this board runs (firefly/lantern-glow ambience) - the
+ * same reasoning as `BinairoBoardView`'s own `StaticBinairoTiles` split,
+ * applied here because this file had none of it: every tick was
+ * rebuilding this fixed-cost, board-size-scaling geometry regardless of
+ * `rows*cols`, which is exactly what made a large Tents board feel
+ * laggy even while nobody was touching it.
+ */
+const StaticTentsChrome = React.memo(function StaticTentsChromeImpl({
+  puzzle,
+  cellSize,
+  flashCell,
+}: {
+  puzzle: TentsTreesPuzzle;
+  cellSize: number;
+  flashCell?: TentsTreesCell | null;
+}) {
+  const boardW = puzzle.cols * cellSize;
+  const boardH = puzzle.rows * cellSize;
+  // Framed wells rather than a ruled grid: the board is mostly empty
+  // cells, and a hairline grid on flat paper read as a blank form next to
+  // every other board's inset wells. The inset is kept tight so a tree's
+  // canopy still fills its cell.
+  const inset = Math.max(2, cellSize * 0.06);
+  const well = cellSize - inset * 2;
+  const wellR = well * 0.22;
+  return (
+    <Group>
+      <PaperTray width={boardW} height={boardH} accent={theme.colors.tentsAccent} />
+      {Array.from({ length: puzzle.rows }, (_v, r) =>
+        Array.from({ length: puzzle.cols }, (_v2, c) => (
+          <CellWell key={`w-${r}-${c}`} x={c * cellSize + inset} y={r * cellSize + inset} size={well} r={wellR} />
+        )),
+      )}
+      {flashCell && (
+        <RoundedRect
+          x={flashCell.col * cellSize + inset}
+          y={flashCell.row * cellSize + inset}
+          width={well}
+          height={well}
+          r={wellR}
+          color={theme.colors.accent}
+          opacity={0.4}
+        />
+      )}
+    </Group>
+  );
+});
+
+/**
+ * Every tree's canopy/trunk/shadow, without its firefly - a tree's
+ * geometry depends only on `puzzle` (where the trees *are*, fixed the
+ * instant the puzzle is generated), never on `state` and never on the
+ * clock, so this is the cheapest possible memo boundary: it re-renders
+ * only if a genuinely different puzzle mounts. The firefly is drawn by a
+ * separate, unmemoized, deliberately tiny loop in `TentsBoardView` itself
+ * - the one piece of a tree that actually needs `now` - so the expensive
+ * part (hand-tuned Bezier canopy paths, on every tree, every tick) stops
+ * being recomputed for a light nobody is even looking at 7/8ths of the
+ * time.
+ */
+const StaticTentsTrees = React.memo(function StaticTentsTreesImpl({ puzzle, cellSize }: { puzzle: TentsTreesPuzzle; cellSize: number }) {
+  const shadowW = cellSize * SHADOW_BASE * SHADOW_WIDTH_RATIO;
+  const shadowH = cellSize * SHADOW_BASE * SHADOW_HEIGHT_RATIO;
+  return (
+    <Group>
+      {Array.from({ length: puzzle.rows }, (_v, r) => r).map(r =>
+        Array.from({ length: puzzle.cols }, (_v2, c) => c).map(c => {
+          if (!isTreeCell(puzzle, r, c)) return null;
+          const cx = c * cellSize + cellSize / 2;
+          const cy = r * cellSize + cellSize / 2;
+          const canopyY = cy - cellSize * 0.1;
+          const trunkTopY = canopyY + cellSize * 0.12;
+          const trunkBottomY = trunkTopY + cellSize * TRUNK_HEIGHT;
+          return (
+            <Group key={cellKey(r, c)}>
+              <Path path={ellipsePath(cx, trunkBottomY + shadowH * 0.3, shadowW / 2, shadowH / 2)} color={theme.colors.tentsShadow} />
+              <Path
+                path={canopyPath(cx + cellSize * CANOPY_SHADOW_OFFSET_FACTOR, canopyY + cellSize * CANOPY_SHADOW_OFFSET_FACTOR, cellSize)}
+                color={`rgba(59,31,82,${CANOPY_SHADOW_ALPHA})`}
+              />
+              <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_COLOR} />
+              <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_OUTLINE} style="stroke" strokeWidth={Math.max(1, cellSize * 0.012)} />
+              <Path path={trunkPath(cx, trunkTopY, cellSize)} color={TRUNK_COLOR} />
+            </Group>
+          );
+        }),
+      )}
+    </Group>
+  );
+});
+
 export interface TentsBoardViewProps {
   puzzle: TentsTreesPuzzle;
   state: TentsTreesState;
@@ -269,7 +362,6 @@ export interface TentsBoardViewProps {
  * sequential wave before the usual card appears.
  */
 export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: TentsBoardViewProps): React.JSX.Element {
-  useAnimationClock(!solved);
   const reducedMotion = useReducedMotion();
   const now = Date.now();
 
@@ -299,6 +391,25 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
   const solvedAtMap = useTransitionTimestamps(solvedSet, now);
   const solvedAt = solvedAtMap.get('solved');
 
+  /**
+   * The clock, declared *after* `solvedAt` because it depends on it.
+   *
+   * This used to read `useAnimationClock(!solved && ...)`, which switched
+   * the clock off at the exact moment the board was solved - so the
+   * lantern wave below, which needs a frame per step to advance, never
+   * got a single one after the first. The animation existed, was
+   * correct, and was invisible in every game ever finished. Same
+   * chicken-and-egg shape as the Binairo error-timing bug: the "is
+   * anything animating" test has to already know about the thing it is
+   * meant to drive.
+   *
+   * Two rates on purpose: idle decoration (a firefly, a breathing glow)
+   * is throttled, and the solve wave gets real frames for the short
+   * moment it runs.
+   */
+  const flareWindowMs = puzzle.rows * puzzle.cols * FLARE_STAGGER_MS + FLARE_MS;
+  const flaring = solvedAt !== undefined && now - solvedAt < flareWindowMs;
+
   // Stable per-tree seed for the firefly's duty cycle, so trees don't blink
   // in lockstep - derived from the cell position, not randomised per
   // render (a given puzzle always looks the same).
@@ -326,71 +437,63 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
 
   const markChangedAt = useMarkChangeTimestamps(state.marks);
 
+  // A tent being pitched (or a mark fading in) is real motion, 150ms long:
+  // on the 12fps idle clock it got two frames and read as lag. So a
+  // placement still in flight gets the full rate, and the clock drops back
+  // to idle the frame it lands. Declared after \`markChangedAt\` for the
+  // same reason the flare needs \`solvedAt\`: it has to see the animation
+  // it is meant to drive.
+  let placing = false;
+  for (const at of markChangedAt.values()) {
+    if (now - at < PLACE_ANIMATION_MS) {
+      placing = true;
+      break;
+    }
+  }
+  // Every *event* animation gets real frames, not just the pitch-in: a
+  // row/column completing sends sparks up for SPARK_MS plus a stagger per
+  // tent (well over a second on a big board), a violation shakes, a
+  // lantern crossfades. All of those ran on the 12fps idle clock and read
+  // as lag. Only the slow ambient breathing and fireflies stay throttled.
+  const sparkWindowMs = SPARK_MS + (puzzle.rows + puzzle.cols) * SPARK_STAGGER_MS;
+  const within = (map: ReadonlyMap<string, number>, windowMs: number): boolean => {
+    for (const at of map.values()) if (now - at < windowMs) return true;
+    return false;
+  };
+  let crossfading = false;
+  for (const transition of glowTransitions.values()) {
+    if (now - transition.changedAt < GLOW_CROSSFADE_MS) {
+      crossfading = true;
+      break;
+    }
+  }
+  const eventful = placing || flaring || within(lineSatisfiedAt, sparkWindowMs) || within(shakeStarts, 220) || crossfading;
+  useAnimationClock(!reducedMotion && (!solved || eventful), eventful ? 60 : IDLE_MOTION_FPS);
+
   return (
     <Group>
-      {/* The grid's own outer edge, in this game's own identity colour -
-          the same move `BinairoBoardView.tsx`'s `renderTray` makes for its
-          own frame: one place on the board itself that says "Tents and
-          Trees" at a glance, rather than leaving `tentsAccent` to do all
-          its work in the header's thin kicker/progress-track alone. This
-          board never had a perimeter stroke at all (only the internal
-          hairline dividers below) - a bare rectangle of dividers with no
-          outer edge read as an unbounded field rather than a bounded
-          board, and there's no second border/shadow anywhere on this
-          board's own surface for a tinted one to double up against. */}
-      <Path
-        path={`M 1.5 1.5 L ${puzzle.cols * cellSize - 1.5} 1.5 L ${puzzle.cols * cellSize - 1.5} ${puzzle.rows * cellSize - 1.5} L 1.5 ${puzzle.rows * cellSize - 1.5} Z`}
-        color={theme.colors.tentsAccent}
-        style="stroke"
-        strokeWidth={1.5}
-        opacity={0.55}
-      />
-      {/* Hairline grid + hint flash */}
-      {Array.from({ length: puzzle.cols - 1 }, (_v, i) => i + 1).map(i => (
-        <Path
-          key={`gv-${i}`}
-          path={`M ${i * cellSize} 0 L ${i * cellSize} ${puzzle.rows * cellSize}`}
-          color={theme.colors.border}
-          style="stroke"
-          strokeWidth={1}
-        />
-      ))}
-      {Array.from({ length: puzzle.rows - 1 }, (_v, i) => i + 1).map(i => (
-        <Path
-          key={`gh-${i}`}
-          path={`M 0 ${i * cellSize} L ${puzzle.cols * cellSize} ${i * cellSize}`}
-          color={theme.colors.border}
-          style="stroke"
-          strokeWidth={1}
-        />
-      ))}
-      {flashCell && (
-        <Path
-          path={`M ${flashCell.col * cellSize} ${flashCell.row * cellSize} h ${cellSize} v ${cellSize} h ${-cellSize} Z`}
-          color={theme.colors.accent}
-          opacity={0.4}
-        />
-      )}
+      <StaticTentsChrome puzzle={puzzle} cellSize={cellSize} flashCell={flashCell} />
+      <StaticTentsTrees puzzle={puzzle} cellSize={cellSize} />
 
-      {/* Trees: canopy + trunk + shadow + the rare firefly */}
+      {/* Fireflies alone - the one part of a tree that actually needs
+          `now`. Visible ~1/8th of an 8s cycle, per-tree phase-shifted;
+          skipped entirely (not even a zero-opacity Circle) outside its
+          window rather than rendered and hidden, so a tick where nothing
+          is lit costs nothing here either. */}
       {Array.from({ length: puzzle.rows }, (_v, r) => r).map(r =>
         Array.from({ length: puzzle.cols }, (_v2, c) => c).map(c => {
           if (!isTreeCell(puzzle, r, c)) return null;
           const cx = c * cellSize + cellSize / 2;
           const cy = r * cellSize + cellSize / 2;
           const canopyY = cy - cellSize * 0.1;
-          const trunkTopY = canopyY + cellSize * 0.12;
-          const trunkBottomY = trunkTopY + cellSize * TRUNK_HEIGHT;
-          const shadowW = cellSize * SHADOW_BASE * SHADOW_WIDTH_RATIO;
-          const shadowH = cellSize * SHADOW_BASE * SHADOW_HEIGHT_RATIO;
 
-          // Firefly: visible for a short window once every several seconds,
-          // per-tree phase-shifted so the whole board never blinks at once.
           const seed = fireflySeed(r, c);
           const cyclePhase = ((now / 1000 + seed * 8000) % 8) / 8; // 8s cycle
           const inWindow = cyclePhase < 0.12; // ~1s visible out of 8s
-          const fireflyT = inWindow ? cyclePhase / 0.12 : 0;
-          const fireflyOpacity = inWindow ? Math.sin(fireflyT * Math.PI) * 0.5 : 0;
+          if (!inWindow) return null;
+          const fireflyT = cyclePhase / 0.12;
+          const fireflyOpacity = Math.sin(fireflyT * Math.PI) * 0.5;
+          if (fireflyOpacity <= 0.01) return null;
           // The brief fade-in/out itself isn't a vestibular trigger, but the
           // continuous orbit is - frozen at a fixed per-tree angle under
           // reduced motion, so a firefly still appears and fades, it just
@@ -398,20 +501,7 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
           const fireflyAngle = seed * Math.PI * 2 + (reducedMotion ? 0 : now / 900);
           const fireflyX = cx + Math.cos(fireflyAngle) * cellSize * 0.22;
           const fireflyY = canopyY - cellSize * 0.08 + Math.sin(fireflyAngle) * cellSize * 0.1;
-
-          return (
-            <Group key={cellKey(r, c)}>
-              <Path path={ellipsePath(cx, trunkBottomY + shadowH * 0.3, shadowW / 2, shadowH / 2)} color={theme.colors.tentsShadow} />
-              <Path
-                path={canopyPath(cx + cellSize * CANOPY_SHADOW_OFFSET_FACTOR, canopyY + cellSize * CANOPY_SHADOW_OFFSET_FACTOR, cellSize)}
-                color={`rgba(59,31,82,${CANOPY_SHADOW_ALPHA})`}
-              />
-              <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_COLOR} />
-              <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_OUTLINE} style="stroke" strokeWidth={Math.max(1, cellSize * 0.012)} />
-              <Path path={trunkPath(cx, trunkTopY, cellSize)} color={TRUNK_COLOR} />
-              {fireflyOpacity > 0.01 && <Circle cx={fireflyX} cy={fireflyY} r={Math.max(1, cellSize * 0.025)} color={theme.colors.accent} opacity={fireflyOpacity} />}
-            </Group>
-          );
+          return <Circle key={cellKey(r, c)} cx={fireflyX} cy={fireflyY} r={Math.max(1, cellSize * 0.025)} color={theme.colors.accent} opacity={fireflyOpacity} />;
         }),
       )}
 
@@ -474,12 +564,6 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
               </Group>
             )}
             <Path path={ellipsePath(cx, baseY + shadowH * 0.3, shadowW / 2, shadowH / 2)} color={theme.colors.tentsShadow} />
-            <Path
-              path={guyLinePath(cx, baseY, cellSize)}
-              color={isTouching ? theme.colors.danger : TENT_DARK}
-              style="stroke"
-              strokeWidth={1.5}
-            />
             {/* A violation collapses both faces to one flat danger red -
                 the same "this is wrong" language every other board in this
                 app uses, rather than a two-tone error nobody else has. The

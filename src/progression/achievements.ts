@@ -1,4 +1,9 @@
+import { ARUKONE } from '../game/arukone';
 import { BINAIRO } from '../game/binairo';
+import { FILLAPIX } from '../game/fillapix';
+import { LIGHTS_OUT } from '../game/lightsout';
+import { ADJACENT } from '../game/adjacent';
+import { BLOOM } from '../game/bloom';
 import { LEVELS } from '../game/levels';
 import { MIRROR_MAZES } from '../game/mirror';
 import { TENTS_TREES } from '../game/tents';
@@ -16,6 +21,11 @@ const ALL_PUZZLE_IDS: ReadonlyArray<string> = [
   ...TENTS_TREES.map(puzzle => puzzle.id),
   ...TOWERS.map(puzzle => puzzle.id),
   ...BINAIRO.map(puzzle => puzzle.id),
+  ...ARUKONE.map(puzzle => puzzle.id),
+  ...FILLAPIX.map(puzzle => puzzle.id),
+  ...LIGHTS_OUT.map(puzzle => puzzle.id),
+  ...ADJACENT.map(puzzle => puzzle.id),
+  ...BLOOM.map(puzzle => puzzle.id),
 ];
 
 /** Every puzzle in every game, total - `HomeScreen`'s own "X of Y solved"
@@ -55,7 +65,7 @@ function allCompleted(progress: PlayerProgress, pool: ReadonlyArray<{ id: string
 
 /** Whether any puzzle in `pool` has ever been solved for the full 3 stars -
  * for every hint-scored game (Mirror Maze/Tents and Trees/Skyscrapers/
- * Binairo) that means zero hints (see `HINT_STAR_THRESHOLDS` in
+ * Binairo/Arukone+) that means zero hints (see `HINT_STAR_THRESHOLDS` in
  * `PlayerProgressProvider`). */
 function anyFlawless(progress: PlayerProgress, pool: ReadonlyArray<{ id: string }>): boolean {
   return pool.some(puzzle => getLevelStars(progress, puzzle.id) === 3);
@@ -103,6 +113,36 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
     isEarned: progress => allCompleted(progress, BINAIRO),
   },
   {
+    id: 'game:arukone',
+    title: 'Both Sides',
+    description: 'Solve every Arukone+ puzzle.',
+    isEarned: progress => allCompleted(progress, ARUKONE),
+  },
+  {
+    id: 'game:fillapix',
+    title: 'Picture Perfect',
+    description: 'Solve every Fill-a-Pix puzzle.',
+    isEarned: progress => allCompleted(progress, FILLAPIX),
+  },
+  {
+    id: 'game:lightsout',
+    title: 'Nothing Burning',
+    description: 'Solve every Lights Out puzzle.',
+    isEarned: progress => allCompleted(progress, LIGHTS_OUT),
+  },
+  {
+    id: 'game:adjacent',
+    title: 'Down to the Tray',
+    description: 'Solve every Adjacent puzzle.',
+    isEarned: progress => allCompleted(progress, ADJACENT),
+  },
+  {
+    id: 'game:bloom',
+    title: 'Walled Garden',
+    description: 'Solve every Bloom puzzle.',
+    isEarned: progress => allCompleted(progress, BLOOM),
+  },
+  {
     id: 'stars:100',
     title: 'Rising Star',
     description: 'Earn 100 stars.',
@@ -141,8 +181,8 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
   {
     id: 'skill:flawless',
     title: 'Flawless',
-    description: 'Solve a Mirror Maze, Tents and Trees, Skyscrapers or Binairo puzzle without using a hint.',
-    isEarned: progress => anyFlawless(progress, [...MIRROR_MAZES, ...TENTS_TREES, ...TOWERS, ...BINAIRO]),
+    description: 'Solve any puzzle outside Gravity without using a hint.',
+    isEarned: progress => anyFlawless(progress, [...MIRROR_MAZES, ...TENTS_TREES, ...TOWERS, ...BINAIRO, ...ARUKONE, ...FILLAPIX, ...LIGHTS_OUT, ...ADJACENT, ...BLOOM]),
   },
   {
     id: 'journey:complete',
