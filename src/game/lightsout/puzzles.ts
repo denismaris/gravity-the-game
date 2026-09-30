@@ -17,31 +17,31 @@ import { LightsOutPuzzle } from './types';
  */
 const BOARDS: Record<PuzzleDifficulty, ReadonlyArray<readonly [name: string, par: number]>> = {
   easy: [
-    ['Porch Light', 1],
-    ['Nightfall', 2],
-    ['Lamp Row', 2],
+    ['Porch Light', 2],
+    ['Nightfall', 3],
+    ['Lamp Row', 3],
     ['Small Hours', 3],
-    ['Curfew', 3],
+    ['Curfew', 4],
     // Appended, never inserted: ids are positional
     // (`lightsout-easy-03` is the third entry here), so slotting a board
     // into the middle would hand an existing id a different puzzle and
     // orphan every result already recorded against it. Par therefore has
     // to start at or above the tier's current last, which the pool test
     // also enforces as a climbing curve.
-    ['First Star', 3],
-    ['Shutters', 3],
+    ['First Star', 4],
+    ['Shutters', 4],
   ],
   medium: [
-    ['Streetlamps', 4],
-    ['Evening Watch', 4],
+    ['Streetlamps', 5],
+    ['Evening Watch', 5],
     ['Nine Windows', 5],
-    ['Blackout', 5],
+    ['Blackout', 6],
     ['Last Lamp', 6],
     ['Gaslight', 6],
     ['Midnight Round', 6],
   ],
   hard: [
-    ['Dusk Patrol', 6],
+    ['Dusk Patrol', 7],
     ['All Quiet', 7],
     ['Lights Down', 7],
     ['The Long Night', 8],
@@ -91,7 +91,7 @@ function buildEndless(id: string, tier: PuzzleDifficulty, index: number): Lights
   const floor = shape.minPar < shape.maxPar ? shape.minPar + 1 : shape.minPar;
   const span = shape.maxPar - floor + 1;
   const par = floor + (endlessSeed(id) % span);
-  const puzzle = generateLightsOut(id, endlessName(index), tier, par);
+  const puzzle = generateLightsOut(id, endlessName(index, 'lightsout'), tier, par);
   endlessCache.set(id, puzzle);
   return puzzle;
 }

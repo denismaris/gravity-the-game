@@ -7,6 +7,9 @@ import {
 } from '../game/scoring';
 import { BatchState } from './batches';
 import { STARTING_COINS } from './coins';
+import type { ErrandLog } from './errands';
+import type { CosmeticSlot } from './shop';
+import type { GameKind } from '../game/journey';
 
 /** Where the player last was, so the app can resume there. */
 export interface ProgressCursor {
@@ -82,6 +85,34 @@ export interface PlayerProgress {
    * same way `challenge` was: a save without it is read as holding
    * `STARTING_COINS`. */
   readonly coins: number;
+  /** Today's errands and how far along each is (see `errands.ts`); null
+   * until the first solve of a day. Every field from here down was added
+   * without a version bump - a save without one reads as its default. */
+  readonly errands: ErrandLog | null;
+  /** Errands claimed, ever - part of the rank's experience. */
+  readonly errandsClaimed: number;
+  /** The highest rank already celebrated and paid (see `rank.ts`). */
+  readonly rankRewarded: number;
+  /** Chapters whose reward has been claimed (see `chapters.ts`). */
+  readonly chaptersClaimed: ReadonlyArray<number>;
+  /** Shop items bought or won (free defaults are never listed). */
+  readonly owned: ReadonlyArray<string>;
+  /** The item worn in each cosmetic slot. */
+  readonly equipped: Readonly<Partial<Record<CosmeticSlot, string>>>;
+  /** Streak freezes held - each covers one missed Daily. */
+  readonly streakFreezes: number;
+  /** Games the player has retired from their level sets (at most three). */
+  readonly retired: ReadonlyArray<GameKind>;
+  /** Solves left on the lucky charm - each pays double coins. */
+  readonly luckyCharges: number;
+  /** Consecutive solves without a hint - the clean-run combo. */
+  readonly cleanRun: number;
+  /** Weeks (see `journey/weekly.ts`) whose Grand has been solved. */
+  readonly grandsSolved: ReadonlyArray<number>;
+  /** Ledger stamps paid out, as `kind:step`. */
+  readonly stampsClaimed: ReadonlyArray<string>;
+  /** The first-launch walkthrough has been seen (or skipped). */
+  readonly introSeen: boolean;
 }
 
 export const PLAYER_PROGRESS_VERSION = 5 as const;
@@ -97,6 +128,19 @@ export function emptyProgress(): PlayerProgress {
     currentBatch: null,
     adFreeTimeRemainingMs: null,
     coins: STARTING_COINS,
+    errands: null,
+    errandsClaimed: 0,
+    rankRewarded: 1,
+    chaptersClaimed: [],
+    owned: [],
+    equipped: {},
+    streakFreezes: 0,
+    retired: [],
+    luckyCharges: 0,
+    cleanRun: 0,
+    grandsSolved: [],
+    stampsClaimed: [],
+    introSeen: false,
   };
 }
 
@@ -153,8 +197,12 @@ export function recordCompletion(
   levelId: string,
   moves: number,
   thresholds: StarThresholds,
+  /** A ceiling on this solve's stars - Gravity passes 2 when a hint was
+   * used, since following hints plays the optimal moves and would
+   * otherwise earn a free three. The move count itself is kept honest. */
+  maxStars: StarRating = 3,
 ): PlayerProgress {
-  const stars = computeStars(moves, thresholds);
+  const stars = Math.min(computeStars(moves, thresholds), maxStars) as StarRating;
   const merged = mergeLevelResult(progress.levels[levelId], { stars, moves });
 
   return {
@@ -187,22 +235,40 @@ export function isDailyCompleted(progress: PlayerProgress, todayKey: string): bo
   return progress.daily.lastCompletedKey === todayKey;
 }
 
+/** Whole days from `fromKey` to `toKey` (both `YYYY-MM-DD`, UTC). */
+function daysBetween(fromKey: string, toKey: string): number {
+  const from = Date.parse(`${fromKey}T00:00:00.000Z`);
+  const to = Date.parse(`${toKey}T00:00:00.000Z`);
+  return Math.round((to - from) / 86400000);
+}
+
+/** Daily puzzles missed since the last one solved, as of `todayKey` (not
+ * counting today itself, which can still be played). */
+export function missedDailies(progress: PlayerProgress, todayKey: string): number {
+  const last = progress.daily.lastCompletedKey;
+  if (last === null) return 0;
+  return Math.max(0, daysBetween(last, todayKey) - 1);
+}
+
 /**
  * Records today's Daily as solved. Idempotent - completing the same day's
  * Daily again (a replay) leaves the streak untouched. The streak extends by
- * one when yesterday was the last completed day, and restarts at one
- * otherwise (a fresh start, or a missed day breaking the chain). Pure.
+ * one when yesterday was the last completed day; days missed in between
+ * are covered by streak freezes if enough are held (each spent covers one
+ * day); otherwise it restarts at one. Pure.
  */
 export function recordDaily(progress: PlayerProgress, todayKey: string): PlayerProgress {
   if (isDailyCompleted(progress, todayKey)) return progress;
 
-  const continuesStreak = progress.daily.lastCompletedKey === dayBefore(todayKey);
-  const streak = continuesStreak ? progress.daily.streak + 1 : 1;
+  const missed = missedDailies(progress, todayKey);
+  const continues = progress.daily.lastCompletedKey !== null && progress.daily.streak > 0 && missed <= progress.streakFreezes;
+  const streak = continues ? progress.daily.streak + 1 : 1;
 
   return {
     ...progress,
     daily: { streak, lastCompletedKey: todayKey },
     bestDailyStreak: Math.max(progress.bestDailyStreak, streak),
+    streakFreezes: continues ? progress.streakFreezes - missed : progress.streakFreezes,
   };
 }
 
@@ -218,5 +284,6 @@ export function getDisplayDailyStreak(progress: PlayerProgress, todayKey: string
   const last = progress.daily.lastCompletedKey;
   if (last === null) return 0;
   if (last === todayKey || last === dayBefore(todayKey)) return progress.daily.streak;
-  return 0;
+  // Days missed but covered by freezes: still alive, until today is played.
+  return missedDailies(progress, todayKey) <= progress.streakFreezes ? progress.daily.streak : 0;
 }

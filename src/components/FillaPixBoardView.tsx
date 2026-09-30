@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { Circle, Group, LinearGradient, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import { FillaPixCell, FillaPixPuzzle, FillaPixState } from '../game/fillapix';
 import { BoardLayout, computeBoardLayout, shade, useAnimationClock, useReducedMotion } from '../game/rendering';
-import { theme } from '../theme';
+import { theme, inkWash } from '../theme';
 
 const TILE_GAP = 6;
 export const TILE_RADIUS = 8;
@@ -18,12 +18,12 @@ function renderTray(layout: BoardLayout): React.JSX.Element {
   return (
     <Group>
       <RoundedRect x={0} y={0} width={boardSize} height={boardSize} r={10} color={theme.colors.surfaceHi}>
-        <LinearGradient start={vec(0, 0)} end={vec(boardSize, boardSize)} colors={['#FFFFFF', theme.colors.surfaceHi, '#EFE9DC']} positions={[0, 0.55, 1]} />
+        <LinearGradient start={vec(0, 0)} end={vec(boardSize, boardSize)} colors={[theme.colors.trayLight, theme.colors.surfaceHi, theme.colors.trayDeep]} positions={[0, 0.55, 1]} />
       </RoundedRect>
       <Path path={`M 1.5 ${boardSize - 10} L 1.5 10 Q 1.5 1.5 10 1.5 L ${boardSize - 10} 1.5`} color="rgba(255,255,255,0.9)" style="stroke" strokeWidth={1.5} strokeCap="round" />
       <Path
         path={`M ${boardSize - 1.5} 10 L ${boardSize - 1.5} ${boardSize - 10} Q ${boardSize - 1.5} ${boardSize - 1.5} ${boardSize - 10} ${boardSize - 1.5} L 10 ${boardSize - 1.5}`}
-        color="rgba(59,31,82,0.16)"
+        color={inkWash(0.16)}
         style="stroke"
         strokeWidth={1.5}
         strokeCap="round"
@@ -67,6 +67,9 @@ interface StaticFillaPixTilesProps {
    * `StaticBinairoTiles`' `transitioningKeys` is: `React.memo`'s default
    * shallow comparison needs a primitive to actually catch "unchanged". */
   clueKeys: string;
+  /** Squares that opened already filled - see `givens`. A joined string,
+   * for the same shallow-compare reason as `clueKeys`. */
+  givenKeys: string;
   /** Opacity multiplier applied to filled tiles only, for the brief
    * solve pulse - `1` the rest of the time. Kept out of this memoized
    * layer's own re-render trigger by living on the *unmemoized* parent
@@ -79,9 +82,11 @@ interface StaticFillaPixTilesProps {
  * same way `StaticBinairoTiles`/`StaticMazeLayer` are: a fresh render on
  * every toggle is fine, a fresh render 60 times a second while the
  * player just looks at the board is not. */
-const StaticFillaPixTiles = React.memo(function StaticFillaPixTilesImpl({ puzzle, state, layout, clueKeys, pulse }: StaticFillaPixTilesProps) {
+const StaticFillaPixTiles = React.memo(function StaticFillaPixTilesImpl({ puzzle, state, layout, clueKeys, givenKeys, pulse }: StaticFillaPixTilesProps) {
   const tileSize = Math.max(0, layout.cellSize - TILE_GAP * 2);
   const clueSet = useMemo(() => new Set(clueKeys ? clueKeys.split(',') : []), [clueKeys]);
+  const givenSet = useMemo(() => new Set(givenKeys ? givenKeys.split(',') : []), [givenKeys]);
+  const mark = Math.max(2, tileSize * 0.12);
   const tiles: React.JSX.Element[] = [];
   for (let row = 0; row < puzzle.size; row += 1) {
     for (let col = 0; col < puzzle.size; col += 1) {
@@ -93,6 +98,12 @@ const StaticFillaPixTiles = React.memo(function StaticFillaPixTilesImpl({ puzzle
         <Group key={`${row}-${col}`}>
           {renderTile(tx, ty, tileSize, filled, filled ? pulse : 1)}
           {hasClue && <Circle cx={tx + tileSize / 2} cy={ty + tileSize / 2} r={tileSize * 0.3} color="rgba(255,253,248,0.85)" />}
+          {givenSet.has(`${row}:${col}`) && !hasClue && (
+            <Path
+              path={`M ${tx + tileSize / 2} ${ty + tileSize / 2 - mark} L ${tx + tileSize / 2 + mark} ${ty + tileSize / 2} L ${tx + tileSize / 2} ${ty + tileSize / 2 + mark} L ${tx + tileSize / 2 - mark} ${ty + tileSize / 2} Z`}
+              color="rgba(255, 246, 225, 0.8)"
+            />
+          )}
         </Group>,
       );
     }
@@ -109,11 +120,20 @@ export interface FillaPixBoardViewProps {
    * `flashCell`/`setTimeout` convention `TowersScreen`'s own hint button
    * already uses. */
   flashCell?: FillaPixCell | null;
+  /** Squares that opened already filled - drawn with the small cream
+   * tessera the app stamps on anything placed for the player and locked
+   * (Mosaic's set pieces carry the same mark). */
+  givens?: ReadonlyArray<ReadonlyArray<boolean>>;
 }
 
-export function FillaPixBoardView({ puzzle, state, size, solved, flashCell }: FillaPixBoardViewProps): React.JSX.Element {
+export function FillaPixBoardView({ puzzle, state, size, solved, flashCell, givens }: FillaPixBoardViewProps): React.JSX.Element {
   const layout: BoardLayout = useMemo(() => computeBoardLayout(puzzle.size, size), [size, puzzle.size]);
   const clueKeys = useMemo(() => puzzle.clues.map(cell => `${cell.row}:${cell.col}`).join(','), [puzzle.clues]);
+  const givenKeys = useMemo(() => {
+    const keys: string[] = [];
+    givens?.forEach((line, row) => line.forEach((on, col) => on && keys.push(`${row}:${col}`)));
+    return keys.join(',');
+  }, [givens]);
 
   // A single one-shot pulse across every filled tile the instant the
   // puzzle solves - the picture has been visible all along, so this is
@@ -128,7 +148,7 @@ export function FillaPixBoardView({ puzzle, state, size, solved, flashCell }: Fi
   return (
     <Group>
       {renderTray(layout)}
-      <StaticFillaPixTiles puzzle={puzzle} state={state} layout={layout} clueKeys={clueKeys} pulse={pulse} />
+      <StaticFillaPixTiles puzzle={puzzle} state={state} layout={layout} clueKeys={clueKeys} givenKeys={givenKeys} pulse={pulse} />
       {flashCell && (
         <RoundedRect
           x={flashCell.col * layout.cellSize + TILE_GAP - 2}

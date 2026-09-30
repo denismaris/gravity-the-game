@@ -33,6 +33,10 @@ describe('parseSettings', () => {
       hapticsEnabled: false,
       calmingInterstitialEnabled: false,
       seenTutorials: ['game:gravity', 'mechanic:hazard'],
+      // Absent from this blob, so the defaults.
+      remindersEnabled: false,
+      reminderHour: 19,
+      appearance: 'system',
     });
   });
 

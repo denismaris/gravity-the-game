@@ -2,7 +2,7 @@ import React from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { PressableScale } from './PressableScale';
 import { useCardEntrance } from './useCardEntrance';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 
 export interface LevelFailedCardProps {
   /** Restart the level from its beginning. */
@@ -86,7 +86,7 @@ export function LevelFailedCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   overlay: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
@@ -152,4 +152,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
-});
+}));

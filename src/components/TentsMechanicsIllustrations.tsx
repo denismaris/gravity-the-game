@@ -1,13 +1,6 @@
 import React from 'react';
 import { Group, Path, RoundedRect } from '@shopify/react-native-skia';
 import {
-  CANOPY_COLOR,
-  CANOPY_OUTLINE,
-  MARK_COLOR,
-  TENT_DARK,
-  TENT_DOOR_COLOR,
-  TENT_LIGHT,
-  TRUNK_COLOR,
   canopyPath,
   tentDoorPath,
   tentGeometry,
@@ -71,9 +64,9 @@ function illustrationTree(cx: number, cy: number, cellSize: number): React.JSX.E
   const trunkTopY = canopyY + cellSize * 0.12;
   return (
     <Group>
-      <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_COLOR} />
-      <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_OUTLINE} style="stroke" strokeWidth={Math.max(1, cellSize * 0.012)} />
-      <Path path={trunkPath(cx, trunkTopY, cellSize)} color={TRUNK_COLOR} />
+      <Path path={canopyPath(cx, canopyY, cellSize)} color={theme.colors.treeCanopy} />
+      <Path path={canopyPath(cx, canopyY, cellSize)} color={theme.colors.treeCanopyOutline} style="stroke" strokeWidth={Math.max(1, cellSize * 0.012)} />
+      <Path path={trunkPath(cx, trunkTopY, cellSize)} color={theme.colors.treeTrunk} />
     </Group>
   );
 }
@@ -88,9 +81,9 @@ function illustrationTent(cx: number, baseY: number, cellSize: number, violated:
         <Path path={`${tentLeftFacePath(g)} ${tentRightFacePath(g)}`} color={theme.colors.danger} />
       ) : (
         <>
-          <Path path={tentLeftFacePath(g)} color={TENT_DARK} />
-          <Path path={tentRightFacePath(g)} color={TENT_LIGHT} />
-          <Path path={tentDoorPath(g)} color={TENT_DOOR_COLOR} />
+          <Path path={tentLeftFacePath(g)} color={theme.colors.tentDark} />
+          <Path path={tentRightFacePath(g)} color={theme.colors.tentLight} />
+          <Path path={tentDoorPath(g)} color={theme.colors.background} />
         </>
       )}
     </Group>
@@ -98,13 +91,13 @@ function illustrationTent(cx: number, baseY: number, cellSize: number, violated:
 }
 
 /** The "definitely not a tent" pencil mark, matching `TentsBoardView`'s
- * own `MARK_COLOR`/proportions exactly. */
+ * own `theme.colors.textTertiary`/proportions exactly. */
 function illustrationMark(cx: number, cy: number, cellSize: number): React.JSX.Element {
   const d = cellSize * 0.16;
   return (
     <Path
       path={`M ${cx - d} ${cy - d} L ${cx + d} ${cy + d} M ${cx + d} ${cy - d} L ${cx - d} ${cy + d}`}
-      color={MARK_COLOR}
+      color={theme.colors.textTertiary}
       style="stroke"
       strokeWidth={Math.max(1, cellSize * 0.045)}
       strokeCap="round"

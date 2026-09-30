@@ -1,4 +1,5 @@
-import { Vibration } from 'react-native';
+import { Platform, Vibration } from 'react-native';
+import RNHapticFeedback, { HapticEvent } from 'react-native-haptic-feedback';
 
 /**
  * The specific in-game moments that deserve a tactile nudge. Kept as a
@@ -44,7 +45,19 @@ export type HapticKind =
   | 'mazeSolve'
   | 'bloomTurn'
   | 'bloomClose'
-  | 'bloomSolve';
+  | 'bloomSolve'
+  | 'mosaicPickup'
+  | 'mosaicPlace'
+  | 'mosaicReturn'
+  | 'mosaicSolve'
+  | 'bridgesBuild'
+  | 'bridgesRemove'
+  | 'bridgesIsland'
+  | 'bridgesBlocked'
+  | 'bridgesSolve'
+  | 'adjacentPop'
+  | 'adjacentCombo'
+  | 'adjacentSolve';
 
 /**
  * Pattern in milliseconds passed to `Vibration.vibrate`. A single number is
@@ -165,6 +178,31 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   bloomTurn: 5,
   bloomClose: 14,
   bloomSolve: [0, 14, 45, 18, 45, 26],
+
+  // Mosaic: the lightest touch to lift a piece, a firm set as it presses
+  // into the grout, a soft nudge when one slides home, and a long rising
+  // run for the finished picture.
+  mosaicPickup: 4,
+  mosaicPlace: 16,
+  mosaicReturn: 6,
+  mosaicSolve: [0, 16, 45, 18, 45, 22, 45, 30],
+
+  // Bridges: a firm set as a bridge lands (iOS plays a richer plank-by-
+  // plank pattern of its own - see `BridgesScreen`), a light lift when one
+  // comes away, a solid tap when an island's number is met, a soft refusal
+  // for a bridge blocked by another, and a long rising run for the whole
+  // archipelago joining up.
+  bridgesBuild: 14,
+  bridgesRemove: 6,
+  bridgesIsland: 18,
+  bridgesBlocked: 10,
+  bridgesSolve: [0, 14, 45, 16, 45, 20, 45, 28],
+
+  // Adjacent: a light pop for each group cleared, a fuller double for a
+  // run big enough to multiply its score, and a bubbling finish.
+  adjacentPop: 6,
+  adjacentCombo: [0, 10, 40, 14],
+  adjacentSolve: [0, 12, 40, 14, 40, 18, 40, 26],
 };
 
 let hapticsEnabled = true;
@@ -174,28 +212,72 @@ export function setHapticsEnabled(enabled: boolean): void {
   hapticsEnabled = enabled;
 }
 
+/** Loose options for the native module: vibrate on hardware without a
+ * Taptic Engine, and fire even with Android's touch-feedback setting off
+ * (the app has its own haptics switch, which is the one that counts). */
+const NATIVE_OPTIONS = { enableVibrateFallback: true, ignoreAndroidSystemSettings: true };
+
 /**
- * Small, reusable abstraction over the device's vibration motor.
+ * A pattern as Taptic Engine taps: each pulse becomes one transient, its
+ * strength scaled from the pulse's length - a 4ms tick is a whisper, a
+ * 45ms buzz a firm knock. Exported for its tests.
+ */
+export function patternToEvents(pattern: number | number[]): HapticEvent[] {
+  const pulses: Array<{ at: number; ms: number }> = [];
+  if (typeof pattern === 'number') pulses.push({ at: 0, ms: pattern });
+  else {
+    let at = 0;
+    for (let i = 0; i < pattern.length; i += 1) {
+      if (i % 2 === 1) pulses.push({ at, ms: pattern[i] });
+      at += pattern[i];
+    }
+  }
+  return pulses.map(({ at, ms }) => ({
+    time: at,
+    type: 'transient' as const,
+    intensity: Math.min(1, 0.3 + ms / 40),
+    sharpness: Math.min(0.9, 0.35 + ms / 100),
+  }));
+}
+
+/**
+ * Fires one of the app's haptic moments.
  *
- * This project has no native haptics dependency (e.g. `expo-haptics` /
- * `react-native-haptic-feedback`) installed, and adding one would require a
- * native rebuild that is out of scope for this pass. `Vibration` ships
- * with React Native core, needs no extra native module, and is enough to
- * deliver short, subtle "tick" feedback on both platforms. If richer,
- * platform-native haptics (e.g. iOS's Taptic Engine via
- * `UIImpactFeedbackGenerator`) are wanted later, swap the implementation
- * of this single function - every call site is already routed through it.
+ * iOS goes through Core Haptics (`react-native-haptic-feedback`). It used
+ * React Native's own `Vibration`, which on iOS can only play the one fixed
+ * system buzz, ignores every duration here, and is suppressed outright in
+ * several ringer/haptics settings - players reported feeling nothing at
+ * all. Android keeps `Vibration`, which honours these durations literally.
  *
- * Deliberately fire-and-forget and defensive: haptics are a nicety, never
- * a requirement, so any failure (unsupported platform, no vibration
- * motor, test environment) is swallowed rather than surfaced.
+ * Fire-and-forget: haptics are a nicety, so any failure is swallowed.
  */
 export function triggerHaptic(kind: HapticKind): void {
   if (!hapticsEnabled) return;
 
   try {
-    Vibration.vibrate(PATTERNS[kind]);
+    if (Platform.OS === 'ios') RNHapticFeedback.triggerPattern(patternToEvents(PATTERNS[kind]), NATIVE_OPTIONS);
+    else Vibration.vibrate(PATTERNS[kind]);
   } catch {
     // Never let a missing/failing vibration API break gameplay.
+  }
+}
+
+/** Plays a hand-built pattern - the maze ball's roll, say, which is shaped
+ * to its own path rather than one of the fixed kinds above. */
+export function playHapticEvents(events: HapticEvent[]): void {
+  if (!hapticsEnabled || events.length === 0) return;
+  try {
+    RNHapticFeedback.triggerPattern(events, NATIVE_OPTIONS);
+  } catch {
+    // As above.
+  }
+}
+
+/** Cuts off whatever pattern is playing - a roll interrupted by a swipe. */
+export function stopHaptics(): void {
+  try {
+    RNHapticFeedback.stop();
+  } catch {
+    // As above.
   }
 }

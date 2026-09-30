@@ -10,8 +10,9 @@ import {
   touchingTentCells,
 } from '../game/tents';
 import { IDLE_MOTION_FPS, useAnimationClock, useReducedMotion } from '../game/rendering';
-import { theme } from '../theme';
+import { theme, inkWash } from '../theme';
 import { CellWell, PaperTray } from './boardChrome';
+import { SkiaEntrance } from './SkiaEntrance';
 
 /** Ground shadow: shared by both objects (`tentsShadow`'s own rationale -
  * "one visual concept in this palette, not several"), sized off a fixed
@@ -33,11 +34,8 @@ const SHADOW_HEIGHT_RATIO = 0.35;
  * round puff vs. the tent's sharp A-frame) is what tells a tree and a
  * tent apart at a glance, exactly as elsewhere in this app - the canopy's
  * own green is just a second, redundant cue on top of that. */
-export const CANOPY_COLOR = '#425237';
-export const CANOPY_OUTLINE = 'rgba(24, 30, 18, 0.5)';
 const CANOPY_SHADOW_OFFSET_FACTOR = 0.05;
 const CANOPY_SHADOW_ALPHA = 0.22;
-export const TRUNK_COLOR = '#5A4632';
 
 const TRUNK_BASE = 0.16;
 const TRUNK_TOP_RATIO = 0.6;
@@ -53,12 +51,9 @@ const NOTCH_HEIGHT_RATIO = 0.35; // of the tent's own height
  * into a lighter (sun-facing) and darker (shadowed) triangle, plus a small
  * cream entrance flap where the two faces meet at the base, is enough to
  * read as a real three-dimensional tent without needing a full gradient.
- * `TENT_LIGHT`/`TENT_DARK` are a different, more muted green family than
+ * `theme.colors.tentLight`/`theme.colors.tentDark` are a different, more muted green family than
  * the canopy's own - two adjacent objects sharing one exact green would
  * blur back together at a glance. */
-export const TENT_LIGHT = '#557A5D';
-export const TENT_DARK = '#345140';
-export const TENT_DOOR_COLOR = theme.colors.background;
 
 /** The "definitely not a tent" pencil mark - a small quiet cross, faint
  * enough to read as bookkeeping (it never affects solving) rather than a
@@ -67,7 +62,6 @@ export const TENT_DOOR_COLOR = theme.colors.background;
  * ruling a cell out isn't a mistake, so it shouldn't borrow that
  * vocabulary. `textTertiary` is this app's own "quiet ink" outside any
  * board's functional colours. */
-export const MARK_COLOR = theme.colors.textTertiary;
 const MARK_RADIUS_FACTOR = 0.16;
 const MARK_STROKE_FACTOR = 0.045;
 
@@ -82,8 +76,6 @@ const MARK_STROKE_FACTOR = 0.045;
 const PITCH_IN_MS = 150;
 const PITCH_OVERSHOOT_SCALE = 1.3;
 const MARK_FADE_IN_MS = 120;
-/** The longest placement animation - how long a fresh mark needs full-rate frames. */
-const PLACE_ANIMATION_MS = Math.max(PITCH_IN_MS, MARK_FADE_IN_MS);
 
 /** `0,-3,3,-2,2,0` over 220ms, linear per 44ms segment - Skyscrapers'
  * exact conflict shake, reused for a touching-tents violation. Skia has no
@@ -198,11 +190,19 @@ export function tentDoorPath(g: TentGeometry): string {
  * app's Skia boards (`useGemBursts` on Mirror Maze, the toggle/error
  * trackers on Binairo), generalised once here since Tents and Trees needs
  * three independent instances of it (violations, line-satisfied, solve). */
-function useTransitionTimestamps(current: ReadonlySet<string>, now: number): Map<string, number> {
-  const prevRef = useRef<ReadonlySet<string>>(new Set());
+function useTransitionTimestamps(current: ReadonlySet<string>, now: number, seedSilently = false): Map<string, number> {
+  const prevRef = useRef<ReadonlySet<string> | null>(null);
   const eventsRef = useRef(new Map<string, number>());
+  // With \`seedSilently\`, whatever is already true on the first render is
+  // seeded as long past, not "just happened": rows that need no tents are
+  // satisfied the moment
+  // a board opens, and counting those as fresh completions held the clock
+  // at full rate for over a second on every open, for sparks with no tent
+  // to rise from.
+  const seeding = prevRef.current === null;
   for (const key of current) {
-    if (!prevRef.current.has(key)) eventsRef.current.set(key, now);
+    if (seeding) eventsRef.current.set(key, seedSilently ? -Infinity : now);
+    else if (!prevRef.current!.has(key)) eventsRef.current.set(key, now);
   }
   prevRef.current = current;
   return eventsRef.current;
@@ -327,11 +327,11 @@ const StaticTentsTrees = React.memo(function StaticTentsTreesImpl({ puzzle, cell
               <Path path={ellipsePath(cx, trunkBottomY + shadowH * 0.3, shadowW / 2, shadowH / 2)} color={theme.colors.tentsShadow} />
               <Path
                 path={canopyPath(cx + cellSize * CANOPY_SHADOW_OFFSET_FACTOR, canopyY + cellSize * CANOPY_SHADOW_OFFSET_FACTOR, cellSize)}
-                color={`rgba(59,31,82,${CANOPY_SHADOW_ALPHA})`}
+                color={inkWash(CANOPY_SHADOW_ALPHA)}
               />
-              <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_COLOR} />
-              <Path path={canopyPath(cx, canopyY, cellSize)} color={CANOPY_OUTLINE} style="stroke" strokeWidth={Math.max(1, cellSize * 0.012)} />
-              <Path path={trunkPath(cx, trunkTopY, cellSize)} color={TRUNK_COLOR} />
+              <Path path={canopyPath(cx, canopyY, cellSize)} color={theme.colors.treeCanopy} />
+              <Path path={canopyPath(cx, canopyY, cellSize)} color={theme.colors.treeCanopyOutline} style="stroke" strokeWidth={Math.max(1, cellSize * 0.012)} />
+              <Path path={trunkPath(cx, trunkTopY, cellSize)} color={theme.colors.treeTrunk} />
             </Group>
           );
         }),
@@ -366,7 +366,7 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
   const now = Date.now();
 
   const touching = useMemo(() => touchingTentCells(puzzle, state), [puzzle, state]);
-  const shakeStarts = useTransitionTimestamps(touching, now);
+  const shakeStarts = useTransitionTimestamps(touching, now, true);
 
   const glowValidity = useMemo(() => {
     const map = new Map<string, boolean>();
@@ -385,7 +385,7 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
     for (let c = 0; c < puzzle.cols; c += 1) if (isColSatisfied(puzzle, state, c)) set.add(`col:${c}`);
     return set;
   }, [puzzle, state]);
-  const lineSatisfiedAt = useTransitionTimestamps(satisfiedLines, now);
+  const lineSatisfiedAt = useTransitionTimestamps(satisfiedLines, now, true);
 
   const solvedSet = useMemo(() => (solved ? new Set(['solved']) : new Set<string>()), [solved]);
   const solvedAtMap = useTransitionTimestamps(solvedSet, now);
@@ -443,13 +443,8 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
   // to idle the frame it lands. Declared after \`markChangedAt\` for the
   // same reason the flare needs \`solvedAt\`: it has to see the animation
   // it is meant to drive.
-  let placing = false;
-  for (const at of markChangedAt.values()) {
-    if (now - at < PLACE_ANIMATION_MS) {
-      placing = true;
-      break;
-    }
-  }
+  // (The pitch and the mark's fade now play on the UI thread - see
+  // `SkiaEntrance` - so a placement no longer needs the clock at all.)
   // Every *event* animation gets real frames, not just the pitch-in: a
   // row/column completing sends sparks up for SPARK_MS plus a stagger per
   // tent (well over a second on a big board), a violation shakes, a
@@ -467,7 +462,7 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
       break;
     }
   }
-  const eventful = placing || flaring || within(lineSatisfiedAt, sparkWindowMs) || within(shakeStarts, 220) || crossfading;
+  const eventful = flaring || within(lineSatisfiedAt, sparkWindowMs) || within(shakeStarts, 220) || crossfading;
   useAnimationClock(!reducedMotion && (!solved || eventful), eventful ? 60 : IDLE_MOTION_FPS);
 
   return (
@@ -524,11 +519,10 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
         // comment. Anchored at the tent's own base (not the cell's
         // centre) so it reads as rising from the ground, not scaling
         // from nowhere.
+        // The pitch itself plays on the UI thread (`SkiaEntrance`), keyed
+        // on the moment it was pitched, so a placement needs no clock.
         const pitchedAt = markChangedAt.get(key);
-        const pitchElapsed = pitchedAt !== undefined ? now - pitchedAt : Infinity;
-        const pitchT = clamp01(pitchElapsed / PITCH_IN_MS);
-        const pitchScale = pitchElapsed < PITCH_IN_MS ? 1 + (PITCH_OVERSHOOT_SCALE - 1) * (1 - easeOutCubic(pitchT)) : 1;
-        const pitchOpacity = pitchElapsed < PITCH_IN_MS ? easeOutCubic(clamp01(pitchElapsed / (PITCH_IN_MS * 0.5))) : 1;
+        const pitching = pitchedAt !== undefined && now - pitchedAt < PITCH_IN_MS;
 
         // Crossfades from the opposite extreme over GLOW_CROSSFADE_MS
         // rather than snapping - "the warmth going out" should read as a
@@ -555,8 +549,8 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
           }
         }
 
-        return (
-          <Group key={key} transform={[{ translateX: dx }, { scale: pitchScale }]} origin={vec(cx, baseY)} opacity={pitchOpacity}>
+        const tent = (
+          <Group transform={[{ translateX: dx }]}>
             {glowOpacity + flareBoost > 0.02 && (
               <Group>
                 <Circle cx={cx} cy={baseY - cellSize * 0.14} r={cellSize * 0.42} color={theme.colors.accent} opacity={(glowOpacity + flareBoost) * 0.28} />
@@ -577,18 +571,25 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
               }
               return (
                 <>
-                  <Path path={tentLeftFacePath(g)} color={TENT_DARK} />
-                  <Path path={tentRightFacePath(g)} color={TENT_LIGHT} />
-                  <Path path={tentDoorPath(g)} color={TENT_DOOR_COLOR} />
+                  <Path path={tentLeftFacePath(g)} color={theme.colors.tentDark} />
+                  <Path path={tentRightFacePath(g)} color={theme.colors.tentLight} />
+                  <Path path={tentDoorPath(g)} color={theme.colors.background} />
                 </>
               );
             })()}
           </Group>
         );
+        return pitching ? (
+          <SkiaEntrance key={`${key}@${pitchedAt}`} duration={PITCH_IN_MS} overshoot={PITCH_OVERSHOOT_SCALE} origin={vec(cx, baseY)} reducedMotion={reducedMotion}>
+            {tent}
+          </SkiaEntrance>
+        ) : (
+          <Group key={key}>{tent}</Group>
+        );
       })}
 
       {/* Pencil marks: a player's own "definitely not a tent" note - see
-          `MARK_COLOR`'s own comment for why this is a quiet cross rather
+          `theme.colors.textTertiary`'s own comment for why this is a quiet cross rather
           than borrowing the tent's violation red or any other vocabulary
           already spoken for on this board. Fades in rather than
           appearing instantly, the same `MARK_FADE_IN_MS` beat every other
@@ -599,20 +600,25 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
         const cy = r * cellSize + cellSize / 2;
         const key = cellKey(r, c);
         const markedAt = markChangedAt.get(key);
-        const elapsed = markedAt !== undefined ? now - markedAt : Infinity;
-        const opacity = elapsed < MARK_FADE_IN_MS ? easeOutCubic(clamp01(elapsed / MARK_FADE_IN_MS)) : 1;
+        const fading = markedAt !== undefined && now - markedAt < MARK_FADE_IN_MS;
         const d = cellSize * MARK_RADIUS_FACTOR;
         const strokeWidth = Math.max(1, cellSize * MARK_STROKE_FACTOR);
-        return (
+        const mark = (
           <Path
-            key={`mark-${key}`}
             path={`M ${cx - d} ${cy - d} L ${cx + d} ${cy + d} M ${cx + d} ${cy - d} L ${cx - d} ${cy + d}`}
-            color={MARK_COLOR}
+            color={theme.colors.textTertiary}
             style="stroke"
             strokeWidth={strokeWidth}
             strokeCap="round"
-            opacity={opacity}
           />
+        );
+        // Fades in on the UI thread, like the tents' pitch.
+        return fading ? (
+          <SkiaEntrance key={`mark-${key}@${markedAt}`} duration={MARK_FADE_IN_MS} fadeShare={1} origin={vec(cx, cy)} reducedMotion>
+            {mark}
+          </SkiaEntrance>
+        ) : (
+          <Group key={`mark-${key}`}>{mark}</Group>
         );
       })}
 

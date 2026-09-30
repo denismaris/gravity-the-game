@@ -211,3 +211,45 @@ export function revealHint(
   }
   return null;
 }
+
+/**
+ * The fewest mirrors any solution needs, or null if none was found within
+ * `maxNodes` steps of search (unsolvable, or too costly to be sure).
+ *
+ * `solveMirrorMaze` tries mirrors before empty squares, so the first
+ * answer it finds can use far more mirrors than a player needs - no
+ * measure of how hard a board really is. This deepens one mirror at a
+ * time instead, trying "no mirror" first, so the count it returns is the
+ * minimum. The budget matters: a few 6x6 boards take the plain search a
+ * minute; a generator must be able to walk away from those.
+ */
+export function fewestMirrors(puzzle: MirrorMazePuzzle, maxNodes = 60000): number | null {
+  let nodes = 0;
+  const eligible = puzzle.rows * puzzle.cols;
+  for (let allowance = 0; allowance <= eligible; allowance += 1) {
+    const grid = buildInitialGrid(puzzle);
+    let found = false;
+    const dfs = (placed: number): void => {
+      if (found || nodes > maxNodes) return;
+      nodes += 1;
+      const result = traceWithDecisions(puzzle, grid);
+      if (result.status === 'solved') {
+        found = true;
+        return;
+      }
+      if (result.status === 'failed') return;
+      const { row, col } = result.cell;
+      for (const choice of [null, 'fwd', 'back'] as const) {
+        if (choice !== null && placed >= allowance) continue;
+        grid[row][col] = choice;
+        dfs(placed + (choice === null ? 0 : 1));
+        grid[row][col] = undefined;
+        if (found || nodes > maxNodes) return;
+      }
+    };
+    dfs(0);
+    if (found) return allowance;
+    if (nodes > maxNodes) return null;
+  }
+  return null;
+}

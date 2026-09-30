@@ -305,6 +305,42 @@ export const BLOOM_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
 ];
 
+export const MOSAIC_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Drag into the picture',
+    body: 'Lift a piece from the tray and drop it into the picture. A shadow shows where it will land. The flat pieces are already set, to start you off.',
+    illustration: 'drag',
+  },
+  {
+    title: 'Tap to turn',
+    body: 'Tap a piece in the tray to turn it a quarter. Drag a placed piece out again whenever you like.',
+    illustration: 'turn',
+  },
+  {
+    title: 'Fill every square',
+    body: 'Every piece, every square, one way to fit. Start where the picture is narrow - only one piece can go there.',
+    illustration: 'fill',
+  },
+];
+
+export const BRIDGES_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Drag or tap to build',
+    body: 'Drag from an island toward another - or just tap the water between them - to lay a bridge. Bridges run straight across open water: up, down, left or right.',
+    illustration: 'drag',
+  },
+  {
+    title: 'Meet every number',
+    body: 'Each number is how many bridges that island needs; met, it plants a flag. Two islands can share one bridge or two: tap it again for the second, once more to take them away.',
+    illustration: 'double',
+  },
+  {
+    title: 'One archipelago',
+    body: 'Bridges may never cross each other, and every island must end up joined into one network. Never close off a finished group.',
+    illustration: 'network',
+  },
+];
+
 export const ADJACENT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap a tile',
@@ -363,6 +399,14 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   bloom: {
     title: 'Bloom',
     body: 'Tap a tile to turn it a quarter. Every line must meet another line - none may end in the open or run off the edge. Pinned knots never turn: read outward from them and from the rim. A loop that closes blooms; close them all to finish.',
+  },
+  bridges: {
+    title: 'Bridges',
+    body: 'Drag from one island toward another, or tap the water between them, to lay a bridge. Each number is how many bridges that island needs - one or two may join any pair. Bridges never cross, and every island must end up connected into one network.',
+  },
+  mosaic: {
+    title: 'Mosaic',
+    body: 'Drag the pieces from the tray into the picture. Tap a piece in the tray to turn it. Some pieces are already set, flush in the picture, to start you off. Cover every square - there is only one way it all fits. Narrow places first.',
   },
 };
 

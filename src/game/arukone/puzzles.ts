@@ -2,6 +2,7 @@ import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { endlessName, parseEndlessId } from '../endlessId';
 import { generateArukone } from './generator';
 import { ArukonePuzzle } from './types';
+import { BAKED_ARUKONE } from './pool.generated';
 
 /**
  * The shipped Arukone+ pool.
@@ -66,7 +67,10 @@ function canonicalShape(puzzle: ArukonePuzzle): string {
  * because nothing compared boards to each other. Salting rather than
  * renaming keeps every id exactly where it was.
  */
-export const ARUKONE: ReadonlyArray<ArukonePuzzle> = (() => {
+/** Builds the pool from its names - salted re-draws until every shape is
+ * new. Run once, offline, to write \`pool.generated.ts\`; the app loads that
+ * instead (see below), and the pool test checks the two still agree. */
+export function buildArukonePool(): ArukonePuzzle[] {
   const seen = new Set<string>();
   return NAMES.map(([id, difficulty, name]) => {
     for (let salt = 0; salt < 64; salt += 1) {
@@ -78,7 +82,17 @@ export const ARUKONE: ReadonlyArray<ArukonePuzzle> = (() => {
     }
     throw new Error(`Arukone ${id}: every salted draw duplicated a board already in the pool.`);
   });
-})();
+}
+
+/**
+ * The shipped pool, baked. Building it runs the generator with its salted
+ * retries for every board - about a tenth of a second on a laptop, several
+ * times that on a phone, on every cold start, while the launch animation
+ * waits. So it is written out once and loaded here; the pool test
+ * regenerates it and fails on any drift, keeping the file an honest cache
+ * of \`buildArukonePool\` rather than a second source of truth.
+ */
+export const ARUKONE: ReadonlyArray<ArukonePuzzle> = BAKED_ARUKONE;
 
 const endlessCache = new Map<string, ArukonePuzzle>();
 
@@ -90,7 +104,7 @@ export function getArukoneById(id: string): ArukonePuzzle | undefined {
   const cached = endlessCache.get(id);
   if (cached) return cached;
   // The id is the seed, so this rebuilds the same board every time.
-  const puzzle = generateArukone(id, endless.tier, endlessName(endless.index));
+  const puzzle = generateArukone(id, endless.tier, endlessName(endless.index, 'arukone'));
   endlessCache.set(id, puzzle);
   return puzzle;
 }

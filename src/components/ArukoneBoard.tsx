@@ -13,7 +13,7 @@ import {
 } from '../game/arukone';
 import { computeBoardLayout, getCellOrigin } from '../game/rendering';
 import { ArukoneBoardView, describeCell, describePair } from './ArukoneBoardView';
-import { theme } from '../theme';
+import { theme, themedStyles } from '../theme';
 
 export interface ArukoneBoardProps {
   puzzle: ArukonePuzzle;
@@ -214,7 +214,7 @@ export function isPairJoined(puzzle: ArukonePuzzle, state: ArukoneState, value: 
   return pair ? isPathComplete(pair, state.paths[value] ?? []) : false;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   number: {
     position: 'absolute',
     textAlign: 'center',
@@ -224,4 +224,4 @@ const styles = StyleSheet.create({
     color: theme.colors.surfaceHi,
     fontWeight: theme.typography.weights.bold,
   },
-});
+}));

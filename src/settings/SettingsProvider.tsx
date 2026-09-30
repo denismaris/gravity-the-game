@@ -13,7 +13,10 @@ import {
   defaultSettings,
   Settings,
   withCalmingInterstitialEnabled,
+  AppearancePreference,
+  withAppearance,
   withHapticsEnabled,
+  withReminders,
   withSoundEnabled,
   withTutorialSeen,
 } from './settings';
@@ -31,6 +34,10 @@ interface SettingsContextValue {
   setSoundEnabled(enabled: boolean): void;
   setHapticsEnabled(enabled: boolean): void;
   setCalmingInterstitialEnabled(enabled: boolean): void;
+  /** Turns the daily reminder on or off, optionally at a new hour. */
+  setReminders(enabled: boolean, hour?: number): void;
+  /** Light, dark, or follow the phone. */
+  setAppearance(appearance: AppearancePreference): void;
   /** Marks a one-time tutorial overlay as shown, so it never appears again. */
   markTutorialSeen(tutorialId: string): void;
   hasSeenTutorial(tutorialId: string): boolean;
@@ -133,6 +140,20 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
     [applyMutation],
   );
 
+  const setReminders = useCallback(
+    (enabled: boolean, hour?: number) => {
+      applyMutation(current => withReminders(current, enabled, hour));
+    },
+    [applyMutation],
+  );
+
+  const setAppearance = useCallback(
+    (appearance: AppearancePreference) => {
+      applyMutation(current => withAppearance(current, appearance));
+    },
+    [applyMutation],
+  );
+
   const markTutorialSeen = useCallback(
     (tutorialId: string) => {
       applyMutation(current => withTutorialSeen(current, tutorialId));
@@ -147,10 +168,12 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
       setSoundEnabled,
       setHapticsEnabled,
       setCalmingInterstitialEnabled,
+      setReminders,
+      setAppearance,
       markTutorialSeen,
       hasSeenTutorial: (tutorialId: string) => settings.seenTutorials.includes(tutorialId),
     }),
-    [settings, ready, setSoundEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, markTutorialSeen],
+    [settings, ready, setSoundEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance, markTutorialSeen],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

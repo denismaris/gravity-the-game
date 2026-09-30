@@ -1,0 +1,6 @@
+<resources>
+    <!-- The night paper (theme.colors.background in src/theme/palettes.ts's
+         dark palette), so a phone in dark mode opens onto the app's own
+         dark ground instead of a flash of cream. -->
+    <color name="window_background">#15101B</color>
+</resources>

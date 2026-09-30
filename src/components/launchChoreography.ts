@@ -1,10 +1,6 @@
-import { theme } from '../theme';
-
 /**
  * The launch sequence's timing and geometry, with no React and no Skia in
- * it (beyond the plain `theme` object, which is itself framework-agnostic
- * - see its own comment), so the choreography can be reasoned about and
- * tested on its own.
+ * it, so the choreography can be reasoned about and tested on its own.
  *
  * The app's mark builds itself: a tessera arrives, eighteen pieces of
  * tilework fly in and lock into the star-and-cross, the wordmark sets
@@ -13,7 +9,7 @@ import { theme } from '../theme';
  * this app has actually earned - a *tessera* is a fragment of a mosaic,
  * so a mosaic coming together is the thing the name means.
  *
- * The tile itself is `theme.colors.primary` - this app's own violet ink,
+ * The tile itself is `theme.colors.brandTile` - this app's own violet ink,
  * the same colour the wordmark sets in right underneath it a moment
  * later - not the separate magenta `tools/make_icon.py` paints the home-
  * screen icon in. Those two were the same colour in an earlier version of
@@ -27,7 +23,6 @@ import { theme } from '../theme';
  * still match the icon, since the pieces themselves are the same shapes.
  */
 
-export const TILE_COLOR: string = theme.colors.primary;
 export const CHALK = '#F2EDDF';
 export const OCHRE = '#D9A441';
 

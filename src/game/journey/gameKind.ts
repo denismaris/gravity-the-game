@@ -8,6 +8,8 @@ import { getFillaPixById } from '../fillapix';
 import { getLightsOutById } from '../lightsout';
 import { getAdjacentById } from '../adjacent';
 import { getBloomById } from '../bloom';
+import { getMosaicById } from '../mosaic';
+import { getBridgesById } from '../bridges';
 import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { endlessName, parseEndlessId } from '../endlessId';
 import { getWorldForLevel } from '../worlds';
@@ -22,7 +24,7 @@ import { getWorldForLevel } from '../worlds';
  * module that outlived that replacement, because they're about game
  * identity, not about any one ordering of puzzles).
  */
-export type GameKind = 'gravity' | 'mirror' | 'tents' | 'towers' | 'binairo' | 'arukone' | 'fillapix' | 'lightsout' | 'adjacent' | 'bloom';
+export type GameKind = 'gravity' | 'mirror' | 'tents' | 'towers' | 'binairo' | 'arukone' | 'fillapix' | 'lightsout' | 'adjacent' | 'bloom' | 'mosaic' | 'bridges';
 
 /** Passed by every game screen's own "Next" action alongside the target
  * puzzle - `App.tsx`'s `openPuzzle` reads `showInterstitial` to decide
@@ -38,7 +40,7 @@ export interface NextPuzzleOptions {
 /** The fixed lineup, in the app's own canonical game order - used anywhere
  * something needs to enumerate "every game" in one stable order (the batch
  * generator's own weighted sampling, Browse's old section order, etc.). */
-export const ROTATION: ReadonlyArray<GameKind> = ['gravity', 'mirror', 'tents', 'towers', 'binairo', 'arukone', 'fillapix', 'lightsout', 'adjacent', 'bloom'];
+export const ROTATION: ReadonlyArray<GameKind> = ['gravity', 'mirror', 'tents', 'towers', 'binairo', 'arukone', 'fillapix', 'lightsout', 'adjacent', 'bloom', 'mosaic', 'bridges'];
 
 /** What each game is called, in one place. `puzzleDisplayInfo` below reads
  * these for its `chapter` field, so a game renamed here is renamed
@@ -54,6 +56,8 @@ const DISPLAY_NAMES: Readonly<Record<GameKind, string>> = {
   lightsout: 'Lights Out',
   adjacent: 'Adjacent',
   bloom: 'Bloom',
+  mosaic: 'Mosaic',
+  bridges: 'Bridges',
 };
 
 /** A game's own display name - for anywhere that names the game itself
@@ -84,6 +88,8 @@ export function gameShortName(kind: GameKind): string {
     case 'binairo':
     case 'adjacent':
     case 'bloom':
+    case 'mosaic':
+    case 'bridges':
       return DISPLAY_NAMES[kind];
   }
 }
@@ -121,7 +127,7 @@ export function puzzleDisplayInfo(kind: GameKind, puzzleId: string): PuzzleDispl
   // yet.
   const endless = parseEndlessId(puzzleId);
   if (endless && endless.kind === kind) {
-    return { name: endlessName(endless.index), chapter: DISPLAY_NAMES[kind], difficulty: endless.tier };
+    return { name: endlessName(endless.index, kind), chapter: DISPLAY_NAMES[kind], difficulty: endless.tier };
   }
 
   switch (kind) {
@@ -179,5 +185,31 @@ export function puzzleDisplayInfo(kind: GameKind, puzzleId: string): PuzzleDispl
       if (!puzzle) return undefined;
       return { name: puzzle.name ?? puzzle.id, chapter: DISPLAY_NAMES.bloom, difficulty: puzzle.difficulty };
     }
+    case 'mosaic': {
+      const puzzle = getMosaicById(puzzleId);
+      if (!puzzle) return undefined;
+      return { name: puzzle.name ?? puzzle.id, chapter: DISPLAY_NAMES.mosaic, difficulty: puzzle.difficulty };
+    }
+    case 'bridges': {
+      const puzzle = getBridgesById(puzzleId);
+      if (!puzzle) return undefined;
+      return { name: puzzle.name ?? puzzle.id, chapter: DISPLAY_NAMES.bridges, difficulty: puzzle.difficulty };
+    }
   }
+}
+
+/**
+ * Which game a puzzle id belongs to, and how hard it is - for anything
+ * that sees only an id (the errands a solve advances). Endless ids name
+ * their game; curated ones are asked of each game in turn, cheaply, from
+ * the id alone (see `puzzleDisplayInfo`).
+ */
+export function puzzleKindOf(puzzleId: string): { kind: GameKind; difficulty: PuzzleDifficulty } | undefined {
+  const endless = parseEndlessId(puzzleId);
+  const named = endless && (ROTATION as ReadonlyArray<string>).includes(endless.kind) ? [endless.kind as GameKind] : ROTATION;
+  for (const kind of named) {
+    const info = puzzleDisplayInfo(kind, puzzleId);
+    if (info) return { kind, difficulty: info.difficulty };
+  }
+  return undefined;
 }

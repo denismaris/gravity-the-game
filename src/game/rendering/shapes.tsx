@@ -1,6 +1,7 @@
 import React from 'react';
 import { Circle, Group, Path, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
 import type { Direction } from '../engine';
+import { inkWash } from '../../theme';
 import { shade } from './color';
 
 /**
@@ -21,7 +22,6 @@ import { shade } from './color';
  * palette's own `towersShadow`/`tentsShadow` concept - ground shadows are
  * one visual idea across this app, not several - kept as a literal here so
  * these primitives stay free of theme imports. */
-const GROUND_SHADOW = 'rgba(59,31,82,0.18)';
 
 export interface CellBackgroundProps {
   x: number;
@@ -78,7 +78,7 @@ export interface MovablePieceProps {
 export function MovablePiece({ cx, cy, radius, color }: MovablePieceProps) {
   return (
     <>
-      <Circle cx={cx + radius * 0.1} cy={cy + radius * 0.16} r={radius} color={GROUND_SHADOW} />
+      <Circle cx={cx + radius * 0.1} cy={cy + radius * 0.16} r={radius} color={inkWash(0.18)} />
       <Circle cx={cx} cy={cy} r={radius}>
         <RadialGradient
           c={vec(cx - radius * 0.38, cy - radius * 0.42)}
@@ -242,7 +242,7 @@ export function DestroyedPieceMark({ cx, cy, radius, color, markColor }: Destroy
       {/* Keeps the movable piece's ground shadow - it's still an object
           lying on the board - but none of its gloss or gradient. Live
           pieces gleam, spent ones don't. */}
-      <Circle cx={cx + radius * 0.1} cy={cy + radius * 0.16} r={radius} color={GROUND_SHADOW} />
+      <Circle cx={cx + radius * 0.1} cy={cy + radius * 0.16} r={radius} color={inkWash(0.18)} />
       <Circle cx={cx} cy={cy} r={radius} color={color} />
       <Path path={xPath} color={markColor} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />
     </>

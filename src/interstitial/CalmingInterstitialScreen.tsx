@@ -1,283 +1,73 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { GestureResponderHandlers, PanResponder, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import { Canvas, Circle, Group, RadialGradient, Rect, vec } from '@shopify/react-native-skia';
-import { ConfettiBurst, PageBloom, PressableScale } from '../components';
+import { useEquipped } from '../progression';
+import { AccessibilityActionEvent, Animated, Easing, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Canvas, Circle, Group, Rect, RoundedRect } from '@shopify/react-native-skia';
+import { ConfettiBurst, GeometricRule, PageBloom, PressableScale, directionForAccessibilityAction, useSwipeGesture } from '../components';
 import { Direction } from '../game/engine';
-import { Cell, cellKey, DIRS, edgeKey, hasOpenEdge, MazeShape } from '../game/maze';
-import { shade, triggerFeedback, useReducedMotion } from '../game/rendering';
-import { theme } from '../theme';
+import { Heading, MazeShape, Point, RollPlan, RollTiming, hasOpenEdge, planRoll, pointAt, relaxBreakMazes, rollTiming } from '../game/maze';
+import { playHapticEvents, shade, stopHaptics, triggerFeedback, useReducedMotion } from '../game/rendering';
+import { theme, themedStyles, inkWash } from '../theme';
+import { BreatherIntro } from './BreatherIntro';
+import { MAZE_PAINTS, mazeColors } from './mazePalette';
 
 export interface CalmingInterstitialScreenProps {
-  /** Called once, either after `MAZE_TARGET_COUNT` mazes are filled or the
-   * player skips - the caller (App.tsx) treats the two identically: move
-   * on to the next level's first puzzle. */
+  /** Called once, after the last maze is painted or the player skips - the
+   * caller (App.tsx) treats the two identically: move on to the next
+   * level's first puzzle. */
   onDone: () => void;
 }
 
 /**
- * The calming interstitial between level batches: a small maze the player
- * rolls a ball through by swiping - the only input, no on-screen gauge or
- * directional pad - painting every tile it crosses. Each swipe starts the
- * ball rolling continuously in that direction until it meets a wall; a new
- * swipe redirects it mid-roll without waiting for one. Filling one maze
- * bursts with confetti and starts the next; finishing `MAZE_TARGET_COUNT`
- * of them ends the break - a real, visible goal rather than a clock nobody's
- * watching. `SAFETY_DURATION_MS` is only a fallback for a session that
- * never engages at all.
+ * The calming break between level batches.
+ *
+ * It opens on a cut screen (`BreatherIntro`) - a breath, and a picture of
+ * what's coming - and only starts when the player taps Begin. Then a few
+ * small mazes: swipe, and the ball rolls until it meets a wall, painting
+ * every square it crosses. Paint them all and the next maze arrives.
+ *
+ * The mazes are dealt fresh every break (`relaxBreakMazes`), each one
+ * guaranteed finishable from wherever the ball comes to rest - see
+ * `relaxMazeStats`'s `trapFree`.
  */
 const MAZE_TARGET_COUNT = 3;
-const SAFETY_DURATION_MS = 90000;
-/** The maze's own bounding grid - taller than wide, like the reference
- * this is chasing (a phone screen's own aspect, not a square). */
-const BOUNDING_COLS = 7;
-const BOUNDING_ROWS = 9;
-/**
- * The maze is a channel *recessed into* a white surface, seen from
- * slightly above and in front - not a set of tiles lying on top of a page.
- * That single idea is where all of this screen's depth comes from, and it
- * is measured from `android/design-reference/Screenshot 2026-09-24 at
- * 12.11.49.png` rather than invented.
- *
- * Because the camera looks down *and forward*, the only wall face ever
- * visible is the far (top) one. Nothing is drawn on a tile's left, right
- * or bottom edge - verified by scanning straight through an interior hole
- * in the reference, where floor runs up to the white with no grey at all.
- * Getting that asymmetry right is what makes the board read as carved
- * rather than printed: a face on every side is just a flat outline, which
- * is what every earlier pass at this screen drew.
- *
- * Floor tiles are square-cornered and gapless: one continuous slab ruled
- * by faint seams, not separate rounded tiles with a halo between them.
- */
-/** Height of the far wall's face, as a fraction of one cell - measured at
- * ~22px against a ~64px cell pitch. */
-const TOP_FACE_RATIO = 0.34;
-/** A lighter lip along the very top of the far wall, where its face meets
- * the white surface above - measured at 2px. */
+/** A fallback for a break nobody engages with - measured from Begin. */
+const SAFETY_DURATION_MS = 180000;
+
+/** The channel's far wall, as a share of one square. Only the far (top)
+ * wall of each square shows - the board is seen from slightly in front. */
+const TOP_FACE_RATIO = 0.22;
 const LIP_PX = 2;
-/** A darker contact line where a wall's face meets the floor at its base -
- * measured at 3px. */
-const FOOT_PX = 3;
-/** Seam between two adjacent floor tiles. Deliberately faint: in the
- * reference these read as ruling on one continuous surface, nothing like a
- * structural wall. */
-const SEAM_WIDTH = 2;
-/** Ball radius as a fraction of one cell - scales with whatever `cellSize`
- * this device's arena works out to, rather than a fixed pixel size. */
-const BALL_RADIUS_RATIO = 0.42;
-/** Continuous rolling speed, in cells per second - not a discrete tween
- * between cell centres. The ball only ever moves while a direction is
- * actively being driven (a held pad button, or the brief "flick" a
- * completed swipe starts) and stops the instant that stops or a wall gets
- * in the way, wherever it happens to be - free rolling, not cell-snapping. */
-const ROLL_CELLS_PER_SEC = 34;
-/** How long the squash pulse - a wall arrival, or a press that couldn't
- * move the ball at all - takes to spring back round, as a smooth
- * 0->peak->0 pulse (`Math.sin(progress * Math.PI)`), not a linear fade. */
-const SQUASH_MS = 150;
-/** How long a tile takes to cross-fade from its wall tone to the painted
- * accent once the ball crosses it - within the skill's own "small
- * feedback" duration budget (100-250ms), not a teleporting colour flip. */
-const PAINT_FADE_MS = 220;
-const SQUASH_MAGNITUDE = 0.22;
-/** How far the whole board recoils on a wall hit. Small on purpose - a
- * couple of pixels reads as impact, more reads as the screen glitching. */
-const IMPACT_JOLT_PX = 4;
-/** How long the maze stays fully painted, confetti and all, before the
- * next one replaces it. */
-const CELEBRATE_PAUSE_MS = 750;
+const FOOT_PX = 2;
+const SEAM_WIDTH = 1.5;
+/** The paper slab the channel is carved into: margin around the maze, as
+ * a share of a square, and how far its side face drops. */
+const SLAB_PAD_RATIO = 0.45;
+const SLAB_SIDE_PX = 7;
+const SLAB_RADIUS = 18;
+/** The smallest grid a maze's squares are sized against, so a compact
+ * maze comes out larger but never as a few giant slabs. */
+const MIN_FIT_COLS = 6;
+const MIN_FIT_ROWS = 8;
 
-/** The app's own paper. This was plain white, matching the reference
- * screenshot's surround, but the break sits *between* puzzles in this app
- * and a white page there read as a different app entirely - the maze's
- * wall tops now cut into the same paper every other screen is printed on. */
-const SCREEN_BG = theme.colors.background;
-// Every colour below is sampled directly out of the saved reference file
-// (`android/design-reference/Screenshot 2026-09-24 at 12.11.49.png`) with
-// a Python/PIL script, not estimated by eye - the exact value is quoted in
-// each comment. The palette is deliberately far bolder than this screen's
-// earlier grey-on-white pass: a near-black floor against one saturated
-// paint colour is most of why the reference reads as crisp, and a muted
-// grey-violet floor on white is most of why the earlier pass read as
-// washed out.
-/** The floor before the ball has crossed it - the single most common
- * colour in the reference after the white surround. */
-const FLOOR_UNPAINTED = '#2A2A2E';
-/** A wall's face where it drops to the floor. One flat tone for every
- * wall, regardless of whether the floor beside it is painted. */
-const WALL_FACE = '#626568';
-/** The lit lip along a wall's very top edge, where its face meets the
- * white surface it's cut into. */
-const WALL_FACE_LIP = '#74767E';
-/** The contact line at a wall's base - the floor in its own shadow. */
-const WALL_FOOT = '#343539';
-/** The ball, measured off the reference: a cool polished pewter, lit from
- * the top left like every other object in this app. */
-const BALL_LIGHT = '#EDF2F7';
-const BALL_BODY = '#B8C4D2';
-const BALL_RIM = '#6C757F';
+/** The ball's radius, in squares. */
+const BALL_RADIUS = 0.38;
+/** Top rolling speed, in squares per second, and how far a ball starting
+ * from rest takes to reach it - it gathers pace, then lands with weight. */
+const ROLL_SPEED = 30;
+const ROLL_RAMP = 0.55;
+const CELEBRATE_PAUSE_MS = 1200;
+/** How far past a square's centre a swiped turn may still be taken there,
+ * as a share of a square. Past it, the turn waits for the next opening. */
+const TURN_GRACE = 0.3;
 
-/** Three colour "chapters" the paint cycles through, one per maze in a
- * break, each a [light, fill, dark] trio - `fill` is the floor's colour
- * once painted, `dark` its shaded end used by the wall-contact splash.
- *
- * The cyan is measured (#81DEFC, uniform across the whole painted region);
- * the other two are unmeasured, since the reference only shows one
- * chapter. Both are picked to sit at a similar brightness and saturation
- * against the near-black floor, because that contrast is the effect worth
- * preserving - a muted accent here would sink into the floor. */
-const PAINTED_VARIANTS: ReadonlyArray<[string, string, string]> = [
-  ['#C4EEFE', '#81DEFC', '#3E8FAF'],
-  ['#D8C8FB', '#A88BF5', '#5B44A8'],
-  ['#FFD9A8', '#FFB55C', '#A86A22'],
-];
+type Paint = readonly [string, string, string];
 
-/**
- * The shapes the break cycles through. The first is the measured
- * reference level (see `LEVEL_11_PATTERN`'s history in this screen's
- * skill doc); the rest were found by enumerating every 4-fold-symmetric
- * 7x9 layout and keeping only those that pass all of:
- *
- *  - fully connected, and no dead ends at all (a dead end forces a
- *    backtrack, which is the opposite of calming),
- *  - corridor-like rather than a solid slab (at most two cells with all
- *    four neighbours open),
- *  - 3 to 8 loops, so there is always a way round rather than only back,
- *  - **finishable using wall stops alone.**
- *
- * That last one is the non-obvious constraint and it is brutal: of 8185
- * layouts meeting the other criteria, only 71 survive it. The ball can in
- * principle be redirected mid-roll, but at `ROLL_CELLS_PER_SEC` a corridor
- * cell goes by in under 30ms, so in practice a player turns at walls. A
- * maze that can only be completed by precise mid-corridor turns is
- * frustrating, not restful - so a layout that cannot be finished by
- * rolling wall to wall is not shipped, however pretty it looks.
- */
-const MAZE_PATTERNS: ReadonlyArray<ReadonlyArray<string>> = [
-  // The measured reference: two ring structures joined by a double spine.
-  ['###.###', '#.#.#.#', '#.#.#.#', '#######', '..#.#..', '#######', '#.#.#.#', '#.#.#.#', '###.###'],
-  // The same skeleton opened out - one clear band across the middle.
-  ['###.###', '#.#.#.#', '#.#.#.#', '#######', '#.....#', '#######', '#.#.#.#', '#.#.#.#', '###.###'],
-  // A narrow waist with wide shoulders.
-  ['..###..', '###.###', '#.#.#.#', '###.###', '#.....#', '###.###', '#.#.#.#', '###.###', '..###..'],
-  // Stepped shoulders, an open heart.
-  ['##...##', '###.###', '#.#.#.#', '#.###.#', '#.....#', '#.###.#', '#.#.#.#', '###.###', '##...##'],
-  // Chunky and open - the calmest of the set to sweep through.
-  ['###.###', '#.###.#', '##...##', '##...##', '.#...#.', '##...##', '##...##', '#.###.#', '###.###'],
-];
-
-/** Builds a `MazeShape` from one pattern - every adjacent pair of active
- * cells is an open edge (these layouts have no internal walls, only an
- * outer silhouette and their holes), which is what produces the loops.
- *
- * The start is the first active cell in row-major order rather than a
- * hardcoded (0,0): several of the patterns above have an inactive
- * top-left corner, and starting the ball outside the maze would leave
- * every direction reporting blocked forever. */
-function firstActiveCell(pattern: ReadonlyArray<string>): Cell {
-  for (let row = 0; row < pattern.length; row++) {
-    const col = pattern[row].indexOf('#');
-    if (col !== -1) return { col, row };
-  }
-  return { col: 0, row: 0 };
+/** A fresh seed for each break, so no two breaks deal the same mazes. */
+function breakSeed(): number {
+  return Math.floor(Math.random() * 0x7fffffff) + (Date.now() % 1000003);
 }
 
-function buildMaze(pattern: ReadonlyArray<string>): MazeShape {
-  const rows = pattern.length;
-  const cols = pattern[0].length;
-  const active = new Set<string>();
-  for (let row = 0; row < rows; row++) {
-    for (let col = 0; col < cols; col++) {
-      if (pattern[row][col] === '#') active.add(cellKey(col, row));
-    }
-  }
-  const openEdges = new Set<string>();
-  for (const k of active) {
-    const [col, row] = k.split(':').map(Number);
-    for (const d of DIRS) {
-      const next = { col: col + d.dc, row: row + d.dr };
-      if (active.has(cellKey(next.col, next.row))) openEdges.add(edgeKey({ col, row }, next));
-    }
-  }
-  return { cols, rows, active, openEdges, start: firstActiveCell(pattern) };
-}
-
-function generateMaze(level: number): MazeShape {
-  return buildMaze(MAZE_PATTERNS[level % MAZE_PATTERNS.length]);
-}
-
-function cellAt(pos: { x: number; y: number }, cellSize: number): Cell {
-  return { col: Math.floor(pos.x / cellSize), row: Math.floor(pos.y / cellSize) };
-}
-
-function cellCenter(cell: Cell, cellSize: number): { x: number; y: number } {
-  return { x: cell.col * cellSize + cellSize / 2, y: cell.row * cellSize + cellSize / 2 };
-}
-
-function ballRadiusFor(cellSize: number): number {
-  return cellSize * BALL_RADIUS_RATIO;
-}
-
-/** A handful of thin, elongated "spike" nubs scattered asymmetrically
- * around the ball's rim for the wall-contact splash burst (see the
- * `squashActive` block below) - a close crop of the reference file's own
- * impact moment shows these as thin radiating slivers, not round
- * droplets: each is a unit circle stretched along its own outward angle
- * (`length` along the spike, `width` across it) rather than a plain small
- * circle. Fixed, uneven angles/lengths - not evenly divided around the
- * circle the way a gear or flower would be. This is a transient impact
- * effect only, not the ball's own resting shape (which is a plain round
- * sphere - see the ball-rendering block's own comment). */
-const SPIKE_NUBS: ReadonlyArray<{ angle: number; dist: number; length: number; width: number }> = [
-  { angle: 0.3, dist: 0.92, length: 0.22, width: 0.14 },
-  { angle: 1.1, dist: 0.98, length: 0.16, width: 0.11 },
-  { angle: 1.9, dist: 0.88, length: 0.24, width: 0.13 },
-  { angle: 2.7, dist: 0.95, length: 0.15, width: 0.1 },
-  { angle: 3.6, dist: 0.9, length: 0.23, width: 0.15 },
-  { angle: 4.3, dist: 0.97, length: 0.17, width: 0.11 },
-  { angle: 5.0, dist: 0.87, length: 0.2, width: 0.12 },
-  { angle: 5.8, dist: 0.94, length: 0.14, width: 0.1 },
-];
-
-
-/** The ball's own visual state - `x`/`y` are its true continuous position
- * (anywhere within the corridor, not snapped to a cell centre), and
- * `rollAngle` is a real no-slip rolling rotation so the splat's own drip
- * marks visibly swing as it travels, the cue that sells motion rather
- * than a flat disc sliding. */
-interface BallVisual {
-  x: number;
-  y: number;
-  rollAngle: number;
-}
-
-/** The ball is being actively driven in one cardinal direction, from a
- * completed swipe's own "flick" - it auto-clears itself the instant it
- * meets a wall, since there's no finger held down to keep it pressed
- * there (swipe is the *only* input now - see the removed directional pad
- * in this file's own history). `blocked` latches true the first frame a
- * wall stops further progress, so the contact squash/haptic fires once on
- * that transition rather than every frame. */
-interface MovingState {
-  dc: number;
-  dr: number;
-  blocked: boolean;
-}
-
-interface SquashPulse {
-  readonly axis: 'x' | 'y';
-  readonly at: number;
-  /** Which way the ball was travelling when it hit, so the board can jolt
-   * *with* the impact rather than in some arbitrary direction. */
-  readonly dc: number;
-  readonly dr: number;
-}
-
-/** One active cell's own static facts - which of its four sides continue
- * into more floor - precomputed once per maze (see the `activeCells`
- * `useMemo` in the main component) rather than re-derived from scratch on
- * every animation frame. A side that *isn't* open is a wall, and every
- * wall face and floor seam is decided from these four flags. */
 interface CellInfo {
   readonly key: string;
   readonly col: number;
@@ -287,76 +77,83 @@ interface CellInfo {
   readonly eastOpen: boolean;
 }
 
-/** The maze's own extruded border - the block's dark side face and the
- * rim sitting on top of it - fully static once a maze exists (position,
- * size and colour never depend on paint state or elapsed time, only on
- * `cells`/`cellSize`, which stay referentially stable across frames
- * within one maze). `React.memo`'d separately from the per-frame fill
- * layer so React skips re-rendering (and Skia skips re-painting) two full
- * passes over every active cell 60 times a second for no reason, rather
- * than only the handful of times a maze actually changes - which is also
- * what makes a second static pass affordable here at all.
- *
- * Every face is flat solid colour: no gradient, no blur, no drop shadow.
- * Pixel-sampling the reference confirmed its tiles and borders are
- * hard-edged flat colour with zero gradient and no diffuse shadow, and a
- * bevel/`BlurMask` pass was tried here twice and both times read as muddy
- * rather than dimensional. The depth instead comes from `SIDE_DEPTH`
- * offsetting the dark layer downward, so it reads as a block's side face
- * rather than a halo - shape, not shading. */
-/**
- * The far wall of the recessed channel - the only one actually drawn.
- *
- * A floor tile gets a wall face exactly when there's no floor above it.
- * Nothing is drawn on a tile's left, right or bottom edge. That is
- * measured, not a simplification: scanning straight through an interior
- * hole in the reference (`y=530`) shows floor running right up to the
- * white with only 2-3px of antialiasing on either side, and no grey at
- * all. Only the face *below* a wall block is ever visible.
- *
- * Drawing left/right faces as well was this screen's "weird, incomplete
- * corners" bug: a vertical face and a horizontal one meeting at a hole's
- * corner leave a notch wherever their ends don't agree, and no amount of
- * fiddling with the join fixes a face that shouldn't be there. With only
- * horizontal faces there are no L-junctions to get wrong.
- *
- * Fully static once a maze exists: which sides are walls depends only on
- * `cells`, never on paint state or elapsed time, so this whole pass is
- * `React.memo`'d and skips re-rendering on the ~30 paint events a second
- * a fast roll produces, let alone every frame.
- *
- * Every face is one flat colour. No gradient, no blur, no bevel: the
- * reference's faces are flat to within sampling noise, and the depth is
- * carried entirely by *which* edges get a face and how wide each is.
- */
-const MazeWallFaces = React.memo(function MazeWallFacesImpl({
+// ---------------------------------------------------------------------------
+// Static board layers - each memoised, so only paint events redraw them.
+// ---------------------------------------------------------------------------
+
+/** The paper slab: a flat top standing on an offset side face, with a
+ * hairline rim in the maze's paint and a rivet in each corner. */
+const MazeSlab = React.memo(function MazeSlabImpl({ width, height, paint }: { width: number; height: number; paint: Paint }): React.JSX.Element {
+  const top = height - SLAB_SIDE_PX;
+  const inset = 11;
+  return (
+    <>
+      <RoundedRect x={0} y={SLAB_SIDE_PX} width={width} height={top} r={SLAB_RADIUS} color={mazeColors.slabSide} />
+      <RoundedRect x={0} y={0} width={width} height={top} r={SLAB_RADIUS} color={mazeColors.slab} />
+      <RoundedRect x={1} y={1} width={width - 2} height={top - 2} r={SLAB_RADIUS - 1} color={paint[1]} style="stroke" strokeWidth={1.5} opacity={0.45} />
+      {[
+        [inset, inset],
+        [width - inset, inset],
+        [inset, top - inset],
+        [width - inset, top - inset],
+      ].map(([x, y]) => (
+        <Circle key={`${x}-${y}`} cx={x} cy={y} r={3} color={mazeColors.slabSide} />
+      ))}
+    </>
+  );
+});
+
+function floorTile({ key: k, col, row, eastOpen, southOpen }: CellInfo, cellSize: number, floor: string, seam: string, lip?: string): React.JSX.Element {
+  const x = col * cellSize;
+  const y = row * cellSize;
+  return (
+    <Group key={`floor-${k}`}>
+      <Rect x={x} y={y} width={cellSize} height={cellSize} color={floor} />
+      {lip && <Rect x={x} y={y} width={cellSize} height={2} color={lip} opacity={0.75} />}
+      {eastOpen && <Rect x={x + cellSize - SEAM_WIDTH / 2} y={y} width={SEAM_WIDTH} height={cellSize} color={seam} />}
+      {southOpen && <Rect x={x} y={y + cellSize - SEAM_WIDTH / 2} width={cellSize} height={SEAM_WIDTH} color={seam} />}
+    </Group>
+  );
+}
+
+const MazeFloorBase = React.memo(function MazeFloorBaseImpl({ cells, cellSize }: { cells: ReadonlyArray<CellInfo>; cellSize: number }): React.JSX.Element {
+  return <>{cells.map(cell => floorTile(cell, cellSize, mazeColors.socket, mazeColors.socketSeam))}</>;
+});
+
+/** Only the painted squares, over the base - one paint event redraws a
+ * handful of squares, not the whole floor. */
+const MazePaintedFloor = React.memo(function MazePaintedFloorImpl({
   cells,
   cellSize,
+  paintedRef,
+  paint,
 }: {
   cells: ReadonlyArray<CellInfo>;
   cellSize: number;
+  paintedRef: React.RefObject<Set<string>>;
+  paint: Paint;
+  // Only read to invalidate the memo on a paint event.
+  paintedVersion: number;
 }): React.JSX.Element {
-  const topFace = Math.round(cellSize * TOP_FACE_RATIO);
+  const seam = shade(paint[1], 0.9);
+  return <>{cells.filter(cell => paintedRef.current?.has(cell.key) ?? false).map(cell => floorTile(cell, cellSize, paint[1], seam, paint[0]))}</>;
+});
 
+/** The channel's far walls: a flat band above every square with no floor
+ * above it. Drawn after the floor, so they stand over it. */
+const MazeWallFaces = React.memo(function MazeWallFacesImpl({ cells, cellSize }: { cells: ReadonlyArray<CellInfo>; cellSize: number }): React.JSX.Element {
+  const face = Math.round(cellSize * TOP_FACE_RATIO);
   return (
     <>
       {cells.map(({ key: k, col, row, northOpen }) => {
         if (northOpen) return null;
         const x = col * cellSize;
-        // The face stands in the space *above* the tile, not on top of it.
-        // Measured: a floor tile directly below a wall is ~56px of a ~62px
-        // pitch in the reference - essentially its full height. Drawing the
-        // face inside the tile's own top third instead (the previous
-        // version) visibly cropped every tile that had a wall above it,
-        // so tiles came out at two different heights depending on their
-        // neighbours.
-        const y = row * cellSize - topFace;
-
+        const y = row * cellSize - face;
         return (
           <Group key={`wall-${k}`}>
-            <Rect x={x} y={y} width={cellSize} height={topFace} color={WALL_FACE} />
-            <Rect x={x} y={y} width={cellSize} height={LIP_PX} color={WALL_FACE_LIP} />
-            <Rect x={x} y={y + topFace - FOOT_PX} width={cellSize} height={FOOT_PX} color={WALL_FOOT} />
+            <Rect x={x} y={y} width={cellSize} height={face} color={mazeColors.wallFace} />
+            <Rect x={x} y={y} width={cellSize} height={LIP_PX} color={mazeColors.wallLip} />
+            <Rect x={x} y={y + face - FOOT_PX} width={cellSize} height={FOOT_PX} color={mazeColors.wallFoot} />
           </Group>
         );
       })}
@@ -364,430 +161,595 @@ const MazeWallFaces = React.memo(function MazeWallFacesImpl({
   );
 });
 
-/** One floor tile: the square plus whichever seams it owns. Shared by the
- * two floor layers below so an unpainted and a painted tile are guaranteed
- * to occupy exactly the same pixels - any drift between them would show as
- * a hairline of the wrong colour along a painted tile's edge. */
-function floorTile(
-  { key: k, col, row, eastOpen, southOpen }: CellInfo,
-  cellSize: number,
-  floor: string,
-  seam: string,
-): React.JSX.Element {
-  const x = col * cellSize;
-  const y = row * cellSize;
-  return (
-    <Group key={`floor-${k}`}>
-      <Rect x={x} y={y} width={cellSize} height={cellSize} color={floor} />
-      {eastOpen && <Rect x={x + cellSize - SEAM_WIDTH / 2} y={y} width={SEAM_WIDTH} height={cellSize} color={seam} />}
-      {southOpen && <Rect x={x} y={y + cellSize - SEAM_WIDTH / 2} width={cellSize} height={SEAM_WIDTH} color={seam} />}
-    </Group>
-  );
-}
+// ---------------------------------------------------------------------------
+// Chrome around the board - memoised, so the per-frame board render never
+// re-renders it.
+// ---------------------------------------------------------------------------
 
-/** A seam has to stay visible against whatever it is ruled on, so it steps
- * *away* from the floor rather than always darkening it: the reference's
- * seams are faintly lighter than its near-black floor and faintly darker
- * than its bright paint. Darkening in both cases would make the seam
- * disappear entirely on the dark floor. */
-function seamFor(floor: string, painted: boolean): string {
-  return painted ? shade(floor, 0.86) : shade(floor, 1.5);
-}
-
-/** The whole floor in its unpainted state. Depends only on the maze's own
- * shape, so it is `React.memo`'d on `cells` and rendered exactly once per
- * maze - never again, no matter how much gets painted on top of it. */
-const MazeFloorBase = React.memo(function MazeFloorBaseImpl({
-  cells,
-  cellSize,
+const BreakHeader = React.memo(function BreakHeaderImpl({
+  index,
+  count,
+  paints,
+  celebrating,
 }: {
-  cells: ReadonlyArray<CellInfo>;
-  cellSize: number;
+  index: number;
+  count: number;
+  paints: ReadonlyArray<Paint>;
+  celebrating: boolean;
 }): React.JSX.Element {
-  const seam = seamFor(FLOOR_UNPAINTED, false);
-  return <>{cells.map(cell => floorTile(cell, cellSize, FLOOR_UNPAINTED, seam))}</>;
-});
-
-/** Just the tiles that have actually been painted, drawn over the base.
- *
- * Split from the base deliberately. A fast roll crosses ~30 tiles a
- * second, and every one of those is a paint event that invalidates this
- * layer's memo - so what matters is how much work one invalidation costs.
- * Redrawing all ~44 tiles each time (the previous single-layer version)
- * meant re-running the whole floor 30 times a second during exactly the
- * moments the screen most needs to stay smooth; redrawing only the painted
- * ones costs a handful of tiles early in a maze and never more than the
- * whole floor at the very end, by which point the ball has stopped. */
-const MazePaintedFloor = React.memo(function MazePaintedFloorImpl({
-  cells,
-  cellSize,
-  paintedRef,
-  paintedVariant,
-}: {
-  cells: ReadonlyArray<CellInfo>;
-  cellSize: number;
-  paintedRef: React.RefObject<Set<string>>;
-  paintedVariant: [string, string, string];
-  // Only read to force this memo to invalidate on an actual paint event -
-  // the component itself reads live membership from `paintedRef.current`.
-  paintedVersion: number;
-}): React.JSX.Element {
-  const floor = paintedVariant[1];
-  const seam = seamFor(floor, true);
   return (
-    <>
-      {cells
-        .filter(cell => paintedRef.current?.has(cell.key) ?? false)
-        .map(cell => floorTile(cell, cellSize, floor, seam))}
-    </>
+    <View style={styles.headerCenter}>
+      <Text style={styles.kicker}>A LITTLE PAUSE</Text>
+      <Text style={styles.title}>{celebrating ? 'Beautifully done' : `Maze ${index + 1} of ${count}`}</Text>
+      <View style={styles.dots}>
+        {paints.map((paint, i) => {
+          const done = i < index || (i === index && celebrating);
+          const current = i === index && !celebrating;
+          return (
+            <View
+              key={i}
+              style={[styles.dot, done && { backgroundColor: paint[1], borderColor: paint[1] }, current && [styles.dotCurrent, { borderColor: paint[1] }]]}
+            />
+          );
+        })}
+      </View>
+    </View>
   );
 });
 
-/** The still-fading edge of a paint transition - an unpainted-tone copy of
- * just the tiles inside their own `PAINT_FADE_MS` window (typically 0-2 of
- * them at any instant, never all of them), fading *out* to reveal the
- * already-painted tile underneath. Same visual crossfade as interpolating
- * every tile's colour, at a fraction of the cost: this is the one part of
- * the floor that genuinely needs a fresh render each tick, so it is kept
- * as small as the passage of time allows. No seams of its own - the
- * settled layer beneath is already showing the correct ones. */
-function MazeFadeOverlay({
-  cells,
-  cellSize,
-  paintedAtRef,
-  now,
-}: {
-  cells: ReadonlyArray<CellInfo>;
-  cellSize: number;
-  paintedAtRef: React.RefObject<Map<string, number>>;
-  now: number;
-}): React.JSX.Element {
+const BreakProgress = React.memo(function BreakProgressImpl({ painted, total, paint }: { painted: number; total: number; paint: Paint }): React.JSX.Element {
+  const share = total > 0 ? painted / total : 0;
   return (
-    <>
-      {cells.map(({ key: k, col, row }) => {
-        const paintedAt = paintedAtRef.current?.get(k);
-        if (paintedAt === undefined) return null;
-        const elapsed = now - paintedAt;
-        if (elapsed <= 0 || elapsed >= PAINT_FADE_MS) return null;
-        const easeOut = 1 - (1 - elapsed / PAINT_FADE_MS) ** 3;
-
-        return (
-          <Rect
-            key={`fade-${k}`}
-            x={col * cellSize}
-            y={row * cellSize}
-            width={cellSize}
-            height={cellSize}
-            color={FLOOR_UNPAINTED}
-            opacity={1 - easeOut}
-          />
-        );
-      })}
-    </>
+    <View style={styles.progress}>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, { width: `${Math.round(share * 100)}%`, backgroundColor: paint[1] }]} />
+      </View>
+      <Text style={styles.progressCaption}>
+        SWIPE TO ROLL · {painted} OF {total} TILES
+      </Text>
+    </View>
   );
-}
+});
 
-/** Minimum finger travel (in dp) before a drag counts as a swipe - kept
- * comfortably above typical tap/tremor jitter, same threshold the shared
- * `useSwipeGesture` uses. */
-const SWIPE_THRESHOLD = 32;
-/** Minimum travel before the responder even engages, so a plain tap never
- * gets intercepted as a gesture in the first place. */
-const CAPTURE_THRESHOLD = 10;
-
-/**
- * A swipe gesture that fires the *instant* a drag crosses its own
- * threshold, mid-drag - not the shared `src/components/useSwipeGesture.ts`
- * (which only reports a direction on release, correct for Gravity's own
- * board where a swipe is one discrete, deliberate action). Continuous
- * rolling needs the opposite: the ball has to start moving the moment the
- * player commits to a direction, not after they've finished dragging and
- * lifted their finger - waiting for release added a real, full-gesture's
- * worth of input latency in front of every single move, which is exactly
- * what repeated "feels laggy" reports were describing. Reported at most
- * once per physical touch (`firedRef`), so a finger that keeps moving
- * further past the threshold doesn't retrigger.
- */
-function useImmediateSwipeGesture(onSwipe: (direction: Direction) => void): GestureResponderHandlers {
-  const onSwipeRef = useRef(onSwipe);
-  onSwipeRef.current = onSwipe;
-  const firedRef = useRef(false);
-
-  const responder = useMemo(
-    () =>
-      PanResponder.create({
-        onMoveShouldSetPanResponder: (_event, gesture) =>
-          Math.abs(gesture.dx) > CAPTURE_THRESHOLD || Math.abs(gesture.dy) > CAPTURE_THRESHOLD,
-        onPanResponderGrant: () => {
-          firedRef.current = false;
-        },
-        onPanResponderMove: (_event, gesture) => {
-          if (firedRef.current) return;
-          const { dx, dy } = gesture;
-          if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_THRESHOLD) return;
-          firedRef.current = true;
-          if (Math.abs(dx) > Math.abs(dy)) onSwipeRef.current(dx > 0 ? 'right' : 'left');
-          else onSwipeRef.current(dy > 0 ? 'down' : 'up');
-        },
-        // If the OS interrupts the gesture (e.g. an incoming call), simply
-        // drop it - there is no partial state to unwind.
-        onPanResponderTerminate: () => {},
-      }),
-    [],
-  );
-
-  return responder.panHandlers;
-}
+// ---------------------------------------------------------------------------
+// The screen
+// ---------------------------------------------------------------------------
 
 export function CalmingInterstitialScreen({ onDone }: CalmingInterstitialScreenProps): React.JSX.Element {
-  const { width, height } = useWindowDimensions();
-  const reducedMotion = useReducedMotion();
-  // Fit the bounding grid into whatever box is left over once the title
-  // above and the side margins are accounted for - width- or height-
-  // constrained, whichever is tighter. `NON_MAZE_HEIGHT` is an empirical
-  // budget for the title and margins stacked above/below it.
-  //
-  // The side margin is generous on purpose. An earlier pass let the board
-  // claim nearly the whole width on the theory that it should dominate,
-  // but the reference floats a noticeably smaller board in real white
-  // space, and bleeding to the screen edge is most of what made this
-  // screen feel cramped rather than composed.
-  const NON_MAZE_HEIGHT = 220;
-  const SIDE_MARGIN = 28;
-  // A wall face stands in the space above its tile, so the top row's face
-  // sits at a negative y in grid coordinates. The arena reserves one
-  // face's worth of headroom and the board is shifted down into it,
-  // otherwise the topmost wall gets clipped off by the canvas edge.
-  const cellSize = Math.min(
-    (width - SIDE_MARGIN * 2) / BOUNDING_COLS,
-    (height - NON_MAZE_HEIGHT) / (BOUNDING_ROWS + TOP_FACE_RATIO),
-  );
-  const topFacePx = Math.round(cellSize * TOP_FACE_RATIO);
-  const arenaWidth = cellSize * BOUNDING_COLS;
-  const arenaHeight = cellSize * BOUNDING_ROWS + topFacePx;
-
-  const levelRef = useRef(0);
-  const mazeRef = useRef<MazeShape>(useMemo(() => generateMaze(0), []));
-  const mazesCompletedRef = useRef(0);
-  const cellSizeRef = useRef(0);
-  cellSizeRef.current = cellSize;
-
-  const paintedRef = useRef<Set<string>>(new Set([cellKey(mazeRef.current.start.col, mazeRef.current.start.row)]));
-  // When each cell *became* painted - lets the fill colour cross-fade from
-  // the wall tone to the accent over `PAINT_FADE_MS` instead of snapping
-  // instantly, the "state changes that teleport" gap the animation skill's
-  // own audit flags as a missed opportunity. The start cell is seeded
-  // already-elapsed (`-PAINT_FADE_MS`) so the very first tile is simply
-  // painted from frame one, no fade-in for a cell the player never
-  // actually watched get crossed.
-  const paintedAtRef = useRef<Map<string, number>>(
-    new Map([[cellKey(mazeRef.current.start.col, mazeRef.current.start.row), -PAINT_FADE_MS]]),
-  );
-  const ballRef = useRef<BallVisual>({
-    ...cellCenter(mazeRef.current.start, cellSizeRef.current),
-    rollAngle: 0,
-  });
-  const movingRef = useRef<MovingState | null>(null);
-  const squashRef = useRef<SquashPulse | null>(null);
-  const celebratingRef = useRef(false);
-  const lastFrameRef = useRef(Date.now());
-  const mazeStartedAtRef = useRef(Date.now());
-
-  const [, setTick] = useState(0);
-  const forceRender = (): void => setTick(n => n + 1);
-  const startRef = useRef(Date.now());
+  const mazes = useMemo(() => relaxBreakMazes(breakSeed(), MAZE_TARGET_COUNT), []);
+  const paints = useMemo(() => {
+    const offset = Math.floor(Math.random() * MAZE_PAINTS.length);
+    return mazes.map((_m, i) => MAZE_PAINTS[(offset + i) % MAZE_PAINTS.length]);
+  }, [mazes]);
+  const [phase, setPhase] = useState<'intro' | 'play'>('intro');
   const doneRef = useRef(false);
-  // Bumped only when a *new* cell is actually marked painted (a handful of
-  // times per maze), not every frame - the prop `MazeSettledFillLayer`
-  // keys its own `React.memo` on, so that layer (every cell's long-term
-  // settled colour, bevel, dividers and top/bottom edge lines) only
-  // re-renders on an actual paint event instead of 60 times a second. The
-  // still-fading edge of that transition is drawn separately, per frame,
-  // by a much smaller overlay below.
-  const [paintedVersion, setPaintedVersion] = useState(0);
-
   const finish = (): void => {
     if (doneRef.current) return;
     doneRef.current = true;
     onDone();
   };
+  const bloom = useMemo(() => <PageBloom />, []);
 
-  /** Starts a fresh maze: resets the painted set, ball position and
-   * celebration flag. Called for the very first maze (implicitly, via the
-   * refs' own initializers above) and again every time one is completed. */
-  const startMaze = (level: number): void => {
-    levelRef.current = level;
-    const maze = generateMaze(level);
-    mazeRef.current = maze;
-    paintedRef.current = new Set([cellKey(maze.start.col, maze.start.row)]);
-    paintedAtRef.current = new Map([[cellKey(maze.start.col, maze.start.row), -PAINT_FADE_MS]]);
-    const center = cellCenter(maze.start, cellSizeRef.current);
-    ballRef.current = { x: center.x, y: center.y, rollAngle: 0 };
-    movingRef.current = null;
-    squashRef.current = null;
-    celebratingRef.current = false;
-    mazeStartedAtRef.current = Date.now();
+  return (
+    <View style={styles.container}>
+      {bloom}
+      {phase === 'intro' ? (
+        <BreatherIntro paint={paints[0]} mazeCount={mazes.length} onBegin={() => setPhase('play')} onSkip={finish} />
+      ) : (
+        <MazeBreak mazes={mazes} paints={paints} onDone={finish} />
+      )}
+    </View>
+  );
+}
+
+type HapticStep = { time: number; type: 'transient' | 'continuous'; duration?: number; intensity: number; sharpness: number };
+
+/**
+ * The roll, felt: a Core Haptics pattern built from the roll's own path
+ * and timing, played the instant the ball sets off so it stays in step
+ * with the native glide.
+ *
+ * iOS layers a low continuous rumble that builds as the ball gathers pace,
+ * a soft click at every tile seam, and a heavy thud at the wall - a ball
+ * rolling inside the phone. Android's motor plays one waveform at a time,
+ * so there the rumble and clicks alternate, ending on the same thud.
+ */
+function rollHaptics(plan: RollPlan, timing: RollTiming): HapticStep[] {
+  const end = timing.durationMs;
+  const seams = plan.entries.map(entry => timing.timeAt(entry.at));
+  const events: HapticStep[] = [];
+  if (Platform.OS === 'ios') {
+    const marks = [0, ...seams, end];
+    for (let i = 0; i < marks.length - 1; i += 1) {
+      const duration = marks[i + 1] - marks[i];
+      if (duration <= 1) continue;
+      events.push({ time: marks[i], type: 'continuous', duration, intensity: Math.min(0.55, 0.26 + i * 0.06), sharpness: 0.06 });
+    }
+    seams.forEach((time, i) => events.push({ time, type: 'transient', intensity: Math.min(0.6, 0.34 + i * 0.05), sharpness: 0.35 }));
+    if (plan.hitsWall) {
+      events.push({ time: end, type: 'transient', intensity: 1, sharpness: 0.6 });
+      events.push({ time: end, type: 'continuous', duration: 80, intensity: 0.7, sharpness: 0.08 });
+    }
+  } else {
+    const TICK = 12;
+    let from = 0;
+    seams.forEach(time => {
+      if (time - TICK - from > 4) events.push({ time: from, type: 'continuous', duration: time - TICK - from, intensity: 0.18, sharpness: 0.1 });
+      events.push({ time: Math.max(from, time - TICK), type: 'continuous', duration: TICK, intensity: 0.55, sharpness: 0.3 });
+      from = time;
+    });
+    if (end - from > 4) events.push({ time: from, type: 'continuous', duration: end - from, intensity: 0.22, sharpness: 0.1 });
+    if (plan.hitsWall) events.push({ time: end, type: 'continuous', duration: 50, intensity: 1, sharpness: 0.6 });
+  }
+  return events;
+}
+
+/** The ball dropping onto the board at the start of a maze - one firm
+ * landing and a small second bounce. */
+const DROP_HAPTICS: HapticStep[] = [
+  { time: 0, type: 'transient', intensity: 0.95, sharpness: 0.55 },
+  { time: 0, type: 'continuous', duration: 60, intensity: 0.6, sharpness: 0.08 },
+  { time: 200, type: 'transient', intensity: 0.4, sharpness: 0.4 },
+];
+
+interface ActiveRoll {
+  readonly plan: RollPlan;
+  readonly progress: Animated.Value;
+  readonly listener: string;
+  /** A turn swiped that the path never reached - tried off the wall. */
+  readonly queued: Heading | null;
+  painted: number;
+}
+
+interface BallNodes {
+  readonly x: Animated.AnimatedInterpolation<number> | Animated.Value;
+  readonly y: Animated.AnimatedInterpolation<number> | Animated.Value;
+  /** The trail's positions - the ball's path, a little behind it. */
+  readonly trail: ReadonlyArray<{ x: Animated.AnimatedInterpolation<number> | Animated.Value; y: Animated.AnimatedInterpolation<number> | Animated.Value }>;
+}
+
+/** Trail ghosts: how far behind the ball (squares), size, strength. */
+const TRAIL = [
+  { lag: 0.28, size: 0.82, alpha: 0.42 },
+  { lag: 0.56, size: 0.64, alpha: 0.26 },
+  { lag: 0.86, size: 0.46, alpha: 0.14 },
+];
+
+/** Paint flecks thrown back off a wall: angle off the rebound direction,
+ * distance and size as shares of the ball's radius. */
+const FLECKS = [
+  { angle: -1.05, dist: 1.5, size: 0.22 },
+  { angle: -0.45, dist: 1.9, size: 0.16 },
+  { angle: 0.1, dist: 1.6, size: 0.2 },
+  { angle: 0.6, dist: 2.0, size: 0.14 },
+  { angle: 1.1, dist: 1.45, size: 0.18 },
+];
+
+/**
+ * The ball: a glazed violet marble, drawn once and moved by the native
+ * driver.
+ *
+ * Shaded in flat steps, not gradients: a rim of reflected paint light
+ * along its lower right, the dark ink body, a lit upper body, a brighter
+ * core, a soft gloss and a hard specular point - the highlights fixed to
+ * the light, so they stay put while the surface turns under them. Two thin
+ * paint bands slide across its face as it travels (fading in at the back
+ * edge, out at the front), which is what makes it read as a sphere turning
+ * over rather than a disc sliding. A contact shadow sits beneath it, and
+ * a fading trail of paint follows it while it rolls.
+ */
+const MarbleBall = React.memo(function MarbleBallImpl({
+  radius,
+  paint,
+  nodes,
+  squashX,
+  squashY,
+  breathe,
+  lift,
+  motion,
+  marble,
+}: {
+  radius: number;
+  /** The marble's colours, from the shop: [rim, body, core, band]. */
+  marble: ReadonlyArray<string>;
+  paint: Paint;
+  nodes: BallNodes;
+  squashX: Animated.Value;
+  squashY: Animated.Value;
+  breathe: Animated.Value;
+  lift: Animated.Value;
+  motion: Animated.Value;
+}): React.JSX.Element {
+  const size = radius * 2;
+  const period = Math.PI * radius;
+  const band = radius * 0.26;
+  const slide = (node: BallNodes['x'], offset: number) => {
+    const phase = Animated.modulo(Animated.add(node, offset * period), period);
+    return {
+      translate: phase.interpolate({ inputRange: [0, period], outputRange: [-radius * 1.2, radius * 1.2] }),
+      opacity: phase.interpolate({ inputRange: [0, period * 0.25, period * 0.5, period * 0.75, period], outputRange: [0, 0.5, 0.62, 0.5, 0] }),
+    };
+  };
+  const across = slide(nodes.x, 0.3);
+  const down = slide(nodes.y, 0.72);
+  const circle = (d: number) => ({ width: d, height: d, borderRadius: d / 2 });
+  const raised = lift.interpolate({ inputRange: [0, 1], outputRange: [0, -radius * 3] });
+
+  return (
+    <>
+      {TRAIL.map((ghost, i) => (
+        <Animated.View
+          key={i}
+          pointerEvents="none"
+          style={[
+            styles.ball,
+            circle(size * ghost.size),
+            {
+              left: -radius * ghost.size,
+              top: -radius * ghost.size,
+              backgroundColor: paint[1],
+              opacity: Animated.multiply(motion, ghost.alpha),
+              transform: [{ translateX: nodes.trail[i].x }, { translateY: nodes.trail[i].y }],
+            },
+          ]}
+        />
+      ))}
+      <Animated.View pointerEvents="none" style={[styles.ball, { left: -radius, top: -radius, width: size, height: size, transform: [{ translateX: nodes.x }, { translateY: nodes.y }] }]}>
+        <Animated.View
+          style={[
+            styles.ballShadow,
+            { width: size * 1.02, height: size * 0.5, borderRadius: radius, left: -radius * 0.01, top: radius * 1.28 },
+            {
+              opacity: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 0.25] }),
+              transform: [{ scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 0.55] }) }],
+            },
+          ]}
+        />
+        <Animated.View
+          style={[
+            circle(size),
+            {
+              transform: [
+                { translateY: raised },
+                { scale: lift.interpolate({ inputRange: [0, 1], outputRange: [1, 1.22] }) },
+                { scaleX: squashX },
+                { scaleY: squashY },
+                { scale: breathe },
+              ],
+            },
+          ]}
+        >
+          <View style={[circle(size), styles.ballClip, { backgroundColor: paint[0] }]}>
+            <View style={[styles.layer, circle(size), { left: -radius * 0.08, top: -radius * 0.08, backgroundColor: marble[0] ?? mazeColors.ball }]} />
+            <View style={[styles.layer, circle(size * 0.84), { left: radius * 0.02, top: radius * 0.0, backgroundColor: marble[1] ?? shade(mazeColors.ball, 1.5) }]} />
+            <View style={[styles.layer, circle(size * 0.5), { left: radius * 0.22, top: radius * 0.18, backgroundColor: marble[2] ?? shade(mazeColors.ball, 1.95) }]} />
+            <Animated.View style={[styles.layer, styles.bandAcross, { left: radius - band / 2, width: band, height: size, backgroundColor: paint[0], opacity: across.opacity, transform: [{ translateX: across.translate }] }]} />
+            <Animated.View style={[styles.layer, styles.bandDown, { top: radius - band / 2, height: band, width: size, backgroundColor: paint[0], opacity: down.opacity, transform: [{ translateY: down.translate }] }]} />
+          </View>
+          <View style={[styles.layer, styles.ballGloss, { width: radius * 0.66, height: radius * 0.4, borderRadius: radius * 0.2, left: radius * 0.34, top: radius * 0.36 }]} />
+          <View style={[styles.layer, styles.ballSpecular, circle(radius * 0.2), { left: radius * 0.5, top: radius * 0.46 }]} />
+        </Animated.View>
+      </Animated.View>
+    </>
+  );
+});
+
+function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>; paints: ReadonlyArray<Paint>; onDone: () => void }): React.JSX.Element {
+  // The marble the player wears (see the shop) - violet by default.
+  const marble = useEquipped('ball');
+  const { width, height } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
+  const reducedMotion = useReducedMotion();
+
+  // The box the board may fill, once the header above and the progress
+  // line below have their room.
+  const boxWidth = width - theme.spacing.lg * 2 - STAGE_PAD * 2;
+  const boxHeight = Math.max(220, height - insets.top - insets.bottom - 330);
+  const fitCell = (maze: MazeShape): number => {
+    const cols = Math.max(maze.cols, MIN_FIT_COLS) + SLAB_PAD_RATIO * 2;
+    const rows = Math.max(maze.rows, MIN_FIT_ROWS) + SLAB_PAD_RATIO * 2 + TOP_FACE_RATIO;
+    return Math.floor(Math.min(boxWidth / cols, (boxHeight - SLAB_SIDE_PX) / rows));
+  };
+
+  const [level, setLevel] = useState(0);
+  const maze = mazes[level % mazes.length];
+  const paint = paints[level % paints.length];
+  const cellSize = fitCell(maze);
+  const cellRef = useRef(cellSize);
+  cellRef.current = cellSize;
+  const mazeRef = useRef(maze);
+  mazeRef.current = maze;
+
+  const startPoint = (m: MazeShape): Point => ({ x: m.start.col + 0.5, y: m.start.row + 0.5 });
+  // Empty until the ball lands: the first square is painted by the ball
+  // dropping onto it, not handed over pre-coloured - a painted square
+  // under a ball that had not moved yet read as a bug.
+  const paintedRef = useRef<Set<string>>(new Set());
+  const [paintedVersion, setPaintedVersion] = useState(0);
+  const [celebrating, setCelebrating] = useState(false);
+  /** Swipes wait until the ball has landed, and stop once a maze is done. */
+  const readyRef = useRef(false);
+  /** Where the ball rests, in squares - valid whenever no roll is live. */
+  const restRef = useRef<Point>(startPoint(maze));
+  const rollRef = useRef<ActiveRoll | null>(null);
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+
+  const squashX = useRef(new Animated.Value(1)).current;
+  const squashY = useRef(new Animated.Value(1)).current;
+  const breathe = useRef(new Animated.Value(1)).current;
+  const lift = useRef(new Animated.Value(1)).current;
+  const motion = useRef(new Animated.Value(0)).current;
+  const impact = useRef(new Animated.Value(1)).current;
+  const boardIn = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  const [impactAt, setImpactAt] = useState<{ x: number; y: number; dc: number; dr: number; n: number } | null>(null);
+
+  const restingNodes = (p: Point, cell: number): BallNodes => {
+    const x = new Animated.Value(p.x * cell);
+    const y = new Animated.Value(p.y * cell);
+    return { x, y, trail: TRAIL.map(() => ({ x, y })) };
+  };
+  const [nodes, setNodes] = useState<BallNodes>(() => restingNodes(startPoint(maze), cellSize));
+
+  // A slow breath while the ball rests - alive, not paused. Native, and
+  // held still while it rolls.
+  const breathingRef = useRef<Animated.CompositeAnimation | null>(null);
+  const startBreathing = (): void => {
+    breathingRef.current?.stop();
+    const depth = reducedMotion ? 1.008 : 1.03;
+    breathingRef.current = Animated.loop(
+      Animated.sequence([
+        Animated.timing(breathe, { toValue: depth, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+      ]),
+    );
+    breathingRef.current.start();
+  };
+  const stopBreathing = (): void => {
+    breathingRef.current?.stop();
+    breathingRef.current = null;
+    breathe.setValue(1);
+  };
+
+  const paintKey = (key: string): void => {
+    if (paintedRef.current.has(key)) return;
+    paintedRef.current.add(key);
     setPaintedVersion(v => v + 1);
   };
 
-  /** Starts the ball rolling continuously in one cardinal direction from a
-   * completed swipe - the only input this screen has, now that the gauge
-   * and directional pad are gone. The roll is a "flick": it auto-clears
-   * itself the instant it meets a wall, since there's no finger held down
-   * to keep it pressed there. A direction that's blocked immediately (no
-   * open passage at all from the ball's current cell) still gets a felt
-   * response - the squash pulse and a soft haptic - rather than doing
-   * nothing at all. A new swipe overrides whatever direction is currently
-   * driving, so the player can redirect mid-roll without waiting for a
-   * wall. Reads/writes only refs, so it's safe to call from the swipe
-   * gesture regardless of which render it was captured from. */
-  const tryStartMove = (dc: number, dr: number): void => {
-    if (celebratingRef.current) return;
+  const showImpact = (x: number, y: number, dc: number, dr: number): void => {
+    if (reducedMotion) return;
+    setImpactAt(prev => ({ x, y, dc, dr, n: (prev?.n ?? 0) + 1 }));
+    impact.setValue(0);
+    Animated.timing(impact, { toValue: 1, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+  };
 
-    const maze = mazeRef.current;
-    const cellPx = cellSizeRef.current;
-    const cell = cellAt(ballRef.current, cellPx);
-    if (!hasOpenEdge(maze, cell, dc, dr)) {
-      squashRef.current = { axis: dc !== 0 ? 'x' : 'y', at: Date.now(), dc, dr };
-      triggerFeedback('mazeContact');
+  const squash = (alongX: boolean, depth: number): void => {
+    Animated.sequence([
+      Animated.parallel([
+        Animated.timing(alongX ? squashX : squashY, { toValue: 1 - depth, duration: 55, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(alongX ? squashY : squashX, { toValue: 1 + depth * 0.8, duration: 55, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+      ]),
+      Animated.parallel([
+        Animated.spring(squashX, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 14 }),
+        Animated.spring(squashY, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 14 }),
+      ]),
+    ]).start();
+  };
+
+  /** The ball drops onto the start square: it falls in, lands with a thud
+   * that paints the square, and settles with one small bounce. */
+  const dropIn = (m: MazeShape): void => {
+    readyRef.current = false;
+    const key = `${m.start.col}:${m.start.row}`;
+    const land = (): void => {
+      paintKey(key);
+      playHapticEvents(DROP_HAPTICS);
+      const p = startPoint(m);
+      showImpact(p.x, p.y + BALL_RADIUS, 0, 1);
+      squash(false, 0.2);
+      readyRef.current = true;
+      startBreathing();
+    };
+    if (reducedMotion) {
+      lift.setValue(0);
+      land();
       return;
     }
+    lift.setValue(1);
+    Animated.timing(lift, { toValue: 0, duration: 340, delay: 260, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => {
+      land();
+      Animated.sequence([
+        Animated.timing(lift, { toValue: 0.1, duration: 100, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(lift, { toValue: 0, duration: 100, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+      ]).start();
+    });
+  };
 
-    // The corridor is exactly one cell wide, so the axis *perpendicular*
-    // to travel has no meaningful "sub-cell" position - snap it to this
-    // cell's own centre the moment a new direction starts, the same way a
-    // real ball settles into a groove before rolling further along it.
-    const center = cellCenter(cell, cellPx);
-    if (dc !== 0) ballRef.current.y = center.y;
-    else ballRef.current.x = center.x;
-
-    movingRef.current = { dc, dr, blocked: false };
+  const enterBoard = (): void => {
+    boardIn.setValue(reducedMotion ? 1 : 0);
+    Animated.timing(boardIn, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   };
 
   useEffect(() => {
-    let frame: number;
-
-    const tick = (): void => {
-      const now = Date.now();
-      // Capped well below "one full cell per frame" at the current roll
-      // speed (`ROLL_CELLS_PER_SEC * dtCap` has to stay under 1) - a
-      // frame-time spike (a real stall, not just an ordinary slow frame)
-      // would otherwise let the ball's proposed position jump clean over
-      // a one-cell-wide wall before this same tick's own collision check
-      // ever runs, tunnelling through it undetected instead of stopping.
-      const dt = Math.min((now - lastFrameRef.current) / 1000, 0.018);
-      lastFrameRef.current = now;
-      const moving = movingRef.current;
-      const cellPx = cellSizeRef.current;
-      const maze = mazeRef.current;
-
-      if (moving && !celebratingRef.current) {
-        const ball = ballRef.current;
-        const axisKey: 'x' | 'y' = moving.dc !== 0 ? 'x' : 'y';
-        const dir = moving.dc !== 0 ? moving.dc : moving.dr;
-        const speed = cellPx * ROLL_CELLS_PER_SEC;
-        const cell = cellAt(ball, cellPx);
-        const cellIndex = axisKey === 'x' ? cell.col : cell.row;
-        const rawBoundary = (dir > 0 ? cellIndex + 1 : cellIndex) * cellPx;
-        const wallAhead = !hasOpenEdge(maze, cell, moving.dc, moving.dr);
-        // When a wall is ahead, the ball has to stop with its own *edge*
-        // touching it, not its centre - stopping the centre exactly on the
-        // cell line (the old behaviour) left a full radius of the ball
-        // visually poking into the wall cell, reading as "stuck halfway
-        // through the wall". Pulling the stop line back into the current
-        // cell by one radius fixes that *and*, as a side effect, keeps the
-        // stop position safely inside the valid cell's own bounds - no
-        // longer landing exactly on the grid line where `cellAt`'s
-        // `Math.floor` would misread it as the far (invalid) cell and
-        // report every direction blocked forever. An *open* passage needs
-        // no pullback: the ball's centre can travel straight through into
-        // the walkable neighbour.
-        const ballRadiusPx = ballRadiusFor(cellPx);
-        const stopLine = wallAhead ? rawBoundary - dir * ballRadiusPx : rawBoundary;
-        const current = axisKey === 'x' ? ball.x : ball.y;
-        const proposed = current + dir * speed * dt;
-        const crossesBoundary = dir > 0 ? proposed >= stopLine : proposed <= stopLine;
-        const blockedNow = crossesBoundary && wallAhead;
-
-        if (blockedNow) {
-          if (axisKey === 'x') ball.x = stopLine;
-          else ball.y = stopLine;
-        } else {
-          if (axisKey === 'x') ball.x = proposed;
-          else ball.y = proposed;
-          ball.rollAngle += (Math.abs(dir) * speed * dt) / (cellPx * BALL_RADIUS_RATIO);
-        }
-
-        if (blockedNow && !moving.blocked) {
-          squashRef.current = { axis: axisKey, at: now, dc: moving.dc, dr: moving.dr };
-          triggerFeedback('mazeContact');
-          movingRef.current = null;
-        }
-        if (movingRef.current) movingRef.current.blocked = blockedNow;
-
-        const currentCell = cellAt(ball, cellPx);
-        const currentKey = cellKey(currentCell.col, currentCell.row);
-        if (!paintedRef.current.has(currentKey)) {
-          paintedAtRef.current.set(currentKey, now);
-          paintedRef.current.add(currentKey);
-          setPaintedVersion(v => v + 1);
-        }
-
-        if (paintedRef.current.size >= maze.active.size) {
-          movingRef.current = null;
-          celebratingRef.current = true;
-          triggerFeedback('mazeSolve');
-          mazesCompletedRef.current += 1;
-          if (mazesCompletedRef.current >= MAZE_TARGET_COUNT) {
-            setTimeout(() => finish(), CELEBRATE_PAUSE_MS);
-          } else {
-            setTimeout(() => startMaze(levelRef.current + 1), CELEBRATE_PAUSE_MS);
-          }
-        }
-      }
-
-      forceRender();
-
-      if (now - startRef.current >= SAFETY_DURATION_MS) {
-        finish();
-        return;
-      }
-      frame = requestAnimationFrame(tick);
+    enterBoard();
+    dropIn(maze);
+    const timers = timersRef.current;
+    const safety = setTimeout(onDone, SAFETY_DURATION_MS);
+    return () => {
+      timers.forEach(clearTimeout);
+      clearTimeout(safety);
+      rollRef.current?.progress.removeAllListeners();
+      breathingRef.current?.stop();
+      stopHaptics();
     };
-
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // `useImmediateSwipeGesture` (this file's own, not the shared
-  // `useSwipeGesture`) only engages once real movement crosses its own
-  // threshold, so a tap always passes through to whatever's underneath -
-  // the exact "don't steal taps from touchables sharing this screen"
-  // gotcha this project already solved once for Gravity's own board (an
-  // unconditional `onStartShouldSetPanResponder: () => true` on the outer
-  // container had swallowed presses meant for the Skip button). A
-  // completed swipe starts a "flick" that auto-clears itself on wall
-  // contact, since there's no finger left down once the gesture ends.
-  const handleSwipe = (direction: Direction): void => {
-    if (direction === 'up') tryStartMove(0, -1);
-    else if (direction === 'down') tryStartMove(0, 1);
-    else if (direction === 'left') tryStartMove(-1, 0);
-    else tryStartMove(1, 0);
+  const startMaze = (next: number): void => {
+    const m = mazes[next % mazes.length];
+    const cell = fitCell(m);
+    paintedRef.current = new Set();
+    restRef.current = startPoint(m);
+    rollRef.current = null;
+    cellRef.current = cell;
+    setLevel(next);
+    setCelebrating(false);
+    setImpactAt(null);
+    setNodes(restingNodes(startPoint(m), cell));
+    enterBoard();
+    dropIn(m);
   };
-  const swipeHandlers = useImmediateSwipeGesture(handleSwipe);
 
-  const now = Date.now();
-  const ball = ballRef.current;
-  const maze = mazeRef.current;
-  const paintedVariant = PAINTED_VARIANTS[levelRef.current % PAINTED_VARIANTS.length];
+  /** Paints every square the live roll has entered by distance `upTo`. */
+  const paintUpTo = (roll: ActiveRoll, upTo: number): void => {
+    while (roll.painted < roll.plan.entries.length && roll.plan.entries[roll.painted].at <= upTo + 1e-6) {
+      paintKey(roll.plan.entries[roll.painted].key);
+      roll.painted += 1;
+    }
+  };
 
-  // Precomputed once per maze (this reference stays stable across every
-  // frame within one maze, only changing when `startMaze` swaps in a new
-  // one) - both so the per-frame fill pass below doesn't re-derive
-  // col/row/open-edges from scratch 60 times a second, and so
-  // `MazeWallFaces` (which takes this same array as a prop) can
-  // `React.memo` its way out of re-rendering every frame too.
+  const endRoll = (roll: ActiveRoll): void => {
+    roll.progress.removeListener(roll.listener);
+    Animated.timing(motion, { toValue: 0, duration: 200, useNativeDriver: true }).start();
+  };
+
+  const land = (roll: ActiveRoll): void => {
+    rollRef.current = null;
+    endRoll(roll);
+    paintUpTo(roll, roll.plan.length);
+    restRef.current = roll.plan.end;
+    const { plan } = roll;
+
+    if (plan.hitsWall) {
+      squash(plan.heading.dc !== 0, 0.24);
+      showImpact(plan.end.x + plan.heading.dc * BALL_RADIUS, plan.end.y + plan.heading.dr * BALL_RADIUS, plan.heading.dc, plan.heading.dr);
+    }
+
+    if (paintedRef.current.size >= mazeRef.current.active.size) {
+      readyRef.current = false;
+      setCelebrating(true);
+      triggerFeedback('mazeSolve');
+      const last = level + 1 >= mazes.length;
+      timersRef.current.push(setTimeout(() => (last ? onDone() : startMaze(level + 1)), CELEBRATE_PAUSE_MS));
+      return;
+    }
+
+    // A turn swiped on the way in that the path never reached: taken off
+    // the wall, as soon as the ball lands.
+    const queued = roll.queued;
+    if (queued && (queued.dc !== plan.heading.dc || queued.dr !== plan.heading.dr)) {
+      const at = plan.end;
+      if (hasOpenEdge(mazeRef.current, { col: Math.floor(at.x), row: Math.floor(at.y) }, queued.dc, queued.dr)) {
+        rollFrom(at, queued, null, true);
+        return;
+      }
+    }
+    startBreathing();
+  };
+
+  /** Sets the ball off along a planned path. */
+  const rollFrom = (from: Point, heading: Heading, queued: Heading | null, fromRest: boolean): void => {
+    const plan = planRoll(mazeRef.current, from, heading, queued, BALL_RADIUS);
+    if (plan.length < 0.02) {
+      // Blocked where it stands: a small nudge against the wall, felt.
+      restRef.current = plan.end;
+      if (fromRest) {
+        squash(heading.dc !== 0, 0.1);
+        triggerFeedback('mazeContact');
+      }
+      startBreathing();
+      return;
+    }
+    stopBreathing();
+    const cell = cellRef.current;
+    const timing = rollTiming(plan.length, ROLL_SPEED, ROLL_RAMP, fromRest);
+    const progress = new Animated.Value(0);
+    const along = (lag: number) => {
+      const behind = lag > 0 ? Animated.subtract(progress, lag) : progress;
+      const range = (values: number[]) => ({ inputRange: [...plan.distances], outputRange: values, extrapolate: 'clamp' as const });
+      return {
+        x: (behind as Animated.Value).interpolate<number>(range(plan.points.map(p => p.x * cell))),
+        y: (behind as Animated.Value).interpolate<number>(range(plan.points.map(p => p.y * cell))),
+      };
+    };
+    // Paint follows the ball's real, native position - not a JS clock that
+    // runs ahead of it while the native animation is still starting.
+    const roll: ActiveRoll = { plan, progress, queued, painted: 0, listener: '' };
+    (roll as { listener: string }).listener = progress.addListener(({ value }) => paintUpTo(roll, value));
+    rollRef.current = roll;
+    const head = along(0);
+    setNodes({ ...head, trail: TRAIL.map(ghost => along(ghost.lag)) });
+    motion.setValue(1);
+    Animated.timing(progress, { toValue: plan.length, duration: timing.durationMs, easing: timing.easing, useNativeDriver: true }).start(({ finished }) => {
+      if (finished && rollRef.current === roll) land(roll);
+    });
+    stopHaptics();
+    playHapticEvents(rollHaptics(plan, timing));
+  };
+
+  /** A swipe: set off from rest, or - mid-roll - reverse, or turn. */
+  const swipe = (heading: Heading): void => {
+    if (!readyRef.current) return;
+    const live = rollRef.current;
+    if (!live) {
+      rollFrom(restRef.current, heading, null, true);
+      return;
+    }
+
+    live.progress.stopAnimation(distance => {
+      if (rollRef.current !== live) return;
+      paintUpTo(live, distance);
+      // Which way it is going right now: the path segment it is on.
+      const { points, distances } = live.plan;
+      const i = Math.max(1, distances.findIndex(d => d >= distance));
+      const a = points[i - 1];
+      const b = points[Math.min(i, points.length - 1)];
+      const current: Heading = { dc: Math.sign(b.x - a.x), dr: Math.sign(b.y - a.y) };
+      const here = pointAt(live.plan, distance);
+      rollRef.current = null;
+      live.progress.removeListener(live.listener);
+      stopHaptics();
+      if (current.dc === heading.dc && current.dr === heading.dr) {
+        // Same way: carry on, at speed, from here.
+        rollFrom(here, heading, live.queued, false);
+        return;
+      }
+      if (current.dc === -heading.dc && current.dr === -heading.dr) {
+        rollFrom(here, heading, null, true);
+        return;
+      }
+      // A turn: right here if the ball is at, or only just past, this
+      // square's centre; otherwise at the next square that opens that way.
+      const col = Math.floor(here.x);
+      const row = Math.floor(here.y);
+      const past = current.dc !== 0 ? (here.x - (col + 0.5)) * current.dc : (here.y - (row + 0.5)) * current.dr;
+      if (past >= 0 && past <= TURN_GRACE && hasOpenEdge(mazeRef.current, { col, row }, heading.dc, heading.dr)) {
+        rollFrom({ x: col + 0.5, y: row + 0.5 }, heading, null, false);
+        return;
+      }
+      rollFrom(here, current, heading, false);
+    });
+  };
+
+  const handleDirection = (direction: Direction): void => {
+    if (direction === 'up') swipe({ dc: 0, dr: -1 });
+    else if (direction === 'down') swipe({ dc: 0, dr: 1 });
+    else if (direction === 'left') swipe({ dc: -1, dr: 0 });
+    else swipe({ dc: 1, dr: 0 });
+  };
+  // Read across the whole screen, fired mid-drag - see `useSwipeGesture`.
+  const swipeHandlers = useSwipeGesture(handleDirection);
+  const onAccessibilityAction = (event: AccessibilityActionEvent) => {
+    const direction = directionForAccessibilityAction(event.nativeEvent.actionName);
+    if (direction) handleDirection(direction);
+  };
+
+  const topFacePx = Math.round(cellSize * TOP_FACE_RATIO);
+  const pad = Math.round(cellSize * SLAB_PAD_RATIO);
+  const slabWidth = cellSize * maze.cols + pad * 2;
+  const slabHeight = cellSize * maze.rows + topFacePx + pad * 2 + SLAB_SIDE_PX;
+  const radius = cellSize * BALL_RADIUS;
+
   const activeCells = useMemo<CellInfo[]>(
     () =>
       Array.from(maze.active).map(k => {
@@ -804,248 +766,254 @@ export function CalmingInterstitialScreen({ onDone }: CalmingInterstitialScreenP
     [maze],
   );
 
-  const squashAge = squashRef.current ? now - squashRef.current.at : Infinity;
-  const squashActive = squashRef.current !== null && squashAge < SQUASH_MS;
-  let squashX = 1;
-  let squashY = 1;
-  if (squashActive && squashRef.current) {
-    const pulse = Math.sin((squashAge / SQUASH_MS) * Math.PI) * SQUASH_MAGNITUDE;
-    if (squashRef.current.axis === 'x') {
-      squashX = 1 - pulse;
-      squashY = 1 + pulse;
-    } else {
-      squashX = 1 + pulse;
-      squashY = 1 - pulse;
-    }
-  }
-
-  // The whole board jolts a few pixels in the direction the ball was
-  // travelling when it hit, then settles - the cue that sells a heavy
-  // thing loose inside the device rather than a sprite sliding on glass.
-  // It rides the squash pulse's own clock and envelope, so the board's
-  // recoil and the ball's deformation are visibly the same event. Damped
-  // rather than merely scaled under reduced motion, since this is an
-  // impact, and an impact that doesn't move at all reads as a dropped
-  // frame.
-  let jolt = 0;
-  if (squashActive) {
-    jolt = Math.sin((squashAge / SQUASH_MS) * Math.PI) * IMPACT_JOLT_PX * (reducedMotion ? 0.35 : 1);
-  }
-  const joltX = squashRef.current ? squashRef.current.dc * jolt : 0;
-  const joltY = squashRef.current ? squashRef.current.dr * jolt : 0;
-
-  const ballRadius = cellSize * BALL_RADIUS_RATIO;
-
-  // A slow, gentle "breathing" pulse while the ball just sits there - the
-  // one cue that reads as "alive" rather than "paused", not a strong
-  // effect (this app's own reduced-motion convention is "gentler, not
-  // zero" - the pulse still runs under reduced motion, just at a fraction
-  // of the amplitude, rather than freezing solid). Only while not being
-  // actively driven, so it never fights the real wall-contact squash.
-  const idleBreathe = movingRef.current ? 1 : 1 + Math.sin(now / 480) * (reducedMotion ? 0.008 : 0.03);
-  const idleSway = movingRef.current ? 0 : Math.sin(now / 620) * (reducedMotion ? 0.03 : 0.12);
-
-  // A fresh maze scales gently up from ~0.93 with a matching fade-in
-  // rather than snapping straight to full size - the "scale(0.9-0.97) +
-  // opacity, never scale(0)" entrance convention this app's own animation
-  // guidelines call for. Skipped (both values pinned to 1) under reduced
-  // motion rather than merely shortened, since a fresh maze appearing is a
-  // one-off per break, not a frequent action worth softening instead.
-  const introT = reducedMotion ? 1 : Math.min((now - mazeStartedAtRef.current) / 300, 1);
-  const introEase = 1 - (1 - introT) ** 3;
-  const introScale = reducedMotion ? 1 : 0.93 + 0.07 * introEase;
-  const introOpacity = reducedMotion ? 1 : 0.35 + 0.65 * introEase;
+  const rule = useMemo(() => <GeometricRule variant="stage" style={styles.stageRule} />, []);
 
   return (
-    <View style={styles.container}>
-      <PageBloom />
-      <PressableScale
-        accessibilityRole="button"
-        accessibilityLabel="Skip"
-        onPress={finish}
-        containerStyle={styles.skipPosition}
-        style={({ pressed }) => [styles.skip, pressed && styles.skipPressed]}
-      >
-        <Text style={styles.skipText}>Skip</Text>
-      </PressableScale>
-
-      <Text style={styles.mazeLabel}>LEVEL {levelRef.current + 1}</Text>
-
-      <View style={{ width: arenaWidth, height: arenaHeight }} {...swipeHandlers}>
-        <Canvas style={StyleSheet.absoluteFill}>
-          <Group
-            opacity={introOpacity}
-            transform={[
-              { translateX: arenaWidth / 2 + joltX },
-              { translateY: arenaHeight / 2 + joltY },
-              { scale: introScale },
-              { translateX: -arenaWidth / 2 },
-              { translateY: -arenaHeight / 2 },
-              // Applied to the geometry first (Skia walks this array
-              // outermost-first), dropping the whole board into the
-              // headroom reserved for the top row's wall face.
-              { translateY: topFacePx },
-            ]}
-          >
-            {/* Back to front: the floor of the channel, the brief paint
-                crossfade riding on top of it, then the channel's own
-                walls. The walls go last so they always occlude the floor
-                (and the fading tile) rather than the other way round - the
-                whole illusion is that they stand above it. See each
-                component's own doc comment for what it draws and why it's
-                split out the way it is. */}
-            <MazeFloorBase cells={activeCells} cellSize={cellSize} />
-            <MazePaintedFloor cells={activeCells} cellSize={cellSize} paintedRef={paintedRef} paintedVariant={paintedVariant} paintedVersion={paintedVersion} />
-            <MazeFadeOverlay cells={activeCells} cellSize={cellSize} paintedAtRef={paintedAtRef} now={now} />
-            <MazeWallFaces cells={activeCells} cellSize={cellSize} />
-
-            {/* The ball: a plain, properly round sphere - premium glossy
-                marble, not an irregular blob. A soft blurred contact
-                shadow, a real sphere-like radial gradient body (light
-                catching one corner, falling off toward the rim), a
-                fixed bright specular highlight plus a softer secondary
-                sheen, and a small rotating fleck (tied to `rollAngle`)
-                that reads as a real no-slip roll rather than a flat disc
-                sliding. `idleBreathe` is a gentle uniform "still alive"
-                pulse while the ball just sits there - uniform on both
-                axes, so it stays round, not the old permanent squash
-                ellipse. `squashX`/`squashY` is the only thing that ever
-                turns it briefly oval, on an actual wall arrival, springing
-                straight back round after. */}
-            {/* A layered fake-soft shadow (two flat, slightly offset
-                circles at decreasing opacity) instead of a real
-                `BlurMask` - the maze's own shadow can afford a genuine
-                GPU blur pass because `MazeStaticLayers` only repaints it
-                on an actual new maze, but the ball moves (and this shadow
-                is redrawn) on literally every frame it's rolling; a real
-                blur filter running 60 times a second for one continuously-
-                moving shape is real, avoidable GPU cost, not a style
-                choice - two flat circles read as "soft" without it. */}
-            <Circle cx={ball.x + 3} cy={ball.y + 5} r={ballRadius * 1.08 * idleBreathe} color="rgba(0,0,0,0.12)" />
-            <Circle cx={ball.x + 2} cy={ball.y + 3} r={ballRadius * idleBreathe} color="rgba(0,0,0,0.22)" />
-            {/* The splash burst is an *impact* effect, not the ball's own
-                resting shape - it only exists for `SQUASH_MS` right after
-                a wall contact (reusing the same squash pulse's own
-                timing/state rather than a second animation clock), and
-                bursts outward with a fading, ease-out cubic progress
-                (`1 - (1-t)**3` - the same "starts fast, settles" curve
-                this app's other entrances use) rather than sitting there
-                unchanging. */}
-            {squashActive && (
-              <Group transform={[{ translateX: ball.x }, { translateY: ball.y }]}>
-                {SPIKE_NUBS.map((nub, i) => {
-                  const t = squashAge / SQUASH_MS;
-                  const easeOut = 1 - (1 - t) ** 3;
-                  const burstDist = nub.dist * (1 + easeOut * 0.9);
-                  return (
-                    <Group
-                      key={i}
-                      transform={[
-                        { translateX: Math.cos(nub.angle) * ballRadius * burstDist },
-                        { translateY: Math.sin(nub.angle) * ballRadius * burstDist },
-                        { rotate: nub.angle },
-                        { scaleX: nub.length * (1 - easeOut * 0.3) },
-                        { scaleY: nub.width * (1 - easeOut * 0.3) },
-                      ]}
-                    >
-                      <Circle cx={0} cy={0} r={ballRadius} color={paintedVariant[2]} opacity={1 - easeOut} />
-                    </Group>
-                  );
-                })}
-              </Group>
-            )}
-            <Group
-              transform={[
-                { translateX: ball.x },
-                { translateY: ball.y },
-                { scaleX: squashX * idleBreathe },
-                { scaleY: squashY * idleBreathe },
-              ]}
-            >
-              {/* Polished pewter, not a tinted marble - measured off the
-                  reference's own ball (#B8C4D2 body falling to #6C757F at
-                  the rim). Fixed rather than following the current paint
-                  colour: it has to stay legible on the near-black floor
-                  *and* on every colour the paint cycles through, and a ball
-                  the same hue as the trail it leaves behind stops reading
-                  as a separate object. */}
-              <Circle cx={0} cy={0} r={ballRadius}>
-                <RadialGradient
-                  c={vec(-ballRadius * 0.38, -ballRadius * 0.45)}
-                  r={ballRadius * 1.7}
-                  colors={[BALL_LIGHT, BALL_BODY, BALL_RIM]}
-                  positions={[0, 0.45, 1]}
-                />
-              </Circle>
-              <Circle cx={ballRadius * 0.42} cy={ballRadius * 0.4} r={ballRadius * 0.4} color="rgba(255,255,255,0.08)" />
-              <Circle cx={-ballRadius * 0.3} cy={-ballRadius * 0.35} r={ballRadius * 0.26} color="rgba(255,255,255,0.75)" />
-              {/* A small rotating fleck, tied to the ball's own no-slip
-                  `rollAngle` (plus the same gentle idle sway as before) -
-                  the cue that sells a real rolling sphere rather than a
-                  flat disc translating in place. */}
-              <Circle
-                cx={Math.cos(ball.rollAngle * 0.6 + idleSway) * ballRadius * 0.5}
-                cy={Math.sin(ball.rollAngle * 0.6 + idleSway) * ballRadius * 0.5}
-                r={ballRadius * 0.1}
-                color="rgba(90,100,115,0.45)"
-              />
-            </Group>
-          </Group>
-        </Canvas>
+    <View style={[styles.play, { paddingTop: insets.top + theme.spacing.sm }]} {...swipeHandlers}>
+      <View style={styles.topBar}>
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel="Skip the break"
+          onPress={onDone}
+          style={({ pressed }) => [styles.skipPill, pressed && styles.skipPillPressed]}
+        >
+          <Text style={styles.skipPillLabel}>Skip</Text>
+        </PressableScale>
       </View>
 
-      {celebratingRef.current && <ConfettiBurst />}
+      <BreakHeader index={level} count={mazes.length} paints={paints} celebrating={celebrating} />
+
+      <View style={styles.stage}>
+        {rule}
+        <Animated.View
+          style={{
+            width: slabWidth,
+            height: slabHeight,
+            opacity: boardIn.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }),
+            transform: [{ scale: boardIn.interpolate({ inputRange: [0, 1], outputRange: [0.94, 1] }) }],
+          }}
+          accessible
+          accessibilityRole="adjustable"
+          accessibilityLabel="Maze"
+          accessibilityValue={{ text: `${paintedRef.current.size} of ${maze.active.size} tiles painted` }}
+          accessibilityActions={ACCESSIBILITY_ACTIONS}
+          onAccessibilityAction={onAccessibilityAction}
+        >
+          <Canvas style={StyleSheet.absoluteFill}>
+            <MazeSlab width={slabWidth} height={slabHeight} paint={paint} />
+            <Group transform={[{ translateX: pad }, { translateY: pad + topFacePx }]}>
+              <MazeFloorBase cells={activeCells} cellSize={cellSize} />
+              <MazePaintedFloor cells={activeCells} cellSize={cellSize} paintedRef={paintedRef} paint={paint} paintedVersion={paintedVersion} />
+              <MazeWallFaces cells={activeCells} cellSize={cellSize} />
+            </Group>
+          </Canvas>
+          <View pointerEvents="none" style={[styles.ballLayer, { left: pad, top: pad + topFacePx }]}>
+            {impactAt && (
+              <React.Fragment key={impactAt.n}>
+                <Animated.View
+                  style={[
+                    styles.ripple,
+                    {
+                      left: impactAt.x * cellSize - radius,
+                      top: impactAt.y * cellSize - radius,
+                      width: radius * 2,
+                      height: radius * 2,
+                      borderRadius: radius,
+                      borderColor: paint[1],
+                      opacity: impact.interpolate({ inputRange: [0, 1], outputRange: [0.85, 0] }),
+                      transform: [{ scale: impact.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1.8] }) }],
+                    },
+                  ]}
+                />
+                {FLECKS.map((fleck, i) => {
+                  // Thrown back off the wall, fanned either side of straight back.
+                  const back = Math.atan2(-impactAt.dr, -impactAt.dc) + fleck.angle;
+                  const d = radius * fleck.dist;
+                  const s = radius * fleck.size * 2;
+                  return (
+                    <Animated.View
+                      key={i}
+                      style={[
+                        styles.fleck,
+                        {
+                          left: impactAt.x * cellSize - s / 2,
+                          top: impactAt.y * cellSize - s / 2,
+                          width: s,
+                          height: s,
+                          borderRadius: s / 2,
+                          backgroundColor: paint[2],
+                          opacity: impact.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1, 0.7, 0] }),
+                          transform: [
+                            { translateX: impact.interpolate({ inputRange: [0, 1], outputRange: [0, Math.cos(back) * d] }) },
+                            { translateY: impact.interpolate({ inputRange: [0, 1], outputRange: [0, Math.sin(back) * d] }) },
+                            { scale: impact.interpolate({ inputRange: [0, 1], outputRange: [1, 0.3] }) },
+                          ],
+                        },
+                      ]}
+                    />
+                  );
+                })}
+              </React.Fragment>
+            )}
+            <MarbleBall radius={radius} marble={marble.colors} paint={paint} nodes={nodes} squashX={squashX} squashY={squashY} breathe={breathe} lift={lift} motion={motion} />
+          </View>
+        </Animated.View>
+      </View>
+
+      <BreakProgress painted={paintedRef.current.size} total={maze.active.size} paint={paint} />
+
+      {celebrating && <ConfettiBurst />}
     </View>
   );
 }
 
-const styles = StyleSheet.create({
+const STAGE_PAD = theme.spacing.md;
+const ACCESSIBILITY_ACTIONS = [
+  { name: 'up', label: 'Roll up' },
+  { name: 'down', label: 'Roll down' },
+  { name: 'left', label: 'Roll left' },
+  { name: 'right', label: 'Roll right' },
+];
+
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
-    backgroundColor: SCREEN_BG,
+    backgroundColor: theme.colors.background,
+  },
+  play: {
+    flex: 1,
     alignItems: 'center',
-    paddingTop: 96,
-  },
-  skipPosition: {
-    position: 'absolute',
-    top: 56,
-    right: theme.spacing.lg,
-    zIndex: 5,
-  },
-  // The same pill every play screen's controls use, rather than a grey
-  // system-style chip that belonged to no screen in this app.
-  skip: {
     paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
+  },
+  topBar: {
+    alignSelf: 'stretch',
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  skipPill: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.xs + 2,
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderTopColor: '#FBF6EB',
-    borderLeftColor: theme.colors.border,
-    borderRightColor: theme.colors.border,
-    borderBottomColor: theme.colors.border,
-    shadowColor: '#3B1F52',
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 2, height: 3 },
-    elevation: 2,
+    borderColor: theme.colors.border,
   },
-  skipPressed: {
-    backgroundColor: theme.colors.surfaceAlt,
-  },
-  skipText: {
-    fontSize: theme.typography.sizes.body,
+  skipPillPressed: { backgroundColor: theme.colors.surfaceAlt },
+  skipPillLabel: {
+    fontSize: theme.typography.sizes.caption,
     fontWeight: theme.typography.weights.semibold,
     color: theme.colors.textPrimary,
   },
-  // Set in the display serif and violet ink every screen title here uses.
-  mazeLabel: {
-    fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.title + 6,
-    fontWeight: theme.typography.weights.bold,
-    letterSpacing: 1,
-    textAlign: 'center',
-    color: theme.colors.primary,
-    marginBottom: theme.spacing.xl,
+  headerCenter: {
+    alignItems: 'center',
+    marginBottom: theme.spacing.lg,
   },
-});
+  kicker: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.micro,
+    letterSpacing: 1.5,
+    color: theme.colors.secondary,
+  },
+  title: {
+    marginTop: 2,
+    fontFamily: theme.typography.families.display,
+    fontSize: theme.typography.sizes.headline,
+    lineHeight: theme.typography.lineHeights.headline,
+    fontWeight: theme.typography.weights.bold,
+    color: theme.colors.textPrimary,
+  },
+  dots: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: theme.spacing.sm,
+    gap: 8,
+  },
+  dot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    borderWidth: 1.5,
+    borderColor: theme.colors.borderStrong,
+  },
+  dotCurrent: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 3,
+  },
+  // The same plinth every board sits on - see `GameScreen`'s stage.
+  stage: {
+    alignItems: 'center',
+    backgroundColor: theme.colors.surfaceAlt,
+    borderRadius: 28,
+    paddingHorizontal: STAGE_PAD,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
+    borderTopWidth: 1,
+    borderTopColor: theme.colors.border,
+    borderBottomWidth: 1,
+    borderBottomColor: theme.colors.borderStrong,
+  },
+  stageRule: {
+    alignSelf: 'stretch',
+    marginBottom: theme.spacing.md,
+  },
+  progress: {
+    marginTop: theme.spacing.lg,
+    alignItems: 'center',
+  },
+  progressTrack: {
+    width: 180,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  ballLayer: {
+    position: 'absolute',
+    right: 0,
+    bottom: 0,
+  },
+  ball: {
+    position: 'absolute',
+  },
+  ballShadow: {
+    position: 'absolute',
+    backgroundColor: inkWash(0.2),
+  },
+  ballClip: {
+    overflow: 'hidden',
+  },
+  layer: {
+    position: 'absolute',
+  },
+  ballGloss: {
+    backgroundColor: 'rgba(255,255,255,0.5)',
+    transform: [{ rotate: '-32deg' }],
+  },
+  ballSpecular: {
+    backgroundColor: 'rgba(255,255,255,0.95)',
+  },
+  bandAcross: { top: 0 },
+  bandDown: { left: 0 },
+  fleck: {
+    position: 'absolute',
+  },
+  ripple: {
+    position: 'absolute',
+    borderWidth: 3,
+  },
+  progressCaption: {
+    marginTop: theme.spacing.sm,
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.micro,
+    letterSpacing: 1,
+    color: theme.colors.textSecondary,
+  },
+}));

@@ -5,6 +5,8 @@ import { GameKind, ROTATION } from '../game/journey';
 import { LEVELS } from '../game/levels';
 import { LIGHTS_OUT } from '../game/lightsout';
 import { BLOOM } from '../game/bloom';
+import { MOSAIC } from '../game/mosaic';
+import { BRIDGES } from '../game/bridges';
 import { ADJACENT } from '../game/adjacent';
 import { MIRROR_MAZES } from '../game/mirror';
 import { TENTS_TREES } from '../game/tents';
@@ -53,6 +55,8 @@ const POOLS: Readonly<Record<GameKind, ReadonlyArray<PoolEntry>>> = {
   lightsout: LIGHTS_OUT.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
   adjacent: ADJACENT.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
   bloom: BLOOM.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
+  mosaic: MOSAIC.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
+  bridges: BRIDGES.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
 };
 
 /**

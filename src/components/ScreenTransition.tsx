@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet } from 'react-native';
-import { motion } from '../theme';
+import { Animated } from 'react-native';
+import { motion, themedStyles } from '../theme';
 
 export interface ScreenTransitionProps {
   /** Identifies the screen currently mounted inside. Changing it (Home ->
@@ -78,6 +78,6 @@ export function ScreenTransition({ routeKey, direction = 'forward', children }: 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   fill: { flex: 1 },
-});
+}));

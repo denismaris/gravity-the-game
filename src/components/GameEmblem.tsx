@@ -1,9 +1,9 @@
 import React from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { Canvas, Circle, Group, Path, Rect, RoundedRect } from '@shopify/react-native-skia';
+import { Canvas, Circle, Group, Path, Rect, RoundedRect, vec } from '@shopify/react-native-skia';
 import { accentColorForKind, GameKind } from '../game/journey';
 import { hexToRgb } from '../game/rendering';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 
 export interface GameEmblemProps {
   readonly kind: GameKind;
@@ -52,6 +52,22 @@ export function GameEmblem({ kind, size = DEFAULT_SIZE }: GameEmblemProps): Reac
   );
 }
 
+/**
+ * The same emblem as Skia content, placed at (`x`, `y`) inside a canvas
+ * that already exists - for a surface that draws many emblems at once,
+ * which should be one canvas rather than one per emblem.
+ */
+export function GameEmblemGlyph({ kind, size, x = 0, y = 0, opacity = 1 }: { kind: GameKind; size: number; x?: number; y?: number; opacity?: number }): React.JSX.Element {
+  const accent = accentColorForKind(kind);
+  const plate = tint(accent, 0.16);
+  return (
+    <Group transform={[{ translateX: x }, { translateY: y }]} opacity={opacity}>
+      <RoundedRect x={0} y={0} width={size} height={size} r={size * 0.28} color={plate} />
+      {renderMark(kind, size, accent, plate)}
+    </Group>
+  );
+}
+
 function renderMark(kind: GameKind, size: number, accent: string, plate: string): React.JSX.Element {
   switch (kind) {
     case 'towers':
@@ -74,6 +90,10 @@ function renderMark(kind: GameKind, size: number, accent: string, plate: string)
       return <AdjacentMark size={size} accent={accent} plate={plate} />;
     case 'bloom':
       return <BloomMark size={size} accent={accent} plate={plate} />;
+    case 'mosaic':
+      return <MosaicMark size={size} accent={accent} plate={plate} />;
+    case 'bridges':
+      return <BridgesMark size={size} accent={accent} plate={plate} />;
   }
 }
 
@@ -491,6 +511,76 @@ function BloomMark({ size, accent, plate }: MarkProps): React.JSX.Element {
   );
 }
 
+/**
+ * Three islands and the bridges between them: a double across the top, a
+ * single down the side - the two things a Bridges board is made of. The
+ * islands are rings, so the plate shows through them like the open water
+ * on the board, and the bridges stop at each rim rather than running into
+ * a blot.
+ */
+function BridgesMark({ size, accent }: MarkProps): React.JSX.Element {
+  const r = size * 0.12;
+  const stroke = size * 0.05;
+  const left = size * 0.28;
+  const right = size * 0.72;
+  const top = size * 0.3;
+  const bottom = size * 0.72;
+  const plank = size * 0.055;
+  const gap = size * 0.05;
+  return (
+    <Group>
+      <RoundedRect x={left + r} y={top - gap - plank / 2} width={right - left - 2 * r} height={plank} r={plank / 2} color={accent} />
+      <RoundedRect x={left + r} y={top + gap - plank / 2} width={right - left - 2 * r} height={plank} r={plank / 2} color={accent} />
+      <RoundedRect x={right - plank / 2} y={top + r} width={plank} height={bottom - top - 2 * r} r={plank / 2} color={accent} />
+      {[
+        [left, top],
+        [right, top],
+        [right, bottom],
+      ].map(([x, y], i) => (
+        <Circle key={`isle-${i}`} cx={x} cy={y} r={r - stroke / 2} color={accent} style="stroke" strokeWidth={stroke} />
+      ))}
+    </Group>
+  );
+}
+
+/**
+ * Mosaic's mark: nine tesserae set as a diamond, each in its own glaze
+ * around an ochre heart - the one multi-coloured emblem in the set, which
+ * is right for the one game whose subject *is* colour and pieces. Grout
+ * gaps between the tiles, so it reads as a mosaic and not a checkerboard,
+ * even at 26 points.
+ */
+const MOSAIC_MARK_GLAZES: ReadonlyArray<string> = [
+  '#C8506A', '#2F5DAF', '#C46C33',
+  '#2F5DAF', '#D9A441', '#6B4489',
+  '#C46C33', '#6B4489', '#C8506A',
+];
+
+function MosaicMark({ size }: MarkProps): React.JSX.Element {
+  const c = size / 2;
+  const tile = size * 0.13;
+  const pitch = tile * 1.24;
+  return (
+    <Group origin={vec(c, c)} transform={[{ rotate: Math.PI / 4 }]}>
+      {MOSAIC_MARK_GLAZES.map((glaze, i) => {
+        const r = Math.floor(i / 3) - 1;
+        const col = (i % 3) - 1;
+        return (
+          <RoundedRect
+            key={`t-${i}`}
+            x={c + col * pitch - tile / 2}
+            y={c + r * pitch - tile / 2}
+            width={tile}
+            height={tile}
+            r={tile * 0.22}
+            color={glaze}
+          />
+        );
+      })}
+    </Group>
+  );
+}
+
 export interface FinishedGamesRowProps {
   /** Every game in the set just finished, in the order it was played. */
   readonly kinds: ReadonlyArray<GameKind>;
@@ -548,11 +638,11 @@ export function FinishedGamesRow({ kinds, size = 44, delayMs = 0 }: FinishedGame
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
     gap: theme.spacing.sm,
   },
-});
+}));

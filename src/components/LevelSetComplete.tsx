@@ -1,4 +1,6 @@
 import React, { useEffect, useRef } from 'react';
+import { LEVELS_PER_CHAPTER, chapterAt } from '../progression/chapters';
+import { toRoman } from '../progression/rank';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { ConfettiBurst } from './ConfettiBurst';
 import { GameEmblem } from './GameEmblem';
@@ -6,7 +8,7 @@ import { GeometricRule } from './GeometricRule';
 import { PressableScale } from './PressableScale';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, GameKind, gameLabelForKind } from '../game/journey';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 
 export interface LevelSetCompleteProps {
   /** The level number that was just finished. */
@@ -116,9 +118,17 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
             <GeometricRule variant="quiet" />
           </Animated.View>
 
-          <Animated.Text style={[styles.closing, rowStyle(2)]}>
-            That is the whole set. Take a breather - the next one is ready when you are.
-          </Animated.Text>
+          {levelNumber % LEVELS_PER_CHAPTER === 0 ? (
+            <Animated.View style={[styles.chapter, rowStyle(2)]}>
+              <Text style={styles.chapterKicker}>CHAPTER {toRoman(levelNumber / LEVELS_PER_CHAPTER)} COMPLETE</Text>
+              <Text style={styles.chapterName}>{chapterAt(levelNumber / LEVELS_PER_CHAPTER).name}</Text>
+              <Text style={styles.chapterNote}>Its reward is waiting in your Almanac.</Text>
+            </Animated.View>
+          ) : (
+            <Animated.Text style={[styles.closing, rowStyle(2)]}>
+              That is the whole set. Take a breather - the next one is ready when you are.
+            </Animated.Text>
+          )}
 
           <Animated.View style={rowStyle(3)}>
             <PressableScale
@@ -138,7 +148,20 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
 
 const CREST = 68;
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
+  chapter: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    marginTop: theme.spacing.sm,
+    paddingVertical: theme.spacing.md,
+    borderRadius: 16,
+    backgroundColor: theme.colors.surfaceHi,
+    borderWidth: 1.5,
+    borderColor: theme.colors.accent,
+  },
+  chapterKicker: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.accent },
+  chapterName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, marginTop: 2 },
+  chapterNote: { marginTop: 2, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   overlay: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
@@ -150,7 +173,7 @@ const styles = StyleSheet.create({
   },
   cardShadow: {
     borderRadius: theme.radii.lg,
-    shadowColor: '#3B1F52',
+    shadowColor: theme.colors.shadow,
     shadowOpacity: 0.28,
     shadowRadius: 30,
     shadowOffset: { width: 0, height: 16 },
@@ -242,4 +265,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
-});
+}));

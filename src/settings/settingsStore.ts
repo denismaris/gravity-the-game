@@ -1,5 +1,5 @@
 import { StorageBackend } from '../storage';
-import { defaultSettings, Settings, SETTINGS_VERSION } from './settings';
+import { DEFAULT_REMINDER_HOUR, defaultSettings, isAppearancePreference, Settings, SETTINGS_VERSION } from './settings';
 
 /** Single key everything settings-related is stored under. Deliberately a
  * different key from `PLAYER_PROGRESS_KEY` - preferences and progress are
@@ -37,6 +37,9 @@ export function parseSettings(raw: string | null): Settings {
     hapticsEnabled?: unknown;
     calmingInterstitialEnabled?: unknown;
     seenTutorials?: unknown;
+    remindersEnabled?: unknown;
+    reminderHour?: unknown;
+    appearance?: unknown;
   };
   if (typeof record.version !== 'number' || !READABLE_VERSIONS.includes(record.version)) {
     return defaultSettings();
@@ -50,6 +53,13 @@ export function parseSettings(raw: string | null): Settings {
     // defaults to `true`, matching `defaultSettings`.
     calmingInterstitialEnabled: typeof record.calmingInterstitialEnabled === 'boolean' ? record.calmingInterstitialEnabled : true,
     seenTutorials: parseSeenTutorials(record.seenTutorials),
+    remindersEnabled: record.remindersEnabled === true,
+    reminderHour:
+      typeof record.reminderHour === 'number' && Number.isInteger(record.reminderHour) && record.reminderHour >= 0 && record.reminderHour <= 23
+        ? record.reminderHour
+        : DEFAULT_REMINDER_HOUR,
+    // Absent before dark mode existed: follow the phone.
+    appearance: isAppearancePreference(record.appearance) ? record.appearance : 'system',
   };
 }
 

@@ -21,10 +21,26 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ACHIEVEMENTS,
+  GRAND_COINS,
+  GRAND_REWARDS,
   buildShareMessage,
+  cosmeticById,
+  isGrandSolved,
+  nextGrandReward,
+  unclaimedStamps,
   computeAptitude,
+  currentChapter,
   getEarnedAchievements,
   getLevelPoint,
+  LEVELS_PER_CHAPTER,
+  pendingRanks,
+  rankOf,
+  rankReward,
+  SWAP_PRICE,
+  rankTitle,
+  toRoman,
+  unclaimedChapters,
+  unclaimedErrands,
   usePlayerProgress,
 } from '../progression';
 import { getLevelById, getStarThresholds } from '../game/levels';
@@ -34,6 +50,8 @@ import {
   GameKind,
   gameShortName,
   getDailyEntry,
+  getWeeklyGrand,
+  dailyKeyOf,
 } from '../game/journey';
 import {
   AlmanacBackdrop,
@@ -44,9 +62,14 @@ import {
   PressableScale,
   TesseraMark,
 } from '../components';
-import { useReducedMotion } from '../game/rendering';
-import { theme } from '../theme';
-import { CoinBalance } from '../components/Coins';
+import { triggerFeedback, useReducedMotion } from '../game/rendering';
+import { theme, themedStyles } from '../theme';
+import { CoinBalance, CoinGlyph } from '../components/Coins';
+import { ErrandList } from '../components/ErrandList';
+import { RankMedal } from '../components/RankMedal';
+import { RankUpCard } from '../components/RankUpCard';
+import { XpBar } from '../components/XpBar';
+import { CosmeticPreview } from '../components/CosmeticPreview';
 
 /** A fade/rise that finishes at `endsAt` (a fraction of the shared `mount`
  * driver) - staggering several elements off one Animated.Value instead of
@@ -78,6 +101,12 @@ export interface HomeScreenProps {
   onOpenSettings: () => void;
   /** Open the achievements screen. */
   onOpenAchievements: () => void;
+  /** Open the Almanac - rank, chapters, the road ahead. */
+  onOpenJourney: () => void;
+  /** Open the shop. */
+  onOpenShop: () => void;
+  /** Open the ledger - every game's record, and its stamps. */
+  onOpenLedger: () => void;
 }
 
 /** How tall a card gets on a phone with room to spare. Tuned to what the
@@ -90,7 +119,7 @@ const MAX_CARD_HEIGHT = 400;
 
 /** The page each carousel slot is, in order - the order they are laid out
  * in below, and the order the dots read. */
-const PAGES = ['continue', 'daily', 'aptitude', 'progress'] as const;
+const PAGES = ['continue', 'errands', 'daily', 'grand', 'rank', 'aptitude', 'progress'] as const;
 
 /**
  * Home - the cover page of a puzzle almanac.
@@ -109,6 +138,9 @@ export function HomeScreen({
   onOpen,
   onOpenSettings,
   onOpenAchievements,
+  onOpenJourney,
+  onOpenShop,
+  onOpenLedger,
 }: HomeScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
@@ -135,8 +167,38 @@ export function HomeScreen({
     loop.start();
     return () => loop.stop();
   }, [pulse, reducedMotion]);
-  const { progress, markLevelOpened, dailyStreak, dailyCompletedToday, coins } =
+  const { progress, ready, markLevelOpened, dailyStreak, dailyCompletedToday, coins, collectRanks, swapPuzzle } =
     usePlayerProgress();
+
+  // Swapping the puzzle you are stuck on (see the Continue card).
+  const [swapNote, setSwapNote] = useState<'done' | 'short' | null>(null);
+  const swapTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (swapTimer.current) clearTimeout(swapTimer.current);
+  }, []);
+  const swap = (): void => {
+    const swapped = swapPuzzle();
+    setSwapNote(swapped ? 'done' : 'short');
+    triggerFeedback(swapped ? 'targetReached' : 'tap');
+    if (swapTimer.current) clearTimeout(swapTimer.current);
+    swapTimer.current = setTimeout(() => setSwapNote(null), 1800);
+  };
+
+  // The road: rank, the chapter under way, and anything waiting to be
+  // collected (a finished errand, a finished chapter's reward).
+  const rank = useMemo(() => rankOf(progress), [progress]);
+  const chapterNow = useMemo(() => currentChapter(progress), [progress]);
+  const todayKey = dailyKeyOf(new Date());
+  const errandsWaiting = unclaimedErrands(progress, todayKey);
+  const chaptersWaiting = unclaimedChapters(progress).length;
+  // A rank reached but not yet celebrated - shown once the save has
+  // loaded, so an old save's backlog of ranks lands as one moment.
+  const pending = useMemo(() => (ready ? pendingRanks(progress) : []), [ready, progress]);
+  const [rankUp, setRankUp] = useState<{ rank: number; gained: number; coins: number } | null>(null);
+  useEffect(() => {
+    if (rankUp || pending.length === 0) return;
+    setRankUp({ rank: pending[pending.length - 1], gained: pending.length, coins: pending.reduce((sum, n) => sum + rankReward(n), 0) });
+  }, [pending, rankUp]);
 
   const levelPoint = useMemo(() => getLevelPoint(progress), [progress]);
   const entry = levelPoint.entry;
@@ -191,6 +253,16 @@ export function HomeScreen({
   const daily = useMemo(() => getDailyEntry(), []);
   const openDaily = (): void =>
     onOpen({ kind: daily.kind, puzzleId: daily.puzzleId });
+
+  // The Weekly Grand - one hard board a week, paying coins and, at a few
+  // milestones, a cosmetic the shop does not sell.
+  const grand = useMemo(() => getWeeklyGrand(new Date(), progress.retired), [progress.retired]);
+  const grandDone = isGrandSolved(progress, grand.week);
+  const grandNext = nextGrandReward(progress);
+  const grandNextItem = grandNext ? cosmeticById(grandNext.cosmetic) : undefined;
+  const grandsSolved = progress.grandsSolved.length;
+  const openGrand = (): void => onOpen({ kind: grand.kind, puzzleId: grand.puzzleId });
+  const stampsWaiting = useMemo(() => unclaimedStamps(progress).length, [progress]);
 
   // A quiet cascade on every visit to Home (not just first mount - Home
   // remounts fresh each time the player backs out of a puzzle), so the hub
@@ -286,6 +358,16 @@ export function HomeScreen({
     [stageY, carouselY, width, cardHeight],
   );
 
+  const iqLabel = `${
+    aptitude.index === null
+      ? `Puzzle IQ: not enough solves yet. ${aptitude.solved} of ${aptitude.total} puzzles solved.`
+      : `Puzzle IQ ${aptitude.index}, from ${aptitude.solved} solves.${
+          aptitude.strongest && aptitude.weakest
+            ? ` Strongest at ${gameDisplayName(aptitude.strongest)}, weakest at ${gameDisplayName(aptitude.weakest)}.`
+            : ''
+        }`
+  } ${stampsWaiting > 0 ? `${stampsWaiting} ledger stamp${stampsWaiting === 1 ? '' : 's'} to claim. ` : ''}Open the game ledger.`;
+
   return (
     <View style={styles.container}>
       {/* Drawn once the card's position is known - the whole composition
@@ -344,7 +426,13 @@ export function HomeScreen({
             in flow, side by side, so neither can drift into the wordmark
             or the gear the way absolutely-placed badges here once did. */}
         <View style={styles.streakSlot}>
-          <CoinBalance coins={coins} />
+          <PressableScale accessibilityRole="button" accessibilityLabel={`${coins} coins. Open the shop`} onPress={onOpenShop} hitSlop={8}>
+            <View style={styles.purse}>
+              <CoinBalance coins={coins} />
+              {progress.luckyCharges > 0 && <Text style={styles.purseCharm}>{`\u00D72 · ${progress.luckyCharges}`}</Text>}
+              <Text style={styles.purseShop}>SHOP ›</Text>
+            </View>
+          </PressableScale>
           {dailyStreak > 0 && !dailyCompletedToday && (
             <PressableScale
               accessibilityRole="button"
@@ -393,7 +481,7 @@ export function HomeScreen({
                   entry.challenge
                     ? 'the challenge of this set, hard'
                     : entry.difficulty
-                }, Level ${levelPoint.levelNumber}, puzzle ${
+                }${entry.golden && !levelPoint.allDone ? ', golden: triple coins' : ''}, Level ${levelPoint.levelNumber}, puzzle ${
                   levelPoint.batchPosition
                 } of ${levelPoint.batchSize}`}
                 onPress={openEntry}
@@ -401,6 +489,7 @@ export function HomeScreen({
                 style={({ pressed }) => [
                   styles.card,
                   { height: cardHeight },
+                  entry.golden && !levelPoint.allDone && styles.cardGolden,
                   pressed && styles.cardPressed,
                 ]}
               >
@@ -425,6 +514,12 @@ export function HomeScreen({
                       challenge={entry.challenge}
                       style={styles.heroChip}
                     />
+                    {entry.golden && !levelPoint.allDone && (
+                      <View style={styles.goldenChip}>
+                        <CoinGlyph size={10} />
+                        <Text style={styles.goldenChipText}>{'GOLDEN \u00D73'}</Text>
+                      </View>
+                    )}
                   </View>
                   {/* The plate's heading rule, in this puzzle's own game
                     colour. Home used to carry that colour in one short line
@@ -478,6 +573,14 @@ export function HomeScreen({
                               >
                                 <GameEmblem kind={entryRef.kind} size={38} />
                               </View>
+                              {/* A golden puzzle wears a coin, like a seal on
+                                the corner of a page. Outside the fade, like
+                                the challenge rule: worth seeing coming. */}
+                              {entryRef.golden && !done && (
+                                <View style={styles.setGolden} accessibilityLabel="golden puzzle">
+                                  <CoinGlyph size={13} />
+                                </View>
+                              )}
                               {/* The set's challenge, underscored. Ruled
                                 underlines are already this app's way of marking
                                 something out, and a rule under an emblem leaves
@@ -522,6 +625,32 @@ export function HomeScreen({
                         ]}
                       />
                     </View>
+                    {/* Stuck? Swap the next puzzle for another game's - paid
+                      for, so it is a choice, not a way round every board.
+                      Nested inside the card's own press target: RN gives the
+                      touch to the deepest Pressable, so this never also
+                      opens the puzzle. */}
+                    {!levelPoint.allDone && (
+                      <PressableScale
+                        accessibilityRole="button"
+                        accessibilityLabel={`Swap this puzzle for another game's, for ${SWAP_PRICE} coins`}
+                        onPress={swap}
+                        hitSlop={8}
+                        containerStyle={styles.swapWrap}
+                      >
+                        <View style={styles.swap}>
+                          <Text style={[styles.swapText, swapNote === 'short' && styles.swapShort]}>
+                            {swapNote === 'short' ? `NEED ${SWAP_PRICE} COINS` : swapNote === 'done' ? 'SWAPPED \u2713\uFE0E' : 'STUCK? SWAP THIS PUZZLE'}
+                          </Text>
+                          {swapNote === null && (
+                            <>
+                              <CoinGlyph size={11} />
+                              <Text style={styles.swapText}>{SWAP_PRICE}</Text>
+                            </>
+                          )}
+                        </View>
+                      </PressableScale>
+                    )}
                   </View>
 
                   <View style={styles.heroFoot}>
@@ -560,6 +689,32 @@ export function HomeScreen({
                   </View>
                 </>
               </PressableScale>
+            </View>
+
+            {/* --- Errands ------------------------------------------------- */}
+            <View style={[styles.page, { width }]}>
+              <View style={[styles.card, { height: cardHeight }]}>
+                <View>
+                  <View style={styles.cardHead}>
+                    <Text style={styles.eyebrowMuted}>TODAY'S ERRANDS</Text>
+                    {errandsWaiting > 0 ? (
+                      <Text style={[styles.badge, styles.badgeLive]}>{errandsWaiting} TO CLAIM</Text>
+                    ) : (
+                      <Text style={[styles.badge, styles.badgeDone]}>DAILY</Text>
+                    )}
+                  </View>
+                  <Text style={styles.errandsLede}>Three small goals, new every day. Each pays coins and experience.</Text>
+                </View>
+                <View style={styles.errandsWell}>
+                  <ErrandList />
+                </View>
+                <PressableScale accessibilityRole="button" accessibilityLabel="Spend your coins in the shop" onPress={onOpenShop} hitSlop={6}>
+                  <View style={styles.heroFoot}>
+                    <Text style={styles.verb}>Spend in the shop</Text>
+                    <Text style={styles.chevron}>{'›'}</Text>
+                  </View>
+                </PressableScale>
+              </View>
             </View>
 
             {/* --- Daily --------------------------------------------------- */}
@@ -650,33 +805,147 @@ export function HomeScreen({
               </PressableScale>
             </View>
 
+            {/* --- Weekly Grand -------------------------------------------- */}
+            <View style={[styles.page, { width }]}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={`Weekly Grand: ${grand.name}, a hard ${gameDisplayName(grand.kind)} board. ${
+                  grandDone ? 'Solved this week.' : `${grand.daysLeft} day${grand.daysLeft === 1 ? '' : 's'} left. Pays ${GRAND_COINS} coins.`
+                }${grandNextItem ? ` ${grandNext!.at - grandsSolved} more to win ${grandNextItem.name}.` : ''}`}
+                onPress={openGrand}
+                scaleTo={0.985}
+                style={({ pressed }) => [styles.card, styles.cardGrand, { height: cardHeight }, pressed && styles.cardPressed]}
+              >
+                <View style={styles.cardHead}>
+                  <Text style={[styles.eyebrowMuted, styles.grandEyebrow]}>WEEKLY GRAND</Text>
+                  <Text style={[styles.badge, grandDone ? styles.badgeDone : styles.badgeLive]}>
+                    {grandDone ? 'SOLVED' : grand.daysLeft === 1 ? 'LAST DAY' : `${grand.daysLeft} DAYS LEFT`}
+                  </Text>
+                </View>
+                <View style={styles.dailyRow}>
+                  <GameEmblem kind={grand.kind} size={54} />
+                  <View style={styles.dailyText}>
+                    <Text style={styles.dailyTitle} numberOfLines={2}>
+                      {grand.name}
+                    </Text>
+                    <Text style={styles.dailyChapter}>HARD · {gameDisplayName(grand.kind).toUpperCase()} · ONE A WEEK</Text>
+                  </View>
+                </View>
+
+                <View style={styles.wellCentered}>
+                  <View style={styles.grandPays}>
+                    <Text style={styles.sectionLabel}>{grandDone ? 'PAID THIS WEEK' : 'THIS WEEK PAYS'}</Text>
+                    <View style={styles.grandCoins}>
+                      <CoinGlyph size={16} />
+                      <Text style={styles.grandCoinsText}>{GRAND_COINS}</Text>
+                    </View>
+                  </View>
+                  {/* The exclusives on offer, in the order they are won -
+                    the shelf the Grand is building toward. Won ones sit
+                    full, the next one is ringed in gold, the rest wait. */}
+                  <View style={styles.grandShelf}>
+                    {GRAND_REWARDS.map(reward => {
+                      const item = cosmeticById(reward.cosmetic);
+                      const won = grandsSolved >= reward.at;
+                      const next = grandNext?.cosmetic === reward.cosmetic;
+                      return (
+                        <View key={reward.cosmetic} style={styles.grandPrize}>
+                          <View style={[styles.grandPlate, next && styles.grandPlateNext, !won && !next && styles.setAhead]}>
+                            {item && <CosmeticPreview item={item} size={36} />}
+                            {won && (
+                              <View style={styles.grandTick}>
+                                <Text style={styles.grandTickText}>{'\u2713\uFE0E'}</Text>
+                              </View>
+                            )}
+                          </View>
+                          <Text style={[styles.grandPrizeAt, won && styles.grandPrizeWon]}>
+                            {won ? 'WON' : `${reward.at} ${reward.at === 1 ? 'GRAND' : 'GRANDS'}`}
+                          </Text>
+                        </View>
+                      );
+                    })}
+                  </View>
+                  <Text style={styles.dailyStreakLabel}>
+                    {grandNextItem
+                      ? `${grandsSolved} SOLVED · ${grandNext!.at - grandsSolved} MORE FOR ${grandNextItem.name.toUpperCase()}`
+                      : `${grandsSolved} SOLVED · EVERY EXCLUSIVE WON`}
+                  </Text>
+                </View>
+
+                <View style={styles.heroFoot}>
+                  <Text style={styles.verb}>{grandDone ? 'Replay' : 'Play'}</Text>
+                  <View style={[styles.play, styles.playGrand]}>
+                    <View style={[styles.playTri, styles.playTriGrand]} />
+                  </View>
+                </View>
+              </PressableScale>
+            </View>
+
+            {/* --- Rank ---------------------------------------------------- */}
+            <View style={[styles.page, { width }]}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={`Rank ${rank.number}, ${rank.title}. ${rank.to - rank.xp} experience to the next rank. Chapter ${chapterNow.chapter.number}, ${chapterNow.chapter.name}. Open your almanac.`}
+                onPress={onOpenJourney}
+                scaleTo={0.985}
+                style={({ pressed }) => [styles.card, { height: cardHeight }, pressed && styles.cardPressed]}
+              >
+                <View style={styles.cardHead}>
+                  <Text style={styles.eyebrowMuted}>YOUR RANK</Text>
+                  {chaptersWaiting > 0 ? (
+                    <Text style={[styles.badge, styles.badgeLive]}>REWARD WAITING</Text>
+                  ) : (
+                    <Text style={[styles.badge, styles.badgeDone]}>RANK {toRoman(rank.number)}</Text>
+                  )}
+                </View>
+                <View style={styles.rankRow}>
+                  <RankMedal rank={rank.number} size={Math.min(92, cardHeight * 0.24)} />
+                  <View style={styles.rankText}>
+                    <Text style={styles.rankTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                      {rank.title}
+                    </Text>
+                    <Text style={styles.rankMeta}>
+                      {(rank.to - rank.xp).toLocaleString('en-US')} XP TO {rankTitle(rank.number + 1).toUpperCase()}
+                    </Text>
+                    <XpBar share={rank.share} style={styles.rankBar} />
+                  </View>
+                </View>
+                <View style={styles.wellCentered}>
+                  <Text style={styles.sectionLabel}>CHAPTER {toRoman(chapterNow.chapter.number)}</Text>
+                  <Text style={styles.chapterName}>{chapterNow.chapter.name}</Text>
+                  <View style={styles.chapterTicks}>
+                    {Array.from({ length: LEVELS_PER_CHAPTER }, (_v, i) => (
+                      <View key={i} style={[styles.chapterTick, i < chapterNow.levelsDone && styles.chapterTickDone, i === chapterNow.levelsDone && styles.chapterTickNow]} />
+                    ))}
+                  </View>
+                  <Text style={styles.dailyStreakLabel}>
+                    {LEVELS_PER_CHAPTER - chapterNow.levelsDone} LEVEL{LEVELS_PER_CHAPTER - chapterNow.levelsDone === 1 ? '' : 'S'} TO THE CHAPTER REWARD
+                  </Text>
+                </View>
+                <View style={styles.heroFoot}>
+                  <Text style={styles.verb}>Your almanac</Text>
+                  <Text style={styles.chevron}>{'›'}</Text>
+                </View>
+              </PressableScale>
+            </View>
+
             {/* --- Puzzle IQ ----------------------------------------------- */}
             <View style={[styles.page, { width }]}>
-              <View
-                style={[styles.card, { height: cardHeight }]}
-                accessible
-                accessibilityLabel={
-                  aptitude.index === null
-                    ? `Puzzle IQ: not enough solves yet. ${aptitude.solved} of ${aptitude.total} puzzles solved.`
-                    : `Puzzle IQ ${aptitude.index}, from ${
-                        aptitude.solved
-                      } solves.${
-                        aptitude.strongest
-                          ? ` Strongest at ${gameDisplayName(
-                              aptitude.strongest,
-                            )}, weakest at ${gameDisplayName(
-                              aptitude.weakest!,
-                            )}.`
-                          : ''
-                      }`
-                }
+              <PressableScale
+                accessibilityRole="button"
+                onPress={onOpenLedger}
+                scaleTo={0.985}
+                style={({ pressed }) => [styles.card, { height: cardHeight }, pressed && styles.cardPressed]}
+                accessibilityLabel={iqLabel}
               >
                 <View>
                   <View style={styles.cardHead}>
                     <Text style={styles.eyebrowMuted}>PUZZLE IQ</Text>
-                    <Text style={styles.iqSolves}>
-                      {aptitude.solved} SOLVES
-                    </Text>
+                    {stampsWaiting > 0 ? (
+                      <Text style={[styles.badge, styles.badgeLive]}>STAMP WAITING ›</Text>
+                    ) : (
+                      <Text style={styles.iqSolves}>LEDGER ›</Text>
+                    )}
                   </View>
 
                   {aptitude.index === null ? (
@@ -731,7 +1000,7 @@ export function HomeScreen({
                     Play a puzzle in each game to fill the shape out.
                   </Text>
                 )}
-              </View>
+              </PressableScale>
             </View>
 
             {/* --- Progress ------------------------------------------------ */}
@@ -844,6 +1113,17 @@ export function HomeScreen({
           />
         ))}
       </Animated.View>
+      {rankUp && (
+        <RankUpCard
+          rank={rankUp.rank}
+          ranksGained={rankUp.gained}
+          coins={rankUp.coins}
+          onDone={() => {
+            collectRanks();
+            setRankUp(null);
+          }}
+        />
+      )}
     </View>
   );
 }
@@ -869,7 +1149,62 @@ const MASTHEAD_BLOCK =
   theme.spacing.lg;
 const DOTS_BLOCK = theme.spacing.sm * 2 + 8;
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
+  purse: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  purseCharm: {
+    paddingHorizontal: 5,
+    paddingVertical: 1,
+    borderRadius: 6,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.accent,
+    color: theme.colors.surfaceHi,
+    fontFamily: theme.typography.families.mono,
+    fontSize: 9.5,
+    fontWeight: theme.typography.weights.bold,
+  },
+  swapWrap: { alignSelf: 'center', marginTop: theme.spacing.sm },
+  swap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  swapText: { fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 1, color: theme.colors.textSecondary },
+  swapShort: { color: theme.colors.danger },
+  purseShop: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: 9.5,
+    letterSpacing: 1,
+    color: theme.colors.secondary,
+  },
+  errandsWell: { marginTop: 'auto', marginBottom: 'auto' },
+  errandsLede: {
+    marginTop: 4,
+    fontSize: theme.typography.sizes.caption,
+    color: theme.colors.textSecondary,
+  },
+  rankRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.sm },
+  rankText: { flex: 1 },
+  rankTitle: {
+    fontFamily: theme.typography.families.display,
+    fontSize: theme.typography.sizes.headline,
+    fontWeight: theme.typography.weights.bold,
+    color: theme.colors.textPrimary,
+  },
+  rankMeta: {
+    marginTop: 2,
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.micro,
+    letterSpacing: 0.8,
+    color: theme.colors.textSecondary,
+  },
+  rankBar: { marginTop: theme.spacing.sm },
+  chapterName: {
+    fontFamily: theme.typography.families.display,
+    fontSize: theme.typography.sizes.title,
+    fontWeight: theme.typography.weights.bold,
+    color: theme.colors.textPrimary,
+    marginTop: 2,
+  },
+  chapterTicks: { flexDirection: 'row', gap: 4, marginTop: theme.spacing.sm, alignSelf: 'stretch' },
+  chapterTick: { flex: 1, height: 10, borderRadius: 3, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
+  chapterTickDone: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  chapterTickNow: { borderColor: theme.colors.accent, borderWidth: 2 },
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -973,7 +1308,7 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: theme.colors.border,
     padding: theme.spacing.lg,
-    shadowColor: '#3B1F52',
+    shadowColor: theme.colors.shadow,
     shadowOpacity: 0.08,
     shadowRadius: 16,
     shadowOffset: { width: 0, height: 6 },
@@ -1011,6 +1346,58 @@ const styles = StyleSheet.create({
   },
   /** Names the middle block, the way an almanac heads a column. Small,
    * tracked, and quiet - it is a signpost, not a heading. */
+  cardGrand: {
+    borderColor: theme.colors.goldRim,
+    borderWidth: 1.5,
+  },
+  grandEyebrow: { color: theme.colors.gold },
+  grandPays: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    justifyContent: 'space-between',
+  },
+  grandCoins: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  grandCoinsText: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.body + 1,
+    fontWeight: theme.typography.weights.bold,
+    color: theme.colors.textPrimary,
+  },
+  grandShelf: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: theme.spacing.xs,
+  },
+  grandPrize: { alignItems: 'center', gap: 5 },
+  grandPlate: {
+    width: 54,
+    height: 54,
+    borderRadius: 14,
+    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  grandPlateNext: { borderColor: theme.colors.goldRim, borderWidth: 2, backgroundColor: theme.colors.surfaceHi },
+  grandTick: {
+    position: 'absolute',
+    right: -5,
+    top: -5,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    backgroundColor: theme.colors.success,
+    borderWidth: 1.5,
+    borderColor: theme.colors.surface,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  grandTickText: { color: theme.colors.surfaceHi, fontSize: 9, fontWeight: theme.typography.weights.bold },
+  grandPrizeAt: { fontFamily: theme.typography.families.mono, fontSize: 8.5, letterSpacing: 0.8, color: theme.colors.textTertiary },
+  grandPrizeWon: { color: theme.colors.success },
+  playGrand: { backgroundColor: theme.colors.goldFill },
+  playTriGrand: { borderLeftColor: theme.colors.onGold },
   sectionLabel: {
     fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.micro,
@@ -1109,6 +1496,35 @@ const styles = StyleSheet.create({
     borderRadius: 1,
     marginTop: 4,
     backgroundColor: 'transparent',
+  },
+  cardGolden: {
+    borderColor: theme.colors.goldRim,
+    borderWidth: 1.5,
+  },
+  goldenChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginLeft: 6,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 6,
+    backgroundColor: theme.colors.goldFill,
+  },
+  goldenChipText: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: 9,
+    fontWeight: theme.typography.weights.bold,
+    letterSpacing: 1,
+    color: theme.colors.onGold,
+  },
+  setGolden: {
+    position: 'absolute',
+    top: -4,
+    left: 30,
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: theme.colors.surface,
   },
   setChallengeRuleOn: {
     backgroundColor: theme.colors.accent,
@@ -1374,4 +1790,4 @@ const styles = StyleSheet.create({
     height: 19,
     backgroundColor: theme.colors.primary,
   },
-});
+}));

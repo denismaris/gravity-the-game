@@ -6,6 +6,8 @@ import { getLevelsByDifficulty, LEVELS } from '../../game/levels';
 import { LIGHTS_OUT } from '../../game/lightsout';
 import { ADJACENT } from '../../game/adjacent';
 import { BLOOM } from '../../game/bloom';
+import { MOSAIC } from '../../game/mosaic';
+import { BRIDGES } from '../../game/bridges';
 import { MIRROR_MAZES } from '../../game/mirror';
 import { TENTS_TREES } from '../../game/tents';
 import { TOWERS } from '../../game/towers';
@@ -235,6 +237,8 @@ function solveEverything(): PlayerProgress {
     ...LIGHTS_OUT.map(puzzle => puzzle.id),
     ...ADJACENT.map(puzzle => puzzle.id),
     ...BLOOM.map(puzzle => puzzle.id),
+    ...MOSAIC.map(puzzle => puzzle.id),
+    ...BRIDGES.map(puzzle => puzzle.id),
   ];
   return solveMany(emptyProgress(), allIds, 3);
 }

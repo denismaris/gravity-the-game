@@ -1,142 +1,76 @@
 import { PuzzleDifficulty } from '../puzzleDifficulty';
-import { TentsTreesCell, TentsTreesPuzzle } from './types';
+import { endlessName, endlessSeed, parseEndlessId } from '../endlessId';
+import { generateTents, TentsShape } from './generator';
+import { BAKED_TENTS } from './pool.generated';
+import { TentsTreesPuzzle } from './types';
 
 /**
- * Parses a puzzle from a pair of ASCII grids: `treeRows` (`T` = tree, `.` =
- * empty) and `tentRows` (`t` = a tent in the placement this puzzle was
- * authored from, `.` = empty). The tent grid exists only so `rowCounts`/
- * `colCounts` can be *derived* from a real, hand-verified placement rather
- * than hand-counted (an easy place to introduce an off-by-one) - it is
- * discarded immediately after parsing and never stored on the puzzle. A
- * puzzle's actual solvability and uniqueness are verified by the real
- * solver in the test suite, not by this parser.
+ * The pool: ids, names, tiers and shapes, in size order (the pool test
+ * holds the ramp). Boards come from `generateTents` - random layouts at
+ * about one tent to every five squares, kept only if uniquely solvable -
+ * replacing ten hand-drawn symmetric boards that players found "too
+ * similar". Ids 001-010 keep their places (names that described the old
+ * symmetric layouts were renamed); 011-020 are new. Ids are frozen.
  */
-function fromGrids(
-  id: string,
-  name: string,
-  difficulty: PuzzleDifficulty,
-  treeRows: ReadonlyArray<string>,
-  tentRows: ReadonlyArray<string>,
-): TentsTreesPuzzle {
-  const rows = treeRows.length;
-  const cols = treeRows[0].length;
-
-  const trees: TentsTreesCell[] = [];
-  treeRows.forEach((line, r) => {
-    if (line.length !== cols) {
-      throw new Error(`${id}: tree row ${r} has length ${line.length}, expected ${cols}.`);
-    }
-    for (let c = 0; c < cols; c += 1) {
-      const ch = line[c];
-      if (ch === 'T') trees.push({ row: r, col: c });
-      else if (ch !== '.') throw new Error(`${id}: unrecognized tree-grid character "${ch}" at (${r}, ${c}).`);
-    }
-  });
-
-  if (tentRows.length !== rows) {
-    throw new Error(`${id}: tent grid must have ${rows} rows, has ${tentRows.length}.`);
-  }
-  const rowCounts: number[] = [];
-  const colCounts: number[] = new Array(cols).fill(0);
-  tentRows.forEach((line, r) => {
-    if (line.length !== cols) {
-      throw new Error(`${id}: tent row ${r} has length ${line.length}, expected ${cols}.`);
-    }
-    let count = 0;
-    for (let c = 0; c < cols; c += 1) {
-      const ch = line[c];
-      if (ch === 't') {
-        count += 1;
-        colCounts[c] += 1;
-      } else if (ch !== '.') {
-        throw new Error(`${id}: unrecognized tent-grid character "${ch}" at (${r}, ${c}).`);
-      }
-    }
-    rowCounts.push(count);
-  });
-
-  return { id, name, difficulty, rows, cols, trees, rowCounts, colCounts };
-}
-
-// Difficulty follows this game's own real complexity signal, grid size (see
-// `PuzzleDifficulty`'s comment in `types.ts`): the three 5x5s are easy, the
-// three 6x6s plus the first 7x7 are medium, the second 7x7 plus both 8x8s
-// are hard - matching the size ramp already baked into this array's order.
-export const TENTS_TREES: ReadonlyArray<TentsTreesPuzzle> = [
-  fromGrids(
-    'tents-001',
-    'First Grove',
-    'easy',
-    ['.T...', '.....', '..T..', '.....', 'T....'],
-    ['.....', '.t...', '.....', 't.t..', '.....'],
-  ),
-  fromGrids(
-    'tents-002',
-    'Twin Rows',
-    'easy',
-    ['.....', '.T.T.', '.....', '.T.T.', '.....'],
-    ['.t.t.', '.....', '.....', '.....', '.t.t.'],
-  ),
-  fromGrids(
-    'tents-003',
-    'Scattered Grove',
-    'easy',
-    ['..T..', '.....', 'T...T', '.....', '..T..'],
-    ['.....', 't.t..', '.....', '....t', '.t...'],
-  ),
-  fromGrids(
-    'tents-004',
-    'Four Corners',
-    'medium',
-    ['T....T', '......', '..T...', '......', '......', 'T....T'],
-    ['......', 't....t', '......', '..t...', 't....t', '......'],
-  ),
-  fromGrids(
-    'tents-005',
-    'Inner Ring',
-    'medium',
-    ['......', '.T..T.', '......', '......', '.T..T.', '......'],
-    ['.t..t.', '......', '......', '......', '......', '.t..t.'],
-  ),
-  fromGrids(
-    'tents-006',
-    'Twin Columns',
-    'medium',
-    ['......', 'T.T.T.', '......', '......', '.T.T.T', '......'],
-    ['t.t.t.', '......', '......', '......', '......', '.t.t.t'],
-  ),
-  fromGrids(
-    'tents-007',
-    'Wide Grove',
-    'medium',
-    ['T.....T', '.......', '.......', '...T...', '.......', '.......', 'T.....T'],
-    ['.......', 't.....t', '...t...', '.......', '.......', 't.....t', '.......'],
-  ),
-  fromGrids(
-    'tents-008',
-    'Checkered Grove',
-    'hard',
-    ['.......', '.T...T.', '.......', '...T...', '.......', '.T...T.', '.......'],
-    ['.t...t.', '.......', '...t...', '.......', '.......', '.......', '.t...t.'],
-  ),
-  fromGrids(
-    'tents-009',
-    'Deep Woods',
-    'hard',
-    ['T......T', '........', '........', '...T....', '....T...', '........', '........', 'T......T'],
-    ['........', 't......t', '...t....', '........', '........', '....t...', 't......t', '........'],
-  ),
-  fromGrids(
-    'tents-010',
-    'Old Forest',
-    'hard',
-    ['T......T', '........', '..T..T..', '........', '........', '..T..T..', '........', 'T......T'],
-    ['........', 't......t', '........', '..t..t..', '........', '........', 't.t..t.t', '........'],
-  ),
+const SPECS: ReadonlyArray<readonly [string, string, PuzzleDifficulty, TentsShape]> = [
+  ['tents-001', 'First Grove', 'easy', { size: 5, tents: 4 }],
+  ['tents-002', 'Clearing', 'easy', { size: 5, tents: 5 }],
+  ['tents-011', 'Birch Hollow', 'easy', { size: 5, tents: 5 }],
+  ['tents-003', 'Scattered Grove', 'easy', { size: 6, tents: 6 }],
+  ['tents-012', 'Fern Bank', 'easy', { size: 6, tents: 6 }],
+  ['tents-013', 'Mossy Glade', 'easy', { size: 6, tents: 7 }],
+  ['tents-004', 'Hazel Copse', 'medium', { size: 6, tents: 7 }],
+  ['tents-016', 'Riverside', 'medium', { size: 6, tents: 8 }],
+  ['tents-005', 'Pine Ridge', 'medium', { size: 7, tents: 8 }],
+  ['tents-006', 'Alder Row', 'medium', { size: 7, tents: 9 }],
+  ['tents-007', 'Wide Grove', 'medium', { size: 7, tents: 9 }],
+  ['tents-014', 'Bracken', 'medium', { size: 7, tents: 10 }],
+  ['tents-015', 'Timberline', 'medium', { size: 7, tents: 10 }],
+  ['tents-008', 'Thicket', 'hard', { size: 8, tents: 11 }],
+  ['tents-017', 'Night Camp', 'hard', { size: 8, tents: 12 }],
+  ['tents-009', 'Deep Woods', 'hard', { size: 8, tents: 12 }],
+  ['tents-019', 'Wildwood', 'hard', { size: 8, tents: 12 }],
+  ['tents-010', 'Old Forest', 'hard', { size: 8, tents: 13 }],
+  ['tents-018', 'Greenwood', 'hard', { size: 8, tents: 13 }],
+  ['tents-020', 'Heartwood', 'hard', { size: 8, tents: 14 }],
 ];
 
+/** Builds the pool. Run once, offline, to write `pool.generated.ts`; the
+ * app loads that, and the pool test checks the two still agree. */
+export function buildTentsPool(): TentsTreesPuzzle[] {
+  return SPECS.map(([id, name, difficulty, shape]) => generateTents(id, name, difficulty, shape));
+}
+
+export const TENTS_TREES: ReadonlyArray<TentsTreesPuzzle> = BAKED_TENTS;
+
+/**
+ * The endless board's shape for a tier, varied from board to board (by the
+ * id's seed) within the same bands the curated pool spans - roughly one tent
+ * to every five squares, so the density that made the pool feel real
+ * carries on past it.
+ */
+export function endlessTentsShape(id: string, tier: PuzzleDifficulty): TentsShape {
+  const seed = endlessSeed(id);
+  const choices: Record<PuzzleDifficulty, ReadonlyArray<TentsShape>> = {
+    easy: [{ size: 5, tents: 5 }, { size: 6, tents: 6 }, { size: 6, tents: 7 }],
+    medium: [{ size: 6, tents: 8 }, { size: 7, tents: 9 }, { size: 7, tents: 10 }],
+    hard: [{ size: 8, tents: 12 }, { size: 8, tents: 13 }, { size: 8, tents: 14 }],
+  };
+  return choices[tier][seed % 3];
+}
+
+const endlessCache = new Map<string, TentsTreesPuzzle>();
+
 export function getTentsTreesById(id: string): TentsTreesPuzzle | undefined {
-  return TENTS_TREES.find(puzzle => puzzle.id === id);
+  const found = TENTS_TREES.find(puzzle => puzzle.id === id);
+  if (found) return found;
+  const endless = parseEndlessId(id);
+  if (!endless || endless.kind !== 'tents') return undefined;
+  const cached = endlessCache.get(id);
+  if (cached) return cached;
+  const puzzle = generateTents(id, endlessName(endless.index, 'tents'), endless.tier, endlessTentsShape(id, endless.tier));
+  endlessCache.set(id, puzzle);
+  return puzzle;
 }
 
 export function getTentsTreesByDifficulty(difficulty: PuzzleDifficulty): ReadonlyArray<TentsTreesPuzzle> {

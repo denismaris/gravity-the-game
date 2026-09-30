@@ -2,14 +2,15 @@ import { useMemo, useRef } from 'react';
 import { GestureResponderHandlers, PanResponder } from 'react-native';
 import { Direction } from '../game/engine';
 
-/** Minimum finger travel (in dp) before a gesture counts as a swipe. Kept
- * comfortably above typical tap/tremor jitter so short accidental
- * movements (e.g. repositioning a thumb) never trigger a gravity change. */
-const SWIPE_THRESHOLD = 32;
+/** Finger travel (in dp) that commits a swipe. Still well above tap and
+ * tremor jitter, but low enough that a short, quick flick registers - the
+ * old 32dp threshold, read only on release, swallowed exactly the small
+ * fast swipes players make when they already know the move. */
+export const SWIPE_THRESHOLD = 22;
 
 /** Minimum travel before the responder even engages, so plain taps never
  * get intercepted as a gesture in the first place. */
-const CAPTURE_THRESHOLD = 10;
+const CAPTURE_THRESHOLD = 8;
 
 /** The four custom `accessibilityActions` names a Gravity board exposes,
  * one per swipe direction - VoiceOver's rotor can trigger one without a
@@ -21,17 +22,51 @@ export function directionForAccessibilityAction(actionName: string): Direction |
   return actionName === 'up' || actionName === 'down' || actionName === 'left' || actionName === 'right' ? actionName : null;
 }
 
+/** Where a finger is in one gesture, relative to where it went down. */
+export interface SwipeTrack {
+  /** The drag offset the last swipe fired at - the next one is measured
+   * from here, not from where the finger went down. */
+  anchorX: number;
+  anchorY: number;
+  /** The direction that last fired, if any, in this touch. */
+  last: Direction | null;
+}
+
+export function newSwipeTrack(): SwipeTrack {
+  return { anchorX: 0, anchorY: 0, last: null };
+}
+
 /**
- * Detects a single directional swipe gesture on whatever View spreads the
- * returned handlers onto its props. Reports at most one `Direction` per
- * gesture and contains no game logic - it only translates a touch gesture
- * into user intent - a swipe is the sole way to trigger gravity, there is no
- * on-screen direction pad any more.
+ * Advances one touch's tracking to drag offset (`dx`, `dy`) and returns the
+ * direction that fires now, if one does.
  *
- * `disabled` (e.g. while the board is still animating a previous move)
- * makes swipes a no-op without tearing down/recreating the responder, so
- * an in-progress gesture is never left half-handled - it simply reports
- * nothing on release.
+ * A swipe fires the moment the finger has travelled `SWIPE_THRESHOLD` from
+ * its anchor - mid-drag, not on release - so the move starts while the
+ * finger is still moving. Then the anchor jumps to that point, so the same
+ * touch can turn and fire again (right, then down, without lifting). The
+ * same direction never fires twice in one touch: a long drag is one swipe,
+ * not a stream of them.
+ */
+export function advanceSwipe(track: SwipeTrack, dx: number, dy: number): Direction | null {
+  const x = dx - track.anchorX;
+  const y = dy - track.anchorY;
+  if (Math.max(Math.abs(x), Math.abs(y)) < SWIPE_THRESHOLD) return null;
+  const direction: Direction = Math.abs(x) > Math.abs(y) ? (x > 0 ? 'right' : 'left') : y > 0 ? 'down' : 'up';
+  track.anchorX = dx;
+  track.anchorY = dy;
+  if (direction === track.last) return null;
+  track.last = direction;
+  return direction;
+}
+
+/**
+ * Turns touches on whatever View spreads the returned handlers into
+ * directions. Contains no game logic - it only translates a gesture into
+ * intent; what a swipe that arrives mid-move does (queue it, redirect, drop
+ * it) is the caller's call.
+ *
+ * `disabled` makes swipes a no-op without tearing down the responder, so a
+ * gesture in progress is never left half-handled.
  */
 export function useSwipeGesture(
   onSwipe: (direction: Direction) => void,
@@ -43,29 +78,25 @@ export function useSwipeGesture(
   const onSwipeRef = useRef(onSwipe);
   onSwipeRef.current = onSwipe;
 
+  const trackRef = useRef<SwipeTrack>(newSwipeTrack());
+
   const responder = useMemo(
     () =>
       PanResponder.create({
         onMoveShouldSetPanResponder: (_event, gesture) =>
           Math.abs(gesture.dx) > CAPTURE_THRESHOLD || Math.abs(gesture.dy) > CAPTURE_THRESHOLD,
-        onPanResponderRelease: (_event, gesture) => {
-          if (disabledRef.current) return;
-
-          const { dx, dy } = gesture;
-
-          if (Math.max(Math.abs(dx), Math.abs(dy)) < SWIPE_THRESHOLD) {
-            return;
-          }
-
-          if (Math.abs(dx) > Math.abs(dy)) {
-            onSwipeRef.current(dx > 0 ? 'right' : 'left');
-          } else {
-            onSwipeRef.current(dy > 0 ? 'down' : 'up');
-          }
+        onPanResponderGrant: () => {
+          trackRef.current = newSwipeTrack();
         },
-        // If the OS interrupts the gesture (e.g. an incoming call), simply
-        // drop it - there is no partial state to unwind, so the board can
-        // never get stuck waiting on a gesture that will never complete.
+        onPanResponderMove: (_event, gesture) => {
+          const direction = advanceSwipe(trackRef.current, gesture.dx, gesture.dy);
+          if (direction && !disabledRef.current) onSwipeRef.current(direction);
+        },
+        // A scroll view or the OS asking for the touch mid-swipe would
+        // otherwise cut the gesture off before its move fires.
+        onPanResponderTerminationRequest: () => false,
+        // If the OS interrupts the gesture anyway (e.g. an incoming call),
+        // simply drop it - there is no partial state to unwind.
         onPanResponderTerminate: () => {},
       }),
     [],

@@ -7,13 +7,16 @@ import {
 } from '../settings';
 
 describe('defaultSettings', () => {
-  test('starts with sound, haptics and the calming break all on, and no tutorials seen', () => {
+  test('starts with sound, haptics and the calming break all on, no tutorials seen, and reminders off', () => {
     expect(defaultSettings()).toEqual({
       version: 1,
       soundEnabled: true,
       hapticsEnabled: true,
       calmingInterstitialEnabled: true,
       seenTutorials: [],
+      remindersEnabled: false,
+      reminderHour: 19,
+      appearance: 'system',
     });
   });
 });

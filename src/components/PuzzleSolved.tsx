@@ -1,4 +1,7 @@
 import React, { useMemo } from 'react';
+import { useLastBonus } from '../progression/PlayerProgressProvider';
+import { cosmeticById } from '../progression/shop';
+import { CosmeticPreview } from './CosmeticPreview';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { ConfettiBurst } from './ConfettiBurst';
 import { PressableScale } from './PressableScale';
@@ -7,7 +10,7 @@ import { GeometricRule } from './GeometricRule';
 import { StarRow } from './StarRow';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, encouragementTier, GameKind, gameLabelForKind, pickEncouragement } from '../game/journey';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 import { CoinsEarned } from './Coins';
 
 export interface PuzzleSolvedProps {
@@ -74,6 +77,12 @@ export function PuzzleSolved({
   coinsEarned = 0,
 }: PuzzleSolvedProps): React.JSX.Element {
   const { backdrop, card, hero, sheen, rowStyle } = useCardEntrance(ROW_COUNT);
+  // What multiplied this solve's coins: a golden puzzle, the clean-run
+  // combo, the lucky charm (see the shop).
+  const bonus = useLastBonus();
+  const paid = coinsEarned > 0;
+  // A Weekly Grand milestone's exclusive, won by this very solve.
+  const won = bonus?.grandCosmetic ? cosmeticById(bonus.grandCosmetic) : undefined;
 
   // Three stars is rare enough to earn its own word - the same card
   // otherwise reads identically whether the player scraped a single star or
@@ -166,9 +175,23 @@ export function PuzzleSolved({
           <Animated.Text style={[styles.note, rowStyle(3)]}>
             {note ?? (hintsUsed === 0 ? 'No hints used' : `${hintsUsed} hint${hintsUsed > 1 ? 's' : ''} used`)}
           </Animated.Text>
-          <Animated.View style={rowStyle(3)}>
+          <Animated.View style={[rowStyle(3), styles.coinRow]}>
             <CoinsEarned amount={coinsEarned} style={styles.coins} />
+            {paid && bonus?.golden && <Text style={[styles.charm, styles.golden]}>{'GOLDEN \u00D73'}</Text>}
+            {paid && bonus && bonus.comboMultiplier > 1 && (
+              <Text style={[styles.charm, styles.combo]}>{`CLEAN RUN ${bonus.cleanRun} \u00B7 \u00D7${bonus.comboMultiplier}`}</Text>
+            )}
+            {paid && bonus?.charmed && <Text style={styles.charm}>{'LUCKY \u00D72'}</Text>}
+            {bonus?.grand && <Text style={[styles.charm, styles.golden]}>{'WEEKLY GRAND \u2713\uFE0E'}</Text>}
           </Animated.View>
+          {won && (
+            <Animated.View style={[rowStyle(3), styles.wonRow]}>
+              <View style={styles.wonPreview}>
+                <CosmeticPreview item={won} size={30} />
+              </View>
+              <Text style={styles.wonText}>{`WON: ${won.name.toUpperCase()} · NOT IN THE SHOP`}</Text>
+            </Animated.View>
+          )}
 
 
           <Animated.View style={[styles.cardRule, rowStyle(4)]}>
@@ -199,7 +222,44 @@ export function PuzzleSolved({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
+  coinRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 8, paddingHorizontal: theme.spacing.md },
+  golden: { backgroundColor: theme.colors.goldFill, borderWidth: 1, borderColor: theme.colors.goldRim, color: theme.colors.onGold },
+  wonRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 8,
+    marginTop: theme.spacing.sm,
+    paddingVertical: 4,
+    paddingLeft: 4,
+    paddingRight: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: theme.colors.goldRim,
+  },
+  wonPreview: { width: 34, height: 34, borderRadius: 9, backgroundColor: theme.colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  wonText: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: 9.5,
+    letterSpacing: 0.8,
+    fontWeight: theme.typography.weights.bold,
+    color: theme.colors.textPrimary,
+  },
+  combo: { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.colors.border, color: theme.colors.textPrimary },
+  charm: {
+    marginTop: theme.spacing.sm,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 8,
+    overflow: 'hidden',
+    backgroundColor: theme.colors.accent,
+    color: theme.colors.surfaceHi,
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.micro,
+    fontWeight: theme.typography.weights.bold,
+    letterSpacing: 1,
+  },
   overlay: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
@@ -218,7 +278,7 @@ const styles = StyleSheet.create({
     // The one place in this app a card really is lifted off the page
     // rather than ruled onto it - it floats over a dimmed board, so there
     // is no "ghost card" double-elevation to worry about here.
-    shadowColor: '#3B1F52',
+    shadowColor: theme.colors.shadow,
     shadowOpacity: 0.26,
     shadowRadius: 28,
     shadowOffset: { width: 0, height: 14 },
@@ -246,7 +306,7 @@ const styles = StyleSheet.create({
     top: -120,
     bottom: -120,
     width: 70,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: theme.colors.sheen,
   },
   /** A slim bar of the game's accent across the card's top edge - the
    * card clips, so it lands flush in the corners with no extra radius
@@ -333,4 +393,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
-});
+}));

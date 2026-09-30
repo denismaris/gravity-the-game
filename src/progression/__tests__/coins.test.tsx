@@ -5,7 +5,6 @@ import {
   DAILY_BONUS,
   emptyProgress,
   FIRST_SOLVE_COINS,
-  HINT_COST,
   parseProgress,
   SET_BONUS,
   STAR_UPGRADE_COINS,
@@ -99,21 +98,24 @@ describe('earning and spending through the provider', () => {
   });
 
   test('spending takes coins while they last, then refuses without going negative', async () => {
+    // A fixed price, not HINT_COST: this is about how spending works, and
+    // the hint price is set to 0 while the games are being playtested.
+    const PRICE = 10;
     const harness = mount();
     await harness.start();
-    const affordable = Math.floor(harness.api().coins / HINT_COST);
+    const affordable = Math.floor(harness.api().coins / PRICE);
     for (let i = 0; i < affordable; i += 1) {
       let ok = false;
       act(() => {
-        ok = harness.api().spendCoins(HINT_COST);
+        ok = harness.api().spendCoins(PRICE);
       });
       expect(ok).toBe(true);
     }
     const left = harness.api().coins;
-    expect(left).toBeLessThan(HINT_COST);
+    expect(left).toBeLessThan(PRICE);
     let refused = true;
     act(() => {
-      refused = !harness.api().spendCoins(HINT_COST);
+      refused = !harness.api().spendCoins(PRICE);
     });
     expect(refused).toBe(true);
     expect(harness.api().coins).toBe(left);

@@ -103,6 +103,14 @@ export const WORLDS: ReadonlyArray<WorldDefinition> = [
     mechanics: ['gravity', 'targets', 'obstacles', 'multi-object', 'anchored'],
     levelIds: levelIdsInOrderRange(157, 170),
   },
+  {
+    id: 'world-8',
+    order: 8,
+    name: 'The Deep End',
+    subtitle: 'Six moves deep, and down to eleven.',
+    mechanics: ['gravity', 'targets', 'obstacles', 'multi-object', 'anchored', 'portals'],
+    levelIds: levelIdsInOrderRange(171, 194),
+  },
 ];
 
 WORLDS.forEach(assertValidWorld);

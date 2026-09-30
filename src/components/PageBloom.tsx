@@ -1,8 +1,9 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Canvas, Circle, Path, Rect } from '@shopify/react-native-skia';
-import { theme } from '../theme';
+import { theme, nightTone } from '../theme';
 import { blossomPath, leafPath } from './AlmanacBackdrop';
+import { useEquipped } from '../progression/PlayerProgressProvider';
 
 /**
  * The `bloom` poster's footer, for every page that is not Home.
@@ -22,7 +23,9 @@ import { blossomPath, leafPath } from './AlmanacBackdrop';
 export function PageBloom(): React.JSX.Element {
   const { width, height } = useWindowDimensions();
   const art = useMemo(() => composeFooter(width, height), [width, height]);
-  const ink = theme.colors.primary;
+  const ink = theme.colors.artInk;
+  // The blossom's colour is the player's page art (see the shop).
+  const bloom = nightTone(useEquipped('garden').colors[0] ?? theme.colors.secondary);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -31,7 +34,7 @@ export function PageBloom(): React.JSX.Element {
         {art.leaves.map((d, i) => (
           <Path key={`leaf-${i}`} path={d} color={ink} />
         ))}
-        <Path path={art.blossom} color={theme.colors.secondary} />
+        <Path path={art.blossom} color={bloom} />
         <Path path={art.dome} color={ink} />
         {art.rules.map((r, i) => (
           <Rect key={`rule-${i}`} x={r.x} y={r.y} width={r.width} height={r.height} color={ink} />

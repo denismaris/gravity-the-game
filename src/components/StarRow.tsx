@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View, ViewStyle } from 'react-native';
-import { motion, theme } from '../theme';
+import { Animated, View, ViewStyle } from 'react-native';
+import { motion, theme, themedStyles } from '../theme';
 
 export interface StarRowProps {
   /** How many of the three stars are filled (0-3). */
@@ -86,7 +86,7 @@ export function StarRow({ earned, size = 16, style, animateIn = false }: StarRow
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
   },
@@ -107,4 +107,4 @@ const styles = StyleSheet.create({
   empty: {
     color: theme.colors.border,
   },
-});
+}));

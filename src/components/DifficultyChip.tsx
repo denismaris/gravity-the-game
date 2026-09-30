@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { StyleProp, Text, View, ViewStyle } from 'react-native';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
-import { theme } from '../theme';
+import { theme, themedStyles } from '../theme';
 
 export interface DifficultyChipProps {
   readonly difficulty: PuzzleDifficulty;
@@ -47,7 +47,7 @@ export function DifficultyChip({ difficulty, expert = false, challenge = false, 
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   chip: {
     paddingHorizontal: 6,
     paddingVertical: 1,
@@ -73,4 +73,4 @@ const styles = StyleSheet.create({
     color: theme.colors.accent,
     fontWeight: theme.typography.weights.bold,
   },
-});
+}));

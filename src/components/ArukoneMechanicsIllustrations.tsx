@@ -25,8 +25,8 @@ const ROWS = 4;
 const GRID_X = (ILLUSTRATION_WIDTH - COLS * CELL) / 2;
 const GRID_Y = (ILLUSTRATION_HEIGHT - ROWS * CELL) / 2;
 
-const TONE_A = theme.colors.arukoneAccent;
-const TONE_B = shade(theme.colors.arukoneAccent, 1.46);
+const toneA = (): string => theme.colors.arukoneAccent;
+const toneB = (): string => shade(theme.colors.arukoneAccent, 1.46);
 
 function center(row: number, col: number): { x: number; y: number } {
   return { x: GRID_X + col * CELL + CELL / 2, y: GRID_Y + row * CELL + CELL / 2 };
@@ -137,9 +137,9 @@ function ConnectIllustration(): React.JSX.Element {
   return (
     <Group>
       <Grid />
-      <Cord path={line(run)} tone={TONE_A} width={CELL * 0.3} faded={false} />
-      <Token center={center(0, 1)} radius={CELL * 0.3} tone={TONE_A} joined />
-      <Token center={center(2, 3)} radius={CELL * 0.3} tone={TONE_A} joined />
+      <Cord path={line(run)} tone={toneA()} width={CELL * 0.3} faded={false} />
+      <Token center={center(0, 1)} radius={CELL * 0.3} tone={toneA()} joined />
+      <Token center={center(2, 3)} radius={CELL * 0.3} tone={toneA()} joined />
     </Group>
   );
 }
@@ -161,12 +161,12 @@ function SymmetryIllustration(): React.JSX.Element {
       <Grid />
       <Fold />
       <Obstacle row={3} col={2} />
-      <Cord path={line(mirrored)} tone={TONE_A} width={CELL * 0.3} faded />
-      <Cord path={line(drawn)} tone={TONE_A} width={CELL * 0.3} faded={false} />
-      <Token center={center(0, 0)} radius={CELL * 0.3} tone={TONE_A} joined />
-      <Token center={center(2, 1)} radius={CELL * 0.3} tone={TONE_A} joined />
-      <Token center={center(0, COLS - 1)} radius={CELL * 0.3} tone={TONE_A} joined={false} />
-      <Token center={center(2, COLS - 1 - 1)} radius={CELL * 0.3} tone={TONE_A} joined={false} />
+      <Cord path={line(mirrored)} tone={toneA()} width={CELL * 0.3} faded />
+      <Cord path={line(drawn)} tone={toneA()} width={CELL * 0.3} faded={false} />
+      <Token center={center(0, 0)} radius={CELL * 0.3} tone={toneA()} joined />
+      <Token center={center(2, 1)} radius={CELL * 0.3} tone={toneA()} joined />
+      <Token center={center(0, COLS - 1)} radius={CELL * 0.3} tone={toneA()} joined={false} />
+      <Token center={center(2, COLS - 1 - 1)} radius={CELL * 0.3} tone={toneA()} joined={false} />
     </Group>
   );
 }
@@ -192,12 +192,12 @@ function CrossingIllustration(): React.JSX.Element {
   return (
     <Group>
       <Grid />
-      <Cord path={line(first)} tone={TONE_A} width={CELL * 0.3} faded={false} />
-      <Cord path={line(second)} tone={TONE_B} width={CELL * 0.3} faded={false} />
-      <Token center={center(0, 0)} radius={CELL * 0.3} tone={TONE_A} joined />
-      <Token center={center(1, 3)} radius={CELL * 0.3} tone={TONE_A} joined />
-      <Token center={center(2, 0)} radius={CELL * 0.3} tone={TONE_B} joined />
-      <Token center={center(3, 3)} radius={CELL * 0.3} tone={TONE_B} joined />
+      <Cord path={line(first)} tone={toneA()} width={CELL * 0.3} faded={false} />
+      <Cord path={line(second)} tone={toneB()} width={CELL * 0.3} faded={false} />
+      <Token center={center(0, 0)} radius={CELL * 0.3} tone={toneA()} joined />
+      <Token center={center(1, 3)} radius={CELL * 0.3} tone={toneA()} joined />
+      <Token center={center(2, 0)} radius={CELL * 0.3} tone={toneB()} joined />
+      <Token center={center(3, 3)} radius={CELL * 0.3} tone={toneB()} joined />
     </Group>
   );
 }

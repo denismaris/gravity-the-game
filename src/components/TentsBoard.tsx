@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, View } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
 import { colTentCount, isTreeCell, rowTentCount, TentsTreesCell, TentsTreesPuzzle, TentsTreesState } from '../game/tents';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles, inkWash } from '../theme';
 import { TentsBoardView } from './TentsBoardView';
 
 export interface TentsBoardProps {
@@ -127,7 +127,7 @@ export function TentsBoard({ puzzle, state, size, solved, onToggleCell, flashCel
                   width: layout.cell,
                   height: layout.cell,
                   borderRadius: layout.cell * 0.18,
-                  backgroundColor: pressed ? 'rgba(59,31,82,0.10)' : 'transparent',
+                  backgroundColor: pressed ? inkWash(0.1) : 'transparent',
                 })}
               />
             ))}
@@ -138,7 +138,7 @@ export function TentsBoard({ puzzle, state, size, solved, onToggleCell, flashCel
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   colClue: {
     alignItems: 'center',
     justifyContent: 'flex-end',
@@ -162,4 +162,4 @@ const styles = StyleSheet.create({
     color: theme.colors.success,
     fontWeight: theme.typography.weights.bold,
   },
-});
+}));

@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { Canvas, Circle, Group, Path, Rect } from '@shopify/react-native-skia';
-import { theme } from '../theme';
+import { theme, themedStyles } from '../theme';
 
 /**
  * How loud the mark is. The design reference is restrained - a lot of
@@ -108,9 +108,9 @@ function QuietMarks({ width, midY, ink }: MarkProps): React.JSX.Element {
   return <Group>{bars(width * 0.5 - 10, midY, ink, 3, 7)}</Group>;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   rule: { alignSelf: 'stretch' },
-});
+}));
 
 function bars(x: number, midY: number, color: string, count: number, height: number): React.JSX.Element[] {
   const barWidth = 2;

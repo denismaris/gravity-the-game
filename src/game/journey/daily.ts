@@ -7,6 +7,8 @@ import { BINAIRO } from '../binairo';
 import { FILLAPIX } from '../fillapix';
 import { LIGHTS_OUT } from '../lightsout';
 import { BLOOM } from '../bloom';
+import { MOSAIC } from '../mosaic';
+import { BRIDGES } from '../bridges';
 import { ADJACENT } from '../adjacent';
 import { GameKind, puzzleDisplayInfo, ROTATION } from './gameKind';
 
@@ -47,7 +49,9 @@ function buildAllPuzzles(): ReadonlyArray<PuzzleRef> {
   const lightsout: PuzzleRef[] = LIGHTS_OUT.map(puzzle => ({ kind: 'lightsout' as const, puzzleId: puzzle.id }));
   const adjacent: PuzzleRef[] = ADJACENT.map(puzzle => ({ kind: 'adjacent' as const, puzzleId: puzzle.id }));
   const bloom: PuzzleRef[] = BLOOM.map(puzzle => ({ kind: 'bloom' as const, puzzleId: puzzle.id }));
-  const byKind: Record<GameKind, PuzzleRef[]> = { gravity, mirror, tents, towers, binairo, arukone, fillapix, lightsout, adjacent, bloom };
+  const mosaic: PuzzleRef[] = MOSAIC.map(puzzle => ({ kind: 'mosaic' as const, puzzleId: puzzle.id }));
+  const bridges: PuzzleRef[] = BRIDGES.map(puzzle => ({ kind: 'bridges' as const, puzzleId: puzzle.id }));
+  const byKind: Record<GameKind, PuzzleRef[]> = { gravity, mirror, tents, towers, binairo, arukone, fillapix, lightsout, adjacent, bloom, mosaic, bridges };
   return ROTATION.flatMap(kind => byKind[kind]);
 }
 

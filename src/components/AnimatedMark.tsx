@@ -1,6 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet } from 'react-native';
-import { motion, theme } from '../theme';
+import { Animated } from 'react-native';
+import { motion, theme, themedStyles } from '../theme';
 
 export interface AnimatedMarkProps {
   size: number;
@@ -25,9 +25,9 @@ export function AnimatedMark({ size }: AnimatedMarkProps): React.JSX.Element {
   return <Animated.Text style={[styles.mark, { fontSize: size, transform: [{ scale }] }]}>×</Animated.Text>;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   mark: {
     color: theme.colors.textTertiary,
     fontFamily: theme.typography.families.ui,
   },
-});
+}));

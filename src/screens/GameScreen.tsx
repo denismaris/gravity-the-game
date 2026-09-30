@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { AccessibilityActionEvent, AccessibilityInfo, Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityActionEvent, AccessibilityInfo, Animated, Text, View, useWindowDimensions } from 'react-native';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { triggerFeedback } from '../game/rendering';
@@ -35,10 +35,13 @@ import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey
 import { copyForTutorial, GRAVITY_MECHANICS_SLIDES, mechanicsOf, pickTutorial, tutorialIdForGame, tutorialIdForMechanic } from '../game/tutorials';
 import { BatchState, CompletionOutcome, getLevelResult, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
-import { UNDO_COST } from '../progression/coins';
+import { HINT_COST, UNDO_COST } from '../progression/coins';
+import { GravityHintArrow } from '../components/GravityHintArrow';
+import { findShortestSolution } from '../game/engine';
+import { useStageEntrance } from '../components/useStageEntrance';
 
 const GAME_TUTORIAL_ID = tutorialIdForGame('gravity');
 const ICON_SIZE = 14;
@@ -150,6 +153,8 @@ function AnimatedMoveCount({ moves }: { moves: number }): React.JSX.Element {
 export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): React.JSX.Element {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  const stageIn = useStageEntrance();
+  const controlsIn = useStageEntrance(110);
 
   const initialState = useMemo(() => createGameStateFromLevel(level), [level]);
   const [session, dispatch] = useReducer(gameSessionReducer, initialState, createGameSession);
@@ -157,6 +162,11 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   const gameState = getCurrentState(session);
   const solved = isPuzzleSolved(gameState);
   const failed = isPuzzleFailed(gameState);
+  // Read by the hint handler, which must not act on a stale board.
+  const solvedRef = useRef(solved);
+  solvedRef.current = solved;
+  const failedRef = useRef(failed);
+  failedRef.current = failed;
 
   // Gravity moves made in the current attempt. Each successful gravity push
   // adds one history entry (no-ops don't); undo pops one; restart resets to
@@ -225,6 +235,12 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   // settles into a solved state, cleared when it leaves one (undo). Drives
   // the completion card; never re-recorded by incidental re-renders.
   const [outcome, setOutcome] = useState<CompletionOutcome | null>(null);
+  const [hintsUsed, setHintsUsed] = useState(0);
+  // Read at the moment of the solve, without making the completion effect
+  // re-run (and re-announce targets) every time a hint is taken.
+  const hintsUsedRef = useRef(hintsUsed);
+  hintsUsedRef.current = hintsUsed;
+  const [hintDirection, setHintDirection] = useState<Direction | null>(null);
   const { coins, shortBy, buy } = useCoinPurchase();
 
   // Which kind of transition produced the current `gameState`, so we know
@@ -288,7 +304,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
         // here after `restart` flips `solved` back to false and clears the
         // guard, so a better replay still updates the persisted best.
         finishedSetRef.current = currentBatchRef.current ?? null;
-        const result = recordCompletion(level.id, moveCount);
+        const result = recordCompletion(level.id, moveCount, hintsUsedRef.current > 0 ? { maxStars: 2 } : undefined);
         setOutcome(result);
         // The sighted/haptic "solved" cue above has no VoiceOver
         // equivalent otherwise - this board has no per-cell accessible
@@ -337,12 +353,21 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   }, [failed, isAnimating, shake]);
 
 
+  // One swipe made while a slide is still playing, held to play the moment
+  // the pieces land. Dropping it instead (the old behaviour) is what made a
+  // quick second swipe "do nothing": a player who already knows the next
+  // move swipes before the first one has settled. Only the latest is kept,
+  // so a flurry never stacks into a run of moves.
+  const queuedDirectionRef = useRef<Direction | null>(null);
+
   const handleDirection = useCallback((direction: Direction) => {
-    // Ignore new gravity input while a move is already committed or still
-    // sliding into place - this is what keeps rapid taps/swipes from piling
-    // up overlapping animations or racing ahead of what's on screen. Undo
-    // and Restart deliberately bypass this (see their handlers below).
-    if (movePendingRef.current || isAnimatingRef.current) return;
+    // A move is already committed or still sliding into place: queue this
+    // one rather than overlapping two slides or racing ahead of the screen.
+    // Undo and Restart deliberately bypass this (see their handlers below).
+    if (movePendingRef.current || isAnimatingRef.current) {
+      queuedDirectionRef.current = direction;
+      return;
+    }
 
     // A press that can't move anything is a silent no-op: no state change,
     // no haptic, no "something moved" cue.
@@ -360,6 +385,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   const handleUndo = useCallback(() => {
     buy(UNDO_COST, () => {
       movePendingRef.current = false;
+      queuedDirectionRef.current = null;
       lastActionRef.current = 'undo';
       dispatch({ type: 'undo' });
     });
@@ -367,9 +393,29 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
 
   const handleRestart = useCallback(() => {
     movePendingRef.current = false;
+    queuedDirectionRef.current = null;
     lastActionRef.current = 'restart';
+    setHintsUsed(0);
+    setHintDirection(null);
     dispatch({ type: 'restart' });
   }, []);
+
+  // A hint shows the next move of a shortest solution *from here* - it
+  // never makes it; the swipe stays the player's. Using one caps the solve
+  // at two stars (see the completion effect), since following hints plays
+  // the optimal line and would otherwise earn a free three.
+  const handleHint = useCallback(() => {
+    if (movePendingRef.current || isAnimatingRef.current || solvedRef.current || failedRef.current) return;
+    const path = findShortestSolution(gameStateRef.current, 16);
+    if (!path || path.length === 0) return;
+    buy(HINT_COST, () => {
+      setHintsUsed(n => n + 1);
+      setHintDirection(path[0]);
+      triggerFeedback('targetReached');
+      AccessibilityInfo.announceForAccessibility(`Hint: pull ${path[0]}.`);
+    });
+  }, [buy]);
+  const clearHint = useCallback(() => setHintDirection(null), []);
 
   const handleNext = useCallback(() => {
     if (!nextEntry) return;
@@ -379,7 +425,16 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: outcome?.batchCompleted ?? false });
   }, [nextEntry, onNextPuzzle, markLevelOpened, outcome]);
 
-  const swipeHandlers = useSwipeGesture(handleDirection, isAnimating);
+  // Play the queued swipe as the slide settles - unless that slide ended
+  // the puzzle, one way or the other.
+  useEffect(() => {
+    if (isAnimating) return;
+    const queued = queuedDirectionRef.current;
+    queuedDirectionRef.current = null;
+    if (queued && !solvedRef.current && !failedRef.current) handleDirection(queued);
+  }, [isAnimating, handleDirection]);
+
+  const swipeHandlers = useSwipeGesture(handleDirection);
 
   // VoiceOver intercepts a left/right/up/down swipe for its own navigation,
   // so the gesture above is effectively unreachable with it on - this board
@@ -454,7 +509,10 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
         </PressableScale>
       </View>
 
-      <View style={styles.stage}>
+      {/* Swipes are read across the whole stage, not just the board: a
+          swipe that starts a finger's width outside the board is still
+          plainly a swipe, and ignoring it read as the game not listening. */}
+      <Animated.View style={[styles.stage, stageIn]} {...swipeHandlers}>
         {/* The same ruled ornament every other game's stage opens with -
             Gravity was the one board without it, so moving between games
             in a batch made this screen look like it belonged elsewhere. */}
@@ -470,7 +528,6 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
               ],
             },
           ]}
-          {...swipeHandlers}
           accessible
           accessibilityRole="adjustable"
           accessibilityLabel={`${level.name} board`}
@@ -487,10 +544,11 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
             solved={solved && !isAnimating}
             onAnimatingChange={setIsAnimating}
           />
+          {hintDirection && <GravityHintArrow key={`${hintsUsed}`} size={boardSize} direction={hintDirection} onDone={clearHint} />}
         </Animated.View>
-      </View>
+      </Animated.View>
 
-      <View style={styles.sessionControls}>
+      <Animated.View style={[styles.sessionControls, controlsIn]}>
         <SessionControls
           onUndo={handleUndo}
           onRestart={handleRestart}
@@ -502,9 +560,11 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           // stated loss condition.
           undoDisabled={!canUndo(session) || failed}
           undoCost={UNDO_COST}
+          onHint={handleHint}
+          hintCost={HINT_COST}
         />
         <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
-      </View>
+      </Animated.View>
 
       {/* Both outcome cards sit at the screen root, not inside the board.
           They cover the screen with `absoluteFill`, so nested inside the
@@ -549,7 +609,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
 }
 
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     alignItems: 'center',
@@ -646,4 +706,4 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   coinBalance: { marginTop: theme.spacing.md },
-});
+}));

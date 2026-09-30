@@ -1,9 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '../components';
 import { ACHIEVEMENTS, usePlayerProgress } from '../progression';
-import { theme } from '../theme';
+import { theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 
 export interface AchievementsScreenProps {
@@ -98,7 +98,7 @@ export function AchievementsScreen({ onExit }: AchievementsScreenProps): React.J
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -181,4 +181,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.caption,
     color: theme.colors.textTertiary,
   },
-});
+}));

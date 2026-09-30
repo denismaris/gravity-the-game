@@ -41,13 +41,18 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
   }
 }
 
-/** The app's own paper colour (`theme.colors.background`, #EDE5D3). Set in
- * three places that each cover a different slice of the cold start, which is
- * why they have to stay in step by hand: LaunchScreen.storyboard covers the
- * launch image, the window covers the gap after it, and the React root view
- * covers the frames before JS paints. Miss any one and a white flash shows
- * through the middle of the opening animation. */
-private let paperBackground = UIColor(red: 237.0 / 255.0, green: 229.0 / 255.0, blue: 211.0 / 255.0, alpha: 1.0)
+/** The app's own paper colour (`theme.colors.background`): #EDE5D3 by day,
+ * #15101B by night (`src/theme/palettes.ts`). Set in three places that each
+ * cover a different slice of the cold start, which is why they have to stay
+ * in step by hand: LaunchScreen.storyboard covers the launch image (through
+ * the `LaunchBackground` colour asset), the window covers the gap after it,
+ * and the React root view covers the frames before JS paints. Miss any one
+ * and a flash of the wrong colour shows through the opening animation. */
+private let paperBackground = UIColor { traits in
+  traits.userInterfaceStyle == .dark
+    ? UIColor(red: 21.0 / 255.0, green: 16.0 / 255.0, blue: 27.0 / 255.0, alpha: 1.0)
+    : UIColor(red: 237.0 / 255.0, green: 229.0 / 255.0, blue: 211.0 / 255.0, alpha: 1.0)
+}
 
 class ReactNativeDelegate: RCTDefaultReactNativeFactoryDelegate {
   override func sourceURL(for bridge: RCTBridge) -> URL? {

@@ -1,9 +1,9 @@
 /* eslint-disable react-native/no-inline-styles -- cell geometry is derived from `size` at render time */
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, Pressable, Text, View } from 'react-native';
 import { computeConflicts, isColComplete, isRowComplete, TowersCell, TowersPuzzle, TowersState } from '../game/towers';
 import { shade, useReducedMotion } from '../game/rendering';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 
 export interface TowersBoardProps {
   puzzle: TowersPuzzle;
@@ -509,7 +509,7 @@ function Building({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
   },
@@ -532,4 +532,4 @@ const styles = StyleSheet.create({
   linePulse: {
     backgroundColor: LINE_PULSE_COLOR,
   },
-});
+}));

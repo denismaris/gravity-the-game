@@ -1,5 +1,5 @@
 export type { DailyStatus, PlayerProgress, ProgressCursor } from './playerProgress';
-export { coinsForSolve, DAILY_BONUS, FIRST_SOLVE_COINS, HINT_COST, SET_BONUS, STAR_UPGRADE_COINS, STARTING_COINS, UNDO_COST } from './coins';
+export { GOLDEN_EVERY, GOLDEN_MULTIPLIER, cleanRunMultiplier, coinsForSolve, DAILY_BONUS, FIRST_SOLVE_COINS, HINT_COST, SET_BONUS, STAR_UPGRADE_COINS, STARTING_COINS, UNDO_COST } from './coins';
 export type { SolveReward } from './coins';
 export {
   EMPTY_DAILY,
@@ -11,6 +11,7 @@ export {
   getTotalStars,
   isDailyCompleted,
   isLevelCompleted,
+  missedDailies,
   PLAYER_PROGRESS_VERSION,
   recordCompletion,
   recordDaily,
@@ -24,7 +25,7 @@ export {
   saveProgress,
 } from './playerProgressStore';
 export type { BatchPuzzleRef, BatchState } from './batches';
-export { generateBatch, isBatchComplete, markPuzzleCompleted, nextInBatch } from './batches';
+export { generateBatch, isBatchComplete, markPuzzleCompleted, nextInBatch, replaceInBatch } from './batches';
 export type { LevelPoint, LevelPointEntry, WorldLevelSummary, WorldSummary } from './worldProgress';
 export {
   getAllWorldSummaries,
@@ -39,7 +40,22 @@ export type {
   CompletionOutcome,
   PlayerProgressProviderProps,
 } from './PlayerProgressProvider';
-export { PlayerProgressProvider, usePlayerProgress } from './PlayerProgressProvider';
+export type { SolveBonus } from './PlayerProgressProvider';
+export { PlayerProgressProvider, useEquipped, useLastBonus, useLastCharmed, usePlayerProgress } from './PlayerProgressProvider';
+export type { Rank, RankTier } from './rank';
+export { RANKS, collectRanks, experienceOf, pendingRanks, rankAt, rankOf, rankReward, rankTitle, toRoman, XP_PER_ERRAND, XP_PER_PUZZLE, XP_PER_STAR, XP_PER_STREAK_DAY } from './rank';
+export type { Chapter } from './chapters';
+export { LEVELS_PER_CHAPTER, chapterAt, chapterOfLevel, chapterRewarding, chaptersFinished, claimChapter, currentChapter, unclaimedChapters } from './chapters';
+export type { Errand, ErrandKind, ErrandLog, SolveEvent } from './errands';
+export { ERRANDS_PER_DAY, advanceErrands, claimErrand, errandLogFor, errandsFor, isErrandDone, unclaimedErrands } from './errands';
+export type { Cosmetic, CosmeticSlot, Rarity, SkinGame } from './shop';
+export { COSMETIC_SLOTS, RARITY_NAMES, RARITY_PRICES, SKIN_GAMES, rarityOf, skinOverrides, skinSlot } from './shop';
+export { LUCKY_CHARM_CHARGES, LUCKY_CHARM_PRICE, MAX_LUCKY_CHARGES, MAX_RETIRED, RETIRE_PRICES, SWAP_PRICE, buyLuckyCharm, reinstateGame, retireGame, retirePrice } from './shop';
+export { COSMETICS, DEFAULT_EQUIPPED, MAX_STREAK_FREEZES, STREAK_FREEZE_PRICE, buyCosmetic, buyStreakFreeze, cosmeticById, cosmeticsFor, equipCosmetic, equipped, grantCosmetic, owns } from './shop';
+export type { GrandReward } from './grand';
+export { GRAND_COINS, GRAND_REWARDS, isGrandSolved, nextGrandReward, recordGrand } from './grand';
+export type { GameLedger, Ledger, Stamp } from './ledger';
+export { STAMP_COINS, STAMP_NAMES, STAMP_STEPS, claimStamp, ledgerOf, stampId, stampsOf, unclaimedStamps } from './ledger';
 export type { Achievement } from './achievements';
 export { ACHIEVEMENTS, getEarnedAchievements, TOTAL_PUZZLE_COUNT } from './achievements';
 export type { Aptitude, GameAptitude } from './aptitude';

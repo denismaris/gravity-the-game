@@ -1,7 +1,7 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
 import { PressableScale } from './PressableScale';
-import { theme } from '../theme';
+import { theme, themedStyles } from '../theme';
 
 export interface NumberKeypadProps {
   /** The digits offered, in order (e.g. Skyscrapers: 1..N). */
@@ -62,7 +62,7 @@ export function NumberKeypad({ digits, counts, disabled, onPressDigit, onErase }
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     gap: theme.spacing.xs,
@@ -96,4 +96,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     color: theme.colors.textSecondary,
   },
-});
+}));

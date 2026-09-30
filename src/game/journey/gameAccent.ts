@@ -42,5 +42,9 @@ export function accentColorForKind(kind: GameKind): string {
       return theme.colors.adjacentAccent;
     case 'bloom':
       return theme.colors.bloomAccent;
+    case 'mosaic':
+      return theme.colors.mosaicAccent;
+    case 'bridges':
+      return theme.colors.bridgesAccent;
   }
 }

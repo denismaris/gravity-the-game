@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
@@ -34,10 +34,11 @@ import { triggerFeedback } from '../game/rendering';
 import { ADJACENT_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
 import { UNDO_COST } from '../progression/coins';
+import { useStageEntrance } from '../components/useStageEntrance';
 
 const TUTORIAL_ID = tutorialIdForGame('adjacent');
 const ICON_SIZE = 14;
@@ -119,6 +120,8 @@ export interface AdjacentScreenProps {
  */
 export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const stageIn = useStageEntrance();
+  const controlsIn = useStageEntrance(110);
   const { width, height } = useWindowDimensions();
   const { progress, recordCompletion } = usePlayerProgress();
   const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
@@ -191,7 +194,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
       batchCompletedRef.current = outcome.batchCompleted;
       setStars(outcome.best.stars);
       setCoinsEarned(outcome.coinsEarned);
-      triggerFeedback('solved');
+      triggerFeedback('adjacentSolve');
     }
   }, [solved, undosUsed, puzzle.id, recordCompletion]);
 
@@ -254,7 +257,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
 
       // A run big enough to earn a bonus band gets the louder cue - the
       // one moment in a move worth marking by ear.
-      triggerFeedback(move.multiplier > 1 ? 'targetReached' : 'step');
+      triggerFeedback(move.multiplier > 1 ? 'adjacentCombo' : 'adjacentPop');
     },
     [solved, stuck, track],
   );
@@ -320,7 +323,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
       </View>
 
       <View style={styles.boardArea}>
-        <View style={styles.stage}>
+        <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
           <AdjacentBoard
             puzzle={puzzle}
@@ -336,9 +339,9 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
             onPressCell={onPressCell}
             onPressCancel={onPressCancel}
           />
-        </View>
+        </Animated.View>
 
-        <View style={styles.controls}>
+        <Animated.View style={[styles.controls, controlsIn]}>
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel={`Undo the last clear, ${undosLeft} of ${MAX_UNDOS} left`}
@@ -359,7 +362,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
             <RestartIcon />
             <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
         <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
       </View>
 
@@ -469,7 +472,7 @@ function ScoreTrack({ score, target }: { score: number; target: number }): React
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     alignItems: 'center',
@@ -563,11 +566,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderTopColor: '#FBF6EB',
+    borderTopColor: theme.colors.highlightEdge,
     borderLeftColor: theme.colors.border,
     borderRightColor: theme.colors.border,
     borderBottomColor: theme.colors.border,
-    shadowColor: '#3B1F52',
+    shadowColor: theme.colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 2, height: 3 },
@@ -581,4 +584,4 @@ const styles = StyleSheet.create({
     fontWeight: theme.typography.weights.semibold,
   },
   pillTextDisabled: { color: theme.colors.textTertiary },
-});
+}));

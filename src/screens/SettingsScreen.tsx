@@ -1,12 +1,14 @@
-import React, { useCallback } from 'react';
-import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
+import React, { useCallback, useState } from 'react';
+import { Alert, ScrollView, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { version } from '../../package.json';
 import { GeometricRule, PressableScale } from '../components';
 import { usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { theme } from '../theme';
+import { requestReminderPermission } from '../notifications';
+import { theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
+import { AppearancePicker } from '../components/AppearancePicker';
 
 export interface SettingsScreenProps {
   onExit: () => void;
@@ -24,8 +26,26 @@ export interface SettingsScreenProps {
  */
 export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { settings, setSoundEnabled, setHapticsEnabled, setCalmingInterstitialEnabled } = useSettings();
+  const { settings, setSoundEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance } = useSettings();
   const { resetProgress } = usePlayerProgress();
+  // Set when the system refused permission, so the switch can say why it
+  // stayed off rather than silently flicking back.
+  const [blocked, setBlocked] = useState(false);
+
+  // The permission prompt is asked for here, in answer to the player
+  // turning reminders on - never on launch.
+  const toggleReminders = useCallback(
+    async (on: boolean) => {
+      if (!on) {
+        setReminders(false);
+        return;
+      }
+      const granted = await requestReminderPermission();
+      setBlocked(!granted);
+      if (granted) setReminders(true);
+    },
+    [setReminders],
+  );
 
   const confirmReset = useCallback(() => {
     Alert.alert(
@@ -52,6 +72,11 @@ export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Eleme
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        <Text style={styles.sectionLabel}>APPEARANCE</Text>
+        <View style={styles.card}>
+          <AppearancePicker value={settings.appearance} onChange={setAppearance} />
+        </View>
+
         <Text style={styles.sectionLabel}>SOUND & HAPTICS</Text>
         <View style={styles.card}>
           <Row
@@ -79,6 +104,44 @@ export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Eleme
           />
         </View>
 
+        <Text style={styles.sectionLabel}>REMINDERS</Text>
+        <View style={styles.card}>
+          <Row
+            label="Daily Puzzle Reminder"
+            value={settings.remindersEnabled}
+            onValueChange={toggleReminders}
+            accessibilityLabel="Remind me about the Daily puzzle"
+          />
+          {settings.remindersEnabled && (
+            <>
+              <GeometricRule variant="quiet" style={styles.divider} />
+              <View style={styles.hours}>
+                {REMINDER_HOURS.map(([hour, label]) => {
+                  const on = settings.reminderHour === hour;
+                  return (
+                    <PressableScale
+                      key={hour}
+                      accessibilityRole="button"
+                      accessibilityState={{ selected: on }}
+                      accessibilityLabel={`Remind me at ${label}`}
+                      onPress={() => setReminders(true, hour)}
+                      containerStyle={styles.hourWrap}
+                      style={[styles.hour, on && styles.hourOn]}
+                    >
+                      <Text style={[styles.hourText, on && styles.hourTextOn]}>{label}</Text>
+                    </PressableScale>
+                  );
+                })}
+              </View>
+            </>
+          )}
+          <Text style={styles.note}>
+            {blocked
+              ? 'Notifications are switched off for Tessera. Turn them on in your phone’s Settings, then try again.'
+              : 'One quiet note a day with the Daily’s name - never if you have already solved it.'}
+          </Text>
+        </View>
+
         <Text style={styles.sectionLabel}>PROGRESS</Text>
         <View style={styles.card}>
           <PressableScale
@@ -100,6 +163,15 @@ export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Eleme
     </View>
   );
 }
+
+/** The reminder times on offer: morning coffee, lunch, early evening,
+ * last thing at night. */
+const REMINDER_HOURS: ReadonlyArray<readonly [number, string]> = [
+  [9, '9:00'],
+  [13, '13:00'],
+  [19, '19:00'],
+  [21, '21:00'],
+];
 
 interface RowProps {
   label: string;
@@ -124,7 +196,7 @@ function Row({ label, value, onValueChange, accessibilityLabel }: RowProps): Rea
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     backgroundColor: theme.colors.background,
@@ -181,6 +253,35 @@ const styles = StyleSheet.create({
   divider: {
     marginLeft: theme.spacing.lg,
   },
+  hours: {
+    flexDirection: 'row',
+    gap: theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    paddingVertical: theme.spacing.md,
+  },
+  hourWrap: { flex: 1 },
+  hour: {
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surfaceHi,
+  },
+  hourOn: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
+  hourText: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.caption,
+    color: theme.colors.textPrimary,
+  },
+  hourTextOn: { color: theme.colors.surfaceHi, fontWeight: theme.typography.weights.bold },
+  note: {
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+    fontSize: theme.typography.sizes.caption,
+    lineHeight: 18,
+    color: theme.colors.textSecondary,
+  },
   resetRow: {
     paddingHorizontal: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
@@ -217,4 +318,4 @@ const styles = StyleSheet.create({
     color: theme.colors.textTertiary,
     marginTop: theme.spacing.xs,
   },
-});
+}));

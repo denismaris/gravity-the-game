@@ -1,10 +1,11 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
-import { theme } from '../theme';
+import { theme, themedStyles } from '../theme';
+import { useEquipped } from '../progression/PlayerProgressProvider';
 
 /** Kept inside the palette instead of introducing new colour - this is a
  * celebration, not a rebrand. */
-const COLORS = [theme.colors.secondary, theme.colors.accent, theme.colors.success, theme.colors.pieceBlue];
+const houseColors = (): string[] => [theme.colors.secondary, theme.colors.accent, theme.colors.success, theme.colors.pieceBlue];
 const COUNT = 14;
 
 interface Piece {
@@ -18,12 +19,12 @@ interface Piece {
 /** Deterministic scatter (no `Math.random`, so this stays pure/reproducible)
  * - a fixed spread of angles/sizes/colours that still reads as "confetti",
  * not a perfect circle of identical dots. */
-function makePieces(): Piece[] {
+function makePieces(colors: ReadonlyArray<string>): Piece[] {
   return Array.from({ length: COUNT }, (_, i) => ({
     angle: (i / COUNT) * Math.PI * 2 + (i % 2 === 0 ? 0.16 : -0.11),
     distance: 68 + ((i * 37) % 46),
     size: 6 + ((i * 13) % 7),
-    color: COLORS[i % COLORS.length],
+    color: colors[i % colors.length],
     spin: (i * 53) % 360,
   }));
 }
@@ -37,7 +38,10 @@ function makePieces(): Piece[] {
  */
 export function ConfettiBurst(): React.JSX.Element {
   const progress = useRef(new Animated.Value(0)).current;
-  const pieces = useRef(makePieces()).current;
+  // In the palette the player wears (see the shop) - the house colours
+  // by default.
+  const worn = useEquipped('confetti');
+  const pieces = useRef(makePieces(worn.colors.length > 0 ? worn.colors : houseColors())).current;
 
   useEffect(() => {
     Animated.timing(progress, {
@@ -89,10 +93,10 @@ export function ConfettiBurst(): React.JSX.Element {
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   piece: {
     position: 'absolute',
     top: '50%',
     left: '50%',
   },
-});
+}));

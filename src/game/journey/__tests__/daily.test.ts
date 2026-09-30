@@ -4,6 +4,8 @@ import { getFillaPixById } from '../../fillapix';
 import { getLightsOutById } from '../../lightsout';
 import { getAdjacentById } from '../../adjacent';
 import { getBloomById } from '../../bloom';
+import { getMosaicById } from '../../mosaic';
+import { getBridgesById } from '../../bridges';
 import { getLevelById } from '../../levels';
 import { getMirrorMazeById } from '../../mirror';
 import { getTentsTreesById } from '../../tents';
@@ -44,6 +46,10 @@ function realPuzzleExists(entry: ReturnType<typeof getDailyEntry>): boolean {
       return getAdjacentById(entry.puzzleId) !== undefined;
     case 'bloom':
       return getBloomById(entry.puzzleId) !== undefined;
+    case 'mosaic':
+      return getMosaicById(entry.puzzleId) !== undefined;
+    case 'bridges':
+      return getBridgesById(entry.puzzleId) !== undefined;
   }
 }
 

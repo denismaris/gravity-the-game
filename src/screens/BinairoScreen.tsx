@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
@@ -27,10 +27,11 @@ import { triggerFeedback } from '../game/rendering';
 import { BINAIRO_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
 import { HINT_COST } from '../progression/coins';
+import { useStageEntrance } from '../components/useStageEntrance';
 
 const TUTORIAL_ID = tutorialIdForGame('binairo');
 
@@ -55,6 +56,7 @@ const STAGE_H_PADDING = theme.spacing.sm;
  * celebratory spring: this fires on ordinary cell taps, tens of times a
  * puzzle, so it has to stay quiet. */
 const TRACK_MS = 220;
+const TRACK_WIDTH = 140;
 /** How long the completion popup waits after solve detection before
  * appearing - tuned to `BinairoBoardView`'s own `WAVE_TOTAL_MS` (650ms),
  * the board's ripple-celebration duration, so the popup doesn't cut the
@@ -118,6 +120,8 @@ function HelpIcon(): React.JSX.Element {
  */
 export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const stageIn = useStageEntrance();
+  const controlsIn = useStageEntrance(110);
   const { width, height } = useWindowDimensions();
   const { progress, recordCompletion } = usePlayerProgress();
   const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
@@ -195,7 +199,9 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
       toValue: totalCells ? (totalCells - left) / totalCells : 0,
       duration: TRACK_MS,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: false, // width isn't a transform - can't use the native driver
+      // A transform, so it runs on the native driver: a JS-driven width
+      // animation after every tap competed with the board for the frame.
+      useNativeDriver: true,
     }).start();
   }, [left, totalCells, trackFill]);
 
@@ -314,7 +320,11 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
               style={[
                 styles.trackFill,
                 {
-                  width: trackFill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' }),
+                  // Full width, scaled from its left edge.
+                  transform: [
+                    { translateX: trackFill.interpolate({ inputRange: [0, 1], outputRange: [-TRACK_WIDTH / 2, 0], extrapolate: 'clamp' }) },
+                    { scaleX: trackFill.interpolate({ inputRange: [0, 1], outputRange: [0.0001, 1], extrapolate: 'clamp' }) },
+                  ],
                 },
               ]}
             />
@@ -333,10 +343,10 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
       </View>
 
       <View style={styles.boardArea}>
-        <View style={styles.stage}>
+        <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
           <BinairoBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} introKey={introKey} />
-        </View>
+        </Animated.View>
 
         {constraintKinds.size > 0 && (
           <View style={styles.legend}>
@@ -355,7 +365,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
           </View>
         )}
 
-        <View style={styles.controls}>
+        <Animated.View style={[styles.controls, controlsIn]}>
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Reveal a hint"
@@ -375,7 +385,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
             <RestartIcon />
             <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
         <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
       </View>
 
@@ -454,7 +464,7 @@ function AnimatedKicker({ left, solved, difficulty }: { left: number; solved: bo
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     alignItems: 'center',
@@ -507,7 +517,7 @@ const styles = StyleSheet.create({
   // own identity colour instead of the app-wide `secondary` so it reads as
   // "this screen's" progress, not a borrowed piece of chrome.
   track: {
-    width: 140,
+    width: TRACK_WIDTH,
     height: 3,
     borderRadius: 1.5,
     backgroundColor: theme.colors.surfaceAlt,
@@ -515,6 +525,7 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   trackFill: {
+    width: TRACK_WIDTH,
     height: 3,
     borderRadius: 1.5,
     backgroundColor: theme.colors.binairoAccent,
@@ -613,13 +624,13 @@ const styles = StyleSheet.create({
     // A slightly lighter top edge than the other three sides - the same
     // small "catching the light" cue the board's own tiles use - rather
     // than one flat border colour on all sides.
-    borderTopColor: '#FBF6EB',
+    borderTopColor: theme.colors.highlightEdge,
     borderLeftColor: theme.colors.border,
     borderRightColor: theme.colors.border,
     borderBottomColor: theme.colors.border,
     // Offset down-right, matching the one light source every other
     // element in this screen now shades toward.
-    shadowColor: '#3B1F52',
+    shadowColor: theme.colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 2, height: 3 },
@@ -631,4 +642,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
-});
+}));

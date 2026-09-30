@@ -7,6 +7,7 @@ import { ARUKONE } from '../arukone';
 import { FILLAPIX } from '../fillapix';
 import { LIGHTS_OUT } from '../lightsout';
 import { BLOOM, tileEnds } from '../bloom';
+import { BRIDGES } from '../bridges';
 import { ADJACENT } from '../adjacent';
 
 /**
@@ -170,6 +171,17 @@ describe('no game ships the same puzzle twice', () => {
         const er = puzzle.source.row + step[0];
         const ec = puzzle.source.col + step[1];
         if (er >= 0 && er < puzzle.rows && ec >= 0 && ec < puzzle.cols && grid[er][ec] === '.') grid[er][ec] = '>';
+        return [puzzle.id, grid] as const;
+      }),
+    );
+  });
+
+  test('Bridges - the islands and their numbers', () => {
+    expectNoDuplicates(
+      'bridges',
+      BRIDGES.map(puzzle => {
+        const grid = blank(puzzle.rows, puzzle.cols);
+        for (const island of puzzle.islands) grid[island.row][island.col] = String(island.need);
         return [puzzle.id, grid] as const;
       }),
     );

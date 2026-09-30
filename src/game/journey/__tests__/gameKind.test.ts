@@ -11,7 +11,7 @@ import { puzzleDisplayInfo, ROTATION } from '../gameKind';
 
 describe('ROTATION', () => {
   test('lists every game kind exactly once', () => {
-    expect(ROTATION).toEqual(['gravity', 'mirror', 'tents', 'towers', 'binairo', 'arukone', 'fillapix', 'lightsout', 'adjacent', 'bloom']);
+    expect(ROTATION).toEqual(['gravity', 'mirror', 'tents', 'towers', 'binairo', 'arukone', 'fillapix', 'lightsout', 'adjacent', 'bloom', 'mosaic', 'bridges']);
   });
 });
 

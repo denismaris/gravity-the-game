@@ -95,7 +95,7 @@ export function getAdjacentById(id: string): AdjacentPuzzle | undefined {
   if (!endless || endless.kind !== 'adjacent') return undefined;
   const cached = endlessCache.get(id);
   if (cached) return cached;
-  const puzzle = generateAdjacent(id, endlessName(endless.index), endless.tier);
+  const puzzle = generateAdjacent(id, endlessName(endless.index, 'adjacent'), endless.tier);
   endlessCache.set(id, puzzle);
   return puzzle;
 }

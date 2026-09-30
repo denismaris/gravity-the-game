@@ -924,10 +924,13 @@ describe('the shipped Binairo pool', () => {
     expect(getBinairoById('nope')).toBeUndefined();
   });
 
-  test('sizes ramp from 6x6 up to 10x10, all even', () => {
+  /** 8x8 is the ceiling: 10x10 was too much to hold on a phone screen
+   * (the owner's call, after playtesting), and difficulty now comes from
+   * how little a board gives, not from how big it is. */
+  test('sizes ramp from 6x6 up to 8x8 and never beyond, all even', () => {
     const sizes = BINAIRO.map(p => p.size);
     expect(Math.min(...sizes)).toBe(6);
-    expect(Math.max(...sizes)).toBe(10);
+    expect(Math.max(...sizes)).toBe(8);
     expect(sizes.every(s => s % 2 === 0)).toBe(true);
     // Monotonic within the constraint-tile puzzles - the ramp broken only
     // by a puzzle that *introduces* a brand new mechanic (`binairo-013`
@@ -969,6 +972,21 @@ describe('the shipped Binairo pool', () => {
         expect(isConstraintViolated(state, constraint)).toBe(false);
       }
     });
+  });
+
+  /** The 6x6 boards were "too easy": a medium 6x6 must give at most about a
+   * third of its squares, and every hard board is a sparse 8x8. */
+  test('medium 6x6 boards give at most a third of their squares, and hard boards are sparse 8x8s', () => {
+    const givenShare = (p: BinairoPuzzle) => p.givens.flat().filter(v => v !== null).length / (p.size * p.size);
+    for (const puzzle of BINAIRO) {
+      if (puzzle.difficulty === 'medium' && puzzle.size === 6 && !puzzle.twinCells && !puzzle.countClues) {
+        expect(givenShare(puzzle)).toBeLessThanOrEqual(0.34);
+      }
+      if (puzzle.difficulty === 'hard') {
+        expect(puzzle.size).toBe(8);
+        expect(givenShare(puzzle)).toBeLessThanOrEqual(0.34);
+      }
+    }
   });
 
   test('every puzzle carries at least one extra mechanic - a constraint tile, a twin pair or a count clue - not just a harder tier at the end', () => {

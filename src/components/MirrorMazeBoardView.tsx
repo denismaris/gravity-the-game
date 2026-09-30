@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
+import { Circle, Group, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import {
   Direction,
   MirrorKind,
@@ -21,6 +21,7 @@ import {
   useReducedMotion,
 } from '../game/rendering';
 import { theme } from '../theme';
+import { SkiaEntrance } from './SkiaEntrance';
 
 /** How long a mirror takes to spin into place after a tap. */
 const FLOURISH_MS = 260;
@@ -73,7 +74,7 @@ export function mirrorPath(cx: number, cy: number, halfLength: number, mirror: M
   return `M ${cx - dx} ${cy - dy} L ${cx + dx} ${cy + dy}`;
 }
 
-const MIRROR_HALO_COLOR = shade(theme.colors.mirrorGlass, 1.35);
+const mirrorHalo = (): string => shade(theme.colors.mirrorGlass, 1.35);
 
 /**
  * A placed mirror, drawn as a soft halo behind a crisp core - the same
@@ -91,7 +92,7 @@ export function renderMirror(key: string, cx: number, cy: number, halfLength: nu
   const path = mirrorPath(cx, cy, halfLength, mirror, extraRadians, scale);
   return (
     <Group key={key}>
-      <Path path={path} color={MIRROR_HALO_COLOR} style="stroke" strokeWidth={strokeWidth * 2.2} strokeCap="round" opacity={0.35} />
+      <Path path={path} color={mirrorHalo()} style="stroke" strokeWidth={strokeWidth * 2.2} strokeCap="round" opacity={0.35} />
       <Path path={path} color={theme.colors.mirrorGlass} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />
     </Group>
   );
@@ -473,8 +474,10 @@ export function MirrorMazeBoardView({
   // to idle the frame the last one settles. Declared after both hooks so it
   // can see them.
   const renderNow = Date.now();
-  let placing = !reducedMotion && flourish !== null && renderNow - flourish.startedAt < FLOURISH_MS;
-  if (!placing && !reducedMotion) {
+  // A mirror's own flourish plays on the UI thread (`SkiaEntrance`); only
+  // a gem bursting still needs real frames from here.
+  let placing = false;
+  if (!reducedMotion) {
     for (const at of gemBursts.values()) {
       if (renderNow - at < GEM_BURST_MS) {
         placing = true;
@@ -657,11 +660,22 @@ export function MirrorMazeBoardView({
             const mirror = state.mirrors[r][c];
             if (!mirror) return null;
             const center = getCellCenter(layout, r, c);
-            const raw = clamp01((Date.now() - flourish.startedAt) / FLOURISH_MS);
-            const eased = easeOutCubic(raw);
-            const extraRadians = (1 - eased) * (Math.PI / 2);
-            const scale = 1 + Math.sin(eased * Math.PI) * 0.16;
-            return renderMirror('flourishing', center.x, center.y, mirrorHalfLength, mirror, extraRadians, scale, mirrorStrokeWidth);
+            // A quarter turn unwinding into place with a brief swell - on
+            // the UI thread (`SkiaEntrance`), so turning a mirror needs no
+            // clock of its own.
+            return (
+              <SkiaEntrance
+                key={`${r}:${c}@${flourish.startedAt}`}
+                duration={FLOURISH_MS}
+                fadeShare={0}
+                turn={Math.PI / 2}
+                swell={0.16}
+                origin={vec(center.x, center.y)}
+                reducedMotion={reducedMotion}
+              >
+                {renderMirror('flourishing', center.x, center.y, mirrorHalfLength, mirror, 0, 1, mirrorStrokeWidth)}
+              </SkiaEntrance>
+            );
           })()}
         </Group>
       )}

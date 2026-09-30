@@ -61,6 +61,49 @@ export function clueStatus(puzzle: FillaPixPuzzle, state: FillaPixState, row: nu
   return filledNeighbourCount(puzzle.size, state.filled, row, col) === clueValue(puzzle, row, col) ? 'satisfied' : 'violated';
 }
 
+/** Share of the picture's filled squares that start already filled, by
+ * tier - a foothold, playtesting asked for one. */
+export const GIVEN_FILL_SHARE = { easy: 0.2, medium: 0.14, hard: 0.1 } as const;
+
+/**
+ * Which squares start already filled and locked: a share of the picture's
+ * own filled squares, spread apart (never two side by side while there is
+ * any choice), picked by a fixed per-puzzle order so the same puzzle always
+ * opens the same way. Taken from the solution, so they can never be wrong
+ * and never change the one answer the clues pin down.
+ */
+export function givenFills(puzzle: FillaPixPuzzle): boolean[][] {
+  const size = puzzle.size;
+  const filled: FillaPixCell[] = [];
+  puzzle.solution.forEach((line, row) => line.forEach((on, col) => on && filled.push({ row, col })));
+  const want = Math.round(filled.length * GIVEN_FILL_SHARE[puzzle.difficulty]);
+  // A fixed shuffle, seeded by the id.
+  let seed = [...puzzle.id].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) % 2147483647, 7);
+  const next = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
+  const order = filled
+    .map(cell => ({ cell, key: next() }))
+    .sort((a, b) => a.key - b.key)
+    .map(entry => entry.cell);
+  const given = Array.from({ length: size }, () => Array.from({ length: size }, () => false));
+  let chosen = 0;
+  const touches = (cell: FillaPixCell) =>
+    [[1, 0], [-1, 0], [0, 1], [0, -1]].some(([dr, dc]) => given[cell.row + dr]?.[cell.col + dc]);
+  for (const pass of [true, false]) {
+    for (const cell of order) {
+      if (chosen >= want) break;
+      if (given[cell.row][cell.col] || (pass && touches(cell))) continue;
+      given[cell.row][cell.col] = true;
+      chosen += 1;
+    }
+  }
+  return given;
+}
+
+/** The board a puzzle opens on: its given squares already filled. */
+export function initialFillaPixState(puzzle: FillaPixPuzzle): FillaPixState {
+  return { filled: givenFills(puzzle).map(line => line.slice()) };
+}
+
 export function toggleCell(state: FillaPixState, row: number, col: number): FillaPixState {
   const filled = state.filled.map((r, ri) => (ri === row ? r.map((v, ci) => (ci === col ? !v : v)) : r));
   return { filled };

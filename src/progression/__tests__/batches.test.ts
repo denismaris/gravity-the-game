@@ -4,7 +4,9 @@ import { getFillaPixByDifficulty } from '../../game/fillapix';
 import { getLightsOutByDifficulty } from '../../game/lightsout';
 import { getAdjacentByDifficulty } from '../../game/adjacent';
 import { getBloomByDifficulty } from '../../game/bloom';
-import { getLevelsByDifficulty, LEVELS } from '../../game/levels';
+import { getMosaicByDifficulty } from '../../game/mosaic';
+import { getBridgesByDifficulty } from '../../game/bridges';
+import { getGravityLevelsForTier, LEVELS } from '../../game/levels';
 import { getMirrorMazesByDifficulty } from '../../game/mirror';
 import { GameKind, ROTATION } from '../../game/journey';
 import { getTentsTreesByDifficulty } from '../../game/tents';
@@ -25,7 +27,7 @@ import { emptyProgress, PlayerProgress, recordCompletion } from '../playerProgre
  * does.
  */
 const HARD_POOLS: Record<GameKind, ReadonlyArray<string>> = {
-  gravity: getLevelsByDifficulty('hard').map(l => l.id),
+  gravity: getGravityLevelsForTier('hard').map(l => l.id),
   mirror: getMirrorMazesByDifficulty('hard').map(p => p.id),
   tents: getTentsTreesByDifficulty('hard').map(p => p.id),
   towers: getTowersByDifficulty('hard').map(p => p.id),
@@ -35,9 +37,41 @@ const HARD_POOLS: Record<GameKind, ReadonlyArray<string>> = {
   lightsout: getLightsOutByDifficulty('hard').map(p => p.id),
   adjacent: getAdjacentByDifficulty('hard').map(p => p.id),
   bloom: getBloomByDifficulty('hard').map(p => p.id),
+  mosaic: getMosaicByDifficulty('hard').map(p => p.id),
+  bridges: getBridgesByDifficulty('hard').map(p => p.id),
 };
 
 const HARD_IDS: ReadonlySet<string> = new Set(Object.values(HARD_POOLS).flat());
+
+/** Every puzzle id one game has at one tier. */
+function poolIdsFor(kind: GameKind, tier: 'easy' | 'medium' | 'hard'): ReadonlyArray<string> {
+  switch (kind) {
+    case 'gravity':
+      return getGravityLevelsForTier(tier).map(l => l.id);
+    case 'mirror':
+      return getMirrorMazesByDifficulty(tier).map(p => p.id);
+    case 'tents':
+      return getTentsTreesByDifficulty(tier).map(p => p.id);
+    case 'towers':
+      return getTowersByDifficulty(tier).map(p => p.id);
+    case 'binairo':
+      return getBinairoByDifficulty(tier).map(p => p.id);
+    case 'arukone':
+      return getArukoneByDifficulty(tier).map(p => p.id);
+    case 'fillapix':
+      return getFillaPixByDifficulty(tier).map(p => p.id);
+    case 'lightsout':
+      return getLightsOutByDifficulty(tier).map(p => p.id);
+    case 'adjacent':
+      return getAdjacentByDifficulty(tier).map(p => p.id);
+    case 'bloom':
+      return getBloomByDifficulty(tier).map(p => p.id);
+    case 'mosaic':
+      return getMosaicByDifficulty(tier).map(p => p.id);
+    case 'bridges':
+      return getBridgesByDifficulty(tier).map(p => p.id);
+  }
+}
 
 /** A deterministic PRNG (mulberry32) so tests can exercise many draws
  * without real randomness making a failure unreproducible. */
@@ -98,8 +132,11 @@ describe('tier curve (levels 1-40 explicit, 41+ a permanent plateau)', () => {
   // twenty hardest levels out of every batch ever generated. They now
   // answer to the hard tier - so they are reachable, but only from the
   // point in the curve where hard puzzles start appearing.
-  test('Gravity levels tagged "expert" can actually be dealt, but never early', () => {
-    const expertIds = new Set(LEVELS.filter(l => l.difficulty === 'expert').map(l => l.id));
+  /** Gravity is dealt by depth (`minMoves`), not by its authored labels -
+   * see \`getGravityLevelsForTier\`. The deepest boards must reach players,
+   * and must stay behind the hard tier. */
+  test('the deepest Gravity boards (8+ moves) can actually be dealt, but never early', () => {
+    const expertIds = new Set(LEVELS.filter(l => (l.metadata?.minMoves ?? 0) >= 8).map(l => l.id));
     expect(expertIds.size).toBeGreaterThan(0);
 
     let seenLate = 0;
@@ -217,7 +254,7 @@ describe('generateBatch - randomization rules', () => {
     // `playerProgressStore.test.ts` for why: exhausting the whole tier
     // would legitimately trigger the "pool exhausted -> repeats allowed"
     // fallback this test isn't exercising).
-    const easyLevels = getLevelsByDifficulty('easy');
+    const easyLevels = getGravityLevelsForTier('easy');
     let progress = emptyProgress();
     for (const level of easyLevels.slice(0, Math.floor(easyLevels.length / 2))) progress = complete(progress, level.id);
 
@@ -236,7 +273,7 @@ describe('generateBatch - randomization rules', () => {
     // from `easy`, so this fully exhausts the one tier this batch can pull
     // Gravity puzzles from.
     let progress = emptyProgress();
-    for (const level of getLevelsByDifficulty('easy')) progress = complete(progress, level.id);
+    for (const level of getGravityLevelsForTier('easy')) progress = complete(progress, level.id);
 
     // Must still produce a full, well-formed batch - falling back to
     // repeats, not crashing or stalling with an empty candidate pool.
@@ -255,6 +292,65 @@ describe('generateBatch - randomization rules', () => {
       for (const ref of batch.puzzles) seenKinds.add(ref.kind);
     }
     for (const kind of ROTATION) expect(seenKinds.has(kind)).toBe(true);
+  });
+});
+
+/**
+ * The second pass at randomization, after playtesting called the run "too
+ * easy" and noticed some games far more than others.
+ */
+describe('generateBatch - shape and spread', () => {
+  const EASY_IDS = new Set<string>(ROTATION.flatMap(kind => poolIdsFor(kind, 'easy')));
+  const MEDIUM_IDS = new Set<string>(ROTATION.flatMap(kind => poolIdsFor(kind, 'medium')));
+  const rank = (id: string) => (EASY_IDS.has(id) ? 0 : MEDIUM_IDS.has(id) ? 1 : 2);
+
+  test('ordinary puzzles in a level run easier to harder - every level warms up and builds', () => {
+    for (let seed = 0; seed < 40; seed += 1) {
+      for (const level of [4, 8, 14, 30]) {
+        const ranks = generateBatch(level, emptyProgress(), null, seededRng(seed * 97 + level))
+          .puzzles.filter(ref => !ref.challenge)
+          .map(ref => rank(ref.puzzleId));
+        expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+      }
+    }
+  });
+
+  test('past the early levels an ordinary slot is almost never an easy puzzle', () => {
+    let easy = 0;
+    let total = 0;
+    for (let seed = 0; seed < 60; seed += 1) {
+      for (const ref of generateBatch(30, emptyProgress(), null, seededRng(seed)).puzzles) {
+        if (ref.challenge) continue;
+        total += 1;
+        if (EASY_IDS.has(ref.puzzleId)) easy += 1;
+      }
+    }
+    expect(easy / total).toBeLessThan(0.12);
+  });
+
+  test('a level rarely repeats a game', () => {
+    let repeats = 0;
+    for (let seed = 0; seed < 100; seed += 1) {
+      const kinds = generateBatch(40, emptyProgress(), null, seededRng(seed)).puzzles.map(ref => ref.kind);
+      if (new Set(kinds).size < kinds.length) repeats += 1;
+    }
+    expect(repeats).toBeLessThan(6);
+  });
+
+  /** Every game an equal chance: the busiest game over a long run is dealt
+   * at most twice as often as the quietest - it used to be Gravity by a
+   * wide margin, weighted by the size of its pool. */
+  test('over a long run every game gets a fair share', () => {
+    const tally = new Map<string, number>();
+    let previous = null as ReturnType<typeof generateBatch> | null;
+    for (let level = 20; level < 420; level += 1) {
+      const batch = generateBatch(level, emptyProgress(), previous, seededRng(level));
+      for (const ref of batch.puzzles) tally.set(ref.kind, (tally.get(ref.kind) ?? 0) + 1);
+      previous = batch;
+    }
+    expect(tally.size).toBe(ROTATION.length);
+    const counts = [...tally.values()];
+    expect(Math.max(...counts) / Math.min(...counts)).toBeLessThan(2);
   });
 });
 

@@ -16,6 +16,8 @@ export interface FillaPixBoardProps {
   onToggleCell: (row: number, col: number) => void;
   /** Cell to flash briefly (a hint reveal). */
   flashCell?: FillaPixCell | null;
+  /** Squares that opened already filled, drawn locked. */
+  givens?: ReadonlyArray<ReadonlyArray<boolean>>;
 }
 
 /**
@@ -29,7 +31,7 @@ export interface FillaPixBoardProps {
  * digit some cells also carry is non-interactive text drawn on top,
  * never a second gesture competing with the toggle.
  */
-export function FillaPixBoard({ puzzle, state, size, solved, onToggleCell, flashCell }: FillaPixBoardProps): React.JSX.Element {
+export function FillaPixBoard({ puzzle, state, size, solved, onToggleCell, flashCell, givens }: FillaPixBoardProps): React.JSX.Element {
   const layout = useMemo(() => computeBoardLayout(puzzle.size, size), [puzzle.size, size]);
 
   const clueByCell = useMemo(() => {
@@ -46,7 +48,7 @@ export function FillaPixBoard({ puzzle, state, size, solved, onToggleCell, flash
         // Same "board is a physical slab resting above the page" shadow
         // every other board casts, offset toward the same upper-left
         // light source.
-        shadowColor: '#3B1F52',
+        shadowColor: theme.colors.shadow,
         shadowOpacity: 0.14,
         shadowRadius: 9,
         shadowOffset: { width: 2, height: 4 },
@@ -54,7 +56,7 @@ export function FillaPixBoard({ puzzle, state, size, solved, onToggleCell, flash
       }}
     >
       <Canvas style={StyleSheet.absoluteFill}>
-        <FillaPixBoardView puzzle={puzzle} state={state} size={size} solved={solved} flashCell={flashCell} />
+        <FillaPixBoardView puzzle={puzzle} state={state} size={size} solved={solved} flashCell={flashCell} givens={givens} />
       </Canvas>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         {Array.from({ length: puzzle.size }).map((_, row) =>

@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
@@ -32,16 +32,17 @@ import { triggerFeedback } from '../game/rendering';
 import { BLOOM_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
 import { HINT_COST } from '../progression/coins';
+import { useStageEntrance } from '../components/useStageEntrance';
 
 const TUTORIAL_ID = tutorialIdForGame('bloom');
 const ICON_SIZE = 14;
 const RESERVED = 300;
 const STAGE_H_PADDING = theme.spacing.sm;
 const HINT_FLASH_MS = 450;
-const ACCENT = theme.colors.bloomAccent;
+const gameAccent = (): string => theme.colors.bloomAccent;
 
 function HelpIcon(): React.JSX.Element {
   return (
@@ -57,10 +58,10 @@ function HelpIcon(): React.JSX.Element {
 function HintIcon(): React.JSX.Element {
   return (
     <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Circle cx={7} cy={5.8} r={4.3} color={ACCENT} style="stroke" strokeWidth={1.4} />
-      <Path path="M 5.4 9.4 L 8.6 9.4" color={ACCENT} style="stroke" strokeWidth={1.3} />
-      <Path path="M 5.7 11.2 L 8.3 11.2" color={ACCENT} style="stroke" strokeWidth={1.3} />
-      <Path path="M 6.3 12.6 L 7.7 12.6" color={ACCENT} style="stroke" strokeWidth={1.1} />
+      <Circle cx={7} cy={5.8} r={4.3} color={gameAccent()} style="stroke" strokeWidth={1.4} />
+      <Path path="M 5.4 9.4 L 8.6 9.4" color={gameAccent()} style="stroke" strokeWidth={1.3} />
+      <Path path="M 5.7 11.2 L 8.3 11.2" color={gameAccent()} style="stroke" strokeWidth={1.3} />
+      <Path path="M 6.3 12.6 L 7.7 12.6" color={gameAccent()} style="stroke" strokeWidth={1.1} />
     </Canvas>
   );
 }
@@ -68,8 +69,8 @@ function HintIcon(): React.JSX.Element {
 function RestartIcon(): React.JSX.Element {
   return (
     <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={ACCENT} style="stroke" strokeWidth={1.6} />
-      <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={ACCENT} />
+      <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={gameAccent()} style="stroke" strokeWidth={1.6} />
+      <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={gameAccent()} />
     </Canvas>
   );
 }
@@ -88,6 +89,8 @@ export interface BloomScreenProps {
  */
 export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const stageIn = useStageEntrance();
+  const controlsIn = useStageEntrance(110);
   const { width, height } = useWindowDimensions();
   const { progress, recordCompletion } = usePlayerProgress();
   const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
@@ -220,12 +223,12 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
       </View>
 
       <View style={styles.boardArea}>
-        <View style={styles.stage}>
+        <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
           <BloomBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onTurn={onTurn} flashCell={flashCell} />
-        </View>
+        </Animated.View>
 
-        <View style={styles.controls}>
+        <Animated.View style={[styles.controls, controlsIn]}>
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Reveal a hint"
@@ -245,7 +248,7 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
             <RestartIcon />
             <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
         <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
       </View>
 
@@ -316,7 +319,7 @@ function AnimatedKicker({ left, solved, difficulty }: { left: number; solved: bo
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     alignItems: 'center',
@@ -353,7 +356,7 @@ const styles = StyleSheet.create({
     fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.micro,
     letterSpacing: 1,
-    color: ACCENT,
+    color: gameAccent(),
     flexShrink: 1,
   },
   kickerChip: { marginRight: 6 },
@@ -397,11 +400,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderTopColor: '#FBF6EB',
+    borderTopColor: theme.colors.highlightEdge,
     borderLeftColor: theme.colors.border,
     borderRightColor: theme.colors.border,
     borderBottomColor: theme.colors.border,
-    shadowColor: '#3B1F52',
+    shadowColor: theme.colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 2, height: 3 },
@@ -413,4 +416,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
-});
+}));

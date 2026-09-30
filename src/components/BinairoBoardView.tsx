@@ -1,5 +1,6 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Circle, DashPathEffect, Group, LinearGradient, Path, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Easing, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import {
   BinairoCell,
   BinairoConstraint,
@@ -27,7 +28,7 @@ import {
   useIntroWave,
   useReducedMotion,
 } from '../game/rendering';
-import { theme } from '../theme';
+import { theme, inkWash } from '../theme';
 
 /** A placed mark doesn't turn or fade in - it stamps: it lands a touch
  * oversized and settles to its resting size in one quick, decelerating
@@ -149,7 +150,7 @@ const PRESS_RIPPLE_OPACITY = 0.45;
  * `renderTileChrome`), so a filled cell never paints a second, unrelated
  * colour across its whole background the way an earlier version of this
  * board did. Constraint badges use their own separate ink
- * (`BADGE_INK_COLOR` below) rather than either of these two - a badge is
+ * (`badgeInk()` below) rather than either of these two - a badge is
  * a different kind of mark (a rule check, not a value), and borrowing a
  * value's own colour for it would blur that difference. */
 function markGradientStops(value: 1 | 0): { readonly light: string; readonly dark: string } {
@@ -159,7 +160,7 @@ function markGradientStops(value: 1 | 0): { readonly light: string; readonly dar
 }
 /** The constraint badges' own ink - plain `primary`, independent of
  * `markColor` above (see that function's own comment for why). */
-const BADGE_INK_COLOR = theme.colors.primary;
+const badgeInk = (): string => theme.colors.primary;
 
 /** The square mark's own proportions, relative to the circle's own radius
  * `R` - slightly larger half-width than `R`, so it reads as "the same
@@ -215,13 +216,18 @@ const TWIN_BADGE_INSET_FACTOR = 0.16;
  * consistent "a badge just became wrong" rhythm for every badge kind on
  * this board, not a second one to learn. */
 
+// Worklets, so the per-tap animations below can run them on the UI
+// thread; they work the same when called from ordinary JavaScript.
 function clamp01(t: number): number {
+  'worklet';
   return t < 0 ? 0 : t > 1 ? 1 : t;
 }
 function easeOutCubic(t: number): number {
+  'worklet';
   return 1 - (1 - t) ** 3;
 }
 function easeInCubic(t: number): number {
+  'worklet';
   return t ** 3;
 }
 /** A small, standard overshoot curve (not a real spring - this file
@@ -244,7 +250,7 @@ export function renderCircleMark(key: string, cx: number, cy: number, r: number,
   const { light, dark } = markGradientStops(value);
   return (
     <Group key={key}>
-      <Circle cx={cx + dx} cy={cy + dx} r={r} color={`rgba(59,31,82,${MARK_SHADOW_ALPHA})`} />
+      <Circle cx={cx + dx} cy={cy + dx} r={r} color={inkWash(MARK_SHADOW_ALPHA)} />
       <Circle cx={cx} cy={cy} r={r}>
         <LinearGradient start={vec(cx - r * 0.5, cy - r)} end={vec(cx + r * 0.5, cy + r)} colors={[light, dark]} />
       </Circle>
@@ -265,7 +271,7 @@ export function renderSquareMark(key: string, cx: number, cy: number, R: number,
   const { light, dark } = markGradientStops(value);
   return (
     <Group key={key}>
-      <RoundedRect x={x + dx} y={y + dx} width={side} height={side} r={cr} color={`rgba(59,31,82,${MARK_SHADOW_ALPHA})`} />
+      <RoundedRect x={x + dx} y={y + dx} width={side} height={side} r={cr} color={inkWash(MARK_SHADOW_ALPHA)} />
       <RoundedRect x={x} y={y} width={side} height={side} r={cr}>
         <LinearGradient start={vec(x, y)} end={vec(x + side, y + side)} colors={[light, dark]} />
       </RoundedRect>
@@ -275,20 +281,6 @@ export function renderSquareMark(key: string, cx: number, cy: number, R: number,
 
 function renderSymbol(key: string, value: 1 | 0, cx: number, cy: number, R: number): React.JSX.Element {
   return value === 1 ? renderCircleMark(key, cx, cy, R, value) : renderSquareMark(key, cx, cy, R, value);
-}
-
-/** A mark mid-stamp: the same shape `renderSymbol` draws, wrapped in the
- * scale/opacity envelope the placing/lifting animation needs (see
- * `STAMP_IN_MS`/`STAMP_OUT_MS` in `BinairoBoardView`) - kept as its own
- * wrapper rather than threading scale/opacity through the shape
- * functions themselves, so the steady-state layer above can keep calling
- * plain `renderSymbol` with no animation-only params to ignore. */
-function renderStampedSymbol(key: string, value: 1 | 0, cx: number, cy: number, R: number, centre: ReturnType<typeof vec>, opacity: number, scale: number): React.JSX.Element {
-  return (
-    <Group key={key} opacity={opacity} transform={[{ scale }]} origin={centre}>
-      {renderSymbol(`${key}-shape`, value, cx, cy, R)}
-    </Group>
-  );
 }
 
 /** The resting state's own icon: a faint dashed ring, distinct in kind
@@ -305,9 +297,9 @@ export function renderEmptyRing(key: string, cx: number, cy: number, R: number):
           this cell is about to be the least visually interesting thing on
           the board once filled, so it only needs a hint of depth. */}
       <Circle cx={cx} cy={cy} r={R * 0.86}>
-        <RadialGradient c={vec(cx + R * 0.3, cy + R * 0.3)} r={R * 1.1} colors={['rgba(59,31,82,0.03)', 'rgba(59,31,82,0.1)']} />
+        <RadialGradient c={vec(cx + R * 0.3, cy + R * 0.3)} r={R * 1.1} colors={[inkWash(0.03), inkWash(0.1)]} />
       </Circle>
-      <Circle cx={cx} cy={cy} r={R * 0.86} color="rgba(59,31,82,0.16)" style="stroke" strokeWidth={1} />
+      <Circle cx={cx} cy={cy} r={R * 0.86} color={inkWash(0.16)} style="stroke" strokeWidth={1} />
       {/* Thinner and a touch more transparent than the mark strokes it sits
           among - a whole board is mostly empty cells before it's mostly
           filled, so this needs to recede as a quiet placeholder rather
@@ -334,7 +326,7 @@ export function renderEmptyRing(key: string, cx: number, cy: number, R: number):
 export function renderConstraintBadge(key: string, cx: number, cy: number, radius: number, kind: BinairoConstraint['kind'], violated: boolean): React.JSX.Element {
   const fill = violated ? theme.colors.danger : theme.colors.surfaceHi;
   const ring = violated ? theme.colors.danger : theme.colors.borderStrong;
-  const mark = violated ? theme.colors.surfaceHi : BADGE_INK_COLOR;
+  const mark = violated ? theme.colors.surfaceHi : badgeInk();
   const strokeWidth = Math.max(1.25, radius * CONSTRAINT_MARK_STROKE_FACTOR);
   const d = radius * 0.5;
   const markPath =
@@ -498,6 +490,104 @@ interface PressGlow {
  * (a finger sliding off before release) still gets its own fade-out here,
  * and a press that does complete one races the flip it triggers rather
  * than being tied to it (see `PRESS_GLOW_OUT_MS`). */
+/**
+ * One cell's stamp, played on the UI thread. It mounts once, when the cell
+ * changes, and Reanimated runs it from there - so a tap costs one React
+ * render instead of a burst of them at 60fps for the length of the stamp,
+ * which was the lag felt on a phone. Same curves as ever, as worklets: the
+ * old mark lifts and fades while the new one strikes oversized and settles.
+ */
+function StampTransition({
+  event,
+  x,
+  y,
+  tileSize,
+  R,
+  given,
+  reducedMotion,
+}: {
+  event: ToggleEvent;
+  x: number;
+  y: number;
+  tileSize: number;
+  R: number;
+  given: boolean;
+  reducedMotion: boolean;
+}): React.JSX.Element {
+  const cx = x + tileSize / 2;
+  const cy = y + tileSize / 2;
+  const centre = vec(cx, cy);
+  const elapsed = useSharedValue(0);
+  useEffect(() => {
+    elapsed.value = withTiming(STAMP_IN_MS, { duration: STAMP_IN_MS, easing: Easing.linear });
+  }, [elapsed]);
+  const outOpacity = useDerivedValue(() => 1 - easeInCubic(clamp01(elapsed.value / STAMP_OUT_MS)));
+  const outTransform = useDerivedValue(() => [{ scale: reducedMotion ? 1 : 1 - clamp01(elapsed.value / STAMP_OUT_MS) * 0.3 }]);
+  const inOpacity = useDerivedValue(() => easeOutCubic(clamp01(elapsed.value / (STAMP_IN_MS * 0.5))));
+  const inTransform = useDerivedValue(() => [
+    { scale: reducedMotion ? 1 : 1 + (STAMP_OVERSHOOT_SCALE - 1) * (1 - easeOutCubic(clamp01(elapsed.value / STAMP_IN_MS))) },
+  ]);
+  const ringOut = useDerivedValue(() => 1 - easeOutCubic(clamp01(elapsed.value / RING_FADE_MS)));
+  const ringIn = useDerivedValue(() => easeOutCubic(clamp01(elapsed.value / RING_FADE_MS)));
+  return (
+    <Group>
+      {renderTileChrome(x, y, tileSize, given)}
+      {event.from !== null && (
+        <Group opacity={outOpacity} transform={outTransform} origin={centre}>
+          {renderSymbol('out', event.from, cx, cy, R)}
+        </Group>
+      )}
+      {event.from === null && <Group opacity={ringOut}>{renderEmptyRing('ring-out', cx, cy, R)}</Group>}
+      {event.to === null && <Group opacity={ringIn}>{renderEmptyRing('ring-in', cx, cy, R)}</Group>}
+      {event.to !== null && (
+        <Group opacity={inOpacity} transform={inTransform} origin={centre}>
+          {renderSymbol('in', event.to, cx, cy, R)}
+        </Group>
+      )}
+    </Group>
+  );
+}
+
+/**
+ * The press feedback under a finger - a tint, and a ripple echoing out -
+ * on the UI thread, like the stamp: mounted on the press, faded out on the
+ * release, never re-rendering in between.
+ */
+function PressGlowView({
+  x,
+  y,
+  tileSize,
+  released,
+  reducedMotion,
+}: {
+  x: number;
+  y: number;
+  tileSize: number;
+  released: boolean;
+  reducedMotion: boolean;
+}): React.JSX.Element {
+  const tint = useSharedValue(0);
+  const ripple = useSharedValue(0);
+  useEffect(() => {
+    tint.value = withTiming(1, { duration: PRESS_GLOW_IN_MS, easing: Easing.out(Easing.cubic) });
+    ripple.value = withTiming(1, { duration: PRESS_RIPPLE_MS, easing: Easing.linear });
+  }, [tint, ripple]);
+  useEffect(() => {
+    if (released) tint.value = withTiming(0, { duration: PRESS_GLOW_OUT_MS, easing: Easing.in(Easing.cubic) });
+  }, [released, tint]);
+  const tintOpacity = useDerivedValue(() => PRESS_GLOW_OPACITY * tint.value);
+  const rippleRadius = useDerivedValue(
+    () => tileSize * (PRESS_RIPPLE_START_FACTOR + (PRESS_RIPPLE_END_FACTOR - PRESS_RIPPLE_START_FACTOR) * easeOutCubic(ripple.value)),
+  );
+  const rippleOpacity = useDerivedValue(() => (ripple.value >= 1 ? 0 : PRESS_RIPPLE_OPACITY * (1 - easeOutCubic(ripple.value))));
+  return (
+    <Group>
+      <RoundedRect x={x} y={y} width={tileSize} height={tileSize} r={TILE_RADIUS} color="#3B1F52" opacity={tintOpacity} />
+      {!reducedMotion && <Circle cx={x + tileSize / 2} cy={y + tileSize / 2} r={rippleRadius} color={theme.colors.accent} opacity={rippleOpacity} />}
+    </Group>
+  );
+}
+
 function usePressGlow(pressedCell: BinairoCell | null | undefined, now: number): PressGlow | null {
   const ref = useRef<PressGlow | null>(null);
   const pressedKey = pressedCell ? `${pressedCell.row}:${pressedCell.col}` : null;
@@ -628,7 +718,7 @@ function renderTray(layout: BoardLayout): React.JSX.Element {
   return (
     <Group>
       <RoundedRect x={0} y={0} width={boardSize} height={boardSize} r={10} color={theme.colors.surfaceHi}>
-        <LinearGradient start={vec(0, 0)} end={vec(boardSize, boardSize)} colors={['#FFFFFF', theme.colors.surfaceHi, '#EFE9DC']} positions={[0, 0.55, 1]} />
+        <LinearGradient start={vec(0, 0)} end={vec(boardSize, boardSize)} colors={[theme.colors.trayLight, theme.colors.surfaceHi, theme.colors.trayDeep]} positions={[0, 0.55, 1]} />
       </RoundedRect>
       {/* A thin light seam along the top-left edge and a slightly deeper
           one along the bottom-right - the board's own edge catching and
@@ -636,7 +726,7 @@ function renderTray(layout: BoardLayout): React.JSX.Element {
       <Path path={`M 1.5 ${boardSize - 10} L 1.5 10 Q 1.5 1.5 10 1.5 L ${boardSize - 10} 1.5`} color="rgba(255,255,255,0.9)" style="stroke" strokeWidth={1.5} strokeCap="round" />
       <Path
         path={`M ${boardSize - 1.5} 10 L ${boardSize - 1.5} ${boardSize - 10} Q ${boardSize - 1.5} ${boardSize - 1.5} ${boardSize - 10} ${boardSize - 1.5} L 10 ${boardSize - 1.5}`}
-        color="rgba(59,31,82,0.16)"
+        color={inkWash(0.16)}
         style="stroke"
         strokeWidth={1.5}
         strokeCap="round"
@@ -712,6 +802,22 @@ interface StaticBinairoTilesProps {
  * the hazard tape behind it, leaving the tape visible only through the
  * gaps between tiles.
  */
+/**
+ * One tile's chrome and one cell's symbol, each memoised on plain values.
+ * A tap changes one cell, but the static layer re-renders twice per tap
+ * (as the stamp starts, and as it ends) - and it used to rebuild every tile
+ * and symbol on the board each time, 64 cells at 8x8, several shapes each.
+ * On a phone that was lag on every placement. Now only the cell whose value
+ * changed does any work; the rest bail out on their props.
+ */
+const TileChrome = React.memo(function TileChromeImpl({ tx, ty, tileSize, given }: { tx: number; ty: number; tileSize: number; given: boolean }) {
+  return renderTileChrome(tx, ty, tileSize, given);
+});
+
+const CellSymbol = React.memo(function CellSymbolImpl({ cellKey, value, cx, cy, R }: { cellKey: string; value: BinairoState['values'][number][number]; cx: number; cy: number; R: number }) {
+  return value === null ? renderEmptyRing(cellKey, cx, cy, R) : renderSymbol(cellKey, value, cx, cy, R);
+});
+
 const StaticBinairoTiles = React.memo(function StaticBinairoTilesImpl({ puzzle, state, layout, flashCell, transitioningKeys }: StaticBinairoTilesProps) {
   const tileSize = Math.max(0, layout.cellSize - TILE_GAP * 2);
   const R = tileSize * 0.32;
@@ -735,10 +841,7 @@ const StaticBinairoTiles = React.memo(function StaticBinairoTilesImpl({ puzzle, 
           // `renderTileChrome`).
           if (skipKeys.has(`${r}:${c}`)) return null;
           const origin = getCellOrigin(layout, r, c);
-          const tx = origin.x + TILE_GAP;
-          const ty = origin.y + TILE_GAP;
-          const given = isGiven(puzzle, r, c);
-          return <Group key={`tile-${r}-${c}`}>{renderTileChrome(tx, ty, tileSize, given)}</Group>;
+          return <TileChrome key={`tile-${r}-${c}`} tx={origin.x + TILE_GAP} ty={origin.y + TILE_GAP} tileSize={tileSize} given={isGiven(puzzle, r, c)} />;
         }),
       )}
 
@@ -767,9 +870,7 @@ const StaticBinairoTiles = React.memo(function StaticBinairoTilesImpl({ puzzle, 
           const key = `${r}:${c}`;
           if (skipKeys.has(key)) return null;
           const origin = getCellOrigin(layout, r, c);
-          const cx = origin.x + TILE_GAP + tileSize / 2;
-          const cy = origin.y + TILE_GAP + tileSize / 2;
-          return value === null ? renderEmptyRing(key, cx, cy, R) : renderSymbol(key, value, cx, cy, R);
+          return <CellSymbol key={key} cellKey={key} value={value} cx={origin.x + TILE_GAP + tileSize / 2} cy={origin.y + TILE_GAP + tileSize / 2} R={R} />;
         }),
       )}
     </Group>
@@ -943,8 +1044,10 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
   // clock at full rate - a quick tap, or a hint, landed it on whatever
   // the idle throttle gave it (or on no frames at all), which is the lag
   // players felt on every move.
-  const needsFullRate =
-    errorEntering || badgePopping || waveActive || introActive || pressGlow !== null || transitioningEntries.length > 0;
+  // The stamp and the press glow are no longer on this list: both now play
+  // on the UI thread (`StampTransition`, `PressGlowView`) and need no
+  // frames from here at all - so an ordinary tap runs no clock.
+  const needsFullRate = errorEntering || badgePopping || waveActive || introActive;
   useAnimationClock(needsFullRate || idleMotion, needsFullRate ? 60 : IDLE_MOTION_FPS);
 
   const tileSize = Math.max(0, layout.cellSize - TILE_GAP * 2);
@@ -1029,41 +1132,17 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
         const r = Number(rStr);
         const c = Number(cStr);
         const origin = getCellOrigin(layout, r, c);
-        const tx = origin.x + TILE_GAP;
-        const ty = origin.y + TILE_GAP;
-        const cx = tx + tileSize / 2;
-        const cy = ty + tileSize / 2;
-        const centre = vec(cx, cy);
-        const elapsed = now - event.startedAt;
-        const given = isGiven(puzzle, r, c);
-
-        // Outgoing: a quick shrink-and-fade, independent of whatever's
-        // landing on top of it. Reduced motion keeps the fade (it's the
-        // part that carries meaning - the old mark going away) and drops
-        // the shrink.
-        const outT = clamp01(elapsed / STAMP_OUT_MS);
-        const outOpacity = 1 - easeInCubic(outT);
-        const outScale = reducedMotion ? 1 : 1 - outT * 0.3;
-
-        // Incoming: lands oversized, eases down to its resting size - see
-        // `STAMP_OVERSHOOT_SCALE`. Opacity ramps in over just the first
-        // half of that settle, so the mark reads as "there" well before
-        // its scale finishes decaying. Reduced motion drops the overshoot
-        // and just fades the new mark in at its resting size.
-        const inT = clamp01(elapsed / STAMP_IN_MS);
-        const inOpacity = easeOutCubic(clamp01(elapsed / (STAMP_IN_MS * 0.5)));
-        const inScale = reducedMotion ? 1 : 1 + (STAMP_OVERSHOOT_SCALE - 1) * (1 - easeOutCubic(inT));
-
-        const ringT = clamp01(elapsed / RING_FADE_MS);
-
         return (
-          <Group key={key}>
-            {renderTileChrome(tx, ty, tileSize, given)}
-            {event.from !== null && renderStampedSymbol(`${key}-out`, event.from, cx, cy, R, centre, outOpacity, outScale)}
-            {event.from === null && <Group opacity={1 - easeOutCubic(ringT)}>{renderEmptyRing(`${key}-ring`, cx, cy, R)}</Group>}
-            {event.to === null && <Group opacity={easeOutCubic(ringT)}>{renderEmptyRing(`${key}-ring`, cx, cy, R)}</Group>}
-            {event.to !== null && renderStampedSymbol(`${key}-in`, event.to, cx, cy, R, centre, inOpacity, inScale)}
-          </Group>
+          <StampTransition
+            key={`${key}@${event.startedAt}`}
+            event={event}
+            x={origin.x + TILE_GAP}
+            y={origin.y + TILE_GAP}
+            tileSize={tileSize}
+            R={R}
+            given={isGiven(puzzle, r, c)}
+            reducedMotion={reducedMotion}
+          />
         );
       })}
 
@@ -1177,31 +1256,16 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
       {pressGlow &&
         (() => {
           const [rStr, cStr] = pressGlow.key.split(':');
-          const r = Number(rStr);
-          const c = Number(cStr);
-          const origin = getCellOrigin(layout, r, c);
-          const tx = origin.x + TILE_GAP;
-          const ty = origin.y + TILE_GAP;
-          const cx = tx + tileSize / 2;
-          const cy = ty + tileSize / 2;
-          const tintOpacity =
-            pressGlow.releasedAt === null
-              ? PRESS_GLOW_OPACITY * easeOutCubic(clamp01((now - pressGlow.pressedAt) / PRESS_GLOW_IN_MS))
-              : PRESS_GLOW_OPACITY * (1 - easeInCubic(clamp01((now - pressGlow.releasedAt) / PRESS_GLOW_OUT_MS)));
-          const rippleT = clamp01((now - pressGlow.pressedAt) / PRESS_RIPPLE_MS);
-          const rippleActive = now - pressGlow.pressedAt < PRESS_RIPPLE_MS;
-          const rippleEase = easeOutCubic(rippleT);
-          const rippleRadius = tileSize * (PRESS_RIPPLE_START_FACTOR + (PRESS_RIPPLE_END_FACTOR - PRESS_RIPPLE_START_FACTOR) * rippleEase);
-          const rippleOpacity = PRESS_RIPPLE_OPACITY * (1 - rippleEase);
+          const origin = getCellOrigin(layout, Number(rStr), Number(cStr));
           return (
-            <Group key={pressGlow.key}>
-              {tintOpacity > 0 && <RoundedRect x={tx} y={ty} width={tileSize} height={tileSize} r={TILE_RADIUS} color="#3B1F52" opacity={tintOpacity} />}
-              {/* The expanding ripple is pure decorative echo of the tint
-                  above (which already carries the "something under my
-                  finger reacted" signal) - reduced motion drops it and
-                  keeps just the tint. */}
-              {rippleActive && !reducedMotion && <Circle cx={cx} cy={cy} r={rippleRadius} color={theme.colors.accent} opacity={rippleOpacity} />}
-            </Group>
+            <PressGlowView
+              key={`${pressGlow.key}@${pressGlow.pressedAt}`}
+              x={origin.x + TILE_GAP}
+              y={origin.y + TILE_GAP}
+              tileSize={tileSize}
+              released={pressGlow.releasedAt !== null}
+              reducedMotion={reducedMotion}
+            />
           );
         })()}
 

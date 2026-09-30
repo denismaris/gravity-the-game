@@ -64,12 +64,15 @@ export interface LightsOutShape {
  */
 export function shapeForDifficulty(difficulty: PuzzleDifficulty): LightsOutShape {
   switch (difficulty) {
+    // Raised after playtesting found the run "too easy": a one-press board
+    // is over before it has begun, and level sets deal puzzles at random,
+    // so the old single-cross "first board" could turn up at any point.
     case 'easy':
-      return { size: 5, minPar: 1, maxPar: 3 };
+      return { size: 5, minPar: 2, maxPar: 4 };
     case 'medium':
-      return { size: 5, minPar: 4, maxPar: 6 };
+      return { size: 5, minPar: 5, maxPar: 6 };
     case 'hard':
-      return { size: 6, minPar: 6, maxPar: 9 };
+      return { size: 6, minPar: 7, maxPar: 9 };
   }
 }
 

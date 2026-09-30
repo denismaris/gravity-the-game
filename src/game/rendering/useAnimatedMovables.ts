@@ -14,8 +14,12 @@ import { MovableObject } from '../engine';
  * fall *slower per cell* than a short one - precisely backwards for
  * something meant to be accelerating.
  */
-const BASE_SLIDE_MS = 92;
-const PER_ROOT_CELL_MS = 62;
+// Raised from 92 / 62 after the slide was reported "not smooth" on a
+// phone: a one-square move lasted ~154ms, about nine frames, so a single
+// dropped frame was a visible hitch. A touch longer, and the landing below
+// has room to read.
+const BASE_SLIDE_MS = 130;
+const PER_ROOT_CELL_MS = 75;
 
 function slideDurationFor(cellsTravelled: number): number {
   return BASE_SLIDE_MS + PER_ROOT_CELL_MS * Math.sqrt(cellsTravelled);
@@ -40,6 +44,27 @@ const LANDED_PULSE_MS = 100;
  * a settle, not as a fall. Gravity pulls, so the pieces have to accelerate
  * - the landing cue (`justLandedIds`) is what sells the stop.
  */
+/** Share of the slide spent falling; the rest is the landing. */
+const FALL_SHARE = 0.84;
+/** How far a piece rebounds off the wall it lands against, in squares. */
+const REBOUND_SQUARES = 0.06;
+
+/**
+ * The whole slide, 0..1 along the piece's path: it accelerates into the
+ * wall (`easeInFall`), then gives a small rebound and settles - a heavy
+ * ball landing, rather than one stopping dead at full speed. With the old
+ * size-pop landing cue removed, a dead stop at top speed was the jolt that
+ * read as "not smooth". The rebound is measured in squares, not as a share
+ * of the path, so a long fall and a one-square nudge land with the same
+ * weight.
+ */
+export function landingCurve(t: number, squares: number): number {
+  if (t >= 1) return 1;
+  if (t < FALL_SHARE) return easeInFall(t / FALL_SHARE);
+  const u = (t - FALL_SHARE) / (1 - FALL_SHARE);
+  return 1 - (REBOUND_SQUARES / Math.max(1, squares)) * Math.sin(u * Math.PI);
+}
+
 function easeInFall(t: number): number {
   const accelerated = t * t;
   // The last sliver blends toward linear, which takes the hard edge off
@@ -137,14 +162,15 @@ export function useAnimatedMovables(
     const tick = (): void => {
       const elapsed = Date.now() - startTime;
       const t = Math.min(1, elapsed / duration);
-      const eased = easeInFall(t);
-
       const next = target.map(movable => {
         const start = startById.get(movable.id) ?? movable;
+        const dr = movable.row - start.row;
+        const dc = movable.col - start.col;
+        const eased = landingCurve(t, Math.abs(dr) + Math.abs(dc));
         return {
           ...movable,
-          row: start.row + (movable.row - start.row) * eased,
-          col: start.col + (movable.col - start.col) * eased,
+          row: start.row + dr * eased,
+          col: start.col + dc * eased,
         };
       });
 

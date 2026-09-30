@@ -1,4 +1,12 @@
 export { createDemoLevel, demoLevel } from './demoLevel';
 export type { Difficulty, LevelDefinition, LevelMetadata, StarThresholds } from './level';
 export { assertValidLevel, createGameStateFromLevel } from './level';
-export { LEVELS, getLevelById, getLevelByOrder, getLevelsByDifficulty, getStarThresholds } from './levelData';
+export {
+  GRAVITY_DEPTH_BANDS,
+  LEVELS,
+  getGravityLevelsForTier,
+  getLevelById,
+  getLevelByOrder,
+  getLevelsByDifficulty,
+  getStarThresholds,
+} from './levelData';

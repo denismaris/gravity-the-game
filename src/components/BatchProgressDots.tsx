@@ -1,8 +1,8 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
+import { Animated, StyleProp, View, ViewStyle } from 'react-native';
 import { accentColorForKind } from '../game/journey';
 import { BatchState } from '../progression';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 
 export interface BatchProgressDotsProps {
   readonly batch: BatchState;
@@ -95,7 +95,7 @@ export function BatchProgressDots({ batch, style }: BatchProgressDotsProps): Rea
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   row: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -139,4 +139,4 @@ const styles = StyleSheet.create({
     // both platforms.
     borderRadius: 999,
   },
-});
+}));

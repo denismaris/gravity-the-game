@@ -8,7 +8,7 @@ import { GeometricRule } from './GeometricRule';
 import { StarRow } from './StarRow';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, encouragementTier, gameLabelForKind, pickEncouragement } from '../game/journey';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 import { CoinsEarned } from './Coins';
 
 /** Kicker, stars, praise, the moves/best rows, rule, actions - staggered
@@ -192,7 +192,7 @@ export function LevelCompleteCard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   overlay: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
@@ -211,7 +211,7 @@ const styles = StyleSheet.create({
     // Genuinely lifted off the page, unlike this app's inline cards - it
     // floats over a dimmed board, so there's no "ghost card" double
     // elevation to avoid here.
-    shadowColor: '#3B1F52',
+    shadowColor: theme.colors.shadow,
     shadowOpacity: 0.26,
     shadowRadius: 28,
     shadowOffset: { width: 0, height: 14 },
@@ -235,7 +235,7 @@ const styles = StyleSheet.create({
     top: -120,
     bottom: -120,
     width: 70,
-    backgroundColor: 'rgba(255,255,255,0.5)',
+    backgroundColor: theme.colors.sheen,
   },
   emblem: {
     marginBottom: theme.spacing.md,
@@ -332,4 +332,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
-});
+}));

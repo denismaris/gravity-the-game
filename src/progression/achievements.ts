@@ -4,6 +4,8 @@ import { FILLAPIX } from '../game/fillapix';
 import { LIGHTS_OUT } from '../game/lightsout';
 import { ADJACENT } from '../game/adjacent';
 import { BLOOM } from '../game/bloom';
+import { MOSAIC } from '../game/mosaic';
+import { BRIDGES } from '../game/bridges';
 import { LEVELS } from '../game/levels';
 import { MIRROR_MAZES } from '../game/mirror';
 import { TENTS_TREES } from '../game/tents';
@@ -26,6 +28,8 @@ const ALL_PUZZLE_IDS: ReadonlyArray<string> = [
   ...LIGHTS_OUT.map(puzzle => puzzle.id),
   ...ADJACENT.map(puzzle => puzzle.id),
   ...BLOOM.map(puzzle => puzzle.id),
+  ...MOSAIC.map(puzzle => puzzle.id),
+  ...BRIDGES.map(puzzle => puzzle.id),
 ];
 
 /** Every puzzle in every game, total - `HomeScreen`'s own "X of Y solved"
@@ -143,6 +147,18 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
     isEarned: progress => allCompleted(progress, BLOOM),
   },
   {
+    id: 'game:mosaic',
+    title: 'Gallery Wall',
+    description: 'Complete every Mosaic picture.',
+    isEarned: progress => allCompleted(progress, MOSAIC),
+  },
+  {
+    id: 'game:bridges',
+    title: 'Harbour Master',
+    description: 'Connect every Bridges archipelago.',
+    isEarned: progress => allCompleted(progress, BRIDGES),
+  },
+  {
     id: 'stars:100',
     title: 'Rising Star',
     description: 'Earn 100 stars.',
@@ -178,11 +194,37 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
     description: 'Reach a 30-day Daily streak.',
     isEarned: progress => progress.bestDailyStreak >= 30,
   },
+  // The long road: level sets now run forever, so the milestones along it
+  // are worth marking.
+  {
+    id: 'level:100',
+    title: 'Centurion',
+    description: 'Reach level 100.',
+    isEarned: progress => progress.currentLevel >= 100,
+  },
+  {
+    id: 'level:250',
+    title: 'Long Distance',
+    description: 'Reach level 250.',
+    isEarned: progress => progress.currentLevel >= 250,
+  },
+  {
+    id: 'level:500',
+    title: 'Half a Thousand',
+    description: 'Reach level 500.',
+    isEarned: progress => progress.currentLevel >= 500,
+  },
+  {
+    id: 'level:1000',
+    title: 'The Thousand',
+    description: 'Reach level 1000.',
+    isEarned: progress => progress.currentLevel >= 1000,
+  },
   {
     id: 'skill:flawless',
     title: 'Flawless',
     description: 'Solve any puzzle outside Gravity without using a hint.',
-    isEarned: progress => anyFlawless(progress, [...MIRROR_MAZES, ...TENTS_TREES, ...TOWERS, ...BINAIRO, ...ARUKONE, ...FILLAPIX, ...LIGHTS_OUT, ...ADJACENT, ...BLOOM]),
+    isEarned: progress => anyFlawless(progress, [...MIRROR_MAZES, ...TENTS_TREES, ...TOWERS, ...BINAIRO, ...ARUKONE, ...FILLAPIX, ...LIGHTS_OUT, ...ADJACENT, ...BLOOM, ...MOSAIC, ...BRIDGES]),
   },
   {
     id: 'journey:complete',

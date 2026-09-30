@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { StyleSheet, View } from 'react-native';
 import { Canvas, Group, Path, RoundedRect } from '@shopify/react-native-skia';
-import { launchPieces, TILE_COLOR } from './launchChoreography';
+import { theme } from '../theme';
+import { launchPieces } from './launchChoreography';
 
 export interface TesseraMarkProps {
   /** Outer square size in pixels. */
@@ -34,7 +35,7 @@ export function TesseraMark({ size }: TesseraMarkProps): React.JSX.Element {
     <View style={{ width: size, height: size }} accessibilityRole="image" accessibilityLabel="Tessera mark">
       <Canvas style={StyleSheet.absoluteFill}>
         <Group transform={[{ translateX: half }, { translateY: half }]}>
-          <RoundedRect x={-half} y={-half} width={size} height={size} r={size * 0.225} color={TILE_COLOR} />
+          <RoundedRect x={-half} y={-half} width={size} height={size} r={size * 0.225} color={theme.colors.brandTile} />
           {pieces.map((piece, i) => (
             <Path
               key={i}

@@ -1,4 +1,6 @@
 import { PuzzleDifficulty } from '../puzzleDifficulty';
+import { endlessName, parseEndlessId } from '../endlessId';
+import { generateGravityLevel } from './generator';
 import { LevelDefinition, StarThresholds } from './level';
 
 /**
@@ -2529,6 +2531,313 @@ export const LEVELS: ReadonlyArray<LevelDefinition> = [
     obstacles: [{ row: 1, col: 3 }],
     difficulty: 'expert',
     metadata: { minMoves: 8, stars: { two: 12, three: 8 }, tags: ['planning', 'multi-object'], notes: 'The real finale: no anchors, one obstacle, four objects - every mechanic stripped back to none, and still eight moves deep. Level 156 called itself "everything learned" at two moves; this is what that phrase should have cost.' },
+  },  // --- World 8: The Deep End (levels 171-194, added 2026-09-29) ---------
+  // Found the way World 7 was: random boards filtered through the real BFS
+  // solver (\`findShortestSolution\`), then curated - the cleanest boards
+  // (fewest obstacles/anchors/portals) at each depth from 6 to 11 moves,
+  // at most two per board size per depth. Level sets now pick Gravity by
+  // \`minMoves\` rather than by these labels (see \`batches.ts\`), and the
+  // hard tier needed far more than the 13 levels that were 6+ moves deep.
+  {
+    id: 'level-171',
+    order: 171,
+    name: 'Deep Water',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 3, col: 2 }, { row: 3, col: 0 }],
+    targets: [{ row: 4, col: 4 }, { row: 3, col: 3 }],
+    obstacles: [{ row: 3, col: 4 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 6, stars: { two: 9, three: 6 }, tags: ['planning'] },
+  },
+  {
+    id: 'level-172',
+    order: 172,
+    name: 'Undertow',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 1, col: 0 }, { row: 0, col: 3 }, { row: 1, col: 4 }],
+    targets: [{ row: 4, col: 4 }, { row: 3, col: 4 }, { row: 4, col: 2 }],
+    obstacles: [{ row: 2, col: 3 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 6, stars: { two: 9, three: 6 }, tags: ['planning', 'multi-object'] },
+  },
+  {
+    id: 'level-173',
+    order: 173,
+    name: 'Slow Descent',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 2, col: 0 }, { row: 0, col: 1 }],
+    targets: [{ row: 5, col: 5 }, { row: 0, col: 5 }],
+    obstacles: [{ row: 4, col: 1 }, { row: 4, col: 3 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 6, stars: { two: 9, three: 6 }, tags: ['planning'] },
+  },
+  {
+    id: 'level-174',
+    order: 174,
+    name: 'Plumb Line',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 1, col: 0 }, { row: 0, col: 5 }, { row: 3, col: 1 }],
+    targets: [{ row: 4, col: 0 }, { row: 5, col: 4 }, { row: 5, col: 3 }],
+    obstacles: [{ row: 2, col: 3 }],
+    anchors: [{ row: 5, col: 2 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 6, stars: { two: 9, three: 6 }, tags: ['planning', 'multi-object', 'anchors'] },
+  },
+  {
+    id: 'level-175',
+    order: 175,
+    name: 'Counterweight',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 1, col: 4 }, { row: 1, col: 1 }, { row: 0, col: 2 }, { row: 1, col: 2 }],
+    targets: [{ row: 1, col: 0 }, { row: 4, col: 0 }, { row: 2, col: 0 }, { row: 3, col: 2 }],
+    obstacles: [{ row: 3, col: 1 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 7, stars: { two: 11, three: 7 }, tags: ['planning', 'multi-object'] },
+  },
+  {
+    id: 'level-176',
+    order: 176,
+    name: 'Drift',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 4, col: 2 }, { row: 2, col: 2 }],
+    targets: [{ row: 5, col: 2 }, { row: 5, col: 3 }],
+    obstacles: [{ row: 0, col: 4 }, { row: 0, col: 5 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 7, stars: { two: 11, three: 7 }, tags: ['planning'] },
+  },
+  {
+    id: 'level-177',
+    order: 177,
+    name: 'Low Tide',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 0, col: 2 }, { row: 1, col: 3 }, { row: 3, col: 2 }],
+    targets: [{ row: 3, col: 0 }, { row: 2, col: 0 }, { row: 4, col: 0 }],
+    obstacles: [{ row: 3, col: 1 }],
+    anchors: [{ row: 1, col: 1 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 7, stars: { two: 11, three: 7 }, tags: ['planning', 'multi-object', 'anchors'] },
+  },
+  {
+    id: 'level-178',
+    order: 178,
+    name: 'Sounding',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 1, col: 2 }, { row: 2, col: 1 }, { row: 1, col: 0 }],
+    targets: [{ row: 3, col: 0 }, { row: 2, col: 0 }, { row: 5, col: 0 }],
+    obstacles: [{ row: 2, col: 2 }, { row: 4, col: 1 }, { row: 0, col: 0 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 7, stars: { two: 11, three: 7 }, tags: ['planning', 'multi-object'] },
+  },
+  {
+    id: 'level-179',
+    order: 179,
+    name: 'Ballast',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 1, col: 1 }, { row: 1, col: 0 }],
+    targets: [{ row: 4, col: 0 }, { row: 4, col: 4 }],
+    obstacles: [{ row: 4, col: 1 }, { row: 1, col: 2 }, { row: 3, col: 2 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 8, stars: { two: 12, three: 8 }, tags: ['planning'] },
+  },
+  {
+    id: 'level-180',
+    order: 180,
+    name: 'The Long Way Down',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 5, col: 1 }, { row: 3, col: 2 }, { row: 4, col: 1 }, { row: 4, col: 4 }],
+    targets: [{ row: 0, col: 0 }, { row: 2, col: 3 }, { row: 0, col: 1 }, { row: 0, col: 2 }],
+    obstacles: [{ row: 3, col: 5 }],
+    anchors: [{ row: 1, col: 3 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 8, stars: { two: 12, three: 8 }, tags: ['planning', 'multi-object', 'anchors'] },
+  },
+  {
+    id: 'level-181',
+    order: 181,
+    name: 'Keel',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 0, col: 5 }, { row: 4, col: 1 }],
+    targets: [{ row: 0, col: 0 }, { row: 0, col: 2 }],
+    obstacles: [{ row: 0, col: 1 }, { row: 1, col: 2 }],
+    anchors: [{ row: 0, col: 4 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 8, stars: { two: 12, three: 8 }, tags: ['planning', 'anchors'] },
+  },
+  {
+    id: 'level-182',
+    order: 182,
+    name: 'Fathom',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 3, col: 2 }, { row: 2, col: 0 }, { row: 4, col: 2 }],
+    targets: [{ row: 0, col: 2 }, { row: 1, col: 1 }, { row: 0, col: 1 }],
+    obstacles: [{ row: 1, col: 0 }, { row: 0, col: 3 }],
+    anchors: [{ row: 2, col: 2 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 8, stars: { two: 12, three: 8 }, tags: ['planning', 'multi-object', 'anchors'] },
+  },
+  {
+    id: 'level-183',
+    order: 183,
+    name: 'Pressure',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 0, col: 4 }, { row: 0, col: 0 }],
+    targets: [{ row: 4, col: 4 }, { row: 2, col: 3 }],
+    obstacles: [{ row: 3, col: 3 }, { row: 0, col: 1 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 9, stars: { two: 14, three: 9 }, tags: ['planning'] },
+  },
+  {
+    id: 'level-184',
+    order: 184,
+    name: 'Riptide',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 4, col: 2 }, { row: 2, col: 2 }, { row: 3, col: 0 }, { row: 3, col: 2 }],
+    targets: [{ row: 1, col: 1 }, { row: 0, col: 0 }, { row: 2, col: 0 }, { row: 3, col: 4 }],
+    obstacles: [{ row: 1, col: 0 }, { row: 3, col: 3 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 9, stars: { two: 14, three: 9 }, tags: ['planning', 'multi-object'] },
+  },
+  {
+    id: 'level-185',
+    order: 185,
+    name: 'Bottom of the Well',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 0, col: 5 }, { row: 1, col: 5 }],
+    targets: [{ row: 5, col: 1 }, { row: 5, col: 0 }],
+    obstacles: [{ row: 5, col: 4 }, { row: 0, col: 1 }, { row: 2, col: 2 }, { row: 1, col: 4 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 9, stars: { two: 14, three: 9 }, tags: ['planning'] },
+  },
+  {
+    id: 'level-186',
+    order: 186,
+    name: 'Undercurrent',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 0, col: 0 }, { row: 3, col: 1 }],
+    targets: [{ row: 3, col: 5 }, { row: 2, col: 5 }],
+    obstacles: [{ row: 1, col: 0 }],
+    anchors: [{ row: 4, col: 4 }, { row: 0, col: 3 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 9, stars: { two: 14, three: 9 }, tags: ['planning', 'anchors'] },
+  },
+  {
+    id: 'level-187',
+    order: 187,
+    name: 'Abyssal',
+    rows: 7,
+    cols: 7,
+    objects: [{ row: 5, col: 3 }, { row: 5, col: 4 }],
+    targets: [{ row: 4, col: 6 }, { row: 0, col: 0 }],
+    obstacles: [{ row: 5, col: 0 }, { row: 0, col: 1 }, { row: 3, col: 1 }, { row: 5, col: 2 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 10, stars: { two: 15, three: 10 }, tags: ['planning'] },
+  },
+  {
+    id: 'level-188',
+    order: 188,
+    name: 'Still Water',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 3, col: 0 }, { row: 1, col: 1 }],
+    targets: [{ row: 3, col: 4 }, { row: 1, col: 4 }],
+    obstacles: [{ row: 0, col: 0 }, { row: 2, col: 2 }],
+    portals: [[{ row: 1, col: 0 }, { row: 3, col: 2 }]],
+    difficulty: 'expert',
+    metadata: { minMoves: 10, stars: { two: 15, three: 10 }, tags: ['planning', 'portals'] },
+  },
+  {
+    id: 'level-189',
+    order: 189,
+    name: 'The Trench',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 0, col: 1 }, { row: 0, col: 0 }],
+    targets: [{ row: 4, col: 1 }, { row: 3, col: 1 }],
+    obstacles: [{ row: 1, col: 2 }, { row: 0, col: 2 }],
+    portals: [[{ row: 0, col: 4 }, { row: 2, col: 4 }]],
+    difficulty: 'expert',
+    metadata: { minMoves: 10, stars: { two: 15, three: 10 }, tags: ['planning', 'portals'] },
+  },
+  {
+    id: 'level-190',
+    order: 190,
+    name: 'Lead Weight',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 5, col: 5 }, { row: 5, col: 4 }],
+    targets: [{ row: 2, col: 2 }, { row: 5, col: 0 }],
+    obstacles: [{ row: 2, col: 1 }, { row: 3, col: 5 }, { row: 5, col: 2 }, { row: 0, col: 3 }],
+    anchors: [{ row: 0, col: 2 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 10, stars: { two: 15, three: 10 }, tags: ['planning', 'anchors'] },
+  },
+  {
+    id: 'level-191',
+    order: 191,
+    name: 'Deepest Point',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 0, col: 0 }, { row: 0, col: 1 }, { row: 4, col: 3 }],
+    targets: [{ row: 4, col: 4 }, { row: 2, col: 1 }, { row: 3, col: 4 }],
+    obstacles: [{ row: 2, col: 3 }, { row: 0, col: 2 }, { row: 1, col: 3 }],
+    anchors: [{ row: 2, col: 2 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 11, stars: { two: 17, three: 11 }, tags: ['planning', 'multi-object', 'anchors'] },
+  },
+  {
+    id: 'level-192',
+    order: 192,
+    name: 'Crush Depth',
+    rows: 6,
+    cols: 6,
+    objects: [{ row: 3, col: 0 }, { row: 2, col: 3 }, { row: 3, col: 3 }],
+    targets: [{ row: 5, col: 4 }, { row: 5, col: 0 }, { row: 4, col: 4 }],
+    obstacles: [{ row: 1, col: 5 }, { row: 0, col: 3 }],
+    portals: [[{ row: 5, col: 1 }, { row: 1, col: 4 }]],
+    difficulty: 'expert',
+    metadata: { minMoves: 11, stars: { two: 17, three: 11 }, tags: ['planning', 'multi-object', 'portals'] },
+  },
+  {
+    id: 'level-193',
+    order: 193,
+    name: 'Sea Floor',
+    rows: 5,
+    cols: 5,
+    objects: [{ row: 1, col: 2 }, { row: 3, col: 3 }],
+    targets: [{ row: 1, col: 0 }, { row: 4, col: 2 }],
+    obstacles: [{ row: 1, col: 1 }, { row: 4, col: 4 }],
+    anchors: [{ row: 2, col: 0 }, { row: 3, col: 4 }],
+    difficulty: 'expert',
+    metadata: { minMoves: 11, stars: { two: 17, three: 11 }, tags: ['planning', 'anchors'] },
+  },
+  {
+    id: 'level-194',
+    order: 194,
+    name: 'The Deep End',
+    rows: 7,
+    cols: 7,
+    objects: [{ row: 3, col: 6 }, { row: 5, col: 0 }, { row: 4, col: 3 }, { row: 3, col: 3 }],
+    targets: [{ row: 0, col: 0 }, { row: 0, col: 1 }, { row: 4, col: 0 }, { row: 4, col: 1 }],
+    obstacles: [{ row: 6, col: 0 }, { row: 6, col: 3 }, { row: 6, col: 2 }],
+    portals: [[{ row: 4, col: 4 }, { row: 0, col: 5 }]],
+    difficulty: 'expert',
+    metadata: { minMoves: 11, stars: { two: 17, three: 11 }, tags: ['planning', 'multi-object', 'portals'] },
   },
 ];
 
@@ -2547,8 +2856,19 @@ export function getStarThresholds(level: LevelDefinition): StarThresholds {
 
 /** Looks up a level by its stable id. Returns `undefined` if not found. */
 export function getLevelById(id: string): LevelDefinition | undefined {
-  return LEVELS.find(level => level.id === id);
+  const found = LEVELS.find(level => level.id === id);
+  if (found) return found;
+  const endless = parseEndlessId(id);
+  if (!endless || endless.kind !== 'gravity') return undefined;
+  const cached = endlessLevels.get(id);
+  if (cached) return cached;
+  const level = generateGravityLevel(id, endlessName(endless.index, 'gravity'), endless.tier);
+  endlessLevels.set(id, level);
+  return level;
 }
+
+/** Endless Gravity boards already built this session, by id. */
+const endlessLevels = new Map<string, LevelDefinition>();
 
 /** Looks up a level by its 1-based play order. Returns `undefined` if not found. */
 export function getLevelByOrder(order: number): LevelDefinition | undefined {
@@ -2570,6 +2890,32 @@ export function getLevelByOrder(order: number): LevelDefinition | undefined {
  * withhold the best content from the only system that serves levels, and
  * leave the top of the curve feeling like it never arrived.
  */
+/**
+ * The Gravity levels a level set deals at each tier - chosen by how deep
+ * the puzzle really is (\`metadata.minMoves\`), not by its authored label.
+ *
+ * The labels undersold the game badly: 53 of the 61 "medium" levels and 44
+ * of the 55 "hard" ones solve in three moves or fewer, so a hard draw was
+ * usually a two-move board - reported, fairly, as "too lame". Depth bands
+ * fix that without relabelling history: easy deals 3-4 move boards, medium
+ * 5-7, hard 8 and deeper (World 8, "The Deep End", was added to fill it).
+ * Falls back to the label only if a band were ever empty.
+ */
+export const GRAVITY_DEPTH_BANDS: Readonly<Record<PuzzleDifficulty, readonly [number, number]>> = {
+  easy: [3, 4],
+  medium: [5, 7],
+  hard: [8, Infinity],
+};
+
+export function getGravityLevelsForTier(tier: PuzzleDifficulty): ReadonlyArray<LevelDefinition> {
+  const [min, max] = GRAVITY_DEPTH_BANDS[tier];
+  const band = LEVELS.filter(level => {
+    const depth = level.metadata?.minMoves;
+    return depth !== undefined && depth >= min && depth <= max;
+  });
+  return band.length > 0 ? band : getLevelsByDifficulty(tier);
+}
+
 export function getLevelsByDifficulty(difficulty: PuzzleDifficulty): ReadonlyArray<LevelDefinition> {
   if (difficulty === 'hard') {
     return LEVELS.filter(level => level.difficulty === 'hard' || level.difficulty === 'expert');

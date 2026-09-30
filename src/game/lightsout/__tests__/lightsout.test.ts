@@ -166,19 +166,15 @@ describe('the shipped pool', () => {
 
   test('par climbs across the pool, so difficulty actually scales', () => {
     const pars = LIGHTS_OUT.map(p => p.par);
-    // Non-decreasing end to end: easy 1..3, medium 4..6, hard 6..8.
+    // Non-decreasing end to end: easy 2..4, medium 5..6, hard 7..9.
     for (let i = 1; i < pars.length; i += 1) expect(pars[i]).toBeGreaterThanOrEqual(pars[i - 1]);
-    expect(pars[0]).toBe(1);
   });
 
-  test("the very first board is a single cross - one press clears it", () => {
-    const first = LIGHTS_OUT[0];
-    expect(first.par).toBe(1);
-    const solution = solveLightsOut(first, initialLightsOutState(first))!;
-    expect(solution).toHaveLength(1);
-    let state = initialLightsOutState(first);
-    state = press(state, first.size, solution[0].row, solution[0].col);
-    expect(isLightsOutSolved(state)).toBe(true);
+  /** A one-press board is over before it begins - and level sets deal at
+   * random, so a "teaching" single cross could land at any point in play.
+   * The tutorial teaches the rule; every real board asks at least two. */
+  test('no board in the pool is a single press', () => {
+    for (const puzzle of LIGHTS_OUT) expect(puzzle.par).toBeGreaterThanOrEqual(2);
   });
 });
 

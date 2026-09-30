@@ -3,7 +3,7 @@ import { assertValidLevel, createGameStateFromLevel } from '../../levels/level';
 import { LEVELS, getLevelById, getLevelByOrder } from '../../levels/levelData';
 import { isPuzzleSolved } from '../completion';
 
-const LEVEL_COUNT = 170;
+const LEVEL_COUNT = 194;
 
 /**
  * Validates the entire hand-authored level pack: structural integrity of
@@ -135,22 +135,43 @@ describe('LEVELS (the hand-authored level pack)', () => {
         } else {
           expect(level.zone !== undefined || portalCount >= 1).toBe(true);
         }
-      } else {
+      } else if (level.order <= 170) {
         // World 7 - The Long Fall: no new mechanic at all, deliberately -
         // no hazard, no zone, no portal. Anchors are common but not
         // required (165 and 170 are pure obstacles-and-objects on purpose).
         expect(level.hazards).toBeUndefined();
         expect(level.zone).toBeUndefined();
         expect(portalCount).toBe(0);
+      } else {
+        // World 8 - The Deep End: depth, not new rules. Anchors and portals
+        // may return, but never a hazard or a zone - nothing here is hard
+        // because of a trap, only because of how far ahead it must be read.
+        expect(level.hazards).toBeUndefined();
+        expect(level.zone).toBeUndefined();
       }
     }
   });
 
-  test('the longest solutions in the pack (8 moves) are World 7\'s own finale band', () => {
-    const hardest = Math.max(...LEVELS.map(level => level.metadata?.minMoves ?? 0));
-    const hardestLevels = LEVELS.filter(level => level.metadata?.minMoves === hardest);
+  test('the longest solutions in the first seven worlds (8 moves) are World 7\'s own finale band', () => {
+    const upToWorld7 = LEVELS.filter(level => level.order <= 170);
+    const hardest = Math.max(...upToWorld7.map(level => level.metadata?.minMoves ?? 0));
+    const hardestLevels = upToWorld7.filter(level => level.metadata?.minMoves === hardest);
     expect(hardest).toBe(8);
     expect(hardestLevels.map(l => l.order).sort((a, b) => a - b)).toEqual([167, 168, 169, 170]);
+  });
+
+  /** World 8 exists because the pack was too shallow: every level in it is
+   * at least six moves deep, it climbs in order, and it ends on the
+   * deepest puzzles in the game. */
+  test('World 8 is six moves deep at its shallowest, climbs, and holds the deepest finale', () => {
+    const world8 = LEVELS.filter(level => level.order >= 171).sort((a, b) => a.order - b.order);
+    const depths = world8.map(level => level.metadata?.minMoves ?? 0);
+    expect(world8).toHaveLength(24);
+    expect(Math.min(...depths)).toBeGreaterThanOrEqual(6);
+    expect(depths).toEqual([...depths].sort((a, b) => a - b));
+    const deepest = Math.max(...LEVELS.map(level => level.metadata?.minMoves ?? 0));
+    expect(deepest).toBe(11);
+    expect(LEVELS.filter(level => level.metadata?.minMoves === deepest).every(level => level.order >= 171)).toBe(true);
   });
 
   test('the longest solution in the first six worlds (7 moves) is still the anchor-world finale', () => {

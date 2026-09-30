@@ -1,5 +1,5 @@
 /* eslint-disable react-native/no-inline-styles -- cell geometry is derived from `size` at render time */
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
 import { BinairoCell, BinairoPuzzle, BinairoState, constraintPartner, isConstraintViolated, isGiven } from '../game/binairo';
@@ -64,6 +64,42 @@ function countClueDescriptions(puzzle: BinairoPuzzle, row: number, col: number):
 }
 
 /**
+ * One tap target. It toggles the moment a finger lands (`onPressIn`), not
+ * on release: waiting for the finger to lift - and for `Pressable`'s own
+ * press/long-press bookkeeping in between - is what made placing a tile
+ * feel laggy on a phone. The flip animation is the feedback now, so the
+ * old held-down glow (a state change that re-rendered all 64 targets on
+ * press *and* release) is gone. Memoised, so a toggle re-renders only the
+ * target whose label changed.
+ */
+const CellTarget = React.memo(function CellTargetImpl({
+  row,
+  col,
+  x,
+  y,
+  size,
+  label,
+  onToggleCell,
+}: {
+  row: number;
+  col: number;
+  x: number;
+  y: number;
+  size: number;
+  label: string;
+  onToggleCell: (row: number, col: number) => void;
+}): React.JSX.Element {
+  return (
+    <Pressable
+      accessibilityRole="button"
+      accessibilityLabel={label}
+      onPressIn={() => onToggleCell(row, col)}
+      style={{ position: 'absolute', left: x, top: y, width: size, height: size }}
+    />
+  );
+});
+
+/**
  * Composes the Skia-drawn board (`BinairoBoardView`) with an
  * absolutely-positioned overlay of one `Pressable` per non-given cell on
  * top of the `<Canvas>` - the same split Mirror Maze's board already
@@ -73,12 +109,6 @@ function countClueDescriptions(puzzle: BinairoPuzzle, row: number, col: number):
  */
 export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashCell, introKey }: BinairoBoardProps): React.JSX.Element {
   const layout = useMemo(() => computeBoardLayout(puzzle.size, size), [puzzle.size, size]);
-  // Which single cell is currently held down, purely for the tactile
-  // press-glow `BinairoBoardView` draws while it's true - the actual value
-  // change (and its own flip animation) still only happens on release, via
-  // `onToggleCell`/`onPress` below. Tracked here rather than in the Skia
-  // view since only the `Pressable` overlay actually sees touch events.
-  const [pressedCell, setPressedCell] = useState<BinairoCell | null>(null);
 
   const editableCells = useMemo(() => {
     const cells: BinairoCell[] = [];
@@ -105,7 +135,7 @@ export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashC
         // own edge" now that the plinth beneath it (`BinairoScreen`'s
         // `styles.stage`) carries no fill of its own; a heavy shadow here
         // on top of a heavy plinth used to double up into one dark frame.
-        shadowColor: '#3B1F52',
+        shadowColor: theme.colors.shadow,
         shadowOpacity: 0.14,
         shadowRadius: 9,
         shadowOffset: { width: 2, height: 4 },
@@ -113,7 +143,7 @@ export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashC
       }}
     >
       <Canvas style={StyleSheet.absoluteFill}>
-        <BinairoBoardView puzzle={puzzle} state={state} size={size} solved={solved} flashCell={flashCell} pressedCell={pressedCell} introKey={introKey} />
+        <BinairoBoardView puzzle={puzzle} state={state} size={size} solved={solved} flashCell={flashCell} pressedCell={null} introKey={introKey} />
       </Canvas>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
         {editableCells.map(({ row, col }) => {
@@ -126,20 +156,15 @@ export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashC
             ...counts,
           ].join(', ');
           return (
-            <Pressable
+            <CellTarget
               key={`tap-${row}-${col}`}
-              accessibilityRole="button"
-              accessibilityLabel={label}
-              onPress={() => onToggleCell(row, col)}
-              onPressIn={() => setPressedCell({ row, col })}
-              onPressOut={() => setPressedCell(prev => (prev && prev.row === row && prev.col === col ? null : prev))}
-              style={{
-                position: 'absolute',
-                left: origin.x,
-                top: origin.y,
-                width: layout.cellSize,
-                height: layout.cellSize,
-              }}
+              row={row}
+              col={col}
+              x={origin.x}
+              y={origin.y}
+              size={layout.cellSize}
+              label={label}
+              onToggleCell={onToggleCell}
             />
           );
         })}

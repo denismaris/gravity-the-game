@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { PressableScale } from './PressableScale';
 import { TutorialCopy } from '../game/tutorials';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 
 export interface TutorialOverlayProps {
   copy: TutorialCopy;
@@ -65,7 +65,7 @@ export function TutorialOverlay({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   overlay: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
@@ -120,4 +120,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
-});
+}));

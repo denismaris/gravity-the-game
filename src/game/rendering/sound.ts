@@ -53,13 +53,31 @@ const FILES: Record<HapticKind, string> = {
   // mean re-linking it into the Xcode project for no real benefit.
   mazeContact: 'sfx_ink_trail_contact.wav',
   mazeSolve: 'sfx_ink_trail_solve.wav',
-  // Bloom borrows three existing voices rather than shipping new files: a
-  // new sound asset needs a full native rebuild to link, and these already
-  // say the right thing - a small mechanical click, a bright chime, a
-  // resolving solve.
-  bloomTurn: 'sfx_mirror_place.wav',
-  bloomClose: 'sfx_fillapix_clue.wav',
-  bloomSolve: 'sfx_arukone_solve.wav',
+  // The four newer games' own voices, from `tools/make_game_sounds.py`.
+  // Bloom is a kalimba: a petal flick for a turn, a tine for a closed
+  // flower, a pentatonic run for the garden.
+  bloomTurn: 'sfx_bloom_turn.wav',
+  bloomClose: 'sfx_bloom_close.wav',
+  bloomSolve: 'sfx_bloom_solve.wav',
+  // Mosaic is ceramic and glass: a clink to lift, a clack to set, a softer
+  // one back to the tray, a glass shimmer for the finished picture.
+  mosaicPickup: 'sfx_mosaic_pickup.wav',
+  mosaicPlace: 'sfx_mosaic_place.wav',
+  mosaicReturn: 'sfx_mosaic_return.wav',
+  mosaicSolve: 'sfx_mosaic_solve.wav',
+  // Bridges is the harbour: a plank laid, a plank lifted, a ship's bell
+  // for an island's number met, two dull knocks for a blocked lane, and
+  // the bells together for the archipelago joined.
+  bridgesBuild: 'sfx_bridges_build.wav',
+  bridgesRemove: 'sfx_bridges_remove.wav',
+  bridgesIsland: 'sfx_bridges_island.wav',
+  bridgesBlocked: 'sfx_bridges_blocked.wav',
+  bridgesSolve: 'sfx_bridges_solve.wav',
+  // Adjacent is bubbles: a pop per group, a double pop and a sparkle for
+  // a multiplying run, a rising fizz for the cleared board.
+  adjacentPop: 'sfx_adjacent_pop.wav',
+  adjacentCombo: 'sfx_adjacent_combo.wav',
+  adjacentSolve: 'sfx_adjacent_solve.wav',
 };
 
 let soundEnabled = true;

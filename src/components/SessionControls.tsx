@@ -1,13 +1,16 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
-import { Canvas, Path } from '@shopify/react-native-skia';
+import { Text, View } from 'react-native';
+import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
-import { theme } from '../theme';
+import { theme, themedStyles } from '../theme';
 import { CoinCost } from './Coins';
 
 export interface SessionControlsProps {
   onUndo: () => void;
   onRestart: () => void;
+  /** Shows the next move - when set, a Hint pill leads the row. */
+  onHint?: () => void;
+  hintCost?: number;
   undoDisabled?: boolean;
   /** Coins an undo costs, shown on the button when set. */
   undoCost?: number;
@@ -26,9 +29,22 @@ function SessionControlsImpl({
   onRestart,
   undoDisabled = false,
   undoCost,
+  onHint,
+  hintCost,
 }: SessionControlsProps): React.JSX.Element {
   return (
     <View style={styles.container}>
+      {onHint && (
+        <>
+          <SessionButton
+            label="Hint"
+            icon={<HintIcon />}
+            onPress={onHint}
+            cost={hintCost === undefined ? undefined : <CoinCost cost={hintCost} />}
+          />
+          <View style={styles.spacer} />
+        </>
+      )}
       <SessionButton
         label="Undo"
         icon={<UndoIcon />}
@@ -59,6 +75,18 @@ function RestartIcon(): React.JSX.Element {
     <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
       <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={theme.colors.secondary} style="stroke" strokeWidth={1.6} />
       <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={theme.colors.secondary} />
+    </Canvas>
+  );
+}
+
+/** The lightbulb every play screen's Hint pill carries, in terracotta. */
+function HintIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Circle cx={7} cy={5.8} r={4.3} color={theme.colors.secondary} style="stroke" strokeWidth={1.4} />
+      <Path path="M 5.4 9.4 L 8.6 9.4" color={theme.colors.secondary} style="stroke" strokeWidth={1.3} />
+      <Path path="M 5.7 11.2 L 8.3 11.2" color={theme.colors.secondary} style="stroke" strokeWidth={1.3} />
+      <Path path="M 6.3 12.6 L 7.7 12.6" color={theme.colors.secondary} style="stroke" strokeWidth={1.1} />
     </Canvas>
   );
 }
@@ -103,7 +131,7 @@ function SessionButton({ label, icon, cost, onPress, disabled = false }: Session
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -123,11 +151,11 @@ const styles = StyleSheet.create({
     // A slightly lighter top edge than the other three sides - see
     // `BinairoScreen.tsx`'s identical `pill` style for why (a small
     // "catching the light" cue rather than one flat border colour).
-    borderTopColor: '#FBF6EB',
+    borderTopColor: theme.colors.highlightEdge,
     borderLeftColor: theme.colors.border,
     borderRightColor: theme.colors.border,
     borderBottomColor: theme.colors.border,
-    shadowColor: '#3B1F52',
+    shadowColor: theme.colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 2, height: 3 },
@@ -150,4 +178,4 @@ const styles = StyleSheet.create({
   buttonLabelDisabled: {
     color: theme.colors.textDisabled,
   },
-});
+}));

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Animated, Easing, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 import { Canvas, Group, Path, RoundedRect, rect, rrect } from '@shopify/react-native-skia';
 import { useAnimationClock, useReducedMotion } from '../game/rendering';
-import { theme } from '../theme';
+import { theme, themedStyles } from '../theme';
 import {
   ACTS,
   actProgress,
@@ -17,7 +17,6 @@ import {
   sheenBandPoints,
   sheenOpacity,
   sheenTravel,
-  TILE_COLOR,
   TOTAL_MS,
 } from './launchChoreography';
 
@@ -164,7 +163,7 @@ export function LaunchSequence({ appReady, onDone }: LaunchSequenceProps): React
               width={side}
               height={side}
               r={side * 0.225}
-              color={TILE_COLOR}
+              color={theme.colors.brandTile}
             />
             <Group clip={tileClipRRect}>
               {pieces.map((piece, i) => (
@@ -246,7 +245,7 @@ const Piece = React.memo(function PieceImpl({
   return <Path path={`${path} Z`} color={piece.color} opacity={pieceOpacity(progress)} />;
 });
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   layer: {
     backgroundColor: theme.colors.background,
     zIndex: 100,
@@ -265,5 +264,5 @@ const styles = StyleSheet.create({
     letterSpacing: theme.typography.tracking.wordmark,
     color: theme.colors.textPrimary,
   },
-});
+}));
 

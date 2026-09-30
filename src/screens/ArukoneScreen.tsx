@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
@@ -30,10 +30,11 @@ import { triggerFeedback } from '../game/rendering';
 import { ARUKONE_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
 import { HINT_COST } from '../progression/coins';
+import { useStageEntrance } from '../components/useStageEntrance';
 
 const TUTORIAL_ID = tutorialIdForGame('arukone');
 const ICON_SIZE = 14;
@@ -101,6 +102,8 @@ const TRACK_MS = 220;
  */
 export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const stageIn = useStageEntrance();
+  const controlsIn = useStageEntrance(110);
   const { width, height } = useWindowDimensions();
   const { progress, recordCompletion } = usePlayerProgress();
   const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
@@ -268,7 +271,7 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
       </View>
 
       <View style={styles.boardArea}>
-        <View style={styles.stage}>
+        <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
           <ArukoneBoard
             puzzle={puzzle}
@@ -280,9 +283,9 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
             introKey={introKey}
             rejectedCell={rejected}
           />
-        </View>
+        </Animated.View>
 
-        <View style={styles.controls}>
+        <Animated.View style={[styles.controls, controlsIn]}>
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Reveal a hint"
@@ -302,7 +305,7 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
             <RestartIcon />
             <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
         <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
       </View>
 
@@ -387,7 +390,7 @@ function AnimatedKicker({ left, cellsLeft, solved, difficulty }: { left: number;
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     alignItems: 'center',
@@ -491,11 +494,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderTopColor: '#FBF6EB',
+    borderTopColor: theme.colors.highlightEdge,
     borderLeftColor: theme.colors.border,
     borderRightColor: theme.colors.border,
     borderBottomColor: theme.colors.border,
-    shadowColor: '#3B1F52',
+    shadowColor: theme.colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 2, height: 3 },
@@ -507,4 +510,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
-});
+}));

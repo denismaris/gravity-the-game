@@ -19,11 +19,10 @@ const SOLVE_SWELL_MS = 300;
 const WELL_INSET = 0.07;
 /** A line joined at both ends is set in full ink; a loose one is drawn
  * lighter, so progress shows line by line before a loop even closes. */
-const INK = theme.colors.primary;
+const lineInk = (): string => theme.colors.primary;
 // Opaque - the ink mixed 40/60 with the well's paper - not translucent:
 // two translucent round caps meeting at a midpoint doubled up into a dark
 // blob exactly where the eye looks to see whether lines connect.
-const LOOSE_INK = '#B1A4B6';
 const TURN_WASH = 'rgba(200, 80, 106, 0.16)'; // bloomAccent, faint
 
 function clamp01(t: number): number {
@@ -206,8 +205,8 @@ const StaticTiles = React.memo(function StaticTilesImpl({
 function TileStrokes({ tile, strokeWidth }: { tile: TileInk; strokeWidth: number }): React.JSX.Element {
   return (
     <>
-      {tile.loose && <Path path={tile.loose} color={LOOSE_INK} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />}
-      {tile.joined && <Path path={tile.joined} color={INK} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />}
+      {tile.loose && <Path path={tile.loose} color={theme.colors.bloomLooseInk} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />}
+      {tile.joined && <Path path={tile.joined} color={lineInk()} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />}
     </>
   );
 }

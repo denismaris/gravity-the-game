@@ -3,7 +3,7 @@ import { Animated, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleShe
 import { Canvas } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
 import { TutorialSlide } from '../game/tutorials';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 
 /** The card's own fixed width - paging needs an exact known slide width,
  * not a `maxWidth` that could vary per device the way `TutorialOverlay`'s
@@ -150,7 +150,7 @@ export function MechanicsCarousel({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   overlay: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
@@ -247,4 +247,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
-});
+}));

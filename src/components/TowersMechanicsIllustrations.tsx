@@ -91,7 +91,10 @@ function FillIllustration(): React.JSX.Element {
     <Group>
       {/* A selected cell, tinted the same way the real board tints one -
           already holding the height the keypad below just entered. */}
-      <RoundedRect x={startX + CELL} y={rowY} width={CELL} height={CELL} color={theme.colors.surfaceAlt} />
+      {/* `r` is required: Skia's native recorder (which draws every canvas
+          on the UI thread now that Reanimated is in the app) throws on a
+          RoundedRect without one, and a throw there aborts the app. */}
+      <RoundedRect x={startX + CELL} y={rowY} width={CELL} height={CELL} r={0} color={theme.colors.surfaceAlt} />
       {illustrationGrid(startX, rowY, 3, 1, CELL)}
       {buildingBar(selectedCx, floorY - 4, CELL * 0.4, 2, 3, theme.colors.towersAccent)}
 

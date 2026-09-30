@@ -1,4 +1,6 @@
 import { PuzzleDifficulty } from '../puzzleDifficulty';
+import { endlessName, parseEndlessId } from '../endlessId';
+import { generateMirrorMaze } from './generator';
 import { Direction, MirrorMazeCell, MirrorMazePuzzle } from './types';
 
 const DIRECTION_BY_LETTER: Readonly<Record<string, Direction>> = {
@@ -134,6 +136,16 @@ export function getMirrorMazesByDifficulty(difficulty: PuzzleDifficulty): Readon
   return MIRROR_MAZES.filter(puzzle => puzzle.difficulty === difficulty);
 }
 
+const endlessCache = new Map<string, MirrorMazePuzzle>();
+
 export function getMirrorMazeById(id: string): MirrorMazePuzzle | undefined {
-  return MIRROR_MAZES.find(puzzle => puzzle.id === id);
+  const found = MIRROR_MAZES.find(puzzle => puzzle.id === id);
+  if (found) return found;
+  const endless = parseEndlessId(id);
+  if (!endless || endless.kind !== 'mirror') return undefined;
+  const cached = endlessCache.get(id);
+  if (cached) return cached;
+  const puzzle = generateMirrorMaze(id, endlessName(endless.index, 'mirror'), endless.tier);
+  endlessCache.set(id, puzzle);
+  return puzzle;
 }

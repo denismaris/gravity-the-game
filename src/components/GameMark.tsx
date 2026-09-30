@@ -1,7 +1,7 @@
 /* eslint-disable react-native/no-inline-styles -- glyph geometry is derived from `size` at render time */
 import React from 'react';
-import { StyleSheet, View } from 'react-native';
-import { theme } from '../theme';
+import { View } from 'react-native';
+import { theme, themedStyles } from '../theme';
 
 export type GameMarkName = 'gravity' | 'daily' | 'archive';
 
@@ -92,9 +92,9 @@ export function GameMark({ name, size = 26, color = theme.colors.textSecondary }
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   box: {
     alignItems: 'center',
     justifyContent: 'center',
   },
-});
+}));

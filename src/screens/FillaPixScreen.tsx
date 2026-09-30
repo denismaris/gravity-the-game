@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
   clueStatus,
-  emptyFillaPixState,
+  givenFills,
+  initialFillaPixState,
   FillaPixCell,
   FillaPixPuzzle,
   FillaPixState,
@@ -30,10 +31,11 @@ import { triggerFeedback } from '../game/rendering';
 import { FILLAPIX_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
 import { HINT_COST, UNDO_COST } from '../progression/coins';
+import { useStageEntrance } from '../components/useStageEntrance';
 
 /** How many of `puzzle`'s revealed clues `state` currently satisfies -
  * shared by the progress track and `applyState`'s own "did this move
@@ -118,6 +120,8 @@ export interface FillaPixScreenProps {
  */
 export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
+  const stageIn = useStageEntrance();
+  const controlsIn = useStageEntrance(110);
   const { width, height } = useWindowDimensions();
   const { progress, recordCompletion } = usePlayerProgress();
   const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
@@ -133,7 +137,9 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
   const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
-  const [state, setState] = useState<FillaPixState>(() => emptyFillaPixState(puzzle.size));
+  const [state, setState] = useState<FillaPixState>(() => initialFillaPixState(puzzle));
+  // Squares that open already filled - locked, so a tap on one does nothing.
+  const givens = useMemo(() => givenFills(puzzle), [puzzle]);
   const { coins, shortBy, buy } = useCoinPurchase();
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [hints, setHints] = useState(0);
@@ -207,7 +213,13 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
     [puzzle, state],
   );
 
-  const onToggleCell = useCallback((row: number, col: number) => applyState(toggleCell(state, row, col)), [applyState, state]);
+  const onToggleCell = useCallback(
+    (row: number, col: number) => {
+      if (givens[row][col]) return;
+      applyState(toggleCell(state, row, col));
+    },
+    [applyState, state, givens],
+  );
 
   const useHint = useCallback(() => {
     const result = revealFillaPixHint(state, puzzle);
@@ -239,8 +251,8 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
     setHints(0);
     setFlashCell(null);
     historyRef.current = [];
-    setState(emptyFillaPixState(puzzle.size));
-  }, [puzzle.size]);
+    setState(initialFillaPixState(puzzle));
+  }, [puzzle]);
 
   const goNext = useCallback(() => {
     if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: batchCompletedRef.current });
@@ -287,12 +299,12 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
       </View>
 
       <View style={styles.boardArea}>
-        <View style={styles.stage}>
+        <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          <FillaPixBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={onToggleCell} flashCell={flashCell} />
-        </View>
+          <FillaPixBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={onToggleCell} flashCell={flashCell} givens={givens} />
+        </Animated.View>
 
-        <View style={styles.controls}>
+        <Animated.View style={[styles.controls, controlsIn]}>
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Reveal a hint"
@@ -322,7 +334,7 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
             <RestartIcon />
             <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
-        </View>
+        </Animated.View>
         <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
       </View>
 
@@ -396,7 +408,7 @@ function AnimatedKicker({ unsatisfied, solved, difficulty }: { unsatisfied: numb
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   container: {
     flex: 1,
     alignItems: 'center',
@@ -493,11 +505,11 @@ const styles = StyleSheet.create({
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
-    borderTopColor: '#FBF6EB',
+    borderTopColor: theme.colors.highlightEdge,
     borderLeftColor: theme.colors.border,
     borderRightColor: theme.colors.border,
     borderBottomColor: theme.colors.border,
-    shadowColor: '#3B1F52',
+    shadowColor: theme.colors.shadow,
     shadowOpacity: 0.1,
     shadowRadius: 8,
     shadowOffset: { width: 2, height: 3 },
@@ -509,4 +521,4 @@ const styles = StyleSheet.create({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
-});
+}));

@@ -1,4 +1,4 @@
-import { getLevelsByDifficulty } from '../game/levels';
+import { getGravityLevelsForTier } from '../game/levels';
 import { getMirrorMazesByDifficulty } from '../game/mirror';
 import { getTentsTreesByDifficulty } from '../game/tents';
 import { getTowersByDifficulty } from '../game/towers';
@@ -7,11 +7,14 @@ import { getArukoneByDifficulty } from '../game/arukone';
 import { getFillaPixByDifficulty } from '../game/fillapix';
 import { getLightsOutByDifficulty } from '../game/lightsout';
 import { getBloomByDifficulty } from '../game/bloom';
+import { getMosaicByDifficulty } from '../game/mosaic';
+import { getBridgesByDifficulty } from '../game/bridges';
 import { getAdjacentByDifficulty } from '../game/adjacent';
-import { GameKind, ROTATION } from '../game/journey';
-import { endlessId } from '../game/endlessId';
+import { GameKind, ROTATION, puzzleKindOf } from '../game/journey';
+import { endlessId, parseEndlessId } from '../game/endlessId';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { PlayerProgress } from './playerProgress';
+import { GOLDEN_EVERY } from './coins';
 
 /**
  * The randomized level-batch progression: instead of one fixed interleaved
@@ -34,6 +37,9 @@ export interface BatchPuzzleRef {
    * so a batch saved before this existed reads back correctly as "no
    * challenge" with no migration. */
   readonly challenge?: boolean;
+  /** A golden puzzle: triple coins on its first solve (see `coins.ts`).
+   * Absent rather than `false`, like `challenge`. */
+  readonly golden?: boolean;
 }
 
 export interface BatchState {
@@ -94,10 +100,12 @@ function tierBandForLevel(levelNumber: number): TierBand {
 }
 
 /**
- * How often a deliberately hard, signposted puzzle lands: every sixth
+ * How often a deliberately hard, signposted puzzle lands: every fourth
  * one, counted continuously across levels rather than per batch, so the
  * rhythm survives batch size changing from three to five along the curve.
- * Five gentler puzzles, then one that asks something.
+ * Three gentler puzzles, then one that asks something. (Every sixth was
+ * the first setting; playtesting called the whole run "too easy", and a
+ * hard puzzle in six was a large part of why.)
  *
  * This cadence is the whole point of the redesign: difficulty used to be
  * drawn independently per slot, which meant a level could deal three hard
@@ -105,7 +113,7 @@ function tierBandForLevel(levelNumber: number): TierBand {
  * which. Players read that as the game being arbitrary rather than as
  * variety - which is exactly what it was.
  */
-export const CHALLENGE_EVERY = 6;
+export const CHALLENGE_EVERY = 4;
 
 /** How many puzzles came before `levelNumber` begins - the offset that
  * turns a within-batch slot into a continuous puzzle number. The explicit
@@ -136,17 +144,17 @@ function isChallengeSlot(levelNumber: number, puzzleIndex: number): boolean {
 
 /**
  * The tier mix for an ordinary, non-challenge slot: the band's own weights
- * with `hard` retired and its weight split evenly between the two tiers
- * left. Hard now arrives on the cadence instead of at random, so leaving
- * it in here as well would put the unannounced spikes straight back - but
- * simply deleting its weight would also delete the curve's climb, leaving
- * the plateau a flat wall of medium. Splitting it keeps both: higher
- * levels still lean harder within easy/medium, and every hard puzzle is
- * one the player was told about beforehand.
+ * with `hard` retired and its weight handed to *medium*. Hard arrives on
+ * the cadence instead of at random, so leaving it in here would put
+ * unannounced spikes straight back; but the first version split its weight
+ * evenly with easy, which left the plateau dealing an easy puzzle in every
+ * three or so ordinary slots, a long way past the point a player needs
+ * them. Giving it all to medium keeps the curve's climb honest: by the
+ * plateau an ordinary slot is almost always medium, and every hard puzzle
+ * is still one the player was told about.
  */
 function restWeights(weights: TierWeights): TierWeights {
-  const half = weights.hard / 2;
-  return { easy: weights.easy + half, medium: weights.medium + half, hard: 0 };
+  return { easy: weights.easy, medium: weights.medium + weights.hard, hard: 0 };
 }
 
 /** Every puzzle id at one game+tier - the batch generator's only read path
@@ -156,7 +164,7 @@ function restWeights(weights: TierWeights): TierWeights {
 function poolForKindAndTier(kind: GameKind, tier: PuzzleDifficulty): ReadonlyArray<string> {
   switch (kind) {
     case 'gravity':
-      return getLevelsByDifficulty(tier).map(level => level.id);
+      return getGravityLevelsForTier(tier).map(level => level.id);
     case 'mirror':
       return getMirrorMazesByDifficulty(tier).map(puzzle => puzzle.id);
     case 'tents':
@@ -175,6 +183,10 @@ function poolForKindAndTier(kind: GameKind, tier: PuzzleDifficulty): ReadonlyArr
       return getAdjacentByDifficulty(tier).map(puzzle => puzzle.id);
     case 'bloom':
       return getBloomByDifficulty(tier).map(puzzle => puzzle.id);
+    case 'mosaic':
+      return getMosaicByDifficulty(tier).map(puzzle => puzzle.id);
+    case 'bridges':
+      return getBridgesByDifficulty(tier).map(puzzle => puzzle.id);
   }
 }
 
@@ -201,28 +213,30 @@ function weightedPick<T>(entries: ReadonlyArray<readonly [T, number]>, rng: () =
   return entries[entries.length - 1][0];
 }
 
-/** A game's own sampling weight for one tier - the square root of its pool
- * size at that tier, not the raw count. Gravity's medium tier alone (61
- * levels) outnumbers Mirror Maze's entire pool (12) many times over;
- * weighting directly by count would make the four small-pool games all but
- * never appear. The square root compresses that gap (sqrt(61) ~= 7.8 vs.
- * sqrt(4) = 2, a ~4x pull toward Gravity rather than ~15x) while still
- * giving the deeper pool a real, deliberate edge - "varied, weighted
- * toward Gravity's depth", not "uniform" and not "proportional". */
+/** A game's own sampling weight for one tier: the same for every game that
+ * has puzzles there. It used to be the square root of the pool's size,
+ * which gave Gravity (57 levels at easy alone) several times the pull of a
+ * twenty-board game - so a player met Gravity constantly and some games
+ * barely at all. Variety is the point of a mixed level; pool depth is not
+ * a reason to deal a game more, and a small pool simply recycles (or runs
+ * endless) once it is used up. */
 function gameWeight(kind: GameKind, tier: PuzzleDifficulty): number {
-  return Math.sqrt(poolForKindAndTier(kind, tier).length);
+  return poolForKindAndTier(kind, tier).length > 0 || ENDLESS_KINDS.has(kind) ? 1 : 0;
 }
 
-/**
- * Games that can build a board from an id instead of looking one up, and
- * so never run out.
- *
- * The rest still have finite, hand-authored pools. Nothing breaks when
- * they exhaust - they fall back to replaying, exactly as the whole app
- * used to - they simply stop contributing *new* puzzles, and the endless
- * games carry the long tail.
- */
-const ENDLESS_KINDS: ReadonlySet<GameKind> = new Set<GameKind>(['lightsout', 'arukone', 'adjacent', 'towers', 'bloom']);
+/** How strongly a game is discouraged when it was just seen: already in
+ * this level, or in the level before. Never zero - a small collection must
+ * still be able to fill a level - but far enough down that a player sees
+ * a real spread of games from one level to the next. */
+const SAME_LEVEL_PENALTY = 0.04;
+const PREVIOUS_LEVEL_PENALTY = 0.4;
+
+/** Every game deals new boards forever: once a game's curated pool is
+ * used up at a tier, it moves on to endless boards generated from their id
+ * (or, for Mosaic, baked offline) - never a replay of a board already
+ * solved. That is what lets the level sets run to a thousand and beyond
+ * without repeating themselves. */
+const ENDLESS_KINDS: ReadonlySet<GameKind> = new Set<GameKind>(ROTATION);
 
 /** The first endless id of this game+tier the player has neither
  * completed nor already been dealt in this batch. Scans upward from zero,
@@ -274,12 +288,28 @@ export function generateBatch(levelNumber: number, progress: PlayerProgress, pre
   let lastKind: GameKind | null = null;
   const firstPuzzleIndex = puzzlesBeforeLevel(levelNumber);
 
+  // The tiers first, for the whole level: challenges stay on their fixed
+  // positions, and the ordinary slots are then put in order, easier first -
+  // so every level warms up and builds, rather than lurching between tiers
+  // in whatever order the draws happened to fall.
+  const challengeAt = Array.from({ length: band.batchSize }, (_v, slot) => isChallengeSlot(levelNumber, firstPuzzleIndex + slot));
+  const TIER_ORDER: Record<PuzzleDifficulty, number> = { easy: 0, medium: 1, hard: 2 };
+  const ordinaryTiers = challengeAt
+    .filter(isChallenge => !isChallenge)
+    .map(() => sampleTier(restWeights(band.weights), rng))
+    .sort((a, b) => TIER_ORDER[a] - TIER_ORDER[b]);
+  const tiers: PuzzleDifficulty[] = challengeAt.map(isChallenge => (isChallenge ? 'hard' : ordinaryTiers.shift()!));
+  const usedKinds = new Set<GameKind>();
+
   for (let slot = 0; slot < band.batchSize; slot += 1) {
-    const challenge = isChallengeSlot(levelNumber, firstPuzzleIndex + slot);
-    const tier: PuzzleDifficulty = challenge ? 'hard' : sampleTier(restWeights(band.weights), rng);
+    const challenge = challengeAt[slot];
+    const tier = tiers[slot];
 
     const weighted = ROTATION.map((kind): readonly [GameKind, number] => {
-      const weight = gameWeight(kind, tier) * (previousKinds.has(kind) ? 0.5 : 1); // soft cross-level penalty
+      // A game the player retired (see the shop) is never dealt.
+      let weight = progress.retired.includes(kind) ? 0 : gameWeight(kind, tier);
+      if (usedKinds.has(kind)) weight *= SAME_LEVEL_PENALTY;
+      else if (previousKinds.has(kind)) weight *= PREVIOUS_LEVEL_PENALTY;
       return [kind, weight] as const;
     });
 
@@ -294,8 +324,12 @@ export function generateBatch(levelNumber: number, progress: PlayerProgress, pre
     const ids = availablePuzzleIds(kind, tier, progress, usedIds);
     const puzzleId = ids[Math.floor(rng() * ids.length)];
 
-    puzzles.push(challenge ? { kind, puzzleId, challenge: true } : { kind, puzzleId });
+    // About one puzzle in `GOLDEN_EVERY` is golden - a surprise, so it is
+    // decided here, at random, and not on any rhythm a player could count.
+    const golden = rng() < 1 / GOLDEN_EVERY;
+    puzzles.push({ kind, puzzleId, ...(challenge ? { challenge: true } : {}), ...(golden ? { golden: true } : {}) });
     usedIds.add(puzzleId);
+    usedKinds.add(kind);
     lastKind = kind;
   }
 
@@ -321,4 +355,50 @@ export function markPuzzleCompleted(batch: BatchState, puzzleId: string): BatchS
   if (batch.completedPuzzleIds.includes(puzzleId)) return batch;
   if (!batch.puzzles.some(p => p.puzzleId === puzzleId)) return batch;
   return { ...batch, completedPuzzleIds: [...batch.completedPuzzleIds, puzzleId] };
+}
+
+/**
+ * The tier a puzzle was dealt at - by the pool the dealer drew it from,
+ * not by its own label: Gravity is dealt by solving depth
+ * (`getGravityLevelsForTier`), so a level labelled medium can be a hard
+ * deal. A swap must replace like with like.
+ */
+export function dealtTierOf(ref: BatchPuzzleRef): PuzzleDifficulty {
+  const endless = parseEndlessId(ref.puzzleId);
+  if (endless) return endless.tier;
+  for (const tier of ['easy', 'medium', 'hard'] as const) {
+    if (poolForKindAndTier(ref.kind, tier).includes(ref.puzzleId)) return tier;
+  }
+  return puzzleKindOf(ref.puzzleId)?.difficulty ?? (ref.challenge ? 'hard' : 'medium');
+}
+
+/**
+ * Replaces the unfinished slots `puzzleIds` of the current set with a
+ * puzzle of another game, at the same tier and keeping any challenge flag
+ * - for "swap this puzzle" and for a game just retired. The replacement is
+ * never the same game, never a retired one, and prefers games not already
+ * in the set. Finished slots are never touched.
+ */
+export function replaceInBatch(batch: BatchState, puzzleIds: ReadonlyArray<string>, progress: PlayerProgress, rng: () => number = Math.random): BatchState {
+  const done = new Set(batch.completedPuzzleIds);
+  const usedIds = new Set(batch.puzzles.map(p => p.puzzleId));
+  const puzzles = batch.puzzles.map(p => ({ ...p }));
+  for (let slot = 0; slot < puzzles.length; slot += 1) {
+    const ref = puzzles[slot];
+    if (!puzzleIds.includes(ref.puzzleId) || done.has(ref.puzzleId)) continue;
+    const tier = dealtTierOf(ref);
+    const inSet = new Set(puzzles.map(p => p.kind));
+    const weighted = ROTATION.map((kind): readonly [GameKind, number] => {
+      if (kind === ref.kind || progress.retired.includes(kind)) return [kind, 0] as const;
+      const weight = gameWeight(kind, tier);
+      return [kind, inSet.has(kind) ? weight * SAME_LEVEL_PENALTY : weight] as const;
+    });
+    if (!weighted.some(([, w]) => w > 0)) continue;
+    const kind = weightedPick(weighted, rng);
+    const ids = availablePuzzleIds(kind, tier, progress, usedIds);
+    const puzzleId = ids[Math.floor(rng() * ids.length)];
+    usedIds.add(puzzleId);
+    puzzles[slot] = { kind, puzzleId, ...(ref.challenge ? { challenge: true } : {}), ...(ref.golden ? { golden: true } : {}) };
+  }
+  return { ...batch, puzzles };
 }

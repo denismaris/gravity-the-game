@@ -1,3 +1,4 @@
+import { COSMETIC_SLOTS } from './shop';
 import { StorageBackend } from '../storage';
 import { StarRating } from '../game/scoring';
 import { GameKind, ROTATION } from '../game/journey';
@@ -101,8 +102,9 @@ function isGameKind(value: unknown): value is GameKind {
 
 function parseBatchPuzzleRef(value: unknown): BatchPuzzleRef | null {
   if (typeof value !== 'object' || value === null) return null;
-  const ref = value as { kind?: unknown; puzzleId?: unknown; challenge?: unknown };
+  const ref = value as { kind?: unknown; puzzleId?: unknown; challenge?: unknown; golden?: unknown };
   if (!isGameKind(ref.kind) || typeof ref.puzzleId !== 'string') return null;
+  if (ref.golden === true) return { kind: ref.kind, puzzleId: ref.puzzleId, ...(ref.challenge === true ? { challenge: true } : {}), golden: true };
   // `challenge` post-dates v5 and is deliberately not a version bump: a
   // batch saved without it is a valid batch with no challenge slot, which
   // is exactly what an absent flag already means. Kept off the object
@@ -190,16 +192,30 @@ export function parseProgress(raw: string | null): PlayerProgress {
     currentBatch?: unknown;
     adFreeTimeRemainingMs?: unknown;
     coins?: unknown;
+    errands?: unknown;
+    errandsClaimed?: unknown;
+    rankRewarded?: unknown;
+    chaptersClaimed?: unknown;
+    owned?: unknown;
+    equipped?: unknown;
+    streakFreezes?: unknown;
+    retired?: unknown;
+    luckyCharges?: unknown;
+    cleanRun?: unknown;
+    grandsSolved?: unknown;
+    stampsClaimed?: unknown;
+    introSeen?: unknown;
   };
   if (typeof record.version !== 'number' || !READABLE_VERSIONS.includes(record.version)) {
     return emptyProgress();
   }
 
   const daily = parseDaily(record.daily);
+  const levels = parseLevels(record.levels);
 
   return {
     version: PLAYER_PROGRESS_VERSION,
-    levels: parseLevels(record.levels),
+    levels,
     // v1 has no cursor; parseCursor handles its absence.
     cursor: parseCursor(record.cursor),
     // v1/v2 have no daily streak; parseDaily handles its absence.
@@ -213,7 +229,58 @@ export function parseProgress(raw: string | null): PlayerProgress {
     currentBatch: parseCurrentBatch(record.currentBatch),
     adFreeTimeRemainingMs: parseAdFreeTimeRemainingMs(record.adFreeTimeRemainingMs),
     coins: parseCoins(record.coins),
+    // Everything below post-dates v5 and is read without a version bump:
+    // missing or malformed reads as the default.
+    errands: parseErrands(record.errands),
+    errandsClaimed: parseCount(record.errandsClaimed, 0),
+    // A save from before ranks starts at rank 1 celebrated, so every rank
+    // it has already earned is waiting to be collected.
+    rankRewarded: Math.max(1, parseCount(record.rankRewarded, 1)),
+    chaptersClaimed: Array.isArray(record.chaptersClaimed)
+      ? record.chaptersClaimed.filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 1)
+      : [],
+    owned: Array.isArray(record.owned) ? record.owned.filter((id): id is string => typeof id === 'string') : [],
+    equipped: parseEquipped(record.equipped),
+    streakFreezes: Math.min(3, parseCount(record.streakFreezes, 0)),
+    retired: Array.isArray(record.retired) ? [...new Set(record.retired.filter(isGameKind))].slice(0, 3) : [],
+    luckyCharges: parseCount(record.luckyCharges, 0),
+    cleanRun: parseCount(record.cleanRun, 0),
+    grandsSolved: Array.isArray(record.grandsSolved)
+      ? [...new Set(record.grandsSolved.filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0))]
+      : [],
+    stampsClaimed: Array.isArray(record.stampsClaimed) ? [...new Set(record.stampsClaimed.filter((id): id is string => typeof id === 'string'))] : [],
+    // A save from before the walkthrough that has played already knows
+    // the way round; only a genuinely new one is shown it.
+    introSeen: typeof record.introSeen === 'boolean' ? record.introSeen : Object.keys(levels).length > 0,
   };
+}
+
+function parseCount(value: unknown, fallback: number): number {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? Math.floor(value) : fallback;
+}
+
+function parseErrands(value: unknown): PlayerProgress['errands'] {
+  if (typeof value !== 'object' || value === null) return null;
+  const log = value as { dayKey?: unknown; progress?: unknown; claimed?: unknown };
+  if (typeof log.dayKey !== 'string' || !Array.isArray(log.progress) || !Array.isArray(log.claimed)) return null;
+  if (log.progress.length !== 3 || log.claimed.length !== 3) return null;
+  return {
+    dayKey: log.dayKey,
+    progress: log.progress.map(n => (typeof n === 'number' && Number.isFinite(n) && n >= 0 ? Math.floor(n) : 0)),
+    claimed: log.claimed.map(c => c === true),
+  };
+}
+
+function parseEquipped(value: unknown): PlayerProgress['equipped'] {
+  if (typeof value !== 'object' || value === null) return {};
+  const out: Record<string, string> = {};
+  // Every slot - an earlier list here had left out page art, so a worn
+  // blossom colour was forgotten on every relaunch.
+  for (const slot of COSMETIC_SLOTS) {
+    const id = (value as Record<string, unknown>)[slot];
+    if (typeof id === 'string') out[slot] = id;
+  }
+  return out;
 }
 
 /** Loads persisted progress. Never rejects - returns empty progress on any failure. */

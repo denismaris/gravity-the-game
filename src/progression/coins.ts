@@ -15,8 +15,12 @@ import { StarRating } from '../game/scoring';
  * starts with - enough to try a few hints before earning any. */
 export const STARTING_COINS = 50;
 
-/** One hint, in every game that has them. */
-export const HINT_COST = 10;
+/** One hint, in every game that has them. Normally 10 - set to 0 while
+ * the games are being playtested, at the owner's request, so hints can be
+ * used freely. A zero-cost purchase skips the coin system entirely (see
+ * `useCoinPurchase`) and the Hint pill hides its price tag; put this back
+ * to 10 to restore the economy, nothing else needs to change. */
+export const HINT_COST = 0;
 /** One undo (Gravity, Fill-a-Pix, Adjacent). Deliberately cheap: an undo
  * fixes a slip, it does not solve anything. */
 export const UNDO_COST = 2;
@@ -39,6 +43,22 @@ export interface SolveReward {
   readonly firstDailyToday: boolean;
   /** This solve completed the level set. */
   readonly setCompleted: boolean;
+}
+
+/** One dealt puzzle in this many is golden, paying `GOLDEN_MULTIPLIER`
+ * times the coins on its first solve. */
+export const GOLDEN_EVERY = 8;
+export const GOLDEN_MULTIPLIER = 3;
+
+/**
+ * The clean-run combo: consecutive solves without a hint multiply what
+ * each pays, and a hint resets it - the reward for playing on your own.
+ */
+export function cleanRunMultiplier(run: number): number {
+  if (run >= 5) return 2;
+  if (run >= 3) return 1.5;
+  if (run >= 2) return 1.2;
+  return 1;
 }
 
 export function coinsForSolve({ previousStars, bestStars, firstDailyToday, setCompleted }: SolveReward): number {

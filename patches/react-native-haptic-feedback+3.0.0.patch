@@ -1,0 +1,25 @@
+diff --git a/node_modules/react-native-haptic-feedback/ios/RNHapticFeedback/RNHapticFeedback.mm b/node_modules/react-native-haptic-feedback/ios/RNHapticFeedback/RNHapticFeedback.mm
+index a8de79d..705badf 100644
+--- a/node_modules/react-native-haptic-feedback/ios/RNHapticFeedback/RNHapticFeedback.mm
++++ b/node_modules/react-native-haptic-feedback/ios/RNHapticFeedback/RNHapticFeedback.mm
+@@ -261,15 +261,15 @@ - (void)playEvents:(NSArray<CHHapticEvent *> *)events
+ 
+ RCT_EXPORT_METHOD(stop)
+ {
++    // TESSERA patch: cancel only the playing pattern. Stopping the engine
++    // too (upstream) meant the very next pattern started on a cold engine
++    // and was often dropped - a stop-then-play on every swipe missed
++    // roughly every other vibration.
+     if (_hapticPlayer) {
+         NSError *error = nil;
+-        [_hapticPlayer cancelAndReturnError:&error];
++        [_hapticPlayer stopAtTime:CHHapticTimeImmediate error:&error];
+         _hapticPlayer = nil;
+     }
+-    if (_engine) {
+-        [_engine stopWithCompletionHandler:nil];
+-        _engine = nil;
+-    }
+ }
+ 
+ #ifdef RCT_NEW_ARCH_ENABLED

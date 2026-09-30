@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
 import { AdjacentCoord, AdjacentPuzzle, AdjacentState, groupAt } from '../game/adjacent';
-import { theme } from '../theme';
+import { theme, themedStyles } from '../theme';
 import { AdjacentAnimation, AdjacentBoardView, adjacentTileColor, computeAdjacentLayout } from './AdjacentBoardView';
 
 /** Plain-language colour names, for the screen reader - a board whose
@@ -154,7 +154,7 @@ export function AdjacentBoard({
         height,
         // The one shadow this tray casts against the page, offset toward
         // the same upper-left light every other board here shades from.
-        shadowColor: '#3B1F52',
+        shadowColor: theme.colors.shadow,
         shadowOpacity: 0.16,
         shadowRadius: 10,
         shadowOffset: { width: 2, height: 4 },
@@ -205,7 +205,7 @@ export function AdjacentBoard({
   );
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   popup: {
     fontFamily: theme.typography.families.display,
     fontSize: theme.typography.sizes.title,
@@ -228,7 +228,7 @@ const styles = StyleSheet.create({
     color: theme.colors.adjacentAccent,
     marginTop: 1,
   },
-});
+}));
 
 /** Re-exported so a caller that already imports the board does not also
  * have to reach into the view module for the palette. */

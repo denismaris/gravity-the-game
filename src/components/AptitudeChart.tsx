@@ -5,7 +5,7 @@ import { accentColorForKind, gameLabelForKind } from '../game/journey';
 import { hexToRgb } from '../game/rendering';
 import { GameEmblem } from './GameEmblem';
 import { GameAptitude } from '../progression';
-import { theme } from '../theme';
+import { theme, themedStyles } from '../theme';
 
 export interface AptitudeChartProps {
   readonly games: ReadonlyArray<GameAptitude>;
@@ -163,7 +163,7 @@ export function AptitudeChart({ games, size }: AptitudeChartProps): React.JSX.El
  * it far more than that at every width the app supports. Change any of
  * the three and check that inequality again.
  */
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   mark: {
     position: 'absolute',
     width: MARK_SIZE,
@@ -174,4 +174,4 @@ const styles = StyleSheet.create({
   markUntested: {
     opacity: 0.3,
   },
-});
+}));

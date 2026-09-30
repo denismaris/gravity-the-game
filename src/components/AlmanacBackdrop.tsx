@@ -1,8 +1,9 @@
 import React, { useEffect, useMemo, useRef } from 'react';
+import { useEquipped } from '../progression/PlayerProgressProvider';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { Canvas, Circle, Group, Path, Rect } from '@shopify/react-native-skia';
 import { useReducedMotion } from '../game/rendering';
-import { theme } from '../theme';
+import { theme, themedStyles, nightTone } from '../theme';
 
 export interface CardRect {
   readonly x: number;
@@ -51,10 +52,14 @@ export interface AlmanacBackdropProps {
 export function AlmanacBackdrop({ width, height, card }: AlmanacBackdropProps): React.JSX.Element | null {
   const art = useMemo(() => composeBloom(width, height, card), [width, height, card]);
   const reducedMotion = useReducedMotion();
+  // The blossom's colour is the player's page art (see the shop).
+  const garden = useEquipped('garden');
   if (!art) return null;
 
-  const ink = theme.colors.primary;
-  const bloom = theme.colors.secondary;
+  // Page artwork, not type: by night the ink steps back and the blossom
+  // is toned toward the ground, so the art stays behind the content.
+  const ink = theme.colors.artInk;
+  const bloom = nightTone(garden.colors[0] ?? theme.colors.secondary);
 
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
@@ -241,9 +246,9 @@ export interface BloomLeaf {
   readonly halfWidth: number;
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   piece: { position: 'absolute' },
-});
+}));
 
 interface BloomArt {
   readonly blossoms: ReadonlyArray<BloomBlossom>;

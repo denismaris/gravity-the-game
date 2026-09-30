@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, StyleProp, StyleSheet, Text, View, ViewStyle } from 'react-native';
+import { Animated, StyleProp, Text, View, ViewStyle } from 'react-native';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { triggerFeedback } from '../game/rendering';
 import { usePlayerProgress } from '../progression';
-import { motion, theme } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 
 /**
  * The coin: an ochre disc with a tessera - the app's own diamond - struck
@@ -23,7 +23,9 @@ export function CoinGlyph({ size = 14 }: { size?: number }): React.JSX.Element {
 }
 
 /** What a purchase costs, set inside the pill that buys it: `Hint · ◉ 10`. */
-export function CoinCost({ cost, muted = false }: { cost: number; muted?: boolean }): React.JSX.Element {
+export function CoinCost({ cost, muted = false }: { cost: number; muted?: boolean }): React.JSX.Element | null {
+  // A free purchase shows no price at all.
+  if (cost <= 0) return null;
   return (
     <View style={[styles.cost, muted && styles.muted]}>
       <CoinGlyph size={12} />
@@ -104,6 +106,10 @@ export function useCoinPurchase(): {
 
   const buy = useCallback(
     (cost: number, apply: () => void): boolean => {
+      if (cost <= 0) {
+        apply();
+        return true;
+      }
       if (!spendCoins(cost)) {
         setShortBy(cost - coins);
         if (timeoutRef.current) clearTimeout(timeoutRef.current);
@@ -121,7 +127,7 @@ export function useCoinPurchase(): {
   return { coins, shortBy, buy };
 }
 
-const styles = StyleSheet.create({
+const styles = themedStyles(() => ({
   cost: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -172,4 +178,4 @@ const styles = StyleSheet.create({
     color: theme.colors.accent,
     letterSpacing: 1,
   },
-});
+}));

@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from 'react';
 import { Circle, DashPathEffect, Group, LinearGradient, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import { AdjacentCoord, AdjacentFall, AdjacentPuzzle, AdjacentState } from '../game/adjacent';
 import { shade, useAnimationClock, useReducedMotion } from '../game/rendering';
-import { theme } from '../theme';
+import { theme, inkWash } from '../theme';
 
 /**
  * Adjacent's tray.
@@ -43,8 +43,8 @@ export const TILE_SCALE = 0.72;
  * Skyscrapers' buildings already use. A chip of glazed clay, not a
  * plastic counter with a highlight painted on.
  */
-const SIDE_FACE_OFFSET = 0.055;
-const SIDE_FACE_SHADE = 0.66;
+const SIDE_FACE_OFFSET = 0.075;
+const SIDE_FACE_SHADE = 0.58;
 /** The mark stamped into the glaze - a lighter tint of the tile's own
  * colour rather than paper white, which at five colours across a full
  * tray was the loudest thing on the board. */
@@ -62,7 +62,12 @@ const GLYPH_SHADE = 1.52;
  * what is left is a clear that gets out of the way and a fall that still
  * has weight.
  */
-const FADE_MS = 150;
+/** A cleared tile's whole pop, and how much later each step of distance
+ * from the tapped tile starts its own - see \`clearing\`. */
+const CLEAR_MS = 300;
+const CLEAR_RIPPLE_MS = 22;
+/** Share of the pop spent swelling before it bursts. */
+const CLEAR_SWELL = 0.25;
 const FALL_DELAY_MS = 90;
 const FALL_MS = 240;
 
@@ -72,6 +77,15 @@ const FALL_MS = 240;
  * 6x6 that is 35 * 8 + 300 = 580ms. */
 const SWEEP_STAGGER_MS = 8;
 const SWEEP_MS = 300;
+
+/** The four ways a cleared tile's chips fly - the diagonals, slightly
+ * uneven so a burst never looks stamped out of a template. */
+const CHIP_DIRECTIONS: ReadonlyArray<readonly [number, number]> = [
+  [-0.78, -0.62],
+  [0.72, -0.7],
+  [-0.66, 0.74],
+  [0.8, 0.6],
+];
 
 function clamp01(t: number): number {
   return t < 0 ? 0 : t > 1 ? 1 : t;
@@ -101,7 +115,7 @@ function fallEase(t: number): number {
   return 0.94 + 0.06 * (1 - (1 - b) ** 2);
 }
 
-const TILE_COLORS: ReadonlyArray<string> = [
+const tileColors = (): ReadonlyArray<string> => [
   theme.colors.adjacentTile0,
   theme.colors.adjacentTile1,
   theme.colors.adjacentTile2,
@@ -110,7 +124,8 @@ const TILE_COLORS: ReadonlyArray<string> = [
 ];
 
 export function adjacentTileColor(colour: number): string {
-  return TILE_COLORS[colour % TILE_COLORS.length];
+  const palette = tileColors();
+  return palette[colour % palette.length];
 }
 
 function cellKey(row: number, col: number): string {
@@ -247,8 +262,13 @@ function Tile({ colour, x, y, cell, scale = 1, opacity = 1, highlighted = false 
 
   return (
     <Group opacity={opacity}>
-      {/* The side face, offset behind the top face. */}
-      <RoundedRect x={left + offset} y={top + offset} width={size} height={size} r={radius} color={shade(base, SIDE_FACE_SHADE)} />
+      {/* A solid block, the same way Mosaic's tesserae are drawn: a flat
+          shadow on the well, then its thickness showing as a lighter
+          right face and a darker bottom face - lit from the top-left -
+          then the glazed top. Geometry only, no gradient. */}
+      <RoundedRect x={left + offset * 1.2} y={top + offset * 2} width={size} height={size} r={radius} color={inkWash(0.14)} />
+      <RoundedRect x={left + offset * 0.55} y={top + offset * 0.4} width={size} height={size} r={radius} color={shade(base, 0.76)} />
+      <RoundedRect x={left + offset * 0.25} y={top + offset} width={size} height={size} r={radius} color={shade(base, SIDE_FACE_SHADE)} />
       {/* The top face - flat, matte, one colour. */}
       <RoundedRect x={left} y={top} width={size} height={size} r={radius} color={face} />
       <TileGlyph colour={colour} cx={left + size / 2} cy={top + size / 2} r={size * 0.26} />
@@ -283,7 +303,7 @@ const TrayChrome = React.memo(function TrayChromeImpl({ width, height }: { width
         <LinearGradient
           start={vec(0, 0)}
           end={vec(width, height)}
-          colors={['#FFFFFF', theme.colors.surfaceHi, '#EFE9DC']}
+          colors={[theme.colors.trayLight, theme.colors.surfaceHi, theme.colors.trayDeep]}
           positions={[0, 0.55, 1]}
         />
       </RoundedRect>
@@ -294,7 +314,7 @@ const TrayChrome = React.memo(function TrayChromeImpl({ width, height }: { width
         strokeWidth={1.5}
         strokeCap="round"
       />
-      <RoundedRect x={2.5} y={2.5} width={width - 5} height={height - 5} r={10} color="rgba(59,31,82,0.16)" style="stroke" strokeWidth={1} />
+      <RoundedRect x={2.5} y={2.5} width={width - 5} height={height - 5} r={10} color={inkWash(0.16)} style="stroke" strokeWidth={1} />
     </Group>
   );
 });
@@ -396,7 +416,12 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
   // tiles has nothing to animate, and this board has no idle ambience by
   // design.
   const now = Date.now();
-  const moveWindow = FALL_DELAY_MS + FALL_MS;
+  const clearWindow = animation
+    ? CLEAR_MS +
+      CLEAR_RIPPLE_MS *
+        Math.max(0, ...animation.removed.map(t => Math.abs(t.row - animation.removed[0].row) + Math.abs(t.col - animation.removed[0].col)))
+    : 0;
+  const moveWindow = Math.max(FALL_DELAY_MS + FALL_MS, clearWindow);
   const sweepWindow = SWEEP_MS + puzzle.size * puzzle.size * SWEEP_STAGGER_MS;
   const animating =
     !reducedMotion &&
@@ -431,12 +456,37 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
     return map;
   }, [animation, frame, reducedMotion]);
 
+  /**
+   * The clear: each tile swells a little, then pops - shrinking away while
+   * four chips of its colour burst outward and fall. It ripples out from
+   * the tile that was tapped (the run's first tile), one step of distance
+   * at a time, so a big run visibly *spreads* rather than vanishing all at
+   * once. A tile whose turn has not come yet is drawn untouched - it is
+   * already gone from the grid, so skipping it would make it vanish early.
+   */
   const clearing = useMemo(() => {
-    if (!animation || reducedMotion) return [];
+    if (!animation || reducedMotion || animation.removed.length === 0) return [];
     const since = frame - animation.at;
-    if (since < 0 || since >= FADE_MS) return [];
-    const t = easeOutCubic(since / FADE_MS);
-    return animation.removed.map(tile => ({ tile, opacity: 1 - t, scale: 1 - 0.45 * t }));
+    if (since < 0) return [];
+    const origin = animation.removed[0];
+    const out: Array<{ tile: AdjacentRemoved; opacity: number; scale: number; burst: number }> = [];
+    for (const tile of animation.removed) {
+      const distance = Math.abs(tile.row - origin.row) + Math.abs(tile.col - origin.col);
+      const t = (since - distance * CLEAR_RIPPLE_MS) / CLEAR_MS;
+      if (t >= 1) continue;
+      if (t <= 0) {
+        out.push({ tile, opacity: 1, scale: 1, burst: 0 });
+        continue;
+      }
+      const swell = t < CLEAR_SWELL ? 1 + 0.12 * easeOutCubic(t / CLEAR_SWELL) : 1.12 * (1 - ((t - CLEAR_SWELL) / (1 - CLEAR_SWELL)) ** 2);
+      out.push({
+        tile,
+        scale: Math.max(0, swell),
+        opacity: t < 0.55 ? 1 : 1 - (t - 0.55) / 0.45,
+        burst: t < CLEAR_SWELL ? 0 : (t - CLEAR_SWELL) / (1 - CLEAR_SWELL),
+      });
+    }
+    return out;
   }, [animation, frame, reducedMotion]);
 
   const sweep = useMemo(() => {
@@ -475,18 +525,36 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
         return <Tile key={`fall-${key}`} colour={colour} x={fall.col * cell} y={y} cell={cell} />;
       })}
 
-      {/* Tiles on their way out. */}
-      {clearing.map(({ tile, opacity, scale }) => (
-        <Tile
-          key={`clear-${cellKey(tile.row, tile.col)}`}
-          colour={tile.colour}
-          x={tile.col * cell}
-          y={tile.row * cell}
-          cell={cell}
-          opacity={opacity}
-          scale={scale}
-        />
-      ))}
+      {/* Tiles on their way out: the pop, and its chips. */}
+      {clearing.map(({ tile, opacity, scale, burst }) => {
+        const key = cellKey(tile.row, tile.col);
+        const cx = tile.col * cell + cell / 2;
+        const cy = tile.row * cell + cell / 2;
+        const chip = cell * 0.13;
+        const colour = adjacentTileColor(tile.colour);
+        return (
+          <Group key={`clear-${key}`}>
+            {scale > 0.02 && <Tile colour={tile.colour} x={tile.col * cell} y={tile.row * cell} cell={cell} opacity={opacity} scale={scale} />}
+            {burst > 0 &&
+              CHIP_DIRECTIONS.map(([dx, dy], i) => {
+                const reach = cell * 0.62 * easeOutCubic(burst);
+                const drop = cell * 0.4 * burst * burst;
+                return (
+                  <RoundedRect
+                    key={`chip-${key}-${i}`}
+                    x={cx + dx * reach - chip / 2}
+                    y={cy + dy * reach + drop - chip / 2}
+                    width={chip}
+                    height={chip}
+                    r={chip * 0.3}
+                    color={colour}
+                    opacity={1 - burst}
+                  />
+                );
+              })}
+          </Group>
+        );
+      })}
 
       {/* The finishing sweep. */}
       {[...sweep.entries()].map(([key, opacity]) => {

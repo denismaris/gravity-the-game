@@ -191,7 +191,7 @@ export function getTowersById(id: string): TowersPuzzle | undefined {
   if (!endless || endless.kind !== 'towers') return undefined;
   const cached = endlessCache.get(id);
   if (cached) return cached;
-  const puzzle = generateTowers(id, endless.tier, endlessName(endless.index));
+  const puzzle = generateTowers(id, endless.tier, endlessName(endless.index, 'towers'));
   endlessCache.set(id, puzzle);
   return puzzle;
 }
