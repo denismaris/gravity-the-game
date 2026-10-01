@@ -180,7 +180,7 @@ export function AdjacentBoard({
                     ? `Row ${row + 1}, column ${col + 1}, empty`
                     : `Row ${row + 1}, column ${col + 1}, ${adjacentColorName(colour)}, run of ${runSize}`
                 }
-                accessibilityHint={runSize >= 2 ? 'Clears this run and drops what is above it' : 'Not part of a run - nothing to clear'}
+                accessibilityHint={runSize >= 2 ? 'Clears this run and drops what is above it' : 'Not part of a run. Nothing to clear'}
                 onPressIn={() => onPressInCell(row, col)}
                 onPress={() => onPressCell(row, col)}
                 onPressOut={onPressCancel}

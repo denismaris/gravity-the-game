@@ -271,8 +271,8 @@ export const darkColors: Palette = {
   bloomLooseInk: '#5C4E68',
   mosaicSlotFill: 'rgba(255, 255, 255, 0.05)',
   // Dark slate, so the glazed pieces are the lit thing on it.
-  mosaicSocket: '#2B2334',
-  mosaicGrout: '#211A28',
+  mosaicSocket: '#3D3348',
+  mosaicGrout: '#2E2637',
   mosaicSlabEdge: '#0F0B13',
   mosaicSocketWall: '#1C1622',
 

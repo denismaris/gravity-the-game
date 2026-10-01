@@ -95,7 +95,7 @@ export function countTilings(puzzle: MosaicPuzzle, limit = 2): TilingCount {
  * largest piece still in the tray (the one that does the most); any piece
  * sitting in its way goes back to the tray.
  */
-export function revealMosaicHint(puzzle: MosaicPuzzle, state: MosaicState): { state: MosaicState; index: number } | null {
+export function revealMosaicHint(puzzle: MosaicPuzzle, state: MosaicState, chosen?: number): { state: MosaicState; index: number } | null {
   if (isMosaicSolved(puzzle, state)) return null;
   const correct = (index: number): boolean => {
     const piece = state.pieces[index];
@@ -105,7 +105,7 @@ export function revealMosaicHint(puzzle: MosaicPuzzle, state: MosaicState): { st
     return now.length === target.size && now.every(c => target.has(cellKey(c.row, c.col)));
   };
   const misplaced = state.pieces.findIndex((piece, i) => piece.at !== null && !correct(i));
-  let index = misplaced;
+  let index = chosen ?? misplaced;
   if (index === -1) {
     let best = -1;
     state.pieces.forEach((piece, i) => {

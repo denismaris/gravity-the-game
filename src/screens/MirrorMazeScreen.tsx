@@ -1,3 +1,5 @@
+import { HintNote } from '../components/HintNote';
+import { HintKind } from '../game/hints';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,10 +11,8 @@ import {
   MirrorMazePuzzle,
   nextMirror,
   remainingGems,
-  revealHint,
   setMirror,
-  traceBeam,
-} from '../game/mirror';
+  traceBeam, explainMirrorHint } from '../game/mirror';
 import { BatchProgressDots, DifficultyChip, GeometricRule, LevelSetComplete, MechanicsCarousel, MirrorMazeBoard, PressableScale, PuzzleSolved, renderMirrorMazeIllustration, useSolveCelebration } from '../components';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
@@ -211,10 +211,14 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
   // a refused purchase leaves the board untouched. Worked out from the live
   // \`state\` rather than inside a \`setState\` updater: React may run an
   // updater twice, which would charge twice.
+  // The last hint's reason, shown over the board for a few seconds.
+  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
-    const h = revealHint(state, puzzle);
+    const h = explainMirrorHint(puzzle, state);
     if (!h) return;
     buy(HINT_COST, () => {
+      setNote({ reason: h.reason, kind: h.kind, id: Date.now() });
       setState(h.state);
       setHints(n => n + 1);
       setFlash(h.cell);
@@ -281,6 +285,7 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
       <View style={styles.boardArea}>
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
+          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('mirror')} onGone={clearNote} />}
           <MirrorMazeBoard
             puzzle={puzzle}
             state={state}

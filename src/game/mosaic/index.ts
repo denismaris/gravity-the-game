@@ -26,3 +26,4 @@ export { generateMosaic, PALETTE_SIZE, shapeForDifficulty } from './generator';
 export type { MosaicShape } from './generator';
 export { SILHOUETTES, silhouetteGrid } from './silhouettes';
 export { getMosaicByDifficulty, getMosaicById, MOSAIC } from './puzzles';
+export { explainMosaicHint } from './explain';

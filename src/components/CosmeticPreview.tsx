@@ -98,12 +98,41 @@ function GardenSwatch({ colors, size }: { colors: ReadonlyArray<string>; size: n
   );
 }
 
+/** A solve chime: a bell in the item's metal, with the sound leaving it
+ * in rings of its second colour. */
+function ChimeSwatch({ colors, size }: { colors: ReadonlyArray<string>; size: number }): React.JSX.Element {
+  const s = size;
+  const metal = colors[0] ?? theme.colors.gold;
+  const ring = colors[1] ?? theme.colors.surfaceHi;
+  const bell = `M ${s * 0.3} ${s * 0.66} C ${s * 0.3} ${s * 0.36} ${s * 0.36} ${s * 0.24} ${s * 0.5} ${s * 0.24} C ${s * 0.64} ${s * 0.24} ${s * 0.7} ${s * 0.36} ${s * 0.7} ${s * 0.66} L ${s * 0.76} ${s * 0.72} L ${s * 0.24} ${s * 0.72} Z`;
+  return (
+    <Canvas style={{ width: s, height: s }}>
+      {[0.36, 0.46].map((r, i) => (
+        <Path
+          key={i}
+          path={`M ${s * (0.5 + r)} ${s * 0.3} Q ${s * (0.56 + r)} ${s * 0.48} ${s * (0.5 + r)} ${s * 0.66} M ${s * (0.5 - r)} ${s * 0.3} Q ${s * (0.44 - r)} ${s * 0.48} ${s * (0.5 - r)} ${s * 0.66}`}
+          color={metal}
+          style="stroke"
+          strokeWidth={s * 0.035}
+          strokeCap="round"
+          opacity={0.5 - i * 0.2}
+        />
+      ))}
+      <Circle cx={s * 0.5} cy={s * 0.2} r={s * 0.05} color={metal} />
+      <Path path={bell} color={metal} />
+      <Path path={`M ${s * 0.38} ${s * 0.36} C ${s * 0.38} ${s * 0.46} ${s * 0.37} ${s * 0.56} ${s * 0.36} ${s * 0.64}`} color={ring} style="stroke" strokeWidth={s * 0.035} strokeCap="round" opacity={0.7} />
+      <Circle cx={s * 0.5} cy={s * 0.78} r={s * 0.06} color={metal} />
+    </Canvas>
+  );
+}
+
 /** How an item looks, whatever its slot. */
 export function CosmeticPreview({ item, size = 72 }: { item: Cosmetic; size?: number }): React.JSX.Element {
   if (item.slot === 'confetti') return <ConfettiSwatch colors={item.colors} size={size} />;
   if (item.slot === 'ball') return <MarblePreview colors={item.colors} size={size * 0.72} />;
   if (item.slot === 'garden') return <GardenSwatch colors={item.colors} size={size} />;
   if (item.slot.startsWith('skin-')) return <SkinPreview item={item} size={size} />;
+  if (item.slot === 'chime') return <ChimeSwatch colors={item.colors} size={size} />;
   return <ChartSwatch colors={item.colors} size={size} />;
 }
 

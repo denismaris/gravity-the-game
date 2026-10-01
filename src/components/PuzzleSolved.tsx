@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
 import { useLastBonus } from '../progression/PlayerProgressProvider';
 import { cosmeticById } from '../progression/shop';
+import { formatDuration } from '../progression/timing';
 import { CosmeticPreview } from './CosmeticPreview';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { ConfettiBurst } from './ConfettiBurst';
@@ -184,6 +185,19 @@ export function PuzzleSolved({
             {paid && bonus?.charmed && <Text style={styles.charm}>{'LUCKY \u00D72'}</Text>}
             {bonus?.grand && <Text style={[styles.charm, styles.golden]}>{'WEEKLY GRAND \u2713\uFE0E'}</Text>}
           </Animated.View>
+          {bonus?.daily && (
+            <Animated.View style={[rowStyle(3), styles.duel]}>
+              <Text style={styles.duelKicker}>DAILY DUEL</Text>
+              <Text style={styles.duelTime}>{formatDuration(bonus.daily.ms)}</Text>
+              <Text style={styles.duelNote}>
+                {bonus.daily.of === 1
+                  ? 'YOUR FIRST TIMED DAILY'
+                  : bonus.daily.place === 1
+                    ? `NEW BEST · FASTEST OF YOUR ${bonus.daily.of}`
+                    : `FASTER THAN ${Math.round(bonus.daily.beat * 100)}% OF YOUR DAILIES · BEST ${formatDuration(bonus.daily.best)}`}
+              </Text>
+            </Animated.View>
+          )}
           {won && (
             <Animated.View style={[rowStyle(3), styles.wonRow]}>
               <View style={styles.wonPreview}>
@@ -225,6 +239,10 @@ export function PuzzleSolved({
 const styles = themedStyles(() => ({
   coinRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 8, paddingHorizontal: theme.spacing.md },
   golden: { backgroundColor: theme.colors.goldFill, borderWidth: 1, borderColor: theme.colors.goldRim, color: theme.colors.onGold },
+  duel: { alignItems: 'center', marginTop: theme.spacing.sm },
+  duelKicker: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 1.4, color: theme.colors.secondary },
+  duelTime: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  duelNote: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 0.8, color: theme.colors.textTertiary, textAlign: 'center' },
   wonRow: {
     flexDirection: 'row',
     alignItems: 'center',

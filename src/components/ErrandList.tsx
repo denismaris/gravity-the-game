@@ -30,10 +30,10 @@ export function untilTomorrow(now: Date): string {
   return h > 0 ? `${h}H ${m}M` : `${m}M`;
 }
 
-function ErrandMark({ errand, done }: { errand: Errand; done: boolean }): React.JSX.Element {
-  if (errand.kind === 'solveGame' && errand.game) return <GameEmblem kind={errand.game} size={36} />;
+function ErrandMark({ errand, done, compact }: { errand: Errand; done: boolean; compact: boolean }): React.JSX.Element {
+  if (errand.kind === 'solveGame' && errand.game) return <GameEmblem kind={errand.game} size={compact ? 28 : 36} />;
   return (
-    <View style={[styles.mark, done && styles.markDone]}>
+    <View style={[styles.mark, compact && styles.markCompact, done && styles.markDone]}>
       <Text style={[styles.markGlyph, done && styles.markGlyphDone]}>{GLYPHS[errand.kind as Exclude<ErrandKind, 'solveGame'>]}</Text>
     </View>
   );
@@ -41,7 +41,7 @@ function ErrandMark({ errand, done }: { errand: Errand; done: boolean }): React.
 
 /** One errand: what to do, how far along, what it pays - and, once done,
  * a Claim pill that pays it out with the coins floating up to the purse. */
-function ErrandRow({ errand, done, progress, claimed, onClaim }: { errand: Errand; done: boolean; progress: number; claimed: boolean; onClaim: () => void }): React.JSX.Element {
+function ErrandRow({ errand, done, progress, claimed, onClaim, compact }: { errand: Errand; done: boolean; progress: number; claimed: boolean; onClaim: () => void; compact: boolean }): React.JSX.Element {
   const float = useRef(new Animated.Value(1)).current;
   const ready = done && !claimed;
   const glow = useRef(new Animated.Value(ready ? 1 : 0)).current;
@@ -50,6 +50,7 @@ function ErrandRow({ errand, done, progress, claimed, onClaim }: { errand: Erran
   }, [ready, glow]);
 
   const claim = () => {
+    triggerFeedback('coin');
     float.setValue(0);
     Animated.timing(float, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
     onClaim();
@@ -59,26 +60,27 @@ function ErrandRow({ errand, done, progress, claimed, onClaim }: { errand: Erran
     <Animated.View
       style={[
         styles.row,
+        compact && styles.rowCompact,
         claimed && styles.rowClaimed,
         { borderColor: glow.interpolate({ inputRange: [0, 1], outputRange: [theme.colors.border, theme.colors.accent] }) },
       ]}
       accessible
       accessibilityLabel={`${errand.title}. ${Math.min(progress, errand.target)} of ${errand.target}. ${claimed ? 'Claimed' : ready ? `Ready to claim ${errand.coins} coins` : `Pays ${errand.coins} coins`}.`}
     >
-      <ErrandMark errand={errand} done={done} />
-      <View style={styles.rowBody}>
-        <Text style={[styles.title, claimed && styles.titleClaimed]} numberOfLines={1}>
+      <ErrandMark errand={errand} done={done} compact={compact} />
+      <View style={[styles.rowBody, compact && styles.rowBodyCompact]}>
+        <Text style={[styles.title, compact && styles.titleCompact, claimed && styles.titleClaimed]} numberOfLines={1}>
           {errand.title}
         </Text>
         <View style={styles.progressRow}>
-          <XpBar share={errand.target > 0 ? progress / errand.target : 0} ticks={errand.target > 1 && errand.target <= 10 ? errand.target : 1} height={6} color={done ? theme.colors.success : theme.colors.accent} style={styles.bar} />
+          <XpBar share={errand.target > 0 ? progress / errand.target : 0} ticks={errand.target > 1 && errand.target <= 10 ? errand.target : 1} height={compact ? 4 : 6} color={done ? theme.colors.success : theme.colors.accent} style={styles.bar} />
           <Text style={styles.count}>
             {Math.min(progress, errand.target)}/{errand.target}
           </Text>
         </View>
       </View>
       {ready ? (
-        <PressableScale accessibilityRole="button" accessibilityLabel={`Claim ${errand.coins} coins`} onPress={claim} style={({ pressed }) => [styles.claim, pressed && styles.claimPressed]}>
+        <PressableScale accessibilityRole="button" accessibilityLabel={`Claim ${errand.coins} coins`} onPress={claim} style={({ pressed }) => [styles.claim, compact && styles.claimCompact, pressed && styles.claimPressed]}>
           <Text style={styles.claimText}>Claim</Text>
           <CoinGlyph size={13} />
           <Text style={styles.claimText}>{errand.coins}</Text>
@@ -128,6 +130,15 @@ export function ErrandList({ compact = false }: { compact?: boolean }): React.JS
 
   return (
     <View style={[styles.list, compact && styles.listCompact]}>
+      {/* Compact (on Home's Today page): the count and the reset clock
+          head the list instead of trailing it, so the list ends on its
+          last errand and fits the card. */}
+      {compact && (
+        <View style={styles.head}>
+          <Text style={styles.headLabel}>ERRANDS</Text>
+          <Text style={styles.headClock}>{`${doneCount}/${errands.length} · NEW IN ${clock}`}</Text>
+        </View>
+      )}
       {errands.map((errand, i) => (
         <ErrandRow
           key={`${dayKey}-${i}`}
@@ -135,14 +146,17 @@ export function ErrandList({ compact = false }: { compact?: boolean }): React.JS
           progress={log.progress[i]}
           done={isErrandDone(errand, log, i)}
           claimed={log.claimed[i]}
+          compact={compact}
           onClaim={() => {
-            if (claimErrand(i) !== null) triggerFeedback('targetReached');
+            claimErrand(i);
           }}
         />
       ))}
-      <Text style={styles.foot}>
-        {doneCount}/{errands.length} DONE · FRESH ERRANDS IN {clock}
-      </Text>
+      {!compact && (
+        <Text style={styles.foot}>
+          {doneCount}/{errands.length} DONE · FRESH ERRANDS IN {clock}
+        </Text>
+      )}
     </View>
   );
 }
@@ -160,6 +174,14 @@ const styles = themedStyles(() => ({
     backgroundColor: theme.colors.surfaceHi,
     borderWidth: 1.5,
   },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 },
+  headLabel: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.4, color: theme.colors.textTertiary },
+  headClock: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1, color: theme.colors.textTertiary },
+  rowCompact: { paddingVertical: 6, borderRadius: 13 },
+  rowBodyCompact: { gap: 4 },
+  titleCompact: { fontSize: theme.typography.sizes.caption },
+  markCompact: { width: 28, height: 28, borderRadius: 9 },
+  claimCompact: { paddingHorizontal: 10, paddingVertical: 5 },
   rowClaimed: { backgroundColor: theme.colors.surface, opacity: 0.72 },
   mark: {
     width: 36,

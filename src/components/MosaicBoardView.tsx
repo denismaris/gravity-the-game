@@ -147,7 +147,7 @@ export function pieceColor(puzzle: MosaicPuzzle, index: number): string {
  * pastel. By day, unchanged. (`mosaicPalette.test.ts` holds every glaze
  * clear of the socket in both palettes.)
  */
-const NIGHT_GLAZE_LIGHTNESS = 0.42;
+const NIGHT_GLAZE_LIGHTNESS = 0.48;
 export function glazeFor(hex: string): string {
   if (getColorScheme() !== 'dark') return hex;
   const v = hex.replace('#', '');
@@ -223,6 +223,11 @@ const Bed = React.memo(function BedImpl({ puzzle, geometry }: { puzzle: MosaicPu
         <Group key={`s-${row}-${col}`}>
           <RoundedRect x={x + gap} y={y + gap} width={socket} height={socket} r={socket * 0.2} color={bed().socketWall} />
           <RoundedRect x={x + gap + sink * 0.5} y={y + gap + sink * 0.8} width={socket - sink * 0.5} height={socket - sink * 0.8} r={socket * 0.18} color={bed().socket} />
+          {/* By night a socket also wears a faint rim, so an empty place to
+              fill can never be mistaken for the dark ground around it. */}
+          {getColorScheme() === 'dark' && (
+            <RoundedRect x={x + gap + 0.75} y={y + gap + 0.75} width={socket - 1.5} height={socket - 1.5} r={socket * 0.2} color="rgba(239,227,204,0.22)" style="stroke" strokeWidth={1.2} />
+          )}
         </Group>,
       );
     }),

@@ -57,7 +57,9 @@ export type HapticKind =
   | 'bridgesSolve'
   | 'adjacentPop'
   | 'adjacentCombo'
-  | 'adjacentSolve';
+  | 'adjacentSolve'
+  | 'uiPage'
+  | 'coin';
 
 /**
  * Pattern in milliseconds passed to `Vibration.vibrate`. A single number is
@@ -203,6 +205,69 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   adjacentPop: 6,
   adjacentCombo: [0, 10, 40, 14],
   adjacentSolve: [0, 12, 40, 14, 40, 18, 40, 26],
+
+  // The app's own UI: a page turned (a tab), and a coin landing (a claim
+  // or a purchase) - a quick two-beat "clink".
+  uiPage: 4,
+  coin: [0, 8, 40, 12],
+};
+
+/** A transient: one tap, at `time` ms. */
+const tap = (time: number, intensity: number, sharpness: number): HapticEvent => ({ time, type: 'transient', intensity, sharpness });
+/** A continuous buzz - a hum, a scrape - for `duration` ms. */
+const hum = (time: number, duration: number, intensity: number, sharpness: number): HapticEvent => ({ time, type: 'continuous', duration, intensity, sharpness });
+
+/**
+ * Each game's own feel on the Taptic Engine, designed the way the sounds
+ * were: what the thing would feel like if it were real. Low sharpness is
+ * soft and dull (earth, felt, wood), high sharpness crisp (glass, a stamp,
+ * a coin). Kinds not listed here fall back to their pattern above.
+ * iOS only - Android's vibrator can play durations, not textures.
+ */
+const TEXTURES: Partial<Record<HapticKind, HapticEvent[]>> = {
+  // Tents: a peg driven into soft ground - a dull thump and its settle.
+  tentsPlant: [tap(0, 0.75, 0.08), tap(38, 0.3, 0.05)],
+  tentsRowComplete: [tap(0, 0.5, 0.2), tap(70, 0.6, 0.25), tap(140, 0.75, 0.3)],
+  tentsError: [hum(0, 90, 0.45, 0.05)],
+  // Binairo: a rubber stamp - the crisp strike, then the press.
+  binairoToggle: [tap(0, 0.8, 0.85), hum(8, 45, 0.25, 0.1)],
+  binairoRowBalance: [tap(0, 0.55, 0.7), tap(60, 0.7, 0.75)],
+  binairoError: [tap(0, 0.6, 0.1), tap(70, 0.45, 0.1)],
+  // Lights Out: a lamp coming on hums, a lamp going off clicks.
+  lightsOutTap: [tap(0, 0.55, 0.5), hum(10, 110, 0.22, 0.12)],
+  lightsOutDarker: [tap(0, 0.45, 0.35)],
+  // Mirror Maze: glass - a fine, bright tick; a gem rings.
+  mirrorPlace: [tap(0, 0.45, 1)],
+  mirrorGem: [tap(0, 0.7, 1), hum(10, 160, 0.18, 0.9)],
+  // Skyscrapers: a block set down - a solid, woody thunk.
+  towersPlace: [tap(0, 0.8, 0.4), tap(30, 0.25, 0.2)],
+  towersConflict: [tap(0, 0.55, 0.1), tap(60, 0.45, 0.1)],
+  towersRowComplete: [tap(0, 0.5, 0.5), tap(60, 0.65, 0.55), tap(120, 0.8, 0.6)],
+  // Arukone+: a cord pulled over pegs - the faintest catch per square.
+  arukoneStep: [tap(0, 0.28, 0.6)],
+  arukoneJoin: [tap(0, 0.6, 0.5), tap(50, 0.8, 0.6)],
+  arukoneReject: [hum(0, 70, 0.4, 0.05)],
+  // Fill-a-Pix: a pencil - a short scratch across the paper.
+  fillapixToggle: [hum(0, 40, 0.38, 0.95), tap(42, 0.3, 0.6)],
+  fillapixClueSatisfied: [tap(0, 0.5, 0.8)],
+  // Bloom: a petal turning on its stem - a soft swish.
+  bloomTurn: [hum(0, 55, 0.3, 0.25)],
+  bloomClose: [tap(0, 0.55, 0.45), hum(15, 140, 0.2, 0.3)],
+  // Mosaic: ceramic - a light clink to lift, a firm clack to set.
+  mosaicPickup: [tap(0, 0.35, 0.95)],
+  mosaicPlace: [tap(0, 0.8, 0.8), tap(24, 0.35, 0.9)],
+  mosaicReturn: [tap(0, 0.4, 0.6)],
+  // Adjacent: bubbles - a pop, and a run of pops for a combo.
+  adjacentPop: [tap(0, 0.55, 0.3), tap(18, 0.3, 0.8)],
+  adjacentCombo: [tap(0, 0.6, 0.3), tap(45, 0.7, 0.5), tap(90, 0.85, 0.7)],
+  // Bridges: a plank laid (the full plank-by-plank lay is BridgesScreen's).
+  bridgesBuild: [tap(0, 0.7, 0.35)],
+  bridgesRemove: [tap(0, 0.4, 0.3)],
+  bridgesIsland: [tap(0, 0.6, 0.9), hum(10, 180, 0.15, 0.8)],
+  bridgesBlocked: [tap(0, 0.5, 0.1), tap(70, 0.4, 0.1)],
+  // The app: a page, and a coin.
+  uiPage: [tap(0, 0.3, 0.7)],
+  coin: [tap(0, 0.6, 1), tap(55, 0.75, 1)],
 };
 
 let hapticsEnabled = true;
@@ -255,7 +320,7 @@ export function triggerHaptic(kind: HapticKind): void {
   if (!hapticsEnabled) return;
 
   try {
-    if (Platform.OS === 'ios') RNHapticFeedback.triggerPattern(patternToEvents(PATTERNS[kind]), NATIVE_OPTIONS);
+    if (Platform.OS === 'ios') RNHapticFeedback.triggerPattern(TEXTURES[kind] ?? patternToEvents(PATTERNS[kind]), NATIVE_OPTIONS);
     else Vibration.vibrate(PATTERNS[kind]);
   } catch {
     // Never let a missing/failing vibration API break gameplay.

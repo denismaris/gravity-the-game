@@ -78,7 +78,15 @@ const FILES: Record<HapticKind, string> = {
   adjacentPop: 'sfx_adjacent_pop.wav',
   adjacentCombo: 'sfx_adjacent_combo.wav',
   adjacentSolve: 'sfx_adjacent_solve.wav',
+  uiPage: 'sfx_ui_page.wav',
+  coin: 'sfx_coin.wav',
 };
+
+/** The same sound fired again within this many ms is skipped - a drag
+ * across a board fires a step per square, and a burst of identical
+ * clicks is exactly what reads as annoying. */
+const REPEAT_GAP_MS = 45;
+const lastPlayed = new Map<HapticKind, number>();
 
 let soundEnabled = true;
 let initialized = false;
@@ -104,6 +112,47 @@ function ensureInitialized(): void {
   });
 }
 
+/** The worn solve chime's file, or null for each game's own finish. */
+let solveChime: string | null = null;
+const chimes = new Map<string, Sound>();
+
+function chimePlayer(file: string): Sound {
+  let player = chimes.get(file);
+  if (!player) {
+    player = new Sound(file, Sound.MAIN_BUNDLE, () => {});
+    chimes.set(file, player);
+  }
+  return player;
+}
+
+/** Whether `kind` is a puzzle's finish - the sound a chime replaces. */
+export function isSolveKind(kind: HapticKind): boolean {
+  return kind === 'solved' || kind.endsWith('Solve');
+}
+
+/** Puts on a solve chime (a bundled file name), or null for the games' own. */
+export function setSolveChime(file: string | null): void {
+  solveChime = file;
+  if (!file) return;
+  try {
+    chimePlayer(file);
+  } catch {
+    // Silent, like every other sound here.
+  }
+}
+
+/** Plays a chime once, for the shop to let a player listen before buying. */
+export function previewChime(file: string): void {
+  if (!soundEnabled) return;
+  try {
+    ensureInitialized();
+    const player = chimePlayer(file);
+    if (player.isLoaded()) player.stop(() => player.play());
+  } catch {
+    // Silent.
+  }
+}
+
 /** Globally enables/disables sound effects (e.g. from a future settings screen). */
 export function setSoundEnabled(enabled: boolean): void {
   soundEnabled = enabled;
@@ -122,8 +171,12 @@ export function triggerSound(kind: HapticKind): void {
 
   try {
     ensureInitialized();
-    const player = players.get(kind);
+    const chime = solveChime && isSolveKind(kind) ? chimePlayer(solveChime) : null;
+    const player = chime ?? players.get(kind);
     if (!player || !player.isLoaded()) return;
+    const now = Date.now();
+    if (now - (lastPlayed.get(kind) ?? -Infinity) < REPEAT_GAP_MS) return;
+    lastPlayed.set(kind, now);
     player.stop(() => player.play());
   } catch {
     // Never let a missing/failing audio backend break gameplay.

@@ -19,3 +19,4 @@ export {
 } from './logic';
 export { assertValidTentsAndTrees, revealHint, solveTentsAndTrees } from './solver';
 export { getTentsTreesById, getTentsTreesByDifficulty, TENTS_TREES } from './puzzles';
+export { explainTentsHint } from './explain';

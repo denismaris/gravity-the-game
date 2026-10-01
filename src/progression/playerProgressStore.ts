@@ -12,6 +12,7 @@ import {
   ProgressCursor,
 } from './playerProgress';
 import { STARTING_COINS } from './coins';
+import { EMPTY_GIFT, GIFT_DAYS, GiftLog } from './gift';
 
 /** Single key everything player-progress-related is stored under. */
 export const PLAYER_PROGRESS_KEY = 'gravity:player-progress';
@@ -205,6 +206,12 @@ export function parseProgress(raw: string | null): PlayerProgress {
     grandsSolved?: unknown;
     stampsClaimed?: unknown;
     introSeen?: unknown;
+    shopGoal?: unknown;
+    today?: unknown;
+    dailyTimes?: unknown;
+    gift?: unknown;
+    setsClaimed?: unknown;
+    patron?: unknown;
   };
   if (typeof record.version !== 'number' || !READABLE_VERSIONS.includes(record.version)) {
     return emptyProgress();
@@ -252,7 +259,35 @@ export function parseProgress(raw: string | null): PlayerProgress {
     // A save from before the walkthrough that has played already knows
     // the way round; only a genuinely new one is shown it.
     introSeen: typeof record.introSeen === 'boolean' ? record.introSeen : Object.keys(levels).length > 0,
+    shopGoal: typeof record.shopGoal === 'string' ? record.shopGoal : null,
+    today: parseToday(record.today),
+    dailyTimes: parseDailyTimes(record.dailyTimes),
+    gift: parseGift(record.gift),
+    patron: record.patron === true,
+    setsClaimed: Array.isArray(record.setsClaimed) ? [...new Set(record.setsClaimed.filter((id): id is string => typeof id === 'string'))] : [],
   };
+}
+
+function parseGift(value: unknown): GiftLog {
+  const v = value as { lastKey?: unknown; day?: unknown } | null;
+  if (!v || typeof v.lastKey !== 'string' || !/^(\d{4}-\d{2}-\d{2})?$/.test(v.lastKey)) return EMPTY_GIFT;
+  const day = typeof v.day === 'number' && Number.isInteger(v.day) && v.day >= 0 && v.day <= GIFT_DAYS ? v.day : 0;
+  return { lastKey: v.lastKey, day };
+}
+
+function parseDailyTimes(value: unknown): Record<string, number> {
+  if (typeof value !== 'object' || value === null) return {};
+  const out: Record<string, number> = {};
+  for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+    if (/^\d{4}-\d{2}-\d{2}$/.test(k) && typeof v === 'number' && Number.isFinite(v) && v > 0) out[k] = Math.round(v);
+  }
+  return out;
+}
+
+function parseToday(value: unknown): PlayerProgress['today'] {
+  const v = value as { dayKey?: unknown; solves?: unknown } | null;
+  if (!v || typeof v.dayKey !== 'string') return { dayKey: '', solves: 0 };
+  return { dayKey: v.dayKey, solves: parseCount(v.solves, 0) };
 }
 
 function parseCount(value: unknown, fallback: number): number {

@@ -8,6 +8,7 @@ import {
 import { BatchState } from './batches';
 import { STARTING_COINS } from './coins';
 import type { ErrandLog } from './errands';
+import { EMPTY_GIFT, GiftLog } from './gift';
 import type { CosmeticSlot } from './shop';
 import type { GameKind } from '../game/journey';
 
@@ -113,6 +114,19 @@ export interface PlayerProgress {
   readonly stampsClaimed: ReadonlyArray<string>;
   /** The first-launch walkthrough has been seen (or skipped). */
   readonly introSeen: boolean;
+  /** A shop item the player is saving up for - Home's purse shows how
+   * close they are. */
+  readonly shopGoal: string | null;
+  /** Puzzles solved on `dayKey` (UTC) - Home's blossom opens with it. */
+  readonly today: { readonly dayKey: string; readonly solves: number };
+  /** How long each Daily took (ms), by day - the Daily Duel's record. */
+  readonly dailyTimes: Readonly<Record<string, number>>;
+  /** The daily gift's week (see `gift.ts`). */
+  readonly gift: GiftLog;
+  /** Shop sets whose completion bonus has been paid (see `shop.ts`). */
+  readonly setsClaimed: ReadonlyArray<string>;
+  /** Bought the Patron pass (see `store.ts`). */
+  readonly patron: boolean;
 }
 
 export const PLAYER_PROGRESS_VERSION = 5 as const;
@@ -141,6 +155,12 @@ export function emptyProgress(): PlayerProgress {
     grandsSolved: [],
     stampsClaimed: [],
     introSeen: false,
+    shopGoal: null,
+    today: { dayKey: '', solves: 0 },
+    dailyTimes: {},
+    gift: EMPTY_GIFT,
+    setsClaimed: [],
+    patron: false,
   };
 }
 

@@ -188,3 +188,38 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# --- iOS 18 appearance variants (2026-09-30) -------------------------------
+# Dark: the same tilework on the app's night ground, so the icon sits with
+# a dark home screen instead of glowing magenta on it. Tinted: the glyphs
+# alone in greys on black - iOS colours them itself from the luminance.
+
+NIGHT = (0x15, 0x10, 0x1B)
+NIGHT_MAGENTA = (0xC0, 0x57, 0x9F)
+
+
+def render_variant(size, ground, star, accent):
+    big = size * SS
+    im = Image.new('RGB', (big, big), ground)
+    d = ImageDraw.Draw(im)
+    u = lambda v: v * big
+    r = u(STAR_R)
+    d.polygon(_star_points(u(0.5), u(0.5), r), fill=star)
+    for cx, cy in [(0, 0), (big, 0), (0, big), (big, big)]:
+        d.polygon(_star_points(cx, cy, r), fill=star)
+    for cx, cy in [(u(0.5), 0), (u(0.5), big), (0, u(0.5)), (big, u(0.5))]:
+        d.polygon(_diamond(cx, cy, u(EDGE_DIAMOND)), fill=accent)
+    d.polygon(_diamond(u(0.5), u(0.5), u(HEART)), fill=accent)
+    return im.resize((size, size), Image.LANCZOS)
+
+
+def variants():
+    root = os.environ.get('REPO', os.path.join(os.path.dirname(__file__), '..'))
+    base = os.path.join(root, 'ios/GravityInit/Images.xcassets/AppIcon.appiconset')
+    save(render_variant(1024, NIGHT, NIGHT_MAGENTA, OCHRE), os.path.join(base, 'icon-1024-dark.png'))
+    save(render_variant(1024, (0, 0, 0), (0xF2, 0xF2, 0xF2), (0x9A, 0x9A, 0x9A)), os.path.join(base, 'icon-1024-tinted.png'))
+
+
+if __name__ == '__main__' and os.environ.get('ICON_VARIANTS'):
+    variants()

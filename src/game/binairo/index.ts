@@ -42,3 +42,4 @@ export {
 } from './logic';
 export { assertValidBinairo, revealHint, solveBinairo } from './solver';
 export { BINAIRO, getBinairoByDifficulty, getBinairoById } from './puzzles';
+export { explainBinairoHint } from './explain';

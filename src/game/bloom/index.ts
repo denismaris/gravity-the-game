@@ -19,3 +19,4 @@ export { assertValidBloom, countBloomSolutions, isSolvableByLogic, revealBloomHi
 export { generateBloom, shapeForDifficulty } from './generator';
 export type { BloomShape } from './generator';
 export { BLOOM, getBloomByDifficulty, getBloomById } from './puzzles';
+export { explainBloomHint } from './explain';

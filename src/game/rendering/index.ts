@@ -25,5 +25,5 @@ export { useReducedMotion } from './useReducedMotion';
 export { useScreenReader } from './useScreenReader';
 export { playHapticEvents, setHapticsEnabled, stopHaptics, triggerHaptic } from './haptics';
 export type { HapticKind } from './haptics';
-export { setSoundEnabled, triggerSound } from './sound';
+export { previewChime, setSoundEnabled, setSolveChime, triggerSound } from './sound';
 export { triggerFeedback } from './feedback';

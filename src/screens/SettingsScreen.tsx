@@ -138,7 +138,7 @@ export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Eleme
           <Text style={styles.note}>
             {blocked
               ? 'Notifications are switched off for Tessera. Turn them on in your phone’s Settings, then try again.'
-              : 'One quiet note a day with the Daily’s name - never if you have already solved it.'}
+              : 'One quiet note a day with the Daily’s name, never if you have already solved it.'}
           </Text>
         </View>
 

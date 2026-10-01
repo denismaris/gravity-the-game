@@ -44,7 +44,7 @@ export function planReminders({ now, hour, progress }: PlanInput): PlannedRemind
     if (isDailyCompleted(progress, dayKey)) continue;
 
     const daily = getDailyEntry(at);
-    const lines = [`${daily.name} — a ${gameDisplayName(daily.kind)} puzzle.`];
+    const lines = [`${daily.name}, a ${gameDisplayName(daily.kind)} puzzle.`];
     // Only the first reminder can know the streak for certain.
     if (plan.length === 0 && streak > 1) lines.push(`Your ${streak}-day streak is on the line.`);
     const grand = getWeeklyGrand(at, progress.retired);

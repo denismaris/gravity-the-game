@@ -1,3 +1,5 @@
+import { HintNote } from '../components/HintNote';
+import { HintKind } from '../game/hints';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,8 +12,7 @@ import {
   isArukoneSolved,
   remainingCells,
   remainingPairs,
-  revealArukoneHint,
-} from '../game/arukone';
+  explainArukoneHint } from '../game/arukone';
 import {
   ArukoneBoard,
   BatchProgressDots,
@@ -205,13 +206,17 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
     rejectTimeoutRef.current = setTimeout(() => setRejected(null), REJECT_MS);
   }, []);
 
+  // The last hint's reason, shown over the board for a few seconds.
+  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
-    const next = revealArukoneHint(puzzle, state);
+    const next = explainArukoneHint(puzzle, state);
     if (!next) return;
     // Charged only when there is a hint to give, and before applying it.
     buy(HINT_COST, () => {
+      setNote({ reason: next.reason, kind: next.kind, id: Date.now() });
       setHints(n => n + 1);
-      setState(next);
+      setState(next.state);
       triggerFeedback('targetReached');
     });
   }, [puzzle, state, buy]);
@@ -273,6 +278,7 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
       <View style={styles.boardArea}>
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
+          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('arukone')} onGone={clearNote} />}
           <ArukoneBoard
             puzzle={puzzle}
             state={state}

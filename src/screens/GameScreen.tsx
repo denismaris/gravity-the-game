@@ -361,6 +361,10 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   const queuedDirectionRef = useRef<Direction | null>(null);
 
   const handleDirection = useCallback((direction: Direction) => {
+    // Once the level is won (or lost) the board is finished: a swipe must
+    // not move a piece off its target, which un-solved the level and
+    // swept the finish card away mid-celebration.
+    if (solvedRef.current || failedRef.current) return;
     // A move is already committed or still sliding into place: queue this
     // one rather than overlapping two slides or racing ahead of the screen.
     // Undo and Restart deliberately bypass this (see their handlers below).

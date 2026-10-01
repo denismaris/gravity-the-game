@@ -39,6 +39,10 @@ export function CoinCost({ cost, muted = false }: { cost: number; muted?: boolea
  * refused it says so in place - what is missing and how to get it - rather
  * than the button silently doing nothing.
  */
+/** The balance a purse last showed, app-wide - where the next one counts
+ * up from. */
+let lastShownBalance: number | null = null;
+
 export function CoinBalance({
   coins,
   shortBy = null,
@@ -53,12 +57,33 @@ export function CoinBalance({
   // seen landing rather than just being a different number.
   const pop = useRef(new Animated.Value(1)).current;
   const previous = useRef(coins);
+  // The number itself counts up (or down) to the new balance, starting
+  // from the last balance any purse showed - so coming back to Home after
+  // a solve, the payout is watched arriving.
+  const [shown, setShown] = useState(() => lastShownBalance ?? coins);
   useEffect(() => {
     if (coins !== previous.current) {
       pop.setValue(0.82);
       Animated.spring(pop, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
     }
     previous.current = coins;
+    const from = lastShownBalance ?? coins;
+    lastShownBalance = coins;
+    if (from === coins) {
+      setShown(coins);
+      return;
+    }
+    const start = Date.now();
+    const duration = Math.min(900, 300 + Math.abs(coins - from) * 6);
+    let frame = 0;
+    const step = () => {
+      const t = Math.min(1, (Date.now() - start) / duration);
+      const eased = 1 - (1 - t) ** 3;
+      setShown(Math.round(from + (coins - from) * eased));
+      if (t < 1) frame = requestAnimationFrame(step);
+    };
+    frame = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frame);
   }, [coins, pop]);
 
   return (
@@ -66,7 +91,7 @@ export function CoinBalance({
       <Animated.View style={[styles.balanceRow, { transform: [{ scale: pop }] }]}>
         <CoinGlyph size={14} />
         <Text style={styles.balanceText} accessibilityLabel={`${coins} coins`}>
-          {coins}
+          {shown}
         </Text>
       </Animated.View>
       {shortBy !== null && <Text style={styles.short}>{`${shortBy} MORE NEEDED · SOLVE PUZZLES TO EARN COINS`}</Text>}

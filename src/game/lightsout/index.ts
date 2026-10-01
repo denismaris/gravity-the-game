@@ -4,3 +4,4 @@ export { assertValidLightsOut, parFor, revealLightsOutHint, solveLightsOut } fro
 export { generateLightsOut, shapeForDifficulty } from './generator';
 export type { LightsOutShape } from './generator';
 export { getLightsOutByDifficulty, getLightsOutById, LIGHTS_OUT } from './puzzles';
+export { explainLightsOutHint } from './explain';

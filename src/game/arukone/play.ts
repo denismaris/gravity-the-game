@@ -265,11 +265,11 @@ export function extendDraw(
  * anything in its way. The pair with the least drawn so far, so repeated
  * hints spread across the board rather than piling onto one number.
  */
-export function revealArukoneHint(puzzle: ArukonePuzzle, state: ArukoneState): ArukoneState | null {
+export function revealArukoneHint(puzzle: ArukonePuzzle, state: ArukoneState, value?: number): ArukoneState | null {
   const unsolved = puzzle.pairs.filter(pair => !isPathComplete(pair, state.paths[pair.value] ?? []));
   if (unsolved.length === 0) return null;
 
-  const target = unsolved.reduce((best, pair) =>
+  const target = unsolved.find(pair => pair.value === value) ?? unsolved.reduce((best, pair) =>
     (state.paths[pair.value]?.length ?? 0) < (state.paths[best.value]?.length ?? 0) ? pair : best,
   );
   const answer = puzzle.solution[target.value];

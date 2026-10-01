@@ -1,3 +1,5 @@
+import { HintNote } from '../components/HintNote';
+import { HintKind } from '../game/hints';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -12,9 +14,7 @@ import {
   MosaicState,
   placedCells,
   placePiece,
-  revealMosaicHint,
-  rotatePiece,
-} from '../game/mosaic';
+  rotatePiece, explainMosaicHint } from '../game/mosaic';
 import {
   BatchProgressDots,
   MosaicPlay,
@@ -167,11 +167,15 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
     else if (!isMosaicSolved(puzzle, stateRef.current)) triggerFeedback('mosaicPlace');
   }, [puzzle]);
 
+  // The last hint's reason, shown over the board for a few seconds.
+  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
-    const result = revealMosaicHint(puzzle, stateRef.current);
+    const result = explainMosaicHint(puzzle, stateRef.current);
     if (!result) return;
     // Charged only when there is a hint to give, and before applying it.
     buy(HINT_COST, () => {
+      setNote({ reason: result.reason, kind: result.kind, id: Date.now() });
       commit(result.state);
       setHints(n => n + 1);
       const piece = result.state.pieces[result.index];
@@ -227,6 +231,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
       <View style={styles.boardArea}>
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
+          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('mosaic')} onGone={clearNote} />}
           <MosaicPlay
             puzzle={puzzle}
             state={state}

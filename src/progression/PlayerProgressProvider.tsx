@@ -31,10 +31,14 @@ import {
 import { clearProgress, loadProgress, saveProgress } from './playerProgressStore';
 import { GOLDEN_MULTIPLIER, cleanRunMultiplier, coinsForSolve } from './coins';
 import { setColorOverrides } from '../theme';
-import { skinOverrides } from './shop';
+import { COSMETICS, claimSet as claimSetPure, skinOverrides } from './shop';
+import { claimGift as claimGiftPure, Gift } from './gift';
+import { applyPurchase, ProductId } from './store';
+import { setSolveChime } from '../game/rendering/sound';
 import { advanceErrands, claimErrand as claimErrandPure } from './errands';
 import { chaptersFinished, claimChapter as claimChapterPure } from './chapters';
 import { recordGrand } from './grand';
+import { elapsedFor, standing } from './timing';
 import { claimStamp as claimStampPure } from './ledger';
 import { collectRanks as collectRanksPure } from './rank';
 import {
@@ -118,6 +122,9 @@ export interface CompletionOutcome {
    * exclusive it won, if it reached a milestone. */
   readonly grand: boolean;
   readonly grandCosmetic: string | null;
+  /** Today's Daily, timed on its first solve: the time, and where it
+   * stands among every Daily the player has timed. */
+  readonly daily: { readonly ms: number; readonly place: number; readonly of: number; readonly beat: number; readonly best: number } | null;
 }
 
 /** The bonuses on the latest solve, for the solved card to show. */
@@ -128,6 +135,7 @@ export interface SolveBonus {
   readonly comboMultiplier: number;
   readonly grand: boolean;
   readonly grandCosmetic: string | null;
+  readonly daily: CompletionOutcome['daily'];
 }
 
 interface PlayerProgressContextValue {
@@ -162,6 +170,8 @@ interface PlayerProgressContextValue {
   claimStamp(kind: GameKind, step: number): boolean;
   /** Marks the first-launch walkthrough seen. */
   markIntroSeen(): void;
+  /** Pins (or, with null, unpins) the shop item being saved up for. */
+  setShopGoal(id: string | null): void;
   /** Pays out every rank reached but not yet celebrated. */
   collectRanks(): { ranks: number[]; coins: number };
   /** Buys a cosmetic (and puts it on); returns whether it did. */
@@ -174,6 +184,12 @@ interface PlayerProgressContextValue {
   /** Brings a retired game back - free. */
   reinstateGame(kind: GameKind): void;
   buyLuckyCharm(): boolean;
+  /** Claims today's gift; returns it, or null if already claimed. */
+  claimGift(): Gift | null;
+  /** Pays a completed shop set's bonus; returns whether it did. */
+  claimSet(id: string): boolean;
+  /** Applies a paid store purchase (see `store.ts`); returns whether it gave anything. */
+  completePurchase(id: ProductId): boolean;
   /** Swaps the current set's next puzzle for another game's; returns the
    * new puzzle, or null if it could not (no coins, nothing to swap). */
   swapPuzzle(): BatchPuzzleRef | null;
@@ -320,6 +336,8 @@ export function PlayerProgressProvider({
     let comboMultiplier = 1;
     let grand = false;
     let grandCosmetic: string | null = null;
+    let streakPrize: string | null = null;
+    let dailyResult: CompletionOutcome['daily'] = null;
     const next = applyMutation(current => {
       const previousStars = getLevelStars(current, levelId);
       const firstDailyToday = isDaily && !isDailyCompleted(current, todayKey);
@@ -328,7 +346,20 @@ export function PlayerProgressProvider({
       // Daily streak when it happens to be today's Daily entry. No screen
       // needs to know it opened the Daily card for this to work: every
       // completion already funnels through here by puzzle id.
-      if (isDaily) result = recordDaily(result, todayKey);
+      if (isDaily) {
+        // The Daily Duel: time the first solve of today's Daily.
+        const ms = elapsedFor(levelId);
+        if (firstDailyToday && ms !== null && ms > 0) {
+          const dailyTimes = Object.fromEntries(Object.entries({ ...result.dailyTimes, [todayKey]: ms }).sort(([a], [b]) => (a < b ? 1 : -1)).slice(0, 120));
+          result = { ...result, dailyTimes };
+          const times = Object.values(dailyTimes);
+          dailyResult = { ms, ...standing(ms, times), best: Math.min(...times) };
+        }
+        result = recordDaily(result, todayKey);
+        // A streak prize reached by this very solve, for the solved card.
+        const prize = COSMETICS.find(item => item.streak !== undefined && current.bestDailyStreak < item.streak && result.bestDailyStreak >= item.streak);
+        if (prize) streakPrize = prize.id;
+      }
 
       // Batch progression: mark this puzzle completed within the current
       // batch (a no-op via `markPuzzleCompleted` if `levelId` isn't actually
@@ -379,6 +410,9 @@ export function PlayerProgressProvider({
         result = grandPaid.progress;
       }
 
+      // Today's solves, for Home's blossom.
+      result = { ...result, today: result.today.dayKey === todayKey ? { dayKey: todayKey, solves: result.today.solves + 1 } : { dayKey: todayKey, solves: 1 } };
+
       // Today's errands move along with every solve.
       const found = puzzleKindOf(levelId);
       if (found) {
@@ -415,7 +449,9 @@ export function PlayerProgressProvider({
       cleanRun,
       comboMultiplier,
       grand,
-      grandCosmetic,
+      // A Grand exclusive or a streak prize: either is "won, not sold".
+      grandCosmetic: grandCosmetic ?? streakPrize,
+      daily: dailyResult,
     };
   }, [applyMutation]);
 
@@ -431,6 +467,7 @@ export function PlayerProgressProvider({
         comboMultiplier: outcome.comboMultiplier,
         grand: outcome.grand,
         grandCosmetic: outcome.grandCosmetic,
+        daily: outcome.daily,
       });
       return outcome;
     },
@@ -463,6 +500,33 @@ export function PlayerProgressProvider({
     let done = false;
     applyMutation(current => {
       const next = buyLuckyCharmPure(current);
+      done = next !== null;
+      return next ?? current;
+    });
+    return done;
+  }, [applyMutation]);
+  const claimGift = useCallback((): Gift | null => {
+    let out: Gift | null = null;
+    applyMutation(current => {
+      const claimed = claimGiftPure(current, dailyKeyOf(new Date()));
+      out = claimed ? claimed.gift : null;
+      return claimed ? claimed.progress : current;
+    });
+    return out;
+  }, [applyMutation]);
+  const completePurchase = useCallback((id: ProductId): boolean => {
+    let done = false;
+    applyMutation(current => {
+      const next = applyPurchase(current, id);
+      done = next !== null;
+      return next ?? current;
+    });
+    return done;
+  }, [applyMutation]);
+  const claimSet = useCallback((id: string): boolean => {
+    let done = false;
+    applyMutation(current => {
+      const next = claimSetPure(current, id);
       done = next !== null;
       return next ?? current;
     });
@@ -513,6 +577,12 @@ export function PlayerProgressProvider({
         return next ?? current;
       });
       return done;
+    },
+    [applyMutation],
+  );
+  const setShopGoal = useCallback(
+    (id: string | null) => {
+      applyMutation(current => (current.shopGoal === id ? current : { ...current, shopGoal: id }));
     },
     [applyMutation],
   );
@@ -593,6 +663,9 @@ export function PlayerProgressProvider({
   // them.
   const repaints = useMemo(() => skinOverrides(progress), [progress]);
   setColorOverrides(repaints.light, repaints.dark);
+  // The worn solve chime replaces every game's own finish sound.
+  const chime = equippedPure(progress, 'chime').sound ?? null;
+  useEffect(() => setSolveChime(chime), [chime]);
 
   const value = useMemo<PlayerProgressContextValue>(
     () => ({
@@ -607,6 +680,7 @@ export function PlayerProgressProvider({
       claimChapter,
       claimStamp,
       markIntroSeen,
+      setShopGoal,
       collectRanks,
       buyCosmetic,
       equipCosmetic,
@@ -614,6 +688,9 @@ export function PlayerProgressProvider({
       retireGame,
       reinstateGame,
       buyLuckyCharm,
+      claimGift,
+      claimSet,
+      completePurchase,
       swapPuzzle,
       lastCharmed,
       lastBonus,
@@ -624,7 +701,7 @@ export function PlayerProgressProvider({
       dailyStreak: getDisplayDailyStreak(progress, dailyKeyOf(new Date())),
       dailyCompletedToday: isDailyCompleted(progress, dailyKeyOf(new Date())),
     }),
-    [progress, ready, recordAndMark, markLevelOpened, resetProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, swapPuzzle, lastCharmed, lastBonus],
+    [progress, ready, recordAndMark, markLevelOpened, resetProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, setShopGoal, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, claimGift, claimSet, completePurchase, swapPuzzle, lastCharmed, lastBonus],
   );
 
   return (

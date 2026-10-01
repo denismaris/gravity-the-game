@@ -185,7 +185,7 @@ export function JourneyScreen({ onExit, onOpenShop }: JourneyScreenProps): React
                   claimed={progress.chaptersClaimed.includes(c.number)}
                   onClaim={() => {
                     if (claimChapter(c.number)) {
-                      triggerFeedback('solved');
+                      triggerFeedback('coin');
                       setBurst(b => b + 1);
                     }
                   }}

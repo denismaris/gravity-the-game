@@ -20,7 +20,7 @@ export interface ShareMessageInput {
 export function buildShareMessage({ dailyStreak, totalStars, solved, totalPuzzles }: ShareMessageInput): string {
   const headline =
     dailyStreak > 0
-      ? `🔥 ${dailyStreak}-day streak on Tessera — ★${totalStars}, ${solved}/${totalPuzzles} solved.`
+      ? `🔥 ${dailyStreak}-day streak on Tessera. ★${totalStars}, ${solved}/${totalPuzzles} solved.`
       : `★${totalStars} · ${solved}/${totalPuzzles} puzzles solved on Tessera.`;
-  return `${headline}\nEight calm puzzle games, one app.`;
+  return `${headline}\nTwelve calm puzzle games, one app.`;
 }

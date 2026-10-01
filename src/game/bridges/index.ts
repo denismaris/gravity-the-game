@@ -20,3 +20,4 @@ export { assertValidBridges, countBridgesSolutions, deduceBridges, isSolvableByL
 export { generateBridges, shapeForDifficulty } from './generator';
 export type { BridgesShape } from './generator';
 export { BRIDGES, getBridgesByDifficulty, getBridgesById } from './puzzles';
+export { explainBridgesHint } from './explain';

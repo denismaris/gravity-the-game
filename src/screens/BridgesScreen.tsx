@@ -1,3 +1,5 @@
+import { HintNote } from '../components/HintNote';
+import { HintKind } from '../game/hints';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Platform, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,8 +16,7 @@ import {
   emptyBridgesState,
   isBridgesSolved,
   islandLoads,
-  revealBridgesHint,
-} from '../game/bridges';
+  explainBridgesHint } from '../game/bridges';
 import {
   BatchProgressDots,
   BridgesBoard,
@@ -267,10 +268,14 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
   // Tapped on the water: built out from the spot tapped.
   const onTapLane = useCallback((link: number, at: number) => build(link, at), [build]);
 
+  // The last hint's reason, shown over the board for a few seconds.
+  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
-    const result = revealBridgesHint(puzzle, stateRef.current);
+    const result = explainBridgesHint(puzzle, stateRef.current);
     if (!result) return;
     buy(HINT_COST, () => {
+      setNote({ reason: result.reason, kind: result.kind, id: Date.now() });
       historyRef.current.push(stateRef.current);
       setCanUndo(true);
       stateRef.current = result.state;
@@ -340,6 +345,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
       <View style={styles.boardArea}>
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
+          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('bridges')} onGone={clearNote} />}
           <BridgesBoard
             puzzle={puzzle}
             state={state}

@@ -126,7 +126,7 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
             </Animated.View>
           ) : (
             <Animated.Text style={[styles.closing, rowStyle(2)]}>
-              That is the whole set. Take a breather - the next one is ready when you are.
+              That is the whole set. Take a breather; the next one is ready when you are.
             </Animated.Text>
           )}
 
@@ -153,7 +153,10 @@ const styles = themedStyles(() => ({
     alignSelf: 'stretch',
     alignItems: 'center',
     marginTop: theme.spacing.sm,
+    // Room to breathe before the Continue button below it.
+    marginBottom: theme.spacing.lg,
     paddingVertical: theme.spacing.md,
+    paddingHorizontal: theme.spacing.md,
     borderRadius: 16,
     backgroundColor: theme.colors.surfaceHi,
     borderWidth: 1.5,

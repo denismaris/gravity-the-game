@@ -14,3 +14,4 @@ export { assertValidTowers, revealHint, solveTowers } from './solver';
 export { getTowersById, getTowersByDifficulty, TOWERS } from './puzzles';
 export { endlessShapeFor, generateTowers } from './generator';
 export type { TowersShape } from './generator';
+export { explainTowersHint } from './explain';

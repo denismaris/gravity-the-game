@@ -25,6 +25,8 @@ import {
   GRAND_REWARDS,
   buildShareMessage,
   cosmeticById,
+  priceFor,
+  formatDuration,
   isGrandSolved,
   nextGrandReward,
   unclaimedStamps,
@@ -42,7 +44,11 @@ import {
   unclaimedChapters,
   unclaimedErrands,
   usePlayerProgress,
+  giftFor,
+  tomorrowsGift,
+  unclaimedSets,
 } from '../progression';
+import { DailyGiftCard } from '../components/DailyGiftCard';
 import { getLevelById, getStarThresholds } from '../game/levels';
 import {
   accentColorForKind,
@@ -55,7 +61,6 @@ import {
 } from '../game/journey';
 import {
   AlmanacBackdrop,
-  AptitudeChart,
   DifficultyChip,
   GameEmblem,
   GeometricRule,
@@ -74,6 +79,33 @@ import { CosmeticPreview } from '../components/CosmeticPreview';
 /** A fade/rise that finishes at `endsAt` (a fraction of the shared `mount`
  * driver) - staggering several elements off one Animated.Value instead of
  * timing each separately. */
+/** "GOOD EVENING · WED 30 SEP" - the date line under the wordmark. */
+function dateLine(now: Date): string {
+  const h = now.getHours();
+  const greeting = h < 5 ? 'GOOD NIGHT' : h < 12 ? 'GOOD MORNING' : h < 18 ? 'GOOD AFTERNOON' : 'GOOD EVENING';
+  const day = now.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' }).replace(',', '').toUpperCase();
+  return `${greeting} · ${day}`;
+}
+
+/** The moon's phase, 0 (new) to 1 (the next new), from a known new moon. */
+function moonPhase(now: Date): number {
+  const synodic = 29.530588853;
+  const days = (now.getTime() - Date.UTC(2000, 0, 6, 18, 14)) / 86400000;
+  return (((days / synodic) % 1) + 1) % 1;
+}
+
+/** A small moon: a lit disc with the shadowed part laid over it. */
+function MoonDisc({ phase, size }: { phase: number; size: number }): React.JSX.Element {
+  // How much is lit, and from which side (waxing: right).
+  const lit = 1 - Math.abs(phase - 0.5) * 2;
+  const shadowShift = (phase < 0.5 ? -1 : 1) * size * lit;
+  return (
+    <View style={[styles.moon, { width: size, height: size, borderRadius: size / 2 }]}>
+      <View style={[styles.moonShadow, { width: size, height: size, borderRadius: size / 2, transform: [{ translateX: shadowShift }] }]} />
+    </View>
+  );
+}
+
 function riseIn(mount: Animated.Value, endsAt: number) {
   const start = Math.max(0, endsAt - 0.4);
   return {
@@ -119,7 +151,7 @@ const MAX_CARD_HEIGHT = 400;
 
 /** The page each carousel slot is, in order - the order they are laid out
  * in below, and the order the dots read. */
-const PAGES = ['continue', 'errands', 'daily', 'grand', 'rank', 'aptitude', 'progress'] as const;
+const PAGES = ['continue', 'today', 'grand', 'you'] as const;
 
 /**
  * Home - the cover page of a puzzle almanac.
@@ -167,7 +199,7 @@ export function HomeScreen({
     loop.start();
     return () => loop.stop();
   }, [pulse, reducedMotion]);
-  const { progress, ready, markLevelOpened, dailyStreak, dailyCompletedToday, coins, collectRanks, swapPuzzle } =
+  const { progress, ready, markLevelOpened, dailyStreak, dailyCompletedToday, coins, collectRanks, swapPuzzle, claimGift } =
     usePlayerProgress();
 
   // Swapping the puzzle you are stuck on (see the Continue card).
@@ -190,15 +222,30 @@ export function HomeScreen({
   const chapterNow = useMemo(() => currentChapter(progress), [progress]);
   const todayKey = dailyKeyOf(new Date());
   const errandsWaiting = unclaimedErrands(progress, todayKey);
+  // The savings goal pinned in the shop, if any.
+  const goal = progress.shopGoal ? cosmeticById(progress.shopGoal) ?? null : null;
+  const goalPrice = goal ? Math.max(1, priceFor(goal, new Date(), progress)) : 1;
+  // The game after this one in the set, for a peek at what is coming.
+  const upNext = (() => {
+    const batch = progress.currentBatch;
+    if (!batch) return null;
+    const ahead = batch.puzzles.filter(p => !batch.completedPuzzleIds.includes(p.puzzleId));
+    return ahead.length > 1 ? ahead[1].kind : null;
+  })();
   const chaptersWaiting = unclaimedChapters(progress).length;
   // A rank reached but not yet celebrated - shown once the save has
   // loaded, so an old save's backlog of ranks lands as one moment.
   const pending = useMemo(() => (ready ? pendingRanks(progress) : []), [ready, progress]);
+  // The day's gift comes first, on the first visit of the day; a new
+  // player meets it from their second day, once the walkthrough is done.
+  const gift = ready && progress.introSeen ? giftFor(progress, todayKey) : null;
+  const nextGift = useMemo(() => tomorrowsGift(progress, todayKey), [progress, todayKey]);
+  const setsReady = useMemo(() => unclaimedSets(progress).length, [progress]);
   const [rankUp, setRankUp] = useState<{ rank: number; gained: number; coins: number } | null>(null);
   useEffect(() => {
-    if (rankUp || pending.length === 0) return;
+    if (rankUp || gift || pending.length === 0) return;
     setRankUp({ rank: pending[pending.length - 1], gained: pending.length, coins: pending.reduce((sum, n) => sum + rankReward(n), 0) });
-  }, [pending, rankUp]);
+  }, [pending, rankUp, gift]);
 
   const levelPoint = useMemo(() => getLevelPoint(progress), [progress]);
   const entry = levelPoint.entry;
@@ -323,11 +370,6 @@ export function HomeScreen({
       MAX_CARD_HEIGHT,
     ),
   );
-  const chartSize = Math.min(
-    width - theme.spacing.lg * 4,
-    cardHeight - 196,
-    240,
-  );
 
   const accent = accentColorForKind(entry.kind);
 
@@ -367,6 +409,14 @@ export function HomeScreen({
             : ''
         }`
   } ${stampsWaiting > 0 ? `${stampsWaiting} ledger stamp${stampsWaiting === 1 ? '' : 's'} to claim. ` : ''}Open the game ledger.`;
+
+  // Pages with something waiting wear a dot above their tally mark, so it
+  // is seen before the swipe.
+  const waiting: Partial<Record<(typeof PAGES)[number], boolean>> = {
+    today: errandsWaiting > 0 || !dailyCompletedToday,
+    grand: !grandDone,
+    you: chaptersWaiting > 0 || pending.length > 0 || stampsWaiting > 0,
+  };
 
   return (
     <View style={styles.container}>
@@ -409,7 +459,12 @@ export function HomeScreen({
           <Text style={styles.wordmark}>TESSERA</Text>
         </View>
         <GeometricRule variant="masthead" style={styles.rule} />
-        <Text style={styles.tagline}>AN ALMANAC OF PUZZLES</Text>
+        {/* The almanac's own date line: a greeting, the day, and the
+            moon - it is an almanac, after all. */}
+        <View style={styles.dateLine}>
+          <MoonDisc phase={moonPhase(new Date())} size={10} />
+          <Text style={styles.tagline}>{dateLine(new Date())}</Text>
+        </View>
         {/* Loss aversion, the moment it applies: a streak already exists
             and today's Daily is still unplayed, so it is genuinely one
             missed day from resetting to zero (`getDisplayDailyStreak`'s
@@ -428,9 +483,22 @@ export function HomeScreen({
         <View style={styles.streakSlot}>
           <PressableScale accessibilityRole="button" accessibilityLabel={`${coins} coins. Open the shop`} onPress={onOpenShop} hitSlop={8}>
             <View style={styles.purse}>
+              {progress.patron && <View style={styles.pursePatron} accessible accessibilityLabel="Patron" />}
               <CoinBalance coins={coins} />
               {progress.luckyCharges > 0 && <Text style={styles.purseCharm}>{`\u00D72 · ${progress.luckyCharges}`}</Text>}
+              {dailyStreak > 1 && dailyCompletedToday && (
+                <Text style={[styles.purseStreak, dailyStreak >= 7 && styles.purseStreakHot]} accessibilityLabel={`${dailyStreak} day streak`}>{`\u2600\uFE0E ${dailyStreak}D`}</Text>
+              )}
+              {goal && (
+                <View style={styles.goal} accessibilityLabel={`Saving for ${goal.name}: ${Math.min(coins, goalPrice)} of ${goalPrice}`}>
+                  <Text style={styles.goalText} numberOfLines={1}>{goal.name.toUpperCase()}</Text>
+                  <View style={styles.goalTrack}>
+                    <View style={[styles.goalFill, { width: `${Math.min(1, coins / goalPrice) * 100}%` }]} />
+                  </View>
+                </View>
+              )}
               <Text style={styles.purseShop}>SHOP ›</Text>
+              {setsReady > 0 && <View style={styles.purseDot} accessibilityLabel="A set bonus is ready in the shop" />}
             </View>
           </PressableScale>
           {dailyStreak > 0 && !dailyCompletedToday && (
@@ -533,6 +601,7 @@ export function HomeScreen({
                   </Text>
                   <Text style={styles.heroMeta}>
                     PUZZLE {levelPoint.batchPosition} OF {levelPoint.batchSize}
+                    {upNext ? `  ·  THEN ${gameShortName(upNext).toUpperCase()}` : ''}
                     {isGravity ? `      PAR ${par}` : ''}
                   </Text>
 
@@ -691,118 +760,63 @@ export function HomeScreen({
               </PressableScale>
             </View>
 
-            {/* --- Errands ------------------------------------------------- */}
+            {/* --- Today -------------------------------------------------- */}
+            {/* The Daily and the day's errands on one page: everything that
+              resets at midnight, together. The Daily is the well at the
+              top (tap it to play); the errands sit under it. */}
             <View style={[styles.page, { width }]}>
               <View style={[styles.card, { height: cardHeight }]}>
-                <View>
-                  <View style={styles.cardHead}>
-                    <Text style={styles.eyebrowMuted}>TODAY'S ERRANDS</Text>
-                    {errandsWaiting > 0 ? (
-                      <Text style={[styles.badge, styles.badgeLive]}>{errandsWaiting} TO CLAIM</Text>
-                    ) : (
-                      <Text style={[styles.badge, styles.badgeDone]}>DAILY</Text>
-                    )}
-                  </View>
-                  <Text style={styles.errandsLede}>Three small goals, new every day. Each pays coins and experience.</Text>
-                </View>
-                <View style={styles.errandsWell}>
-                  <ErrandList />
-                </View>
-                <PressableScale accessibilityRole="button" accessibilityLabel="Spend your coins in the shop" onPress={onOpenShop} hitSlop={6}>
-                  <View style={styles.heroFoot}>
-                    <Text style={styles.verb}>Spend in the shop</Text>
-                    <Text style={styles.chevron}>{'›'}</Text>
-                  </View>
-                </PressableScale>
-              </View>
-            </View>
-
-            {/* --- Daily --------------------------------------------------- */}
-            <View style={[styles.page, { width }]}>
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={`Daily puzzle: ${daily.name}${
-                  dailyCompletedToday ? ', already solved today' : ''
-                }${dailyStreak > 0 ? `, ${dailyStreak} day streak` : ''}`}
-                onPress={openDaily}
-                scaleTo={0.985}
-                style={({ pressed }) => [
-                  styles.card,
-                  { height: cardHeight },
-                  pressed && styles.cardPressed,
-                ]}
-              >
                 <View style={styles.cardHead}>
-                  <Text style={styles.eyebrowMuted}>DAILY</Text>
-                  <Text
-                    style={[
-                      styles.badge,
-                      dailyCompletedToday ? styles.badgeDone : styles.badgeLive,
-                    ]}
-                  >
-                    {dailyCompletedToday ? 'SOLVED' : 'TODAY'}
+                  <Text style={styles.eyebrowMuted}>TODAY</Text>
+                  <Text style={[styles.badge, errandsWaiting > 0 || !dailyCompletedToday ? styles.badgeLive : styles.badgeDone]}>
+                    {errandsWaiting > 0 ? `${errandsWaiting} TO CLAIM` : dailyCompletedToday ? 'DAILY SOLVED' : 'DAILY WAITING'}
                   </Text>
                 </View>
 
-                {/* The mark sits *beside* the title, not on its own line. Alone
-                  and centred it read as an app icon dropped into the middle
-                  of the card; set against the name it is a masthead, and the
-                  row stays dense. */}
-                <View style={styles.dailyRow}>
-                  <GameEmblem kind={daily.kind} size={54} />
-                  <View style={styles.dailyText}>
-                    <Text style={styles.dailyTitle} numberOfLines={2}>
-                      {daily.name}
-                    </Text>
-                    <Text style={styles.dailyChapter}>
-                      {daily.chapter.toUpperCase()}
-                    </Text>
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={`Daily puzzle: ${daily.name}${dailyCompletedToday ? ', already solved today' : ''}${dailyStreak > 0 ? `, ${dailyStreak} day streak` : ''}. ${dailyCompletedToday ? 'Replay' : 'Play'}`}
+                  onPress={openDaily}
+                  scaleTo={0.98}
+                  style={({ pressed }) => [styles.todayDaily, pressed && styles.cardPressed]}
+                >
+                  <View style={styles.todayDailyRow}>
+                    <GameEmblem kind={daily.kind} size={46} />
+                    <View style={styles.dailyText}>
+                      <Text style={styles.todayKicker}>THE DAILY</Text>
+                      <Text style={styles.todayTitle} numberOfLines={1}>
+                        {daily.name}
+                      </Text>
+                      <Text style={styles.dailyChapter} numberOfLines={1}>
+                        {daily.chapter.toUpperCase()}
+                      </Text>
+                    </View>
+                    <View style={[styles.play, styles.playSmall]}>
+                      <View style={[styles.playTri, styles.playTriSmall]} />
+                    </View>
                   </View>
-                </View>
-
-                <View style={styles.wellCentered}>
-                  <Text style={styles.sectionLabel}>STREAK</Text>
-                  <View style={styles.streakHead}>
-                    <Text style={styles.streakCount}>{dailyStreak}</Text>
-                    <Text style={styles.streakUnit}>
-                      DAY{dailyStreak === 1 ? '' : 'S'}
-                      {'\n'}RUNNING
-                    </Text>
+                  <View style={styles.todayStreak}>
+                    <View style={[styles.streakRow, styles.todayMarks]}>
+                      {Array.from({ length: STREAK_MARKS }, (_, i) => (
+                        <View key={i} style={[styles.streakMark, i < Math.min(dailyStreak, STREAK_MARKS) && styles.streakMarkLit]} />
+                      ))}
+                    </View>
+                    <Text style={styles.todayStreakCount}>{`${dailyStreak}-DAY STREAK`}</Text>
                   </View>
-                  {/* A week of marks under the count. The number says how long
-                    the run is; the marks say how much of a week is still
-                    open, which is the part that argues for coming back
-                    tomorrow. */}
-                  <View style={styles.streakRow}>
-                    {Array.from({ length: STREAK_MARKS }, (_, i) => (
-                      <View
-                        key={i}
-                        style={[
-                          styles.streakMark,
-                          i < Math.min(dailyStreak, STREAK_MARKS) &&
-                            styles.streakMarkLit,
-                        ]}
-                      />
-                    ))}
-                  </View>
-                  <Text style={styles.dailyStreakLabel}>
+                  <Text style={styles.todayStatus} numberOfLines={1}>
                     {dailyCompletedToday
-                      ? 'SOLVED TODAY · COME BACK TOMORROW'
+                      ? progress.dailyTimes[todayKey]
+                        ? `SOLVED IN ${formatDuration(progress.dailyTimes[todayKey])} · TOMORROW'S GIFT ${nextGift.coins}`
+                        : `SOLVED · TOMORROW'S GIFT ${nextGift.coins}`
                       : dailyStreak > 0
-                      ? "DON'T BREAK YOUR STREAK · PLAY TODAY"
-                      : 'A NEW ONE EVERY DAY'}
+                        ? "DON'T BREAK YOUR STREAK · PLAY TODAY"
+                        : `A NEW ONE EVERY DAY · BEST RUN ${progress.bestDailyStreak}`}
                   </Text>
-                </View>
+                </PressableScale>
 
-                <View style={styles.heroFoot}>
-                  <Text style={styles.verb}>
-                    {dailyCompletedToday ? 'Replay' : 'Play'}
-                  </Text>
-                  <View style={styles.play}>
-                    <View style={styles.playTri} />
-                  </View>
-                </View>
-              </PressableScale>
+                <View style={styles.todaySpacer} />
+                <ErrandList compact />
+              </View>
             </View>
 
             {/* --- Weekly Grand -------------------------------------------- */}
@@ -881,219 +895,102 @@ export function HomeScreen({
               </PressableScale>
             </View>
 
-            {/* --- Rank ---------------------------------------------------- */}
+            {/* --- You ---------------------------------------------------- */}
+            {/* Rank, chapter and the record on one page - what used to be
+              three (Rank, Puzzle IQ, Progress). Each figure opens where its
+              detail lives: the almanac, the ledger, the achievements. */}
             <View style={[styles.page, { width }]}>
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={`Rank ${rank.number}, ${rank.title}. ${rank.to - rank.xp} experience to the next rank. Chapter ${chapterNow.chapter.number}, ${chapterNow.chapter.name}. Open your almanac.`}
-                onPress={onOpenJourney}
-                scaleTo={0.985}
-                style={({ pressed }) => [styles.card, { height: cardHeight }, pressed && styles.cardPressed]}
-              >
+              <View style={[styles.card, { height: cardHeight }]}>
                 <View style={styles.cardHead}>
-                  <Text style={styles.eyebrowMuted}>YOUR RANK</Text>
-                  {chaptersWaiting > 0 ? (
-                    <Text style={[styles.badge, styles.badgeLive]}>REWARD WAITING</Text>
-                  ) : (
-                    <Text style={[styles.badge, styles.badgeDone]}>RANK {toRoman(rank.number)}</Text>
-                  )}
-                </View>
-                <View style={styles.rankRow}>
-                  <RankMedal rank={rank.number} size={Math.min(92, cardHeight * 0.24)} />
-                  <View style={styles.rankText}>
-                    <Text style={styles.rankTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
-                      {rank.title}
-                    </Text>
-                    <Text style={styles.rankMeta}>
-                      {(rank.to - rank.xp).toLocaleString('en-US')} XP TO {rankTitle(rank.number + 1).toUpperCase()}
-                    </Text>
-                    <XpBar share={rank.share} style={styles.rankBar} />
-                  </View>
-                </View>
-                <View style={styles.wellCentered}>
-                  <Text style={styles.sectionLabel}>CHAPTER {toRoman(chapterNow.chapter.number)}</Text>
-                  <Text style={styles.chapterName}>{chapterNow.chapter.name}</Text>
-                  <View style={styles.chapterTicks}>
-                    {Array.from({ length: LEVELS_PER_CHAPTER }, (_v, i) => (
-                      <View key={i} style={[styles.chapterTick, i < chapterNow.levelsDone && styles.chapterTickDone, i === chapterNow.levelsDone && styles.chapterTickNow]} />
-                    ))}
-                  </View>
-                  <Text style={styles.dailyStreakLabel}>
-                    {LEVELS_PER_CHAPTER - chapterNow.levelsDone} LEVEL{LEVELS_PER_CHAPTER - chapterNow.levelsDone === 1 ? '' : 'S'} TO THE CHAPTER REWARD
-                  </Text>
-                </View>
-                <View style={styles.heroFoot}>
-                  <Text style={styles.verb}>Your almanac</Text>
-                  <Text style={styles.chevron}>{'›'}</Text>
-                </View>
-              </PressableScale>
-            </View>
-
-            {/* --- Puzzle IQ ----------------------------------------------- */}
-            <View style={[styles.page, { width }]}>
-              <PressableScale
-                accessibilityRole="button"
-                onPress={onOpenLedger}
-                scaleTo={0.985}
-                style={({ pressed }) => [styles.card, { height: cardHeight }, pressed && styles.cardPressed]}
-                accessibilityLabel={iqLabel}
-              >
-                <View>
-                  <View style={styles.cardHead}>
-                    <Text style={styles.eyebrowMuted}>PUZZLE IQ</Text>
-                    {stampsWaiting > 0 ? (
-                      <Text style={[styles.badge, styles.badgeLive]}>STAMP WAITING ›</Text>
+                  <Text style={styles.eyebrowMuted}>YOU</Text>
+                  <View style={styles.youHeadRight}>
+                    {chaptersWaiting > 0 || pending.length > 0 ? (
+                      <Text style={[styles.badge, styles.badgeLive]}>REWARD WAITING</Text>
+                    ) : stampsWaiting > 0 ? (
+                      <Text style={[styles.badge, styles.badgeLive]}>STAMP WAITING</Text>
                     ) : (
-                      <Text style={styles.iqSolves}>LEDGER ›</Text>
+                      <Text style={[styles.badge, styles.badgeDone]}>RANK {toRoman(rank.number)}</Text>
                     )}
-                  </View>
-
-                  {aptitude.index === null ? (
-                    <Text style={styles.iqPending}>
-                      Solve a few more puzzles and your score will appear here.
-                    </Text>
-                  ) : (
-                    <View style={styles.iqRow}>
-                      <Text style={styles.iqNumber}>{aptitude.index}</Text>
-                      <View style={styles.iqSideNote}>
-                        <Text style={styles.iqSideValue}>
-                          {Math.round(aptitude.precision * 100)}%
-                        </Text>
-                        {/* Not "clean solves": this is the difficulty-scaled
-                          mean from `computeAptitude`, so a player solving
-                          hard boards reads higher than one solving easy
-                          boards just as cleanly. Naming it after the count
-                          it is not would be the more familiar label and the
-                          wrong one. */}
-                        <Text style={styles.iqSideLabel}>PRECISION</Text>
-                      </View>
-                    </View>
-                  )}
-                </View>
-
-                <View style={[styles.wellCentered, styles.chartWrap]}>
-                  <AptitudeChart games={aptitude.games} size={chartSize} />
-                </View>
-
-                {/* Two named figures rather than one sentence. The sentence
-                  wrapped mid-word at phone width, and a pair of labelled
-                  columns is the same shape the Progress card uses for its
-                  own two figures - so the carousel keeps one vocabulary. */}
-                {aptitude.strongest && aptitude.weakest ? (
-                  <View style={styles.figureRow}>
-                    <View style={styles.figure}>
-                      <Text style={styles.iqFigureLabel}>SHARPEST</Text>
-                      <Text style={styles.iqFigureValue} numberOfLines={1}>
-                        {gameDisplayName(aptitude.strongest)}
-                      </Text>
-                    </View>
-                    <View style={styles.figureRule} />
-                    <View style={styles.figure}>
-                      <Text style={styles.iqFigureLabel}>MOST ROOM</Text>
-                      <Text style={styles.iqFigureValue} numberOfLines={1}>
-                        {gameDisplayName(aptitude.weakest)}
-                      </Text>
-                    </View>
-                  </View>
-                ) : (
-                  <Text style={styles.iqFoot}>
-                    Play a puzzle in each game to fill the shape out.
-                  </Text>
-                )}
-              </PressableScale>
-            </View>
-
-            {/* --- Progress ------------------------------------------------ */}
-            <View style={[styles.page, { width }]}>
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={`Achievements: ${earned} of ${ACHIEVEMENTS.length} earned, ${solved} of ${aptitude.total} puzzles solved, ${totalStars} stars`}
-                onPress={onOpenAchievements}
-                scaleTo={0.985}
-                style={({ pressed }) => [
-                  styles.card,
-                  { height: cardHeight },
-                  pressed && styles.cardPressed,
-                ]}
-              >
-                <View>
-                  <View style={styles.cardHead}>
-                    <Text style={styles.eyebrowMuted}>PROGRESS</Text>
-                    {/* Nested inside the card's own `PressableScale` - RN
-                      resolves the touch to whichever Pressable is deepest
-                      under the finger, so this claims a tap on the glyph
-                      itself without ever also opening Achievements. */}
-                    <PressableScale
-                      accessibilityRole="button"
-                      accessibilityLabel="Share your progress"
-                      onPress={shareProgress}
-                      hitSlop={10}
-                      containerStyle={styles.shareButton}
-                    >
+                    <PressableScale accessibilityRole="button" accessibilityLabel="Share your progress" onPress={shareProgress} hitSlop={10} containerStyle={styles.shareButton}>
                       <Text style={styles.shareGlyph}>{'⬆︎'}</Text>
                     </PressableScale>
                   </View>
-                  <Text style={styles.heroTitle}>{solved}</Text>
-                  <Text style={styles.heroMeta}>
-                    OF {aptitude.total} PUZZLES SOLVED
-                  </Text>
                 </View>
 
-                {/* Three figures that each mean something different: how much
-                  you have played, how well, and how faithfully. Set as
-                  ruled columns, the way an almanac sets a table - the track
-                  belongs in here with them rather than up against the
-                  headline, which left this well with two short lines
-                  floating in it. */}
-                <View style={styles.wellCentered}>
-                  <View style={styles.statsTrack}>
-                    <View
-                      style={[
-                        styles.statsTrackFill,
-                        {
-                          width: `${
-                            aptitude.total > 0
-                              ? (solved / aptitude.total) * 100
-                              : 0
-                          }%`,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <View style={styles.figureRow}>
-                    <View style={styles.figure}>
-                      <Text style={styles.figureValue}>
-                        <Text style={styles.figureStar}>★</Text> {totalStars}
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={`Rank ${rank.number}, ${rank.title}. ${rank.to - rank.xp} experience to the next rank. Chapter ${chapterNow.chapter.number}, ${chapterNow.chapter.name}. Open your almanac.`}
+                  onPress={onOpenJourney}
+                  scaleTo={0.98}
+                  style={({ pressed }) => [styles.youRank, pressed && styles.cardPressed]}
+                >
+                  <View style={styles.rankRow}>
+                    <RankMedal rank={rank.number} size={Math.min(72, cardHeight * 0.19)} />
+                    <View style={styles.rankText}>
+                      <Text style={styles.rankTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.7}>
+                        {rank.title}
                       </Text>
-                      <Text style={styles.figureLabel}>STARS</Text>
-                    </View>
-                    <View style={styles.figureRule} />
-                    <View style={styles.figure}>
-                      <Text style={styles.figureValue}>
-                        {earned}
-                        <Text style={styles.figureOf}>
-                          /{ACHIEVEMENTS.length}
-                        </Text>
+                      <Text style={styles.rankMeta}>
+                        {(rank.to - rank.xp).toLocaleString('en-US')} XP TO {rankTitle(rank.number + 1).toUpperCase()}
                       </Text>
-                      <Text style={styles.figureLabel}>BADGES</Text>
-                    </View>
-                    <View style={styles.figureRule} />
-                    {/* The app has tracked this since `PlayerProgress` v4 and
-                      never once shown it. */}
-                    <View style={styles.figure}>
-                      <Text style={styles.figureValue}>
-                        {progress.bestDailyStreak}
-                      </Text>
-                      <Text style={styles.figureLabel}>BEST RUN</Text>
+                      <XpBar share={rank.share} style={styles.rankBar} />
                     </View>
                   </View>
+                  <View style={styles.youChapter}>
+                    <View style={styles.youChapterHead}>
+                      <Text style={styles.sectionLabel} numberOfLines={1}>{`CHAPTER ${toRoman(chapterNow.chapter.number)} · ${chapterNow.chapter.name.toUpperCase()}`}</Text>
+                      <Text style={styles.youChapterLeft}>{`${LEVELS_PER_CHAPTER - chapterNow.levelsDone} TO GO`}</Text>
+                    </View>
+                    <View style={styles.chapterTicks}>
+                      {Array.from({ length: LEVELS_PER_CHAPTER }, (_v, i) => (
+                        <View key={i} style={[styles.chapterTick, styles.youTick, i < chapterNow.levelsDone && styles.chapterTickDone, i === chapterNow.levelsDone && styles.chapterTickNow]} />
+                      ))}
+                    </View>
+                  </View>
+                </PressableScale>
+
+                {/* The record: four figures, each a door to its detail. */}
+                <View style={styles.youFigures}>
+                  <PressableScale accessibilityRole="button" accessibilityLabel={`${totalStars} stars, ${solved} of ${aptitude.total} puzzles solved. Open achievements`} onPress={onOpenAchievements} containerStyle={styles.figure}>
+                    <Text style={styles.youValue}>{totalStars}</Text>
+                    <Text style={styles.figureLabel}>
+                      <Text style={styles.figureStar}>★</Text> STARS
+                    </Text>
+                  </PressableScale>
+                  <View style={styles.figureRule} />
+                  <PressableScale accessibilityRole="button" accessibilityLabel={`${solved} of ${aptitude.total} puzzles solved. Open achievements`} onPress={onOpenAchievements} containerStyle={styles.figure}>
+                    <Text style={styles.youValue}>{solved}</Text>
+                    <Text style={styles.figureLabel}>SOLVED</Text>
+                  </PressableScale>
+                  <View style={styles.figureRule} />
+                  <PressableScale accessibilityRole="button" accessibilityLabel={`${earned} of ${ACHIEVEMENTS.length} badges. Open achievements`} onPress={onOpenAchievements} containerStyle={styles.figure}>
+                    <Text style={styles.youValue}>
+                      {earned}
+                      <Text style={styles.figureOf}>/{ACHIEVEMENTS.length}</Text>
+                    </Text>
+                    <Text style={styles.figureLabel}>BADGES</Text>
+                  </PressableScale>
+                  <View style={styles.figureRule} />
+                  <PressableScale accessibilityRole="button" accessibilityLabel={iqLabel} onPress={onOpenLedger} containerStyle={styles.figure}>
+                    <Text style={styles.youValue}>{aptitude.index ?? '-'}</Text>
+                    <Text style={styles.figureLabel}>IQ</Text>
+                  </PressableScale>
                 </View>
 
-                <View style={styles.heroFoot}>
-                  <Text style={styles.verb}>Achievements</Text>
-                  <Text style={styles.chevron}>{'›'}</Text>
+                <View style={styles.youLinks}>
+                  <PressableScale accessibilityRole="button" accessibilityLabel="Open the ledger" onPress={onOpenLedger} containerStyle={styles.youLinkWrap} style={({ pressed }) => [styles.youLink, pressed && styles.cardPressed]}>
+                    <Text style={styles.youLinkText}>Ledger</Text>
+                    {stampsWaiting > 0 && <View style={styles.youLinkDot} />}
+                  </PressableScale>
+                  <PressableScale accessibilityRole="button" accessibilityLabel="Open achievements" onPress={onOpenAchievements} containerStyle={styles.youLinkWrap} style={({ pressed }) => [styles.youLink, pressed && styles.cardPressed]}>
+                    <Text style={styles.youLinkText}>Badges</Text>
+                  </PressableScale>
+                  <PressableScale accessibilityRole="button" accessibilityLabel="Open your almanac" onPress={onOpenJourney} containerStyle={styles.youLinkWrap} style={({ pressed }) => [styles.youLink, pressed && styles.cardPressed]}>
+                    <Text style={styles.youLinkText}>Almanac</Text>
+                    {chaptersWaiting > 0 && <View style={styles.youLinkDot} />}
+                  </PressableScale>
                 </View>
-              </PressableScale>
+              </View>
             </View>
           </ScrollView>
         </View>
@@ -1110,9 +1007,19 @@ export function HomeScreen({
           <View
             key={name}
             style={[styles.pageDot, i === page && styles.pageDotCurrent]}
-          />
+          >
+            {waiting[name] && i !== page && <View style={styles.pageDotBadge} />}
+          </View>
         ))}
       </Animated.View>
+      {gift && (
+        <DailyGiftCard
+          gift={gift}
+          onCollect={() => {
+            if (claimGift()) triggerFeedback('coin');
+          }}
+        />
+      )}
       {rankUp && (
         <RankUpCard
           rank={rankUp.rank}
@@ -1150,6 +1057,39 @@ const MASTHEAD_BLOCK =
 const DOTS_BLOCK = theme.spacing.sm * 2 + 8;
 
 const styles = themedStyles(() => ({
+  todayDaily: {
+    marginTop: theme.spacing.md,
+    padding: theme.spacing.md,
+    borderRadius: theme.radii.lg,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.background,
+  },
+  todayDailyRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
+  todayKicker: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 1.3, color: theme.colors.secondary },
+  todayTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  playSmall: { width: 42, height: 42, borderRadius: 21 },
+  playTriSmall: { borderTopWidth: 8, borderBottomWidth: 8, borderLeftWidth: 12, marginLeft: 4 },
+  todayStreak: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.md },
+  todayMarks: { flex: 1 },
+  todayStreakCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  todayStatus: { marginTop: 6, fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.8, color: theme.colors.textTertiary },
+  todaySpacer: { flex: 1, minHeight: theme.spacing.md },
+  youHeadRight: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
+  youRank: { marginTop: theme.spacing.sm, padding: theme.spacing.md, borderRadius: theme.radii.lg, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.background },
+  youChapter: { marginTop: theme.spacing.md },
+  youChapterHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: theme.spacing.sm },
+  youChapterLeft: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1, color: theme.colors.secondary },
+  youTick: { height: 7 },
+  youFigures: { flexDirection: 'row', alignItems: 'center', marginTop: 'auto', marginBottom: 'auto' },
+  youValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  youLinks: { flexDirection: 'row', gap: theme.spacing.sm },
+  youLinkWrap: { flex: 1 },
+  youLink: { alignItems: 'center', paddingVertical: 10, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong, flexDirection: 'row', justifyContent: 'center', gap: 6 },
+  youLinkText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
+  youLinkDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.secondary },
+  pursePatron: { width: 9, height: 9, borderRadius: 2, marginRight: 6, transform: [{ rotate: '45deg' }], backgroundColor: theme.colors.gold, borderWidth: 1.5, borderColor: theme.colors.goldRim },
+  purseDot: { width: 7, height: 7, borderRadius: 4, marginLeft: 4, backgroundColor: theme.colors.secondary },
   purse: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   purseCharm: {
     paddingHorizontal: 5,
@@ -1172,12 +1112,6 @@ const styles = themedStyles(() => ({
     letterSpacing: 1,
     color: theme.colors.secondary,
   },
-  errandsWell: { marginTop: 'auto', marginBottom: 'auto' },
-  errandsLede: {
-    marginTop: 4,
-    fontSize: theme.typography.sizes.caption,
-    color: theme.colors.textSecondary,
-  },
   rankRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.sm },
   rankText: { flex: 1 },
   rankTitle: {
@@ -1194,13 +1128,6 @@ const styles = themedStyles(() => ({
     color: theme.colors.textSecondary,
   },
   rankBar: { marginTop: theme.spacing.sm },
-  chapterName: {
-    fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.title,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-    marginTop: 2,
-  },
   chapterTicks: { flexDirection: 'row', gap: 4, marginTop: theme.spacing.sm, alignSelf: 'stretch' },
   chapterTick: { flex: 1, height: 10, borderRadius: 3, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
   chapterTickDone: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
@@ -1461,12 +1388,6 @@ const styles = themedStyles(() => ({
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
   },
-  chevron: {
-    fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.headline,
-    color: theme.colors.textTertiary,
-    marginRight: theme.spacing.sm,
-  },
   setRow: {
     flexDirection: 'row',
     gap: theme.spacing.sm,
@@ -1594,26 +1515,6 @@ const styles = themedStyles(() => ({
     flexDirection: 'row',
     gap: 6,
   },
-  streakHead: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.md,
-  },
-  streakCount: {
-    fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.display,
-    lineHeight: theme.typography.lineHeights.display,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-  },
-  streakUnit: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    lineHeight: 15,
-    letterSpacing: 1,
-    color: theme.colors.textTertiary,
-  },
   streakMark: {
     flex: 1,
     height: 6,
@@ -1634,71 +1535,6 @@ const styles = themedStyles(() => ({
     marginTop: theme.spacing.sm,
   },
 
-  iqRow: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'space-between',
-  },
-  iqNumber: {
-    fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.mega,
-    lineHeight: theme.typography.lineHeights.mega,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-  },
-  iqSideNote: {
-    alignItems: 'flex-end',
-    paddingBottom: 8,
-  },
-  iqSideValue: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.subtitle,
-    color: theme.colors.secondary,
-  },
-  iqSideLabel: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1,
-    color: theme.colors.textTertiary,
-    marginTop: 2,
-  },
-  iqSolves: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1.5,
-    color: theme.colors.textTertiary,
-  },
-  iqPending: {
-    fontFamily: theme.typography.families.ui,
-    fontSize: theme.typography.sizes.body,
-    lineHeight: theme.typography.lineHeights.body,
-    color: theme.colors.textSecondary,
-  },
-  chartWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iqFoot: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    lineHeight: 15,
-    letterSpacing: 0.4,
-    color: theme.colors.textTertiary,
-    textAlign: 'center',
-  },
-  iqFigureLabel: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1,
-    color: theme.colors.textTertiary,
-  },
-  iqFigureValue: {
-    fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.subtitle,
-    fontWeight: theme.typography.weights.semibold,
-    color: theme.colors.textPrimary,
-    marginTop: 3,
-  },
 
   shareButton: {
     width: 26,
@@ -1714,23 +1550,7 @@ const styles = themedStyles(() => ({
     fontSize: 12,
     color: theme.colors.textSecondary,
   },
-  statsTrack: {
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: theme.colors.surfaceAlt,
-    marginBottom: theme.spacing.lg,
-    overflow: 'hidden',
-  },
-  statsTrackFill: {
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: theme.colors.secondary,
-  },
 
-  figureRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
   figure: {
     flex: 1,
   },
@@ -1739,13 +1559,6 @@ const styles = themedStyles(() => ({
     alignSelf: 'stretch',
     marginHorizontal: theme.spacing.sm,
     backgroundColor: theme.colors.borderStrong,
-  },
-  figureValue: {
-    fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.headline,
-    lineHeight: theme.typography.lineHeights.headline,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
   },
   figureOf: {
     fontFamily: theme.typography.families.mono,
@@ -1785,6 +1598,28 @@ const styles = themedStyles(() => ({
     borderRadius: 1,
     backgroundColor: theme.colors.borderStrong,
   },
+  pageDotBadge: {
+    position: 'absolute',
+    top: -7,
+    left: -2,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: theme.colors.secondary,
+  },
+  dateLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  moon: { backgroundColor: theme.colors.accent, overflow: 'hidden' },
+  moonShadow: { position: 'absolute', backgroundColor: theme.colors.background },
+  purseStreak: {
+    fontFamily: theme.typography.families.mono,
+    fontSize: theme.typography.sizes.micro,
+    color: theme.colors.textSecondary,
+  },
+  purseStreakHot: { color: theme.colors.gold, fontWeight: theme.typography.weights.bold },
+  goal: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  goalText: { maxWidth: 70, fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 0.6, color: theme.colors.textTertiary },
+  goalTrack: { width: 34, height: 4, borderRadius: 2, backgroundColor: theme.colors.surfaceAlt, overflow: 'hidden' },
+  goalFill: { height: 4, borderRadius: 2, backgroundColor: theme.colors.gold },
   pageDotCurrent: {
     width: 2,
     height: 19,

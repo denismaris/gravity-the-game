@@ -14,7 +14,8 @@ describe('game skins', () => {
     for (const game of SKIN_GAMES) {
       const items = cosmeticsFor(`skin-${game}`);
       expect(items[0].price).toBe(0);
-      expect(items.filter(i => i.price > 0)).toHaveLength(2);
+      expect(items.filter(i => i.price > 0)).toHaveLength(3);
+      expect(items.filter(i => rarityOf(i) === 'masterwork')).toHaveLength(1);
     }
     expect(cosmeticsFor('chart').filter(i => i.price > 0).length).toBeGreaterThanOrEqual(3);
   });

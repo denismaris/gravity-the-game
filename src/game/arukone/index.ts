@@ -31,3 +31,4 @@ export type { DrawStart } from './play';
 export { generateArukone, shapeForDifficulty } from './generator';
 export type { ArukoneShape } from './generator';
 export { ARUKONE, getArukoneById, getArukoneByDifficulty } from './puzzles';
+export { explainArukoneHint } from './explain';

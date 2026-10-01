@@ -1,3 +1,5 @@
+import { HintNote } from '../components/HintNote';
+import { HintKind } from '../game/hints';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -9,10 +11,8 @@ import {
   BloomState,
   initialBloomState,
   isBloomSolved,
-  revealBloomHint,
   rotateTile,
-  traceLoops,
-} from '../game/bloom';
+  traceLoops, explainBloomHint } from '../game/bloom';
 import {
   BatchProgressDots,
   BloomBoard,
@@ -162,11 +162,15 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
     [puzzle],
   );
 
+  // The last hint's reason, shown over the board for a few seconds.
+  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
-    const result = revealBloomHint(puzzle, stateRef.current);
+    const result = explainBloomHint(puzzle, stateRef.current);
     if (!result) return;
     // Charged only when there is a hint to give, and before applying it.
     buy(HINT_COST, () => {
+      setNote({ reason: result.reason, kind: result.kind, id: Date.now() });
       stateRef.current = result.state;
       setState(result.state);
       setHints(n => n + 1);
@@ -225,6 +229,7 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
       <View style={styles.boardArea}>
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
+          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('bloom')} onGone={clearNote} />}
           <BloomBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onTurn={onTurn} flashCell={flashCell} />
         </Animated.View>
 

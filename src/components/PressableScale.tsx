@@ -1,6 +1,6 @@
 import React, { useRef } from 'react';
 import { Animated, GestureResponderEvent, Pressable, PressableProps, StyleProp, ViewStyle } from 'react-native';
-import { triggerFeedback } from '../game/rendering';
+import { triggerHaptic } from '../game/rendering';
 import { motion } from '../theme';
 
 export interface PressableScaleProps extends Omit<PressableProps, 'style'> {
@@ -58,7 +58,9 @@ export function PressableScale({
   const handlePressIn = (e: GestureResponderEvent): void => {
     firedRef.current = false;
     animateTo(scaleTo);
-    if (feedback) triggerFeedback('tap');
+    // A button press is felt, not heard: a tick of sound on every tap in
+    // the app was the thing players found wearing.
+    if (feedback) triggerHaptic('tap');
     onPressIn?.(e);
   };
 

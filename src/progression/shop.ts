@@ -1,5 +1,6 @@
-import { GameKind } from '../game/journey';
+import { GameKind, dailyKeyOf } from '../game/journey';
 import { PlayerProgress } from './playerProgress';
+import { PATRON_SEASON_DISCOUNT } from './store';
 
 /**
  * The shop: what coins are *for*. Cosmetics that change how the almanac
@@ -15,8 +16,13 @@ import { PlayerProgress } from './playerProgress';
 export type SkinGame = Exclude<GameKind, 'bridges'>;
 export const SKIN_GAMES: ReadonlyArray<SkinGame> = ['gravity', 'mirror', 'tents', 'towers', 'binairo', 'arukone', 'fillapix', 'lightsout', 'adjacent', 'bloom', 'mosaic'];
 /** Bridges' look is its chart (the `chart` slot) - it had one first. */
-export type CosmeticSlot = 'confetti' | 'ball' | 'chart' | 'garden' | `skin-${SkinGame}`;
-export const COSMETIC_SLOTS: ReadonlyArray<CosmeticSlot> = ['confetti', 'ball', 'chart', 'garden', ...SKIN_GAMES.map(g => `skin-${g}` as const)];
+export type CosmeticSlot = 'confetti' | 'ball' | 'chart' | 'garden' | 'chime' | `skin-${SkinGame}`;
+export const COSMETIC_SLOTS: ReadonlyArray<CosmeticSlot> = ['confetti', 'ball', 'chart', 'garden', 'chime', ...SKIN_GAMES.map(g => `skin-${g}` as const)];
+
+/** The four seasons, by the calendar month (northern hemisphere, like the
+ * almanac's own moon). */
+export type Season = 'spring' | 'summer' | 'autumn' | 'winter';
+export const SEASON_NAMES: Readonly<Record<Season, string>> = { spring: 'Spring', summer: 'Summer', autumn: 'Autumn', winter: 'Winter' };
 
 export function skinSlot(game: GameKind): CosmeticSlot {
   return game === 'bridges' ? 'chart' : `skin-${game}`;
@@ -53,6 +59,14 @@ export interface Cosmetic {
    * `skinOverrides`), with its own values by night where they differ. */
   readonly tokens?: Readonly<Record<string, string>>;
   readonly darkTokens?: Readonly<Record<string, string>>;
+  /** Sold only in this season; owned for good once bought. */
+  readonly season?: Season;
+  /** Never sold: earned by reaching a Daily streak this long. */
+  readonly streak?: number;
+  /** A solve chime: the sound file it plays (see `sound.ts`). */
+  readonly sound?: string;
+  /** Never sold: comes with the Patron pass (see `store.ts`). */
+  readonly patron?: true;
 }
 
 /** The default in each slot - owned from the start, never sold. */
@@ -61,6 +75,7 @@ export const DEFAULT_EQUIPPED: Readonly<Record<CosmeticSlot, string>> = {
   ball: 'ball-violet',
   chart: 'chart-day',
   garden: 'garden-terracotta',
+  chime: 'chime-house',
   ...(Object.fromEntries(SKIN_GAMES.map(g => [`skin-${g}`, `skin-${g}-classic`])) as Record<`skin-${SkinGame}`, string>),
 };
 
@@ -70,6 +85,11 @@ const { common, fine, rare, masterwork } = RARITY_PRICES;
 function skins(game: SkinGame, classic: string, items: ReadonlyArray<Omit<Cosmetic, 'slot'>>): Cosmetic[] {
   const slot = `skin-${game}` as const;
   return [{ id: `skin-${game}-classic`, slot, name: 'Classic', blurb: classic, price: 0, colors: [] }, ...items.map(item => ({ ...item, slot }))];
+}
+
+/** Each game's Masterwork - the top of its shelf. */
+function masterworks(items: ReadonlyArray<Omit<Cosmetic, 'slot' | 'price'> & { game: SkinGame }>): Cosmetic[] {
+  return items.map(({ game, ...item }) => ({ ...item, slot: `skin-${game}` as const, price: masterwork }));
 }
 
 export const COSMETICS: ReadonlyArray<Cosmetic> = [
@@ -104,6 +124,38 @@ export const COSMETICS: ReadonlyArray<Cosmetic> = [
   { id: 'garden-orchid', slot: 'garden', name: 'Orchid', blurb: 'Rare, and grown slowly.', price: 0, exclusive: true, colors: ['#8E5BB5'] },
   { id: 'ball-meteorite', slot: 'ball', name: 'Meteorite', blurb: 'Fell from a hard week.', price: 0, exclusive: true, colors: ['#2A1E16', '#5E4632', '#A98458', '#F2D9A8'] },
   { id: 'chart-admiralty', slot: 'chart', name: 'Admiralty', blurb: 'Sepia, for old sea dogs.', price: 0, exclusive: true, colors: ['#E6DBC2', '#D2C29E', '#CBB994', '#6B2D2D', '#FFFBF1'] },
+
+  // --- Streak prizes: never sold, earned by keeping the Daily going. ---
+  { id: 'confetti-bunting', slot: 'confetti', name: 'Bunting', blurb: 'A week of Dailies, flagged.', price: 0, exclusive: true, streak: 7, colors: ['#C8506A', '#F3D98A', '#3F6FA0', '#FFFDF8'] },
+  { id: 'ball-sunstone', slot: 'ball', name: 'Sunstone', blurb: 'A month of mornings, set in stone.', price: 0, exclusive: true, streak: 30, colors: ['#8A3A12', '#D4692A', '#F2A25A', '#FFE3C2'] },
+  { id: 'garden-lotus', slot: 'garden', name: 'Golden Lotus', blurb: 'A hundred days. It opens for very few.', price: 0, exclusive: true, streak: 100, colors: ['#D4A72C'] },
+
+  // --- Patron pieces: come with the Patron pass, never sold. ---
+  { id: 'confetti-gilt', slot: 'confetti', name: 'Gilt Patron', blurb: 'Gold leaf and ink, for Patrons.', price: 0, exclusive: true, patron: true, colors: ['#B7892F', '#E8C66E', '#3B1F52', '#FFF4D0'] },
+  { id: 'chime-patron', slot: 'chime', name: 'Patron Bells', blurb: 'A gilded peal, for Patrons.', price: 0, exclusive: true, patron: true, sound: 'sfx_chime_patron.wav', colors: ['#B7892F', '#3B1F52'] },
+
+  // --- In season: each sold only in its own three months. ---
+  { id: 'confetti-leaves', slot: 'confetti', name: 'Falling Leaves', blurb: 'Maple and oak on the wind.', price: rare, season: 'autumn', colors: ['#B5452B', '#D9822B', '#E3B341', '#7A4A2A'] },
+  { id: 'garden-maple', slot: 'garden', name: 'Maple', blurb: 'October red.', price: fine, season: 'autumn', colors: ['#B5452B'] },
+  { id: 'ball-chestnut', slot: 'ball', name: 'Chestnut', blurb: 'Fresh from the husk, polished.', price: fine, season: 'autumn', colors: ['#3D2416', '#6E3F24', '#A8693E', '#F2D2B0'] },
+  { id: 'confetti-snowfall', slot: 'confetti', name: 'Snowfall', blurb: 'The first quiet snow.', price: rare, season: 'winter', colors: ['#FFFFFF', '#DCE8F2', '#A9C3D9', '#7FA3C4'] },
+  { id: 'garden-holly', slot: 'garden', name: 'Holly', blurb: 'Red berries in the frost.', price: fine, season: 'winter', colors: ['#A3233A'] },
+  { id: 'ball-frost', slot: 'ball', name: 'Frost', blurb: 'A window pane, rolled.', price: fine, season: 'winter', colors: ['#5E7E9E', '#9FBCD6', '#E3EEF7', '#FFFFFF'] },
+  { id: 'confetti-showers', slot: 'confetti', name: 'April Showers', blurb: 'Rain, petals, and sun between.', price: rare, season: 'spring', colors: ['#9CC3E0', '#C8DDB0', '#F4C2CF', '#FFFFFF'] },
+  { id: 'garden-wisteria', slot: 'garden', name: 'Wisteria', blurb: 'Hanging over the garden wall.', price: fine, season: 'spring', colors: ['#9A86C2'] },
+  { id: 'ball-robin', slot: 'ball', name: "Robin's Egg", blurb: 'The blue of a new nest.', price: fine, season: 'spring', colors: ['#4E9A9E', '#86C9C7', '#CDEDEA', '#FFFFFF'] },
+  { id: 'confetti-fireflies', slot: 'confetti', name: 'Fireflies', blurb: 'A warm night, lit up.', price: rare, season: 'summer', colors: ['#F5E27A', '#C9F26B', '#2E3B2A', '#FFF6C8'] },
+  { id: 'garden-sunflower', slot: 'garden', name: 'Sunflower', blurb: 'Turned to the light.', price: fine, season: 'summer', colors: ['#E3A21F'] },
+  { id: 'ball-seaglass', slot: 'ball', name: 'Sea Glass', blurb: 'Worn smooth by the tide.', price: fine, season: 'summer', colors: ['#2F7F78', '#6FB8AE', '#BFE6DD', '#F4FFFB'] },
+
+  // --- Solve chimes: the sound of every solved puzzle. ---
+  { id: 'chime-house', slot: 'chime', name: 'House Chimes', blurb: "Each game's own finish.", price: 0, colors: ['#C46C33', '#3B1F52'] },
+  { id: 'chime-kalimba', slot: 'chime', name: 'Kalimba', blurb: 'Thumbed metal, warm wood.', price: fine, sound: 'sfx_chime_kalimba.wav', colors: ['#B8683A', '#F2D2B0'] },
+  { id: 'chime-wind', slot: 'chime', name: 'Wind Chimes', blurb: 'A breeze on the porch.', price: fine, sound: 'sfx_chime_wind.wav', colors: ['#6F8FD6', '#E3EEF7'] },
+  { id: 'chime-bell', slot: 'chime', name: 'Temple Bell', blurb: 'One deep, long note.', price: rare, sound: 'sfx_chime_bell.wav', colors: ['#8C6A1C', '#E8C66E'] },
+  { id: 'chime-harp', slot: 'chime', name: 'Glass Harp', blurb: 'Wet fingers on crystal rims.', price: masterwork, sound: 'sfx_chime_harp.wav', colors: ['#6FE3D4', '#E9E3F5'] },
+
+  { id: 'chart-golden', slot: 'chart', name: 'Golden Hour', blurb: 'The sea at the end of the day.', price: masterwork, colors: ['#F6E3C0', '#EDCF98', '#E9C88F', '#5A3A1E', '#FFFBF2'] },
 
   // --- Game skins: every game's own pieces, in new materials. ---
   ...skins('gravity', 'Blue glass pieces.', [
@@ -150,6 +202,21 @@ export const COSMETICS: ReadonlyArray<Cosmetic> = [
     { id: 'skin-mosaic-marble', name: 'Marble Bed', blurb: 'Tiles set in white stone.', price: fine, colors: ['#ECE8E2', '#D6D0C8'], tokens: { mosaicSocket: '#EEEAE4', mosaicGrout: '#D8D2CA', mosaicSlabEdge: '#B9B1A7', mosaicSocketWall: '#D1CAC1' }, darkTokens: { mosaicSocket: '#34313B', mosaicGrout: '#28252E', mosaicSlabEdge: '#121016', mosaicSocketWall: '#211E27' } },
     { id: 'skin-mosaic-slate', name: 'Slate Bed', blurb: 'Tiles set in blue-grey slate.', price: rare, colors: ['#E8E9EC', '#C4CAD2'], tokens: { mosaicSocket: '#E8E9EC', mosaicGrout: '#C4CAD2', mosaicSlabEdge: '#8D98A4', mosaicSocketWall: '#BCC3CC' }, darkTokens: { mosaicSocket: '#262C36', mosaicGrout: '#1D222A', mosaicSlabEdge: '#0B0E12', mosaicSocketWall: '#181C23' } },
   ]),
+
+  // --- Masterworks: every game's finest set. ---
+  ...masterworks([
+    { game: 'gravity', id: 'skin-gravity-amethyst', name: 'Amethyst', blurb: 'Cut from a geode.', colors: ['#7A4FB8'], tokens: { pieceBlue: '#7A4FB8' }, darkTokens: { pieceBlue: '#A783E0' } },
+    { game: 'mirror', id: 'skin-mirror-sunbeam', name: 'Sunbeam', blurb: 'Noon light, caught and bent.', colors: ['#F5C24E', '#FFF8E1'], tokens: { mirrorBeamGlow: '#F5C24E', mirrorBeamCore: '#FFF8E1' } },
+    { game: 'tents', id: 'skin-tents-pavilion', name: 'Royal Pavilion', blurb: 'Tents fit for a tournament.', colors: ['#3F5FB5', '#273E80'], tokens: { tentLight: '#3F5FB5', tentDark: '#273E80' }, darkTokens: { tentLight: '#6F8FE0', tentDark: '#3F5FB5' } },
+    { game: 'towers', id: 'skin-towers-rose', name: 'Rose Quartz', blurb: 'A pink city at dawn.', colors: ['#8E4A62', '#FFE9B8'], tokens: { towersBuilding: '#8E4A62', towersBuildingRoof: '#B56A84', towersWindow: '#FFE9B8' } },
+    { game: 'binairo', id: 'skin-binairo-sapphire', name: 'Sapphire & Coral', blurb: 'Deep sea and its reef.', colors: ['#2F5DAF', '#E07A5F'], tokens: { binairoMarkFilled: '#2F5DAF', binairoMarkFilledLight: '#6F93D6', binairoMarkFilledDark: '#1B3A73', binairoMarkOutline: '#E07A5F', binairoMarkOutlineLight: '#F2A88F', binairoMarkOutlineDark: '#A84A33' } },
+    { game: 'arukone', id: 'skin-arukone-gold', name: 'Gold Thread', blurb: 'Embroidery in real gilt.', colors: ['#B7892F'], tokens: { arukoneAccent: '#B7892F' }, darkTokens: { arukoneAccent: '#E3B341' } },
+    { game: 'fillapix', id: 'skin-fillapix-midnight', name: 'Midnight Ink', blurb: 'Blue-black, like a fountain pen.', colors: ['#1F2A44'], tokens: { fillapixAccent: '#1F2A44' }, darkTokens: { fillapixAccent: '#B9C6E6' } },
+    { game: 'lightsout', id: 'skin-lightsout-firefly', name: 'Firefly', blurb: 'Green-gold lamps in the dusk.', colors: ['#C9F26B', '#F7FFE0'], tokens: { lightsOutLit: '#C9F26B', lightsOutLitCore: '#F7FFE0' } },
+    { game: 'adjacent', id: 'skin-adjacent-ember', name: 'Ember Kiln', blurb: 'Five glazes from the hottest fire.', colors: ['#9E3B2B', '#C7682B', '#D9A032', '#6E7B3A', '#4A3B57'], tokens: { adjacentTile0: '#9E3B2B', adjacentTile1: '#C7682B', adjacentTile2: '#D9A032', adjacentTile3: '#6E7B3A', adjacentTile4: '#4A3B57' } },
+    { game: 'bloom', id: 'skin-bloom-iris', name: 'Midnight Iris', blurb: 'Flowers that open after dark.', colors: ['#4B4FB5'], tokens: { bloomAccent: '#4B4FB5' }, darkTokens: { bloomAccent: '#8C90E8' } },
+    { game: 'mosaic', id: 'skin-mosaic-gold', name: 'Gold Leaf Bed', blurb: 'Tiles set in gilded grout.', colors: ['#F4E7C2', '#D9C384'], tokens: { mosaicSocket: '#F4E7C2', mosaicGrout: '#E3CF95', mosaicSlabEdge: '#B99A4E', mosaicSocketWall: '#D9C384' }, darkTokens: { mosaicSocket: '#3A3122', mosaicGrout: '#2B2418', mosaicSlabEdge: '#120E08', mosaicSocketWall: '#241D12' } },
+  ]),
 ];
 
 /** The palette tokens every worn game skin repaints - by day, and by
@@ -178,7 +245,44 @@ export function cosmeticsFor(slot: CosmeticSlot): ReadonlyArray<Cosmetic> {
 
 export function owns(progress: PlayerProgress, id: string): boolean {
   const item = cosmeticById(id);
-  return item !== undefined && ((item.price === 0 && !item.exclusive) || progress.owned.includes(id));
+  if (item === undefined) return false;
+  // A streak prize is the streak itself: derived, so it can never drift.
+  if (item.streak !== undefined) return progress.bestDailyStreak >= item.streak;
+  if (item.patron) return progress.patron;
+  return (item.price === 0 && !item.exclusive) || progress.owned.includes(id);
+}
+
+/** The season a date falls in, by its UTC month (as the Daily keys are). */
+export function seasonOf(date: Date = new Date()): Season {
+  const m = date.getUTCMonth();
+  if (m >= 2 && m <= 4) return 'spring';
+  if (m >= 5 && m <= 7) return 'summer';
+  if (m >= 8 && m <= 10) return 'autumn';
+  return 'winter';
+}
+
+/** Whole days left in the current season, counting today. */
+export function seasonDaysLeft(date: Date = new Date()): number {
+  const y = date.getUTCFullYear();
+  const m = date.getUTCMonth();
+  // Each season ends as its third month does: May, August, November, February.
+  const endMonth = m >= 2 && m <= 4 ? 5 : m >= 5 && m <= 7 ? 8 : m >= 8 && m <= 10 ? 11 : 2;
+  const endYear = endMonth === 2 && m >= 11 ? y + 1 : y;
+  const end = Date.UTC(endYear, endMonth, 1);
+  const today = Date.UTC(y, m, date.getUTCDate());
+  return Math.max(1, Math.round((end - today) / 86400000));
+}
+
+/** Whether an item can be bought on this date: always, unless it belongs
+ * to a season other than this one. */
+export function inSeason(item: Cosmetic, date: Date = new Date()): boolean {
+  return item.season === undefined || item.season === seasonOf(date);
+}
+
+/** This season's pieces. */
+export function seasonalItems(date: Date = new Date()): ReadonlyArray<Cosmetic> {
+  const season = seasonOf(date);
+  return COSMETICS.filter(item => item.season === season);
 }
 
 /** The item worn in `slot` - falling back to the default if the save
@@ -190,16 +294,40 @@ export function equipped(progress: PlayerProgress, slot: CosmeticSlot): Cosmetic
   return cosmeticById(DEFAULT_EQUIPPED[slot])!;
 }
 
+/** Today's feature: one item a day, the same for everyone, at a fifth
+ * off. Chosen from the calendar alone (like the Daily), so it never
+ * changes mid-day - buy it and it simply reads as yours until tomorrow. */
+export const FEATURED_DISCOUNT = 0.2;
+export function featuredItem(date: Date = new Date()): Cosmetic {
+  const pool = COSMETICS.filter(item => item.price > 0 && !item.exclusive && item.season === undefined);
+  const key = dailyKeyOf(date);
+  let hash = 0;
+  for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) % 1000003;
+  return pool[hash % pool.length];
+}
+
+/** What an item costs today - its tier price, or less if it is today's
+ * feature, or a seasonal piece bought by a Patron. Rounded to a tidy ten. */
+export function priceFor(item: Cosmetic, date: Date = new Date(), progress?: PlayerProgress): number {
+  if (item.price > 0 && featuredItem(date).id === item.id) return Math.round((item.price * (1 - FEATURED_DISCOUNT)) / 10) * 10;
+  if (item.season && progress?.patron) return Math.round((item.price * (1 - PATRON_SEASON_DISCOUNT)) / 10) * 10;
+  return item.price;
+}
+
 /** Buys an item and puts it on at once. Null if it cannot be bought (not
- * for sale, already owned, or too dear). */
-export function buyCosmetic(progress: PlayerProgress, id: string): PlayerProgress | null {
+ * for sale, already owned, or too dear). A pinned goal it fulfils is
+ * cleared. */
+export function buyCosmetic(progress: PlayerProgress, id: string, date: Date = new Date()): PlayerProgress | null {
   const item = cosmeticById(id);
-  if (!item || item.price === 0 || owns(progress, id) || progress.coins < item.price) return null;
+  if (!item || item.price === 0 || owns(progress, id) || !inSeason(item, date)) return null;
+  const price = priceFor(item, date, progress);
+  if (progress.coins < price) return null;
   return {
     ...progress,
-    coins: progress.coins - item.price,
+    coins: progress.coins - price,
     owned: [...progress.owned, id],
     equipped: { ...progress.equipped, [item.slot]: id },
+    shopGoal: progress.shopGoal === id ? null : progress.shopGoal,
   };
 }
 
@@ -259,3 +387,52 @@ export function buyLuckyCharm(progress: PlayerProgress): PlayerProgress | null {
 
 /** Swapping the puzzle a player is stuck on for another game's. */
 export const SWAP_PRICE = 100;
+
+// ---------------------------------------------------------------------------
+// Sets: pieces that belong together. Owning every piece of one pays a
+// one-off bonus, about a tenth of what the set cost.
+// ---------------------------------------------------------------------------
+
+export interface CosmeticSet {
+  readonly id: string;
+  readonly name: string;
+  readonly blurb: string;
+  readonly items: ReadonlyArray<string>;
+  readonly reward: number;
+}
+
+export const COSMETIC_SETS: ReadonlyArray<CosmeticSet> = [
+  { id: 'set-kiln', name: 'The Kiln', blurb: 'Everything fired, glazed and warm.', items: ['skin-gravity-ember', 'skin-tents-ember', 'skin-fillapix-ember', 'ball-coral', 'skin-arukone-copper'], reward: 300 },
+  { id: 'set-green', name: 'The Green Room', blurb: 'Jade, sage and sea.', items: ['ball-jade', 'skin-gravity-jade', 'skin-mirror-emerald', 'garden-sage', 'chart-tropic'], reward: 350 },
+  { id: 'set-garden', name: 'Garden Party', blurb: 'Petals, lanterns and soft glaze.', items: ['confetti-blossom', 'garden-camellia', 'skin-bloom-lavender', 'skin-lightsout-rose', 'skin-adjacent-pastel'], reward: 350 },
+  { id: 'set-night', name: 'Night Sea', blurb: 'Lamps and stars over dark water.', items: ['chart-night', 'ball-obsidian', 'confetti-starlight', 'skin-towers-midnight', 'skin-lightsout-ice'], reward: 450 },
+  { id: 'set-gilded', name: 'The Gilded Age', blurb: 'Gold, and then more gold.', items: ['confetti-gold', 'ball-gold', 'skin-binairo-gold', 'garden-marigold', 'skin-arukone-gold', 'chime-bell'], reward: 600 },
+  { id: 'set-seasons', name: 'Four Seasons', blurb: "One confetti from each season. A year's work.", items: ['confetti-showers', 'confetti-fireflies', 'confetti-leaves', 'confetti-snowfall'], reward: 700 },
+];
+
+export function setProgress(progress: PlayerProgress, set: CosmeticSet): { owned: number; total: number; complete: boolean; claimed: boolean } {
+  const owned = set.items.filter(id => owns(progress, id)).length;
+  return { owned, total: set.items.length, complete: owned === set.items.length, claimed: progress.setsClaimed.includes(set.id) };
+}
+
+/** The sets an item belongs to. */
+export function setsWith(id: string): ReadonlyArray<CosmeticSet> {
+  return COSMETIC_SETS.filter(set => set.items.includes(id));
+}
+
+/** Sets complete but not yet claimed. */
+export function unclaimedSets(progress: PlayerProgress): ReadonlyArray<CosmeticSet> {
+  return COSMETIC_SETS.filter(set => {
+    const p = setProgress(progress, set);
+    return p.complete && !p.claimed;
+  });
+}
+
+/** Pays a completed set's bonus once. Null if not complete or already paid. */
+export function claimSet(progress: PlayerProgress, id: string): PlayerProgress | null {
+  const set = COSMETIC_SETS.find(s => s.id === id);
+  if (!set) return null;
+  const p = setProgress(progress, set);
+  if (!p.complete || p.claimed) return null;
+  return { ...progress, coins: progress.coins + set.reward, setsClaimed: [...progress.setsClaimed, id] };
+}

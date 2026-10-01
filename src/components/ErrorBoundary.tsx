@@ -47,7 +47,7 @@ export class ErrorBoundary extends React.Component<ErrorBoundaryProps, ErrorBoun
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Something went wrong</Text>
-        <Text style={styles.message}>Sorry about that - your progress is saved. Give it another try.</Text>
+        <Text style={styles.message}>Sorry about that. Your progress is saved, so give it another try.</Text>
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel="Try again"

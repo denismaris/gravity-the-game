@@ -11,3 +11,4 @@ export {
 } from './logic';
 export { assertValidMirrorMaze, revealHint, solveMirrorMaze } from './solver';
 export { getMirrorMazeById, getMirrorMazesByDifficulty, MIRROR_MAZES } from './puzzles';
+export { explainMirrorHint } from './explain';

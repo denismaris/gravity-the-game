@@ -35,7 +35,7 @@ export function LevelFailedCard({
   onRetry,
   onExit,
   title = 'DESTROYED',
-  message = 'A piece hit a hazard - this attempt is over.',
+  message = 'A piece hit a hazard. This attempt is over.',
 }: LevelFailedCardProps): React.JSX.Element {
   // `subdued`: the same staged arrival every other card uses, but landing
   // without overshoot and with no light sweep. A loss should feel like it

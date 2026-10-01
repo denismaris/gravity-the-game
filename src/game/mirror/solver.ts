@@ -223,6 +223,46 @@ export function revealHint(
  * minimum. The budget matters: a few 6x6 boards take the plain search a
  * minute; a generator must be able to walk away from those.
  */
+/**
+ * A solution with the fewest mirrors any solution needs - what a hint
+ * should steer toward, since the plain search (mirrors first) happily
+ * finds answers with twice the mirrors a player needs. Among the shortest
+ * answers it keeps the player's own choices wherever it can, so a hint
+ * builds on their work. Null if the budget runs out first.
+ */
+export function solveFewestMirrors(puzzle: MirrorMazePuzzle, preferred?: MirrorMazeState, maxNodes = 60000): MirrorMazeState | null {
+  let nodes = 0;
+  const eligible = puzzle.rows * puzzle.cols;
+  for (let allowance = 0; allowance <= eligible; allowance += 1) {
+    const grid = buildInitialGrid(puzzle);
+    let found: MirrorMazeState | null = null;
+    const dfs = (placed: number): void => {
+      if (found || nodes > maxNodes) return;
+      nodes += 1;
+      const result = traceWithDecisions(puzzle, grid);
+      if (result.status === 'solved') {
+        found = { mirrors: grid.map(line => line.map(cell => (cell === undefined ? null : cell))) };
+        return;
+      }
+      if (result.status === 'failed') return;
+      const { row, col } = result.cell;
+      const mine = preferred?.mirrors[row]?.[col] ?? null;
+      const order = [mine, ...([null, 'fwd', 'back'] as const).filter(c => c !== mine)];
+      for (const choice of order) {
+        if (choice !== null && placed >= allowance) continue;
+        grid[row][col] = choice;
+        dfs(placed + (choice === null ? 0 : 1));
+        grid[row][col] = undefined;
+        if (found || nodes > maxNodes) return;
+      }
+    };
+    dfs(0);
+    if (found) return found;
+    if (nodes > maxNodes) return null;
+  }
+  return null;
+}
+
 export function fewestMirrors(puzzle: MirrorMazePuzzle, maxNodes = 60000): number | null {
   let nodes = 0;
   const eligible = puzzle.rows * puzzle.cols;

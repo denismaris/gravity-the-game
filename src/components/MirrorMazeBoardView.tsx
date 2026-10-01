@@ -20,7 +20,7 @@ import {
   useAnimationClock,
   useReducedMotion,
 } from '../game/rendering';
-import { theme } from '../theme';
+import { theme, lightColors } from '../theme';
 import { SkiaEntrance } from './SkiaEntrance';
 
 /** How long a mirror takes to spin into place after a tap. */
@@ -604,7 +604,7 @@ export function MirrorMazeBoardView({
           should leave the source, not swallow it. */}
       <Path
         path={arrowPath(sourceCenter.x, sourceCenter.y, arrowSize, puzzle.sourceDirection)}
-        color={theme.colors.background}
+        color={lightColors.background}
       />
 
       <StaticGems layout={layout} gems={puzzle.gems} gemSize={gemSize} activeKeys={activeGemKeys} />

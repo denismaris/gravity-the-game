@@ -103,9 +103,9 @@ const PAGES: ReadonlyArray<IntroPage> = [
   {
     kicker: 'WELCOME TO TESSERA',
     title: 'Twelve games, one almanac',
-    body: 'Logic puzzles from twelve different games, dealt to you one after another. No level select, no menus to wade through - just the next good puzzle.',
+    body: 'Logic puzzles from twelve different games, dealt to you one after another. No level select, no menus to wade through. Just the next good puzzle.',
     points: [
-      ['▦︎', 'A new board every time - they never run out'],
+      ['▦︎', 'A new board every time. They never run out'],
       ['✓︎', 'Every puzzle has one solution, reachable by logic'],
     ],
     art: width => <GamesArt width={width} />,
@@ -115,7 +115,7 @@ const PAGES: ReadonlyArray<IntroPage> = [
     title: 'Sets of four',
     body: 'Each level is a set of puzzles from mixed games. Finish the set to move on. Difficulty climbs gently, and a hard challenge turns up now and then.',
     points: [
-      ['—', 'The underlined puzzle is the challenge'],
+      ['▁', 'The underlined puzzle is the challenge'],
       ['◉', 'A golden puzzle pays triple coins'],
     ],
     art: width => <SetArt width={width} />,
@@ -123,7 +123,7 @@ const PAGES: ReadonlyArray<IntroPage> = [
   {
     kicker: 'COINS & HINTS',
     title: 'Earn, then spend',
-    body: 'Every first solve pays coins - more for three stars. Spend them on a hint when you are stuck, or on new looks for your almanac in the shop.',
+    body: 'Every first solve pays coins, more for three stars. Spend them on a hint when you are stuck, or on new looks for your almanac in the shop.',
     points: [
       ['★︎', 'Stars fall with each hint you take'],
       ['×', 'Solve without hints in a row for a clean-run bonus'],
@@ -175,7 +175,7 @@ export function IntroWalkthrough({ onDone }: IntroWalkthroughProps): React.JSX.E
   const goTo = (next: number) => {
     scroller.current?.scrollTo({ x: next * cardWidth, animated: true });
     setPage(next);
-    triggerFeedback('tap');
+    triggerFeedback('uiPage');
   };
 
   const onScrollEnd = (event: NativeSyntheticEvent<NativeScrollEvent>) => {

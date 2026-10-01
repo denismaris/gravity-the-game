@@ -12,6 +12,7 @@
 		0C80B921A6F3F58F76C31292 /* libPods-GravityInit.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-GravityInit.a */; };
 		103E266DC96111ECDC638735 /* sfx_binairo_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = F317E282D8AEEA9FDD698D15 /* sfx_binairo_solve.wav */; };
 		1210564D9271BA2284DC905A /* sfx_bridges_build.wav in Resources */ = {isa = PBXBuildFile; fileRef = 174889A22302B38C207CCBB5 /* sfx_bridges_build.wav */; };
+		12B09D86EE9787F5F822CA1E /* sfx_coin.wav in Resources */ = {isa = PBXBuildFile; fileRef = E2CA00CBA0A26EE543BF18E1 /* sfx_coin.wav */; };
 		139D034796C454514FD4461C /* sfx_move.wav in Resources */ = {isa = PBXBuildFile; fileRef = 82C8FD3C1722BA279244080C /* sfx_move.wav */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		185A9A8EA8F7DCD06461B506 /* sfx_towers_place.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3B6A68F0B4555DC11A36A5E2 /* sfx_towers_place.wav */; };
@@ -24,7 +25,9 @@
 		3B9DFF08DD9B530E577575F3 /* sfx_mirror_place.wav in Resources */ = {isa = PBXBuildFile; fileRef = 81B6A7CD078CA1E09335C233 /* sfx_mirror_place.wav */; };
 		3C36AFFD3CB1594066DC76B7 /* sfx_fillapix_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3CB2D123973CEA10C7DA43BA /* sfx_fillapix_solve.wav */; };
 		3CA70813EB5D2FDB2D437AF7 /* sfx_tents_row_complete.wav in Resources */ = {isa = PBXBuildFile; fileRef = 1E96CE94D4CB06168C226B9A /* sfx_tents_row_complete.wav */; };
+		3D9FDED5EC21D0D92409D262 /* sfx_chime_kalimba.wav in Resources */ = {isa = PBXBuildFile; fileRef = 1673F406B9C979B4FCF41A58 /* sfx_chime_kalimba.wav */; };
 		3ED44C89C2D6166C8C4C2B7B /* sfx_bloom_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = 373318F8AFD9AF43B0FE7A5B /* sfx_bloom_solve.wav */; };
+		49BA63A169391742B8AA8B8F /* sfx_chime_harp.wav in Resources */ = {isa = PBXBuildFile; fileRef = F22E9895B032E02CF9D3E44D /* sfx_chime_harp.wav */; };
 		4E45E3ABBF09147574E45CAA /* sfx_arukone_join.wav in Resources */ = {isa = PBXBuildFile; fileRef = C2CD9879DB1D9ECEBF008AE7 /* sfx_arukone_join.wav */; };
 		4EC4FDB738B9E61670F21C45 /* sfx_tents_error.wav in Resources */ = {isa = PBXBuildFile; fileRef = D9BBB737A0FEDF8A0EE4FB01 /* sfx_tents_error.wav */; };
 		538EA4387E502E3B2269EC1F /* sfx_ink_trail_contact.wav in Resources */ = {isa = PBXBuildFile; fileRef = 0A6212DBB44BEC00DD621749 /* sfx_ink_trail_contact.wav */; };
@@ -52,15 +55,19 @@
 		A3C80C12944B68B102554B7E /* sfx_lightsout_darker.wav in Resources */ = {isa = PBXBuildFile; fileRef = 091A002588969DA5725E963F /* sfx_lightsout_darker.wav */; };
 		A88628172EEE414793683535 /* TesseraReminders.m in Sources */ = {isa = PBXBuildFile; fileRef = E9393C3C1D287906F3CB9FF4 /* TesseraReminders.m */; };
 		AA234A743259FBC8A98D859D /* sfx_ink_trail_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = C6A09C40ADE31CC2E6AAE983 /* sfx_ink_trail_solve.wav */; };
+		BD26C04614B83E6C23D8EE1D /* sfx_chime_patron.wav in Resources */ = {isa = PBXBuildFile; fileRef = B7A92B754AD2B6C8E3BAF8C3 /* sfx_chime_patron.wav */; };
 		BD94BB3E149A7EA6D5B47038 /* sfx_arukone_step.wav in Resources */ = {isa = PBXBuildFile; fileRef = BA0C9804E19654197006E5F2 /* sfx_arukone_step.wav */; };
 		C69E9DA997F25CB0DA994111 /* sfx_bridges_island.wav in Resources */ = {isa = PBXBuildFile; fileRef = 28005D0291680A8B98B8E3A9 /* sfx_bridges_island.wav */; };
 		C6D0609B1EEA1F4EC543E155 /* sfx_mirror_gem.wav in Resources */ = {isa = PBXBuildFile; fileRef = B4BCA7DF5DF9E2E4C048C218 /* sfx_mirror_gem.wav */; };
 		C75E6ABE796EA53C84291540 /* sfx_fail.wav in Resources */ = {isa = PBXBuildFile; fileRef = 0BE463B4E3DBCB2D279BFC24 /* sfx_fail.wav */; };
 		CCDD9D0F0FC88F7FDAA7B618 /* sfx_bloom_close.wav in Resources */ = {isa = PBXBuildFile; fileRef = C0D02C6443B34F16A94B898A /* sfx_bloom_close.wav */; };
+		CF1E418E887E39CBBCC51615 /* sfx_chime_wind.wav in Resources */ = {isa = PBXBuildFile; fileRef = D6AB41301899245ADE02CE5D /* sfx_chime_wind.wav */; };
 		D14419D1337840ACF62532D2 /* sfx_bloom_turn.wav in Resources */ = {isa = PBXBuildFile; fileRef = F6543F1051E5E411DAA5608C /* sfx_bloom_turn.wav */; };
+		D898C04D9AB36BAF9C909DC8 /* sfx_chime_bell.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3FE6A0613B2DC6E13E5639E0 /* sfx_chime_bell.wav */; };
 		E0C7A0C4C46364B81D5E27E6 /* sfx_mosaic_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = C76C0CF785BB38F0FB435554 /* sfx_mosaic_solve.wav */; };
 		E32B288A57E5B905EA185645 /* sfx_towers_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = 6E4C97F0D249C82985E84986 /* sfx_towers_solve.wav */; };
 		E6DEC47F2E183A18E4721154 /* sfx_mosaic_pickup.wav in Resources */ = {isa = PBXBuildFile; fileRef = A01F9B190BCC2BCFFA4A6D33 /* sfx_mosaic_pickup.wav */; };
+		F524EFAE2A8C2F54DDD1AD7D /* sfx_ui_page.wav in Resources */ = {isa = PBXBuildFile; fileRef = 4C3AC5DAE3ED4BABAD67BC83 /* sfx_ui_page.wav */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -73,6 +80,7 @@
 		13B07FB51A68108700A75B9A /* Images.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; name = Images.xcassets; path = GravityInit/Images.xcassets; sourceTree = "<group>"; };
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = GravityInit/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = GravityInit/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		1673F406B9C979B4FCF41A58 /* sfx_chime_kalimba.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_chime_kalimba.wav; path = GravityInit/Sounds/sfx_chime_kalimba.wav; sourceTree = "<group>"; };
 		174889A22302B38C207CCBB5 /* sfx_bridges_build.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_bridges_build.wav; path = GravityInit/Sounds/sfx_bridges_build.wav; sourceTree = "<group>"; };
 		18785872A2254CCABF8FF6E3 /* sfx_towers_row_complete.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_towers_row_complete.wav; path = GravityInit/Sounds/sfx_towers_row_complete.wav; sourceTree = "<group>"; };
 		18D648F25764C6A01DF64BC2 /* sfx_tents_plant.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_tents_plant.wav; path = GravityInit/Sounds/sfx_tents_plant.wav; sourceTree = "<group>"; };
@@ -84,6 +92,8 @@
 		3B4392A12AC88292D35C810B /* Pods-GravityInit.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GravityInit.debug.xcconfig"; path = "Target Support Files/Pods-GravityInit/Pods-GravityInit.debug.xcconfig"; sourceTree = "<group>"; };
 		3B6A68F0B4555DC11A36A5E2 /* sfx_towers_place.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_towers_place.wav; path = GravityInit/Sounds/sfx_towers_place.wav; sourceTree = "<group>"; };
 		3CB2D123973CEA10C7DA43BA /* sfx_fillapix_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_fillapix_solve.wav; path = GravityInit/Sounds/sfx_fillapix_solve.wav; sourceTree = "<group>"; };
+		3FE6A0613B2DC6E13E5639E0 /* sfx_chime_bell.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_chime_bell.wav; path = GravityInit/Sounds/sfx_chime_bell.wav; sourceTree = "<group>"; };
+		4C3AC5DAE3ED4BABAD67BC83 /* sfx_ui_page.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_ui_page.wav; path = GravityInit/Sounds/sfx_ui_page.wav; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-GravityInit.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GravityInit.release.xcconfig"; path = "Target Support Files/Pods-GravityInit/Pods-GravityInit.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-GravityInit.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-GravityInit.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		64406E1A073E9C3E3F54E9CB /* sfx_binairo_toggle.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_binairo_toggle.wav; path = GravityInit/Sounds/sfx_binairo_toggle.wav; sourceTree = "<group>"; };
@@ -108,6 +118,7 @@
 		A6771E312736404BD2FD70EE /* sfx_tap.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_tap.wav; path = GravityInit/Sounds/sfx_tap.wav; sourceTree = "<group>"; };
 		B4BCA7DF5DF9E2E4C048C218 /* sfx_mirror_gem.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_mirror_gem.wav; path = GravityInit/Sounds/sfx_mirror_gem.wav; sourceTree = "<group>"; };
 		B4EE1D3E6C53746442CB35B9 /* sfx_arukone_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_arukone_solve.wav; path = GravityInit/Sounds/sfx_arukone_solve.wav; sourceTree = "<group>"; };
+		B7A92B754AD2B6C8E3BAF8C3 /* sfx_chime_patron.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_chime_patron.wav; path = GravityInit/Sounds/sfx_chime_patron.wav; sourceTree = "<group>"; };
 		BA0C9804E19654197006E5F2 /* sfx_arukone_step.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_arukone_step.wav; path = GravityInit/Sounds/sfx_arukone_step.wav; sourceTree = "<group>"; };
 		BF4A64503A5344D1F60D5457 /* sfx_step.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_step.wav; path = GravityInit/Sounds/sfx_step.wav; sourceTree = "<group>"; };
 		BFAAE301FFA1BC61BD53DC70 /* sfx_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_solve.wav; path = GravityInit/Sounds/sfx_solve.wav; sourceTree = "<group>"; };
@@ -115,10 +126,13 @@
 		C2CD9879DB1D9ECEBF008AE7 /* sfx_arukone_join.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_arukone_join.wav; path = GravityInit/Sounds/sfx_arukone_join.wav; sourceTree = "<group>"; };
 		C6A09C40ADE31CC2E6AAE983 /* sfx_ink_trail_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_ink_trail_solve.wav; path = GravityInit/Sounds/sfx_ink_trail_solve.wav; sourceTree = "<group>"; };
 		C76C0CF785BB38F0FB435554 /* sfx_mosaic_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_mosaic_solve.wav; path = GravityInit/Sounds/sfx_mosaic_solve.wav; sourceTree = "<group>"; };
+		D6AB41301899245ADE02CE5D /* sfx_chime_wind.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_chime_wind.wav; path = GravityInit/Sounds/sfx_chime_wind.wav; sourceTree = "<group>"; };
 		D9BBB737A0FEDF8A0EE4FB01 /* sfx_tents_error.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_tents_error.wav; path = GravityInit/Sounds/sfx_tents_error.wav; sourceTree = "<group>"; };
+		E2CA00CBA0A26EE543BF18E1 /* sfx_coin.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_coin.wav; path = GravityInit/Sounds/sfx_coin.wav; sourceTree = "<group>"; };
 		E9393C3C1D287906F3CB9FF4 /* TesseraReminders.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = TesseraReminders.m; path = GravityInit/TesseraReminders.m; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F002F5190C506BAACACE55E8 /* sfx_bridges_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_bridges_solve.wav; path = GravityInit/Sounds/sfx_bridges_solve.wav; sourceTree = "<group>"; };
+		F22E9895B032E02CF9D3E44D /* sfx_chime_harp.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_chime_harp.wav; path = GravityInit/Sounds/sfx_chime_harp.wav; sourceTree = "<group>"; };
 		F317E282D8AEEA9FDD698D15 /* sfx_binairo_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_binairo_solve.wav; path = GravityInit/Sounds/sfx_binairo_solve.wav; sourceTree = "<group>"; };
 		F6543F1051E5E411DAA5608C /* sfx_bloom_turn.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_bloom_turn.wav; path = GravityInit/Sounds/sfx_bloom_turn.wav; sourceTree = "<group>"; };
 		FC23D3BF292257E5217ACC95 /* sfx_binairo_error.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_binairo_error.wav; path = GravityInit/Sounds/sfx_binairo_error.wav; sourceTree = "<group>"; };
@@ -249,6 +263,13 @@
 				0163F917EB544A92C0B5B551 /* sfx_mosaic_place.wav */,
 				92DD3365B4D262FC5B9413FB /* sfx_mosaic_return.wav */,
 				C76C0CF785BB38F0FB435554 /* sfx_mosaic_solve.wav */,
+				E2CA00CBA0A26EE543BF18E1 /* sfx_coin.wav */,
+				4C3AC5DAE3ED4BABAD67BC83 /* sfx_ui_page.wav */,
+				3FE6A0613B2DC6E13E5639E0 /* sfx_chime_bell.wav */,
+				F22E9895B032E02CF9D3E44D /* sfx_chime_harp.wav */,
+				1673F406B9C979B4FCF41A58 /* sfx_chime_kalimba.wav */,
+				D6AB41301899245ADE02CE5D /* sfx_chime_wind.wav */,
+				B7A92B754AD2B6C8E3BAF8C3 /* sfx_chime_patron.wav */,
 			);
 			name = Sounds;
 			sourceTree = "<group>";
@@ -364,6 +385,13 @@
 				61C675E24328CFC3B8B1EF78 /* sfx_mosaic_place.wav in Resources */,
 				57D355D19F4E80F6F370981D /* sfx_mosaic_return.wav in Resources */,
 				E0C7A0C4C46364B81D5E27E6 /* sfx_mosaic_solve.wav in Resources */,
+				12B09D86EE9787F5F822CA1E /* sfx_coin.wav in Resources */,
+				F524EFAE2A8C2F54DDD1AD7D /* sfx_ui_page.wav in Resources */,
+				D898C04D9AB36BAF9C909DC8 /* sfx_chime_bell.wav in Resources */,
+				49BA63A169391742B8AA8B8F /* sfx_chime_harp.wav in Resources */,
+				3D9FDED5EC21D0D92409D262 /* sfx_chime_kalimba.wav in Resources */,
+				CF1E418E887E39CBBCC51615 /* sfx_chime_wind.wav in Resources */,
+				BD26C04614B83E6C23D8EE1D /* sfx_chime_patron.wav in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

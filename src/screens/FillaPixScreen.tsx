@@ -1,3 +1,5 @@
+import { HintNote } from '../components/HintNote';
+import { HintKind } from '../game/hints';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -10,9 +12,7 @@ import {
   FillaPixPuzzle,
   FillaPixState,
   isFillaPixSolved,
-  revealFillaPixHint,
-  toggleCell,
-} from '../game/fillapix';
+  toggleCell, explainFillaPixHint } from '../game/fillapix';
 import {
   BatchProgressDots,
   DifficultyChip,
@@ -221,11 +221,15 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
     [applyState, state, givens],
   );
 
+  // The last hint's reason, shown over the board for a few seconds.
+  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
-    const result = revealFillaPixHint(state, puzzle);
+    const result = explainFillaPixHint(puzzle, state);
     if (!result) return;
     // Charged only when there is a hint to give, and before applying it.
     buy(HINT_COST, () => {
+      setNote({ reason: result.reason, kind: result.kind, id: Date.now() });
       historyRef.current.push(state);
       setHints(n => n + 1);
       setState(result.state);
@@ -301,6 +305,7 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
       <View style={styles.boardArea}>
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
+          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('fillapix')} onGone={clearNote} />}
           <FillaPixBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={onToggleCell} flashCell={flashCell} givens={givens} />
         </Animated.View>
 

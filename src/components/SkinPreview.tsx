@@ -91,13 +91,47 @@ function draw(game: string, s: number, c: (token: ColorToken) => string, paper: 
         </Group>
       );
     case 'arukone': {
+      // A solved 3x3 board, drawn the way the game draws one: two pairs
+      // of raised tokens, each joined by a cord that runs cell to cell
+      // and between them fills every cell.
       const tone = c('arukoneAccent');
+      const other = shade(tone, 1.46);
+      const at = (i: number) => s * (0.27 + i * 0.23);
+      const cord = (cells: ReadonlyArray<[number, number]>) => cells.map(([x, y], k) => `${k === 0 ? 'M' : 'L'} ${at(x)} ${at(y)}`).join(' ');
+      const a = cord([[0, 0], [0, 1], [0, 2], [1, 2], [2, 2]]);
+      const b = cord([[1, 0], [2, 0], [2, 1], [1, 1]]);
+      const w = s * 0.075;
+      const shadow = c('towersShadow');
       return (
         <Group>
-          <Path path={`M ${s * 0.2} ${s * 0.25} L ${s * 0.2} ${s * 0.55} Q ${s * 0.2} ${s * 0.75} ${s * 0.45} ${s * 0.75} L ${s * 0.8} ${s * 0.75}`} color={tone} style="stroke" strokeWidth={s * 0.08} strokeCap="round" />
-          <Path path={`M ${s * 0.45} ${s * 0.25} L ${s * 0.8} ${s * 0.25} L ${s * 0.8} ${s * 0.5}`} color={shade(tone, 1.45)} style="stroke" strokeWidth={s * 0.08} strokeCap="round" strokeJoin="round" />
-          <Circle cx={s * 0.2} cy={s * 0.25} r={s * 0.08} color={tone} />
-          <Circle cx={s * 0.8} cy={s * 0.75} r={s * 0.08} color={tone} />
+          <RoundedRect x={s * 0.13} y={s * 0.13} width={s * 0.74} height={s * 0.74} r={s * 0.08} color={paper} />
+          {[1, 2].map(k => (
+            <Group key={k}>
+              <Rect x={s * (0.155 + k * 0.23)} y={s * 0.17} width={1} height={s * 0.66} color={rule} />
+              <Rect x={s * 0.17} y={s * (0.155 + k * 0.23)} width={s * 0.66} height={1} color={rule} />
+            </Group>
+          ))}
+          {[
+            { d: a, tone, ends: [[0, 0], [2, 2]] },
+            { d: b, tone: other, ends: [[1, 0], [1, 1]] },
+          ].map(({ d, tone: t, ends }, k) => (
+            <Group key={k}>
+              <Group transform={[{ translateY: w * 0.14 }]}>
+                <Path path={d} color={shadow} style="stroke" strokeWidth={w} strokeCap="round" strokeJoin="round" />
+              </Group>
+              <Path path={d} color={t} style="stroke" strokeWidth={w} strokeCap="round" strokeJoin="round" />
+              <Group transform={[{ translateY: -w * 0.16 }]}>
+                <Path path={d} color={shade(t, 1.3)} opacity={0.5} style="stroke" strokeWidth={w * 0.26} strokeCap="round" strokeJoin="round" />
+              </Group>
+              {ends.map(([x, y]) => (
+                <Group key={`${x}${y}`}>
+                  <Circle cx={at(x)} cy={at(y) + s * 0.012} r={s * 0.085} color={shadow} />
+                  <Circle cx={at(x)} cy={at(y)} r={s * 0.085} color={t} />
+                  <Circle cx={at(x)} cy={at(y)} r={s * 0.078} color={shade(t, 1.55)} opacity={0.85} style="stroke" strokeWidth={s * 0.012} />
+                </Group>
+              ))}
+            </Group>
+          ))}
         </Group>
       );
     }

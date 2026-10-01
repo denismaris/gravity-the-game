@@ -9,7 +9,8 @@ import { LedgerStampRow } from '../components/LedgerStamp';
 import { PageBloom } from '../components/PageBloom';
 import { accentColorForKind, gameDisplayName, GameKind, ROTATION } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
-import { GameLedger, STAMP_COINS, STAMP_NAMES, STAMP_STEPS, Stamp, ledgerOf, stampsOf, usePlayerProgress } from '../progression';
+import { AptitudeChart } from '../components/AptitudeChart';
+import { GameLedger, computeAptitude, STAMP_COINS, STAMP_NAMES, STAMP_STEPS, Stamp, cosmeticsFor, ledgerOf, owns, skinSlot, stampsOf, usePlayerProgress } from '../progression';
 import { theme, themedStyles } from '../theme';
 
 export interface LedgerScreenProps {
@@ -52,12 +53,14 @@ function AlbumPage({
   row,
   stamps,
   retired,
+  collector,
   rowWidth,
   onClaim,
 }: {
   row: GameLedger;
   stamps: ReadonlyArray<Stamp>;
   retired: boolean;
+  collector: boolean;
   rowWidth: number;
   onClaim: (stamp: Stamp) => void;
 }): React.JSX.Element {
@@ -80,6 +83,8 @@ function AlbumPage({
               {gameDisplayName(row.kind)}
             </Text>
             {retired && <Text style={styles.retired}>RETIRED</Text>}
+            {/* Every set in the shop for this game owned. */}
+            {collector && <Text style={styles.collector}>{'\u2726\uFE0E COLLECTOR'}</Text>}
           </View>
           <Text style={styles.pageStats}>
             {row.solved > 0 ? `★ ${average} AVG · ${perfect}% PERFECT · ${row.byTier.hard} HARD` : 'NOT PLAYED YET'}
@@ -124,6 +129,7 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
   const { width } = useWindowDimensions();
   const { progress, coins, claimStamp } = usePlayerProgress();
   const ledger = useMemo(() => ledgerOf(progress), [progress]);
+  const aptitude = useMemo(() => computeAptitude(progress), [progress]);
   const [burst, setBurst] = useState(0);
 
   const mount = useRef(new Animated.Value(0)).current;
@@ -152,7 +158,7 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
 
   const claim = (stamp: Stamp) => {
     if (claimStamp(stamp.kind, stamp.step)) {
-      triggerFeedback('solved');
+      triggerFeedback('coin');
       setBurst(b => b + 1);
     }
   };
@@ -202,6 +208,37 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
           <SolveChart ledger={ledger} width={contentWidth - theme.spacing.md * 2} />
         </Animated.View>
 
+        {/* Puzzle IQ: one score across every game, scaled by difficulty,
+            and the shape of where it comes from. Moved here from Home,
+            where it was one page too many. */}
+        <View style={styles.hero}>
+          <View style={styles.iqHead}>
+            <Text style={styles.sectionLabel}>PUZZLE IQ</Text>
+            {aptitude.index !== null && <Text style={styles.iqPrecision}>{`${Math.round(aptitude.precision * 100)}% PRECISION`}</Text>}
+          </View>
+          {aptitude.index === null ? (
+            <Text style={styles.iqPending}>Solve a few more puzzles and your score will appear here.</Text>
+          ) : (
+            <Text style={styles.iqNumber}>{aptitude.index}</Text>
+          )}
+          <View style={styles.iqChart}>
+            <AptitudeChart games={aptitude.games} size={Math.min(220, contentWidth - theme.spacing.md * 2)} />
+          </View>
+          {aptitude.strongest && aptitude.weakest && (
+            <View style={styles.figures}>
+              <View style={styles.figure}>
+                <Text style={styles.iqFigureValue} numberOfLines={1}>{gameDisplayName(aptitude.strongest)}</Text>
+                <Text style={styles.figureLabel}>SHARPEST</Text>
+              </View>
+              <View style={styles.figureRule} />
+              <View style={styles.figure}>
+                <Text style={styles.iqFigureValue} numberOfLines={1}>{gameDisplayName(aptitude.weakest)}</Text>
+                <Text style={styles.figureLabel}>MOST ROOM</Text>
+              </View>
+            </View>
+          )}
+        </View>
+
         <View style={styles.albumHead}>
           <Text style={styles.sectionTitle}>THE ALBUM</Text>
           {totals.waiting > 0 && <Text style={[styles.sectionTitle, styles.sectionLive]}>{`${totals.waiting} TO CLAIM`}</Text>}
@@ -218,6 +255,7 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
               row={ledger[kind]}
               stamps={stampsOf(progress, ledger, kind)}
               retired={progress.retired.includes(kind)}
+              collector={cosmeticsFor(skinSlot(kind)).filter(i => i.price > 0).every(i => owns(progress, i.id))}
               rowWidth={rowWidth}
               onClaim={claim}
             />
@@ -252,6 +290,12 @@ const styles = themedStyles(() => ({
   figureValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 4, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   figureOf: { fontSize: theme.typography.sizes.body, color: theme.colors.textTertiary },
   figureLabel: { fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 1.2, color: theme.colors.textTertiary, marginTop: 2 },
+  iqHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  iqPrecision: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.2, color: theme.colors.secondary },
+  iqNumber: { fontFamily: theme.typography.families.display, fontSize: 56, lineHeight: 62, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  iqPending: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
+  iqChart: { alignItems: 'center', marginVertical: theme.spacing.md },
+  iqFigureValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   sectionLabel: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.4, color: theme.colors.textTertiary, marginBottom: theme.spacing.sm },
   albumHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   sectionTitle: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.secondary, marginBottom: theme.spacing.sm },
@@ -272,6 +316,7 @@ const styles = themedStyles(() => ({
   pageTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pageSwatch: { width: 10, height: 10, borderRadius: 3 },
   pageTitle: { flexShrink: 1, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  collector: { fontFamily: theme.typography.families.mono, fontSize: 8.5, letterSpacing: 1, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold, backgroundColor: theme.colors.goldFill, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden' },
   retired: { fontFamily: theme.typography.families.mono, fontSize: 8.5, letterSpacing: 1, color: theme.colors.textTertiary, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
   pageStats: { marginTop: 4, fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.6, color: theme.colors.textSecondary },
   pageCount: { alignItems: 'flex-end' },

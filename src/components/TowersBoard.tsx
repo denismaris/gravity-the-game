@@ -139,12 +139,23 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [conflicts, reducedMotion]);
 
-  const renderClue = (clue: number, key: string): React.JSX.Element => (
-    <View key={key} style={[styles.clueCell, { width: layout.cell, height: layout.cell }]}>
-      {clue !== 0 && (
+  // Each clue fills its own band: a cell wide and a gutter deep along the
+  // top and bottom, a gutter wide and a cell deep down the sides - so the
+  // margin is the same on all four sides of the grid. An unclued place
+  // shows an empty plaque, so "no clue here" reads as intended, not as a
+  // number gone missing.
+  const renderClue = (clue: number, key: string, side: 'across' | 'down'): React.JSX.Element => (
+    <View
+      key={key}
+      style={[styles.clueCell, side === 'across' ? { width: layout.cell, height: layout.gutter } : { width: layout.gutter, height: layout.cell }]}
+      accessibilityLabel={clue !== 0 ? `clue ${clue}` : 'no clue'}
+    >
+      {clue !== 0 ? (
         <View style={styles.clueChip}>
           <Text style={styles.clueText}>{clue}</Text>
         </View>
+      ) : (
+        <View style={styles.clueBlank} />
       )}
     </View>
   );
@@ -164,13 +175,13 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
     <View style={{ width: boardSize }}>
       <View style={styles.row}>
         <View style={{ width: layout.gutter }} />
-        {puzzle.topClues.map((clue, c) => renderClue(clue, `top-${c}`))}
+        {puzzle.topClues.map((clue, c) => renderClue(clue, `top-${c}`, 'across'))}
         <View style={{ width: layout.gutter }} />
       </View>
 
       <View style={styles.row}>
         <View style={{ width: layout.gutter }}>
-          {puzzle.leftClues.map((clue, r) => renderClue(clue, `left-${r}`))}
+          {puzzle.leftClues.map((clue, r) => renderClue(clue, `left-${r}`, 'down'))}
         </View>
 
         <View
@@ -303,13 +314,13 @@ export function TowersBoard({ puzzle, state, size, selected, onSelectCell, flash
         </View>
 
         <View style={{ width: layout.gutter }}>
-          {puzzle.rightClues.map((clue, r) => renderClue(clue, `right-${r}`))}
+          {puzzle.rightClues.map((clue, r) => renderClue(clue, `right-${r}`, 'down'))}
         </View>
       </View>
 
       <View style={styles.row}>
         <View style={{ width: layout.gutter }} />
-        {puzzle.bottomClues.map((clue, c) => renderClue(clue, `bottom-${c}`))}
+        {puzzle.bottomClues.map((clue, c) => renderClue(clue, `bottom-${c}`, 'across'))}
         <View style={{ width: layout.gutter }} />
       </View>
     </View>
@@ -522,6 +533,14 @@ const styles = themedStyles(() => ({
     paddingVertical: 2,
     borderRadius: 4,
     backgroundColor: theme.colors.towersClueChip,
+  },
+  clueBlank: {
+    width: 18,
+    height: 18,
+    borderRadius: 4,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderColor: theme.colors.border,
   },
   clueText: {
     fontFamily: theme.typography.families.mono,

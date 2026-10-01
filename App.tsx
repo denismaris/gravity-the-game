@@ -5,7 +5,7 @@
  * @format
  */
 
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
@@ -29,6 +29,7 @@ import {
   TowersScreen,
 } from './src/screens';
 import { useReminderSync } from './src/notifications';
+import { EmblemHandoff } from './src/components/EmblemHandoff';
 import { ErrorBoundary, IntroWalkthrough, LaunchSequence, ScreenTransition } from './src/components';
 import { getLevelById } from './src/game/levels';
 import { getMirrorMazeById } from './src/game/mirror';
@@ -44,7 +45,7 @@ import { getMosaicById } from './src/game/mosaic';
 import { getBridgesById } from './src/game/bridges';
 import { GameKind, NextPuzzleOptions } from './src/game/journey';
 import { CalmingInterstitialScreen } from './src/interstitial';
-import { PlayerProgressProvider, usePlayerProgress } from './src/progression';
+import { PlayerProgressProvider, notePuzzleOpened, usePlayerProgress } from './src/progression';
 import { AppearanceProvider, SettingsProvider, useAppearance, useHoldAppearance, useSettings } from './src/settings';
 import { theme, themedStyles } from './src/theme';
 
@@ -146,6 +147,18 @@ function AppRoutes(): React.JSX.Element {
   const scheme = useAppearance();
   useHoldAppearance(selected !== null || pendingNext !== null);
 
+  // The emblem hand-off, shown over a puzzle just opened from Home.
+  const [handoff, setHandoff] = useState<GameKind | null>(null);
+  // The clock for the Daily Duel starts the moment a puzzle opens.
+  useEffect(() => {
+    if (selected) notePuzzleOpened(selected.puzzleId);
+  }, [selected]);
+  const openFromHome = useCallback((target: Selected) => {
+    setHandoff(target.kind);
+    setSelected(target);
+  }, []);
+  const endHandoff = useCallback(() => setHandoff(null), []);
+
   const exit = useCallback(() => setSelected(null), []);
   // Shared by every game's completion screen as "next puzzle": advancing
   // always means going straight to the current level batch's next puzzle,
@@ -173,7 +186,7 @@ function AppRoutes(): React.JSX.Element {
 
   const homeScreen = (
     <HomeScreen
-      onOpen={setSelected}
+      onOpen={openFromHome}
       onOpenSettings={() => setOverlayRoute('settings')}
       onOpenAchievements={() => setOverlayRoute('achievements')}
       onOpenJourney={() => setOverlayRoute('journey')}
@@ -347,6 +360,7 @@ function AppRoutes(): React.JSX.Element {
       <ScreenTransition routeKey={`${routeKey}@${scheme}`} direction={direction}>
         <React.Fragment key={scheme}>{screen}</React.Fragment>
       </ScreenTransition>
+      {handoff && selected && <EmblemHandoff kind={handoff} onDone={endHandoff} />}
     </View>
   );
 }

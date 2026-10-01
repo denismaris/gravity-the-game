@@ -51,7 +51,7 @@ export const BINAIRO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
   {
     title: 'No three in a row',
-    body: "Three of the same shape in a row or column isn't allowed - hazard stripes flare up across the whole line the moment it happens.",
+    body: "Three of the same shape in a row or column isn't allowed. Hazard stripes flare up across the whole line the moment it happens.",
     illustration: 'triple',
   },
   {
@@ -61,7 +61,7 @@ export const BINAIRO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
   {
     title: 'No repeats',
-    body: 'No two rows - and no two columns - can end up identical.',
+    body: 'No two rows, and no two columns, can end up identical.',
     illustration: 'duplicate',
   },
   {
@@ -140,7 +140,7 @@ export const GRAVITY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
   {
     title: 'Move together',
-    body: 'One swipe moves every piece on the board - plan a direction that helps all of them, not just one.',
+    body: 'One swipe moves every piece on the board. Plan a direction that helps all of them, not just one.',
     illustration: 'multi',
   },
 ];
@@ -193,7 +193,7 @@ export const TOWERS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
   {
     title: 'Clues count what you see',
-    body: "Each clue outside the grid is how many towers you'd see looking straight in from that side - a taller tower hides every shorter one behind it.",
+    body: "Each clue outside the grid is how many towers you'd see looking straight in from that side. A taller tower hides every shorter one behind it.",
     illustration: 'visibility',
   },
 ];
@@ -214,7 +214,7 @@ export const TOWERS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const ARUKONE_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Join the pairs',
-    body: 'Connect matching number pairs with paths - touch a number and drag through the squares beside it.',
+    body: 'Connect matching number pairs with paths. Touch a number and drag through the squares beside it.',
     illustration: 'connect',
   },
   {
@@ -224,7 +224,7 @@ export const ARUKONE_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
   {
     title: 'Fill every square',
-    body: 'Complete all pairs without crossing paths - and leave no square empty. Every square belongs to exactly one path.',
+    body: 'Complete all pairs without crossing paths, and leave no square empty. Every square belongs to exactly one path.',
     illustration: 'crossing',
   },
 ];
@@ -290,12 +290,12 @@ export const LIGHTSOUT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const BLOOM_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap to turn',
-    body: 'Tap a tile to turn it a quarter. Every line has to meet another line - none may stop in the open or run off the edge.',
+    body: 'Tap a tile to turn it a quarter. Every line has to meet another line. None may stop in the open or run off the edge.',
     illustration: 'turn',
   },
   {
     title: 'Pins never turn',
-    body: 'A tile with an ochre pin is fixed, and so is every knot - the tiles with two arcs. Read outward from them, and from the rim.',
+    body: 'A tile with an ochre pin is fixed, and so is every knot (the tiles with two arcs). Read outward from them, and from the rim.',
     illustration: 'knot',
   },
   {
@@ -318,7 +318,7 @@ export const MOSAIC_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
   {
     title: 'Fill every square',
-    body: 'Every piece, every square, one way to fit. Start where the picture is narrow - only one piece can go there.',
+    body: 'Every piece, every square, one way to fit. Start where the picture is narrow. Only one piece can go there.',
     illustration: 'fill',
   },
 ];
@@ -326,7 +326,7 @@ export const MOSAIC_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const BRIDGES_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Drag or tap to build',
-    body: 'Drag from an island toward another - or just tap the water between them - to lay a bridge. Bridges run straight across open water: up, down, left or right.',
+    body: 'Drag from an island toward another, or just tap the water between them, to lay a bridge. Bridges run straight across open water: up, down, left or right.',
     illustration: 'drag',
   },
   {
@@ -349,12 +349,12 @@ export const ADJACENT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
   {
     title: 'The tray falls in',
-    body: 'Whatever sat above the gap drops straight down into it. Columns never slide sideways - what is in a column stays in it.',
+    body: 'Whatever sat above the gap drops straight down into it. Columns never slide sideways. What is in a column stays in it.',
     illustration: 'fall',
   },
   {
     title: 'Reach the target',
-    body: 'Bigger runs are worth much more per tile, so hold your colours together. Hit the target score - or clear the tray outright - to finish.',
+    body: 'Bigger runs are worth much more per tile, so hold your colours together. Hit the target score, or clear the tray outright, to finish.',
     illustration: 'target',
   },
 ];
@@ -370,11 +370,11 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   },
   tents: {
     title: 'Tents and Trees',
-    body: 'Tap a cell to pitch a tent, tap again to cross it out as empty. Every tent needs exactly one tree beside it, and no two tents may touch - match every row and column\'s count to solve it.',
+    body: 'Tap a cell to pitch a tent, tap again to cross it out as empty. Every tent needs exactly one tree beside it, and no two tents may touch. Match every row and column\'s count to solve it.',
   },
   towers: {
     title: 'Skyscrapers',
-    body: 'Fill every row and column with each height exactly once - tap a cell, then tap a number. The clues outside the grid show how many towers are visible from that side.',
+    body: 'Fill every row and column with each height exactly once. Tap a cell, then tap a number. The clues outside the grid show how many towers are visible from that side.',
   },
   binairo: {
     title: 'Binairo',
@@ -386,7 +386,7 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   },
   fillapix: {
     title: 'Fill-a-Pix',
-    body: 'Tap a cell to fill it, tap again to clear it. The filled cells form a hidden picture. Each clue counts the filled squares in its own 3x3 block - all nine, including the square the number sits on - match every clue to complete it.',
+    body: 'Tap a cell to fill it, tap again to clear it. The filled cells form a hidden picture. Each clue counts the filled squares in its own 3x3 block, all nine, including the square the number sits on, match every clue to complete it.',
   },
   lightsout: {
     title: 'Lights Out',
@@ -394,26 +394,26 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   },
   adjacent: {
     title: 'Adjacent',
-    body: 'Tap any tile touching another of its own colour to clear the whole run, and whatever sat above it falls in. Bigger runs score far more per tile - reach the target score, or clear the tray, to finish.',
+    body: 'Tap any tile touching another of its own colour to clear the whole run, and whatever sat above it falls in. Bigger runs score far more per tile. Reach the target score, or clear the tray, to finish.',
   },
   bloom: {
     title: 'Bloom',
-    body: 'Tap a tile to turn it a quarter. Every line must meet another line - none may end in the open or run off the edge. Pinned knots never turn: read outward from them and from the rim. A loop that closes blooms; close them all to finish.',
+    body: 'Tap a tile to turn it a quarter. Every line must meet another line. None may end in the open or run off the edge. Pinned knots never turn: read outward from them and from the rim. A loop that closes blooms; close them all to finish.',
   },
   bridges: {
     title: 'Bridges',
-    body: 'Drag from one island toward another, or tap the water between them, to lay a bridge. Each number is how many bridges that island needs - one or two may join any pair. Bridges never cross, and every island must end up connected into one network.',
+    body: 'Drag from one island toward another, or tap the water between them, to lay a bridge. Each number is how many bridges that island needs. One or two may join any pair. Bridges never cross, and every island must end up connected into one network.',
   },
   mosaic: {
     title: 'Mosaic',
-    body: 'Drag the pieces from the tray into the picture. Tap a piece in the tray to turn it. Some pieces are already set, flush in the picture, to start you off. Cover every square - there is only one way it all fits. Narrow places first.',
+    body: 'Drag the pieces from the tray into the picture. Tap a piece in the tray to turn it. Some pieces are already set, flush in the picture, to start you off. Cover every square. There is only one way it all fits. Narrow places first.',
   },
 };
 
 const MECHANIC_INTROS: Record<MechanicTutorialId, TutorialCopy> = {
   obstacles: {
     title: 'Obstacles',
-    body: 'Solid blocks. Nothing can slide through or land on one - plan a route around them.',
+    body: 'Solid blocks. Nothing can slide through or land on one. Plan a route around them.',
   },
   anchored: {
     title: 'Anchored Pieces',
@@ -425,11 +425,11 @@ const MECHANIC_INTROS: Record<MechanicTutorialId, TutorialCopy> = {
   },
   'gravity-zone': {
     title: 'Gravity Zone',
-    body: 'Inside the tinted area, gravity always pulls the way the arrows point - no matter which way you swipe.',
+    body: 'Inside the tinted area, gravity always pulls the way the arrows point, no matter which way you swipe.',
   },
   hazard: {
     title: 'Hazard',
-    body: 'Careful - sliding a piece onto one destroys it and ends the attempt. Route around it.',
+    body: 'Careful. Sliding a piece onto one destroys it and ends the attempt. Route around it.',
   },
 };
 

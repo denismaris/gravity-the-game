@@ -173,7 +173,7 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
   {
     id: 'stars:all',
     title: 'Full Almanac',
-    description: `Earn every star - all ${TOTAL_STARS_POSSIBLE}.`,
+    description: `Earn every star, all ${TOTAL_STARS_POSSIBLE} of them.`,
     isEarned: progress => getTotalStars(progress) >= TOTAL_STARS_POSSIBLE,
   },
   {
@@ -229,7 +229,7 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
   {
     id: 'journey:complete',
     title: 'Completionist',
-    description: `Solve every puzzle in every game - all ${ALL_PUZZLE_IDS.length}.`,
+    description: `Solve every puzzle in every game, all ${ALL_PUZZLE_IDS.length} of them.`,
     isEarned: progress => ALL_PUZZLE_IDS.every(puzzleId => isLevelCompleted(progress, puzzleId)),
   },
 ];
