@@ -57,8 +57,8 @@ export function explainBinairoHint(puzzle: BinairoPuzzle, state: BinairoState): 
       cell,
       kind: 'fix',
       reason: tooMany
-        ? `That line already has more ${shapes(v)} than half. This one is a ${shape(right)}.`
-        : `This ${shape(v)} leads to a dead end further on - it's a ${shape(right)}.`,
+        ? `This line already has too many ${shapes(v)}. This one is a ${shape(right)}.`
+        : `A ${shape(v)} here would break a rule a few moves later. It has to be a ${shape(right)}.`,
     };
   }
 
@@ -79,12 +79,12 @@ export function explainBinairoHint(puzzle: BinairoPuzzle, state: BinairoState): 
         const p2 = at(r - 2 * dr, c - 2 * dc);
         const n1 = at(r + dr, c + dc);
         const n2 = at(r + 2 * dr, c + 2 * dc);
-        if (p1 !== null && p1 === p2 && p1 !== want) add(0, `Two ${shapes(p1)} side by side. The next one has to be a ${shape(want)}.`);
-        if (n1 !== null && n1 === n2 && n1 !== want) add(0, `Two ${shapes(n1)} side by side. The one before them has to be a ${shape(want)}.`);
+        if (p1 !== null && p1 === p2 && p1 !== want) add(0, `Two ${shapes(p1)} in a row, and three is not allowed. The next one is a ${shape(want)}.`);
+        if (n1 !== null && n1 === n2 && n1 !== want) add(0, `Two ${shapes(n1)} in a row, and three is not allowed. The one before them is a ${shape(want)}.`);
         if (p1 !== null && p1 === n1 && p1 !== want) add(1, `A ${shape(want)} has to sit between two ${shapes(p1)}, or there would be three in a ${word}.`);
         const line = lineOf(r, c, dr);
         const other = (1 - want) as 0 | 1;
-        if (line.filter(x => x === other).length === n / 2) add(3, `This ${word} already has all ${n / 2} of its ${shapes(other)} - the rest are ${shapes(want)}.`);
+        if (line.filter(x => x === other).length === n / 2) add(3, `This ${word} already has all ${n / 2} of its ${shapes(other)}. Every empty square left is a ${shape(want)}.`);
       }
       for (const k of puzzle.constraints ?? []) {
         const partner = k.direction === 'right' ? { row: k.row, col: k.col + 1 } : { row: k.row + 1, col: k.col };
@@ -93,7 +93,7 @@ export function explainBinairoHint(puzzle: BinairoPuzzle, state: BinairoState): 
         if (!mine && !theirs) continue;
         const o = mine ? at(partner.row, partner.col) : at(k.row, k.col);
         if (o === null) continue;
-        add(2, k.kind === 'same' ? `The = badge says this matches its neighbour: a ${shape(want)}.` : `The × badge says this differs from its neighbour: a ${shape(want)}.`);
+        add(2, k.kind === 'same' ? `The = sign means this matches its neighbour, so it's a ${shape(want)}.` : `The × sign means this is the opposite of its neighbour, so it's a ${shape(want)}.`);
       }
     }
   }
@@ -114,6 +114,6 @@ export function explainBinairoHint(puzzle: BinairoPuzzle, state: BinairoState): 
     state: setValue(state, puzzle, best.row, best.col, v),
     cell: best,
     kind: 'nudge',
-    reason: `Try both shapes here: only a ${shape(v)} keeps this row and column from breaking a rule later.`,
+    reason: `Only a ${shape(v)} here lets this row and column both be finished.`,
   };
 }

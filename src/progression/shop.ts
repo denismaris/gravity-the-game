@@ -28,13 +28,14 @@ export function skinSlot(game: GameKind): CosmeticSlot {
   return game === 'bridges' ? 'chart' : `skin-${game}`;
 }
 
-/** Four tiers, priced against what play actually earns: a player who
- * works through three level sets, the Daily and the errands collects
- * roughly 350 coins a day. A Common piece is about a day of that, Fine
- * two, Rare three, and a Masterwork most of a week - something to save
- * for, not something that falls into your lap. */
+/** Four tiers, priced against what play actually earns. A regular player
+ * (ten puzzles, the Daily, three errands and the gift) collects about 400
+ * coins a day; a casual one about 225, a devoted one about 750. A Common
+ * piece is about a regular day, Fine two, Rare three, and a Masterwork
+ * most of a week - something to save for, not something that falls into
+ * your lap. */
 export type Rarity = 'common' | 'fine' | 'rare' | 'masterwork';
-export const RARITY_PRICES: Readonly<Record<Rarity, number>> = { common: 350, fine: 600, rare: 900, masterwork: 1500 };
+export const RARITY_PRICES: Readonly<Record<Rarity, number>> = { common: 400, fine: 750, rare: 1200, masterwork: 2400 };
 export const RARITY_NAMES: Readonly<Record<Rarity, string>> = { common: 'Common', fine: 'Fine', rare: 'Rare', masterwork: 'Masterwork' };
 
 export function rarityOf(item: Cosmetic): Rarity | null {
@@ -232,7 +233,7 @@ export function skinOverrides(progress: PlayerProgress): { light: Record<string,
   return { light, dark };
 }
 
-export const STREAK_FREEZE_PRICE = 100;
+export const STREAK_FREEZE_PRICE = 150;
 export const MAX_STREAK_FREEZES = 3;
 
 export function cosmeticById(id: string): Cosmetic | undefined {
@@ -358,7 +359,7 @@ export function buyStreakFreeze(progress: PlayerProgress): PlayerProgress | null
 export const MAX_RETIRED = 3;
 /** Retiring gets dearer with each game already retired. Bringing one back
  * is free (the coins are not refunded). */
-export const RETIRE_PRICES: ReadonlyArray<number> = [500, 800, 1200];
+export const RETIRE_PRICES: ReadonlyArray<number> = [600, 1000, 1500];
 
 export function retirePrice(progress: PlayerProgress): number | null {
   return progress.retired.length >= MAX_RETIRED ? null : RETIRE_PRICES[progress.retired.length];
@@ -376,9 +377,11 @@ export function reinstateGame(progress: PlayerProgress, kind: GameKind): PlayerP
 }
 
 /** The lucky charm: the next few solves that pay anything pay double. */
-export const LUCKY_CHARM_PRICE = 200;
-export const LUCKY_CHARM_CHARGES = 8;
-export const MAX_LUCKY_CHARGES = 24;
+export const LUCKY_CHARM_PRICE = 250;
+/** Ten doubled solves give back 230 to 300 coins: a small bet on yourself
+ * that only pays if the solves are clean. */
+export const LUCKY_CHARM_CHARGES = 10;
+export const MAX_LUCKY_CHARGES = 30;
 
 export function buyLuckyCharm(progress: PlayerProgress): PlayerProgress | null {
   if (progress.coins < LUCKY_CHARM_PRICE || progress.luckyCharges + LUCKY_CHARM_CHARGES > MAX_LUCKY_CHARGES) return null;
@@ -402,12 +405,12 @@ export interface CosmeticSet {
 }
 
 export const COSMETIC_SETS: ReadonlyArray<CosmeticSet> = [
-  { id: 'set-kiln', name: 'The Kiln', blurb: 'Everything fired, glazed and warm.', items: ['skin-gravity-ember', 'skin-tents-ember', 'skin-fillapix-ember', 'ball-coral', 'skin-arukone-copper'], reward: 300 },
-  { id: 'set-green', name: 'The Green Room', blurb: 'Jade, sage and sea.', items: ['ball-jade', 'skin-gravity-jade', 'skin-mirror-emerald', 'garden-sage', 'chart-tropic'], reward: 350 },
-  { id: 'set-garden', name: 'Garden Party', blurb: 'Petals, lanterns and soft glaze.', items: ['confetti-blossom', 'garden-camellia', 'skin-bloom-lavender', 'skin-lightsout-rose', 'skin-adjacent-pastel'], reward: 350 },
-  { id: 'set-night', name: 'Night Sea', blurb: 'Lamps and stars over dark water.', items: ['chart-night', 'ball-obsidian', 'confetti-starlight', 'skin-towers-midnight', 'skin-lightsout-ice'], reward: 450 },
-  { id: 'set-gilded', name: 'The Gilded Age', blurb: 'Gold, and then more gold.', items: ['confetti-gold', 'ball-gold', 'skin-binairo-gold', 'garden-marigold', 'skin-arukone-gold', 'chime-bell'], reward: 600 },
-  { id: 'set-seasons', name: 'Four Seasons', blurb: "One confetti from each season. A year's work.", items: ['confetti-showers', 'confetti-fireflies', 'confetti-leaves', 'confetti-snowfall'], reward: 700 },
+  { id: 'set-kiln', name: 'The Kiln', blurb: 'Everything fired, glazed and warm.', items: ['skin-gravity-ember', 'skin-tents-ember', 'skin-fillapix-ember', 'ball-coral', 'skin-arukone-copper'], reward: 380 },
+  { id: 'set-green', name: 'The Green Room', blurb: 'Jade, sage and sea.', items: ['ball-jade', 'skin-gravity-jade', 'skin-mirror-emerald', 'garden-sage', 'chart-tropic'], reward: 450 },
+  { id: 'set-garden', name: 'Garden Party', blurb: 'Petals, lanterns and soft glaze.', items: ['confetti-blossom', 'garden-camellia', 'skin-bloom-lavender', 'skin-lightsout-rose', 'skin-adjacent-pastel'], reward: 450 },
+  { id: 'set-night', name: 'Night Sea', blurb: 'Lamps and stars over dark water.', items: ['chart-night', 'ball-obsidian', 'confetti-starlight', 'skin-towers-midnight', 'skin-lightsout-ice'], reward: 600 },
+  { id: 'set-gilded', name: 'The Gilded Age', blurb: 'Gold, and then more gold.', items: ['confetti-gold', 'ball-gold', 'skin-binairo-gold', 'garden-marigold', 'skin-arukone-gold', 'chime-bell'], reward: 850 },
+  { id: 'set-seasons', name: 'Four Seasons', blurb: "One confetti from each season. A year's work.", items: ['confetti-showers', 'confetti-fireflies', 'confetti-leaves', 'confetti-snowfall'], reward: 900 },
 ];
 
 export function setProgress(progress: PlayerProgress, set: CosmeticSet): { owned: number; total: number; complete: boolean; claimed: boolean } {
@@ -435,4 +438,37 @@ export function claimSet(progress: PlayerProgress, id: string): PlayerProgress |
   const p = setProgress(progress, set);
   if (!p.complete || p.claimed) return null;
   return { ...progress, coins: progress.coins + set.reward, setsClaimed: [...progress.setsClaimed, id] };
+}
+
+// ---------------------------------------------------------------------------
+// Ad-free time, bought with coins. It runs from the moment it is bought (or
+// from the end of the time already held), and buying more extends it.
+// ---------------------------------------------------------------------------
+
+export interface AdFreeOption {
+  readonly id: 'day' | 'week' | 'month';
+  readonly label: string;
+  readonly hours: number;
+  readonly price: number;
+}
+
+/** Priced above what a regular player earns in the same time, so ads stay
+ * the norm and ad-free stays a treat: a day costs more than a day of play
+ * pays, a month is the Vault pack exactly. */
+export const AD_FREE_OPTIONS: ReadonlyArray<AdFreeOption> = [
+  { id: 'day', label: '1 day', hours: 24, price: 500 },
+  { id: 'week', label: '7 days', hours: 24 * 7, price: 2800 },
+  { id: 'month', label: '30 days', hours: 24 * 30, price: 9000 },
+];
+
+/** Whether ad-free time is running at `now`. */
+export function isAdFree(progress: PlayerProgress, now: number = Date.now()): boolean {
+  return progress.adFreeUntil !== null && progress.adFreeUntil > now;
+}
+
+export function buyAdFree(progress: PlayerProgress, id: AdFreeOption['id'], now: number = Date.now()): PlayerProgress | null {
+  const option = AD_FREE_OPTIONS.find(o => o.id === id);
+  if (!option || progress.coins < option.price) return null;
+  const from = Math.max(now, progress.adFreeUntil ?? 0);
+  return { ...progress, coins: progress.coins - option.price, adFreeUntil: from + option.hours * 3600000 };
 }

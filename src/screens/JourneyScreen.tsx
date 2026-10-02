@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, ScrollView, Text, View } from 'react-native';
+import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfettiBurst, PressableScale } from '../components';
 import { CoinBalance, CoinGlyph } from '../components/Coins';
@@ -140,16 +140,20 @@ export function JourneyScreen({ onExit, onOpenShop }: JourneyScreenProps): React
           <Text style={styles.heroNext}>
             {fmt(rank.to - rank.xp)} XP TO {nextTitle.toUpperCase()}
           </Text>
-          <View style={styles.earnRow}>
-            {[
-              ['★︎', `${XP_PER_STAR} / STAR`],
-              ['▦︎', `${XP_PER_PUZZLE} / PUZZLE`],
-              ['✦︎', `${XP_PER_ERRAND} / ERRAND`],
-              ['☀︎', `${XP_PER_STREAK_DAY} / RUN DAY`],
-            ].map(([glyph, label]) => (
-              <View key={label} style={styles.earnChip}>
-                <Text style={styles.earnGlyph}>{glyph}</Text>
-                <Text style={styles.earnText}>{label}</Text>
+          {/* How experience is earned, as a small table rather than a row
+              of codes. */}
+          <View style={styles.earnTable}>
+            {(
+              [
+                ['A star', XP_PER_STAR],
+                ['A puzzle solved', XP_PER_PUZZLE],
+                ['An errand done', XP_PER_ERRAND],
+                ['A day on your streak', XP_PER_STREAK_DAY],
+              ] as const
+            ).map(([label, xp]) => (
+              <View key={label} style={styles.earnCell}>
+                <Text style={styles.earnValue}>{`+${xp} XP`}</Text>
+                <Text style={styles.earnLabel}>{label}</Text>
               </View>
             ))}
           </View>
@@ -248,10 +252,10 @@ const styles = themedStyles(() => ({
   heroTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.headline + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   heroBar: { marginTop: theme.spacing.md },
   heroNext: { marginTop: 6, fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1, color: theme.colors.textSecondary },
-  earnRow: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginTop: theme.spacing.md },
-  earnChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 8, paddingVertical: 4, borderRadius: theme.radii.pill, backgroundColor: theme.colors.surfaceAlt },
-  earnGlyph: { fontSize: 11, color: theme.colors.accent },
-  earnText: { fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.6, color: theme.colors.textSecondary },
+  earnTable: { flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'stretch', marginTop: theme.spacing.lg, paddingTop: theme.spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, rowGap: theme.spacing.sm },
+  earnCell: { width: '50%', alignItems: 'center' },
+  earnValue: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  earnLabel: { fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
   sectionTitle: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.secondary, marginBottom: theme.spacing.sm },
   current: { padding: theme.spacing.lg, borderRadius: 22, backgroundColor: theme.colors.surfaceHi, borderWidth: 1.5, borderColor: theme.colors.accent, marginBottom: theme.spacing.xl },
   currentKicker: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.accent },

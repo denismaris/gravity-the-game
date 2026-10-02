@@ -3,7 +3,7 @@ import { Animated, Easing, Text, View } from 'react-native';
 import { HintKind } from '../game/hints';
 import { theme, themedStyles } from '../theme';
 
-const LABEL: Record<HintKind, string> = { fix: 'SET RIGHT', rule: 'WHY', nudge: 'A NUDGE' };
+const LABEL: Record<HintKind, string> = { fix: 'Fixed', rule: 'Why', nudge: 'Hint' };
 
 /**
  * The hint's reason, in a card that slides in over the top of the board
@@ -42,7 +42,8 @@ const styles = themedStyles(() => ({
     // stay in view.
     position: 'absolute',
     bottom: '100%',
-    marginBottom: 8,
+    // Clear of the board's top clue row, in the space above the stage.
+    marginBottom: 22,
     left: 0,
     right: 0,
     flexDirection: 'row',
@@ -61,6 +62,6 @@ const styles = themedStyles(() => ({
     zIndex: 10,
   },
   tag: { paddingHorizontal: 6, paddingVertical: 3, borderRadius: 5, marginTop: 1 },
-  tagText: { fontFamily: theme.typography.families.mono, fontSize: 8.5, letterSpacing: 1, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
+  tagText: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
   text: { flex: 1, fontSize: theme.typography.sizes.caption + 0.5, lineHeight: 18, color: theme.colors.textPrimary },
 }));

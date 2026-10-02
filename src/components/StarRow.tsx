@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, View, ViewStyle } from 'react-native';
-import { motion, theme, themedStyles } from '../theme';
+import { triggerHaptic } from '../game/rendering';
+import { theme, themedStyles } from '../theme';
 
 export interface StarRowProps {
   /** How many of the three stars are filled (0-3). */
@@ -28,12 +29,23 @@ export function StarRow({ earned, size = 16, style, animateIn = false }: StarRow
 
   useEffect(() => {
     if (!animateIn) return;
-    Animated.stagger(
-      110,
-      pop.map(value =>
-        Animated.spring(value, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }),
+    // Each star lands on its own beat, a touch slower than a flicker so
+    // the count reads as one, two, three - and each earned one is felt
+    // as it lands. The solve's own chime has already played, so this is
+    // touch only.
+    const timers = SLOTS.map((slot, i) =>
+      setTimeout(() => {
+        if (slot <= earned) triggerHaptic(i === earned - 1 ? 'targetReached' : 'tap');
+      }, 260 + i * 170 + 120),
+    );
+    Animated.sequence([
+      Animated.delay(260),
+      Animated.stagger(
+        170,
+        pop.map(value => Animated.spring(value, { toValue: 1, useNativeDriver: true, damping: 11, stiffness: 220, mass: 0.9 })),
       ),
-    ).start();
+    ]).start();
+    return () => timers.forEach(clearTimeout);
     // Mount-only: `animateIn` is the "should this instance ever animate"
     // switch, not a re-trigger. `pop` is a stable ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -73,7 +85,16 @@ export function StarRow({ earned, size = 16, style, animateIn = false }: StarRow
             <Animated.Text
               style={[
                 styles.star,
-                { fontSize: size, transform: [{ scale: pop[i] }] },
+                {
+                  fontSize: size,
+                  // Stamped down: in from slightly large and turned, the
+                  // way a rubber stamp meets paper.
+                  transform: [
+                    { scale: animateIn && isEarned ? pop[i].interpolate({ inputRange: [0, 1], outputRange: [1.8, 1] }) : pop[i] },
+                    { rotate: animateIn && isEarned ? pop[i].interpolate({ inputRange: [0, 1], outputRange: ['-24deg', '0deg'] }) : '0deg' },
+                  ],
+                  opacity: animateIn ? pop[i].interpolate({ inputRange: [0, 0.25, 1], outputRange: [0, 1, 1] }) : 1,
+                },
                 isEarned ? styles.earned : styles.empty,
               ]}
             >

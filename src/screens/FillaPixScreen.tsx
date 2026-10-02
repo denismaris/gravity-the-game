@@ -1,5 +1,8 @@
 import { HintNote } from '../components/HintNote';
 import { HintKind } from '../game/hints';
+import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
+import { isTodaysDaily } from '../game/journey/daily';
+import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +17,6 @@ import {
   isFillaPixSolved,
   toggleCell, explainFillaPixHint } from '../game/fillapix';
 import {
-  BatchProgressDots,
   DifficultyChip,
   FillaPixBoard,
   GeometricRule,
@@ -289,7 +291,7 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
               ]}
             />
           </View>
-          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
+          <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale
           accessibilityRole="button"
@@ -303,6 +305,7 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
       </View>
 
       <View style={styles.boardArea}>
+        <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
           {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('fillapix')} onGone={clearNote} />}
@@ -351,7 +354,7 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
           coinsEarned={coinsEarned}
           onReplay={restart}
           onDone={onExit}
-          hasNext={nextEntry !== null}
+          hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
           onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
         />
       )}
@@ -483,7 +486,7 @@ const styles = themedStyles(() => ({
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   stageRule: {
     marginBottom: theme.spacing.sm,

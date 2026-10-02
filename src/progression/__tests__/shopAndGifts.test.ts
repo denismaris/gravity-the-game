@@ -20,6 +20,8 @@ import {
   LUCKY_CHARM_CHARGES,
   MAX_LUCKY_CHARGES,
   priceFor,
+  buyAdFree,
+  isAdFree,
 } from '../shop';
 import { COIN_PACKS, PATRON_COINS, applyPurchase } from '../store';
 
@@ -182,7 +184,7 @@ describe('the store (simulated for now)', () => {
     const p = emptyProgress();
     const once = applyPurchase(p, 'coins-purse')!;
     expect(once.coins - p.coins).toBe(COIN_PACKS.find(pack => pack.id === 'coins-purse')!.coins);
-    expect(applyPurchase(once, 'coins-purse')!.coins - once.coins).toBe(1200);
+    expect(applyPurchase(once, 'coins-purse')!.coins - once.coins).toBe(1500);
   });
 
   it('sells the Patron pass once, with its coins and its pieces', () => {
@@ -203,10 +205,30 @@ describe('the store (simulated for now)', () => {
     const autumn = new Date('2026-10-01T12:00:00Z');
     const maple = cosmeticById('garden-maple')!;
     const patron = { ...rich(), patron: true };
-    expect(priceFor(maple, autumn, patron)).toBe(maple.price * 0.5);
+    const half = Math.round(maple.price / 20) * 10; // half, to the nearest 10
+    expect(priceFor(maple, autumn, patron)).toBe(half);
     expect(priceFor(maple, autumn, rich())).toBe(maple.price);
     const plain = COSMETICS.find(item => item.price > 0 && !item.season && featuredItem(autumn).id !== item.id)!;
     expect(priceFor(plain, autumn, patron)).toBe(plain.price);
-    expect(buyCosmetic(patron, 'garden-maple', autumn)!.coins).toBe(patron.coins - maple.price * 0.5);
+    expect(buyCosmetic(patron, 'garden-maple', autumn)!.coins).toBe(patron.coins - half);
+  });
+});
+
+describe('ad-free time', () => {
+  it('runs from now, and buying more extends it', () => {
+    const now = Date.UTC(2026, 9, 3, 12);
+    const day = buyAdFree({ ...rich(), adFreeUntil: null }, 'day', now)!;
+    expect(day.adFreeUntil).toBe(now + 24 * 3600000);
+    expect(isAdFree(day, now + 3600000)).toBe(true);
+    const more = buyAdFree(day, 'week', now + 3600000)!;
+    expect(more.adFreeUntil).toBe(now + 24 * 3600000 + 7 * 24 * 3600000);
+    expect(isAdFree(more, more.adFreeUntil! + 1)).toBe(false);
+    expect(more.coins).toBe(rich().coins - 500 - 2800);
+  });
+
+  it('costs coins the player has, and survives a save', () => {
+    expect(buyAdFree({ ...rich(), coins: 100 }, 'day')).toBeNull();
+    const p = buyAdFree(rich(), 'month', 1000)!;
+    expect(parseProgress(JSON.stringify(p)).adFreeUntil).toBe(p.adFreeUntil);
   });
 });

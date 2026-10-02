@@ -8,6 +8,7 @@ import { SETTINGS_KEY } from '../settingsStore';
 jest.mock('../../game/rendering', () => ({
   setHapticsEnabled: jest.fn(),
   setSoundEnabled: jest.fn(),
+  setMusicEnabled: jest.fn(),
 }));
 const setHapticsEnabledMock = jest.mocked(renderingMock.setHapticsEnabled);
 const setSoundEnabledMock = jest.mocked(renderingMock.setSoundEnabled);

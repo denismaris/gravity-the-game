@@ -1,9 +1,10 @@
 /* eslint-disable react-native/no-inline-styles -- every position here is derived from the board's own geometry at render time */
-import React, { useMemo, useRef, useState } from 'react';
-import { Animated, Easing, PanResponder, StyleSheet, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing as RNEasing, PanResponder, StyleSheet, View } from 'react-native';
+import { Easing, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Canvas, Group, RoundedRect } from '@shopify/react-native-skia';
 import { canPlace, MosaicCell, MosaicPuzzle, MosaicState, occupancy, orient } from '../game/mosaic';
-import { useAnimationClock, useReducedMotion } from '../game/rendering';
+import { useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
 import { mosaicGeometry, MosaicBoardView, pieceColor, Tesserae } from './MosaicBoardView';
 
@@ -135,7 +136,7 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
   live.current = { puzzle, state, geometry, boardX, boardY, solved, slotOrigin, slot, trayCell, reducedMotion, loose, margin, onPlace, onLift, onRotate, onFeedback };
 
   const gesture = useRef<{
-    pending: { index: number } | null;
+    pending: { index: number; from: 'board' | 'tray' } | null;
     drag: Drag | null;
     grab: Point;
     start: Point;
@@ -166,8 +167,8 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
     scale.setValue(fromScale);
     const still = live.current.reducedMotion;
     Animated.parallel([
-      Animated.spring(glide, { toValue: { x: 0, y: 0 }, useNativeDriver: false, speed: still ? 100 : 22, bounciness: 0 }),
-      Animated.spring(scale, { toValue: HELD_SCALE, useNativeDriver: false, speed: still ? 100 : 20, bounciness: 5 }),
+      Animated.spring(glide, { toValue: { x: 0, y: 0 }, useNativeDriver: true, speed: still ? 100 : 22, bounciness: 0 }),
+      Animated.spring(scale, { toValue: HELD_SCALE, useNativeDriver: true, speed: still ? 100 : 20, bounciness: 5 }),
     ]).start();
     setDrag(next);
     live.current.onFeedback?.('pickup');
@@ -232,19 +233,11 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
           const owner = occupancy(p, s).get(`${row}:${col}`);
           // A set piece is part of the picture: it stays where it is.
           if (owner !== undefined && p.fixed[owner]) return;
+          // A placed piece waits, like a tray piece, to see whether this is
+          // a tap (send it home) or a drag (move it): lifting it the instant
+          // a finger touches it made every touch on the board move a piece.
           if (owner !== undefined) {
-            const piece = s.pieces[owner];
-            const cells = orient(p.pieces[owner].cells, piece);
-            const onBoard = { x: bx + geo.pad + piece.at!.col * geo.cellSize, y: by + geo.pad + piece.at!.row * geo.cellSize };
-            g.lift = LIFT_SQUARES * geo.cellSize;
-            // It rises off its square into the hand, rather than jumping.
-            beginDrag(
-              { index: owner, from: 'board', cells, color: pieceColor(p, owner) },
-              { x: onBoard.x, y: onBoard.y - g.lift },
-              { x: x - onBoard.x, y: y - onBoard.y },
-              onBoard,
-              1,
-            );
+            g.pending = { index: owner, from: 'board' };
             return;
           }
           // In the tray: wait to see whether this is a tap or a drag.
@@ -252,17 +245,27 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
             if (s.pieces[i].at) continue;
             const o = slotAt(i);
             if (x >= o.x && x <= o.x + size && y >= o.y && y <= o.y + size) {
-              g.pending = { index: i };
+              g.pending = { index: i, from: 'tray' };
               return;
             }
           }
         },
         onPanResponderMove: (_evt, gs) => {
-          const { puzzle: p, state: s, geometry: geo, slotOrigin: slotAt, slot: size, trayCell: tc } = live.current;
+          const { puzzle: p, state: s, geometry: geo, slotOrigin: slotAt, slot: size, trayCell: tc, boardX: bx, boardY: by } = live.current;
           const g = gesture.current;
           const x = g.start.x + gs.dx;
           const y = g.start.y + gs.dy;
-          if (!g.drag && g.pending && Math.hypot(gs.dx, gs.dy) > TAP_SLOP) {
+          if (!g.drag && g.pending?.from === 'board' && Math.hypot(gs.dx, gs.dy) > TAP_SLOP) {
+            // Off the board: it rises from its square into the hand.
+            const index = g.pending.index;
+            const piece = s.pieces[index];
+            const cells = orient(p.pieces[index].cells, piece);
+            const onBoard = { x: bx + geo.pad + piece.at!.col * geo.cellSize, y: by + geo.pad + piece.at!.row * geo.cellSize };
+            g.lift = LIFT_SQUARES * geo.cellSize;
+            beginDrag({ index, from: 'board', cells, color: pieceColor(p, index) }, { x: x - (g.start.x - onBoard.x), y: y - (g.start.y - onBoard.y) - g.lift }, { x: g.start.x - onBoard.x, y: g.start.y - onBoard.y }, onBoard, 1);
+            g.pending = null;
+          }
+          if (!g.drag && g.pending?.from === 'tray' && Math.hypot(gs.dx, gs.dy) > TAP_SLOP) {
             const index = g.pending.index;
             const cells = orient(p.pieces[index].cells, s.pieces[index]);
             const { w, h } = extent(cells);
@@ -292,13 +295,28 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
     const { geometry: geo, boardX: bx, boardY: by, slotOrigin: slotAt, trayCell: tc, slot: size, reducedMotion: still } = live.current;
     const g = gesture.current;
     if (!g.drag) {
-      if (g.pending && !cancelled) {
-        live.current.onRotate(g.pending.index);
-        live.current.onFeedback?.('turn');
-      }
+      const tapped = g.pending;
       g.pending = null;
-      return;
+      if (!tapped || cancelled) return;
+      if (tapped.from === 'tray') {
+        live.current.onRotate(tapped.index);
+        live.current.onFeedback?.('turn');
+        return;
+      }
+      // A tap on a placed piece: back to the tray, flown there from its
+      // square so it is clear where it went.
+      const { puzzle: p, state: s } = live.current;
+      const piece = s.pieces[tapped.index];
+      if (!piece.at) return;
+      const cells = orient(p.pieces[tapped.index].cells, piece);
+      const onBoard = { x: bx + geo.pad + piece.at.col * geo.cellSize, y: by + geo.pad + piece.at.row * geo.cellSize };
+      g.drag = { index: tapped.index, from: 'board', cells, color: pieceColor(p, tapped.index) };
+      setBase(onBoard);
+      glide.setValue({ x: 0, y: 0 });
+      scale.setValue(1);
+      setDrag(g.drag);
     }
+    if (!g.drag) return;
     const carried = g.drag;
     const target = cancelled ? null : g.target;
     settleGlide();
@@ -308,8 +326,8 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
       // Into place: a short, firm spring to the exact square, then it is set.
       const to = { x: bx + geo.pad + target.col * geo.cellSize - m, y: by + geo.pad + target.row * geo.cellSize - m };
       Animated.parallel([
-        Animated.spring(base, { toValue: to, useNativeDriver: false, speed: still ? 100 : 30, bounciness: 4 }),
-        Animated.spring(scale, { toValue: 1, useNativeDriver: false, speed: still ? 100 : 30, bounciness: 6 }),
+        Animated.spring(base, { toValue: to, useNativeDriver: true, speed: still ? 100 : 30, bounciness: 4 }),
+        Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: still ? 100 : 30, bounciness: 6 }),
       ]).start(() => {
         live.current.onPlace(carried.index, target.row, target.col);
         live.current.onFeedback?.('place');
@@ -328,8 +346,8 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
     const to = { x: o.x + size / 2 - (w * geo.cellSize) / 2 - m, y: o.y + size / 2 - (h * geo.cellSize) / 2 - m };
     live.current.onFeedback?.('return');
     Animated.parallel([
-      Animated.timing(base, { toValue: to, duration: still ? 0 : RETURN_MS, easing: Easing.bezier(0.2, 0.8, 0.2, 1), useNativeDriver: false }),
-      Animated.timing(scale, { toValue: tc / geo.cellSize, duration: still ? 0 : RETURN_MS, easing: Easing.bezier(0.2, 0.8, 0.2, 1), useNativeDriver: false }),
+      Animated.timing(base, { toValue: to, duration: still ? 0 : RETURN_MS, easing: RNEasing.bezier(0.2, 0.8, 0.2, 1), useNativeDriver: true }),
+      Animated.timing(scale, { toValue: tc / geo.cellSize, duration: still ? 0 : RETURN_MS, easing: RNEasing.bezier(0.2, 0.8, 0.2, 1), useNativeDriver: true }),
     ]).start(() => finish());
   }
 
@@ -402,12 +420,63 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
   );
 }
 
-const TURN_MS = 220;
-const SETTLE_MS = 280;
+const TURN_MS = 260;
+const SETTLE_MS = 300;
 
-function easeOutBack(t: number): number {
-  const c = 1.5;
-  return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2;
+/**
+ * One piece resting in the tray. Its quarter-turn and its small settle on
+ * landing run on the UI thread (Reanimated values read straight by Skia),
+ * so a turn stays smooth whatever the JavaScript thread is doing - the
+ * old version re-rendered the whole tray every frame of every turn.
+ */
+function TrayPiece({
+  cells,
+  color,
+  seed,
+  trayCell,
+  cx,
+  cy,
+  rotation,
+  reducedMotion,
+}: {
+  cells: ReadonlyArray<MosaicCell>;
+  color: string;
+  seed: number;
+  trayCell: number;
+  cx: number;
+  cy: number;
+  rotation: number;
+  reducedMotion: boolean;
+}): React.JSX.Element {
+  const { w, h } = extent(cells);
+  const angle = useSharedValue(0);
+  const scale = useSharedValue(reducedMotion ? 1 : 0.9);
+  const lastRotation = useRef(rotation);
+  useEffect(() => {
+    // Arriving home: a small give, as it settles into the slot.
+    if (!reducedMotion) scale.value = withTiming(1, { duration: SETTLE_MS, easing: Easing.out(Easing.back(2)) });
+  }, [scale, reducedMotion]);
+  useEffect(() => {
+    if (lastRotation.current === rotation) return;
+    lastRotation.current = rotation;
+    if (reducedMotion) return;
+    // The new facing is drawn at once; it swings in from the old one.
+    angle.value = -Math.PI / 2;
+    angle.value = withTiming(0, { duration: TURN_MS, easing: Easing.out(Easing.back(1.3)) });
+  }, [rotation, angle, reducedMotion]);
+  const transform = useDerivedValue(() => [
+    { translateX: cx },
+    { translateY: cy },
+    { rotate: angle.value },
+    { scale: scale.value },
+    { translateX: -(w * trayCell) / 2 },
+    { translateY: -(h * trayCell) / 2 },
+  ]);
+  return (
+    <Group transform={transform}>
+      <Tesserae cells={cells} color={color} cellSize={trayCell} seed={seed} />
+    </Group>
+  );
 }
 
 /**
@@ -417,13 +486,8 @@ function easeOutBack(t: number): number {
  * and on a real phone those could mount without painting (several fresh
  * canvases appearing together inside the screen's entrance fade), leaving
  * a piece invisible until a tap forced it to redraw. One canvas, like the
- * board's, has no such failure mode, and is lighter besides.
- *
- * A tapped piece still swings a quarter into its new facing, and a piece
- * sent home still settles with a small give: both are short windows on
- * this canvas's own clock, which runs only while one of them is playing.
- * Memoised on the moves themselves, so dragging a piece around the board
- * never redraws the tray.
+ * board's, has no such failure mode, and is lighter besides. Each piece's
+ * own motion is in `TrayPiece`.
  */
 const Tray = React.memo(function TrayImpl({
   puzzle,
@@ -450,26 +514,7 @@ const Tray = React.memo(function TrayImpl({
   trayCell: number;
   reducedMotion: boolean;
 }): React.JSX.Element {
-  const now = Date.now();
-  const turnedAt = useRef(new Map<number, number>()).current;
-  const settledAt = useRef(new Map<number, number>()).current;
-  const previous = useRef<{ rotation: Map<number, number>; home: Map<number, boolean> } | null>(null);
-
   const home = (index: number) => pieces[index].at === null && carried !== index;
-  if (!previous.current) {
-    previous.current = { rotation: new Map(loose.map(i => [i, pieces[i].rotation])), home: new Map(loose.map(i => [i, home(i)])) };
-  } else {
-    for (const i of loose) {
-      if (previous.current.rotation.get(i) !== pieces[i].rotation) turnedAt.set(i, now);
-      if (home(i) && previous.current.home.get(i) === false) settledAt.set(i, now);
-      previous.current.rotation.set(i, pieces[i].rotation);
-      previous.current.home.set(i, home(i));
-    }
-  }
-
-  const within = (map: Map<number, number>, windowMs: number) => [...map.values()].some(at => now - at < windowMs);
-  useAnimationClock(!reducedMotion && (within(turnedAt, TURN_MS) || within(settledAt, SETTLE_MS)), 60);
-
   const rows = Math.ceil(Math.max(1, loose.length) / perRow);
   const slotAt = (position: number): { x: number; y: number } => {
     const row = Math.floor(position / perRow);
@@ -484,32 +529,23 @@ const Tray = React.memo(function TrayImpl({
     <View pointerEvents="none" style={{ position: 'absolute', left: 0, top, width, height: Math.max(height, rows * slot) }}>
       <Canvas style={StyleSheet.absoluteFill}>
         {loose.map((index, position) => {
-          if (!home(index)) return null;
           const o = slotAt(position);
-          const cells = orient(puzzle.pieces[index].cells, pieces[index]);
-          const { w, h } = extent(cells);
-          const turnT = reducedMotion ? 1 : Math.min(1, (now - (turnedAt.get(index) ?? -Infinity)) / TURN_MS);
-          const settleT = reducedMotion ? 1 : Math.min(1, (now - (settledAt.get(index) ?? -Infinity)) / SETTLE_MS);
-          const angle = turnT >= 1 ? 0 : (-Math.PI / 2) * (1 - easeOutBack(turnT));
-          const scale = settleT >= 1 ? 1 : 0.9 + 0.1 * easeOutBack(settleT);
-          const cx = o.x + slot / 2;
-          const cy = o.y + slot / 2;
           return (
             <Group key={puzzle.pieces[index].id}>
               <RoundedRect x={o.x} y={o.y} width={slot} height={slot} r={12} color={theme.colors.mosaicSlotFill} />
               <RoundedRect x={o.x + 0.5} y={o.y + 0.5} width={slot - 1} height={slot - 1} r={12} color={theme.colors.border} style="stroke" strokeWidth={1} />
-              <Group
-                transform={[
-                  { translateX: cx },
-                  { translateY: cy },
-                  { rotate: angle },
-                  { scale },
-                  { translateX: -(w * trayCell) / 2 },
-                  { translateY: -(h * trayCell) / 2 },
-                ]}
-              >
-                <Tesserae cells={cells} color={pieceColor(puzzle, index)} cellSize={trayCell} seed={index} />
-              </Group>
+              {home(index) && (
+                <TrayPiece
+                  cells={orient(puzzle.pieces[index].cells, pieces[index])}
+                  color={pieceColor(puzzle, index)}
+                  seed={index}
+                  trayCell={trayCell}
+                  cx={o.x + slot / 2}
+                  cy={o.y + slot / 2}
+                  rotation={pieces[index].rotation}
+                  reducedMotion={reducedMotion}
+                />
+              )}
             </Group>
           );
         })}
@@ -517,4 +553,3 @@ const Tray = React.memo(function TrayImpl({
     </View>
   );
 });
-

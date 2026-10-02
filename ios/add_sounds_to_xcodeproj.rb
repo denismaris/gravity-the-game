@@ -17,7 +17,7 @@ raise "Group 'GravityInit' not found" unless gravity_group
 
 sounds_group = gravity_group['Sounds'] || gravity_group.new_group('Sounds')
 
-wav_files = Dir.glob("#{sounds_dir}/*.wav").sort
+wav_files = Dir.glob("#{sounds_dir}/*.{wav,m4a}").sort
 raise "No .wav files found under #{sounds_dir}" if wav_files.empty?
 
 added = []

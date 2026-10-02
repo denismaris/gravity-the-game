@@ -34,6 +34,7 @@ export function parseSettings(raw: string | null): Settings {
   const record = parsed as {
     version?: unknown;
     soundEnabled?: unknown;
+    musicEnabled?: unknown;
     hapticsEnabled?: unknown;
     calmingInterstitialEnabled?: unknown;
     seenTutorials?: unknown;
@@ -48,6 +49,7 @@ export function parseSettings(raw: string | null): Settings {
   return {
     version: SETTINGS_VERSION,
     soundEnabled: typeof record.soundEnabled === 'boolean' ? record.soundEnabled : true,
+    musicEnabled: typeof record.musicEnabled === 'boolean' ? record.musicEnabled : true,
     hapticsEnabled: typeof record.hapticsEnabled === 'boolean' ? record.hapticsEnabled : true,
     // Absent on any settings blob saved before this feature shipped -
     // defaults to `true`, matching `defaultSettings`.

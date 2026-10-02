@@ -1,5 +1,5 @@
-import { RELAX_MAX_COLS, RELAX_MAX_ROWS, RELAX_TIERS, relaxBreakMazes, relaxMazeStats } from '../relax';
-import { MazeShape } from '../shape';
+import { RELAX_MAX_COLS, RELAX_MAX_ROWS, RELAX_TIERS, relaxBreakMazes, relaxMazeStats, safeSilhouette } from '../relax';
+import { MazeShape, cellKey } from '../shape';
 
 function floorOf(maze: MazeShape): boolean[][] {
   return Array.from({ length: maze.rows }, (_v, row) => Array.from({ length: maze.cols }, (_w, col) => maze.active.has(`${col}:${row}`)));
@@ -106,5 +106,18 @@ describe('relaxBreakMazes shape', () => {
     const started = Date.now();
     for (let i = 0; i < 20; i += 1) relaxBreakMazes(90000 + i);
     expect((Date.now() - started) / 20).toBeLessThan(150);
+  });
+});
+
+describe('what a break may show', () => {
+  test('no maze has a long arm sticking out, or a tall thin outline', () => {
+    for (let seed = 1; seed <= 200; seed += 1) {
+      for (const maze of relaxBreakMazes(seed * 104729)) {
+        const floor = Array.from({ length: maze.rows }, (_v, r) => Array.from({ length: maze.cols }, (_w, c) => maze.active.has(cellKey(c, r))));
+        const stats = relaxMazeStats(floor, maze.start);
+        expect(stats.longestSpur).toBeLessThanOrEqual(2);
+        expect(safeSilhouette(stats)).toBe(true);
+      }
+    }
   });
 });

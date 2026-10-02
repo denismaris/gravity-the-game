@@ -212,6 +212,7 @@ export function parseProgress(raw: string | null): PlayerProgress {
     gift?: unknown;
     setsClaimed?: unknown;
     patron?: unknown;
+    adFreeUntil?: unknown;
   };
   if (typeof record.version !== 'number' || !READABLE_VERSIONS.includes(record.version)) {
     return emptyProgress();
@@ -264,6 +265,7 @@ export function parseProgress(raw: string | null): PlayerProgress {
     dailyTimes: parseDailyTimes(record.dailyTimes),
     gift: parseGift(record.gift),
     patron: record.patron === true,
+    adFreeUntil: typeof record.adFreeUntil === 'number' && Number.isFinite(record.adFreeUntil) && record.adFreeUntil > 0 ? record.adFreeUntil : null,
     setsClaimed: Array.isArray(record.setsClaimed) ? [...new Set(record.setsClaimed.filter((id): id is string => typeof id === 'string'))] : [],
   };
 }

@@ -46,7 +46,7 @@ export function explainTentsHint(puzzle: TentsTreesPuzzle, state: TentsTreesStat
     const around = orthogonalNeighbors(puzzle, tree.row, tree.col);
     if (around.some(n => tentAt(n.row, n.col))) continue;
     const spots = around.filter(n => !isTreeCell(puzzle, n.row, n.col) && free(n.row, n.col));
-    if (spots.length === 1 && isAnswer(spots[0].row, spots[0].col)) return place(spots[0].row, spots[0].col, 'This tree has only one free spot left beside it - its tent goes there.');
+    if (spots.length === 1 && isAnswer(spots[0].row, spots[0].col)) return place(spots[0].row, spots[0].col, 'This tree has one free spot left beside it, so its tent goes there.');
   }
   // 2b. A line with exactly as many spots as tents still wanted.
   for (let r = 0; r < puzzle.rows; r += 1) {
@@ -78,6 +78,6 @@ export function explainTentsHint(puzzle: TentsTreesPuzzle, state: TentsTreesStat
     state: setMark(state, puzzle, best.row, best.col, 'tent'),
     cell: best,
     kind: 'nudge',
-    reason: 'Match each tree to its own tent along this row. This is the only spot that leaves every tree a partner.',
+    reason: 'Every tree needs its own tent. This is the only spot that still leaves each tree a partner.',
   };
 }

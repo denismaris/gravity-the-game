@@ -3,4 +3,10 @@
          dark palette), so a phone in dark mode opens onto the app's own
          dark ground instead of a flash of cream. -->
     <color name="window_background">#15101B</color>
+    <color name="widget_paper">#15101B</color>
+    <color name="widget_ink">#EFE3CC</color>
+    <color name="widget_quiet">#9A8DA6</color>
+    <color name="widget_terracotta">#E08452</color>
+    <color name="widget_mark">#2E2637</color>
+    <color name="widget_solved">#8DB87A</color>
 </resources>

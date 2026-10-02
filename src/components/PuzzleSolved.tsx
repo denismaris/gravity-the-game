@@ -1,9 +1,12 @@
-import React, { useMemo } from 'react';
-import { useLastBonus } from '../progression/PlayerProgressProvider';
+import React, { useEffect, useMemo, useState } from 'react';
+import { DailyStanding, reportDaily } from '../backend';
+import { useLastBonus, usePlayerProgress } from '../progression/PlayerProgressProvider';
+import { buildDailyShare } from '../progression/shareMessage';
+import { dailyKeyOf, gameDisplayName } from '../game/journey';
 import { cosmeticById } from '../progression/shop';
 import { formatDuration } from '../progression/timing';
 import { CosmeticPreview } from './CosmeticPreview';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Share, StyleSheet, Text, View } from 'react-native';
 import { ConfettiBurst } from './ConfettiBurst';
 import { PressableScale } from './PressableScale';
 import { GameEmblem } from './GameEmblem';
@@ -81,6 +84,28 @@ export function PuzzleSolved({
   // What multiplied this solve's coins: a golden puzzle, the clean-run
   // combo, the lucky charm (see the shop).
   const bonus = useLastBonus();
+  const { dailyStreak } = usePlayerProgress();
+  // Today's Daily, ready to post: the share sheet, with a no-spoiler card.
+  // The world's Daily: post this first solve, then show where it stands
+  // among everyone's. Silent offline - the card simply does not say.
+  const [world, setWorld] = useState<DailyStanding | null>(null);
+  useEffect(() => {
+    if (!bonus?.daily || !kind) return;
+    let live = true;
+    reportDaily({ dayKey: dailyKeyOf(new Date()), game: gameDisplayName(kind), ms: bonus.daily.ms, stars }).then(standing => {
+      if (live) setWorld(standing);
+    });
+    return () => {
+      live = false;
+    };
+    // Once, for the solve this card reports.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const shareDaily = () => {
+    if (!bonus?.daily || !kind) return;
+    const message = buildDailyShare({ dayKey: dailyKeyOf(new Date()), game: gameDisplayName(kind), stars, ms: bonus.daily.ms, streak: dailyStreak });
+    Share.share({ message }).catch(() => {});
+  };
   const paid = coinsEarned > 0;
   // A Weekly Grand milestone's exclusive, won by this very solve.
   const won = bonus?.grandCosmetic ? cosmeticById(bonus.grandCosmetic) : undefined;
@@ -196,6 +221,12 @@ export function PuzzleSolved({
                     ? `NEW BEST · FASTEST OF YOUR ${bonus.daily.of}`
                     : `FASTER THAN ${Math.round(bonus.daily.beat * 100)}% OF YOUR DAILIES · BEST ${formatDuration(bonus.daily.best)}`}
               </Text>
+              {world && world.players > 1 && (
+                <Text style={styles.worldNote}>{`FASTER THAN ${Math.round(world.fasterThan * 100)}% OF ${world.players.toLocaleString('en-US')} PLAYERS TODAY`}</Text>
+              )}
+              <PressableScale accessibilityRole="button" accessibilityLabel="Share today's Daily result" onPress={shareDaily} hitSlop={6} style={({ pressed }) => [styles.share, pressed && styles.pressed]}>
+                <Text style={styles.shareText}>{'Share result  ↗︎'}</Text>
+              </PressableScale>
             </Animated.View>
           )}
           {won && (
@@ -242,6 +273,9 @@ const styles = themedStyles(() => ({
   duel: { alignItems: 'center', marginTop: theme.spacing.sm },
   duelKicker: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 1.4, color: theme.colors.secondary },
   duelTime: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  worldNote: { marginTop: 4, fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 0.8, fontWeight: theme.typography.weights.bold, color: theme.colors.secondary, textAlign: 'center' },
+  share: { marginTop: theme.spacing.sm, paddingHorizontal: 14, paddingVertical: 6, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong },
+  shareText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   duelNote: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 0.8, color: theme.colors.textTertiary, textAlign: 'center' },
   wonRow: {
     flexDirection: 'row',

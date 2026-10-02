@@ -32,7 +32,7 @@ export function explainMirrorHint(puzzle: MirrorMazePuzzle, state: MirrorMazeSta
   // The beam is right as far as it goes; a stray mirror off its path.
   for (let r = 0; r < puzzle.rows; r += 1) {
     for (let c = 0; c < puzzle.cols; c += 1) {
-      if (differs(r, c)) return fix({ row: r, col: c }, 'nudge', solution.mirrors[r][c] === null ? 'This mirror is never used by the answer.' : 'The beam will need this mirror later on.');
+      if (differs(r, c)) return fix({ row: r, col: c }, 'nudge', solution.mirrors[r][c] === null ? 'The beam never needs a mirror here.' : 'The beam needs a mirror here further along its path.');
     }
   }
   return null;

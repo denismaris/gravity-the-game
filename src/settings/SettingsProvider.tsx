@@ -7,7 +7,7 @@ import React, {
   useRef,
   useState,
 } from 'react';
-import { setHapticsEnabled as setHapticsGate, setSoundEnabled as setSoundGate } from '../game/rendering';
+import { setHapticsEnabled as setHapticsGate, setMusicEnabled as setMusicGate, setSoundEnabled as setSoundGate } from '../game/rendering';
 import { createDefaultBackend, StorageBackend } from '../storage';
 import {
   defaultSettings,
@@ -18,6 +18,7 @@ import {
   withHapticsEnabled,
   withReminders,
   withSoundEnabled,
+  withMusicEnabled,
   withTutorialSeen,
 } from './settings';
 import { loadSettings, saveSettings } from './settingsStore';
@@ -32,6 +33,7 @@ interface SettingsContextValue {
   /** False until the initial load from storage has finished. */
   readonly ready: boolean;
   setSoundEnabled(enabled: boolean): void;
+  setMusicEnabled(enabled: boolean): void;
   setHapticsEnabled(enabled: boolean): void;
   setCalmingInterstitialEnabled(enabled: boolean): void;
   /** Turns the daily reminder on or off, optionally at a new hour. */
@@ -103,6 +105,11 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
     setSoundGate(settings.soundEnabled);
     setHapticsGate(settings.hapticsEnabled);
   }, [settings.soundEnabled, settings.hapticsEnabled]);
+  // Music waits for the saved settings, so a player who turned it off
+  // never hears the first bars of it on launch.
+  useEffect(() => {
+    setMusicGate(ready && settings.musicEnabled);
+  }, [ready, settings.musicEnabled]);
 
   const applyMutation = useCallback((mutate: SettingsMutation): Settings => {
     const current = settingsRef.current;
@@ -122,6 +129,13 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
   const setSoundEnabled = useCallback(
     (enabled: boolean) => {
       applyMutation(current => withSoundEnabled(current, enabled));
+    },
+    [applyMutation],
+  );
+
+  const setMusicEnabled = useCallback(
+    (enabled: boolean) => {
+      applyMutation(current => withMusicEnabled(current, enabled));
     },
     [applyMutation],
   );
@@ -166,6 +180,7 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
       settings,
       ready,
       setSoundEnabled,
+      setMusicEnabled,
       setHapticsEnabled,
       setCalmingInterstitialEnabled,
       setReminders,
@@ -173,7 +188,7 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
       markTutorialSeen,
       hasSeenTutorial: (tutorialId: string) => settings.seenTutorials.includes(tutorialId),
     }),
-    [settings, ready, setSoundEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance, markTutorialSeen],
+    [settings, ready, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance, markTutorialSeen],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

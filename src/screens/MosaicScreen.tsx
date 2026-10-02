@@ -1,5 +1,8 @@
 import { HintNote } from '../components/HintNote';
 import { HintKind } from '../game/hints';
+import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
+import { isTodaysDaily } from '../game/journey/daily';
+import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -16,7 +19,6 @@ import {
   placePiece,
   rotatePiece, explainMosaicHint } from '../game/mosaic';
 import {
-  BatchProgressDots,
   MosaicPlay,
   DifficultyChip,
   GeometricRule,
@@ -215,7 +217,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
             {puzzle.name ?? 'Mosaic'}
           </Text>
           <AnimatedKicker left={left} solved={solved} difficulty={puzzle.difficulty} />
-          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
+          <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale
           accessibilityRole="button"
@@ -229,6 +231,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
       </View>
 
       <View style={styles.boardArea}>
+        <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
           {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('mosaic')} onGone={clearNote} />}
@@ -278,7 +281,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
           coinsEarned={coinsEarned}
           onReplay={restart}
           onDone={onExit}
-          hasNext={nextEntry !== null}
+          hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
           onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
         />
       )}
@@ -391,7 +394,7 @@ const styles = themedStyles(() => ({
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   stageRule: {
     marginBottom: theme.spacing.sm,

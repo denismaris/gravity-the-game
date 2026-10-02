@@ -1,17 +1,21 @@
-import React, { useCallback, useState } from 'react';
-import { Alert, ScrollView, Switch, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { version } from '../../package.json';
-import { GeometricRule, PressableScale } from '../components';
+import { PressableScale } from '../components';
 import { usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { requestReminderPermission } from '../notifications';
 import { theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
+import { TesseraMark } from '../components/TesseraMark';
+import { Account, currentAccount } from '../backend';
 import { AppearancePicker } from '../components/AppearancePicker';
 
 export interface SettingsScreenProps {
   onExit: () => void;
+  /** The player's account: sign in, sign out, delete. */
+  onOpenAccount: () => void;
 }
 
 /**
@@ -24,10 +28,18 @@ export interface SettingsScreenProps {
  * `PlayerProgressProvider` since progress is what's being reset, not a
  * settings concern itself.
  */
-export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Element {
+export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { settings, setSoundEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance } = useSettings();
+  const { settings, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance } = useSettings();
   const { resetProgress } = usePlayerProgress();
+  const [account, setAccount] = useState<Account | null>(null);
+  useEffect(() => {
+    let live = true;
+    currentAccount().then(a => live && setAccount(a));
+    return () => {
+      live = false;
+    };
+  }, []);
   // Set when the system refused permission, so the switch can say why it
   // stayed off rather than silently flicking back.
   const [blocked, setBlocked] = useState(false);
@@ -72,6 +84,18 @@ export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Eleme
       </View>
 
       <ScrollView contentContainerStyle={styles.content}>
+        {/* The account first: the one setting that keeps everything else. */}
+        <PressableScale accessibilityRole="button" accessibilityLabel={account && account.kind !== 'anonymous' ? 'Your account' : 'Sign in to keep your progress safe'} onPress={onOpenAccount} scaleTo={0.985} containerStyle={styles.accountWrap} style={styles.account}>
+          <View style={styles.accountMark}>
+            <TesseraMark size={30} />
+          </View>
+          <View style={styles.accountText}>
+            <Text style={styles.accountTitle}>{account && account.kind !== 'anonymous' ? account.name ?? account.email ?? 'Signed in' : 'Keep your progress safe'}</Text>
+            <Text style={styles.accountSub}>{account && account.kind !== 'anonymous' ? `Signed in with ${account.kind === 'google' ? 'Google' : 'Apple'}` : 'Sign in to save it to your account'}</Text>
+          </View>
+          <Text style={styles.accountChevron}>›</Text>
+        </PressableScale>
+
         <Text style={styles.sectionLabel}>APPEARANCE</Text>
         <View style={styles.card}>
           <AppearancePicker value={settings.appearance} onChange={setAppearance} />
@@ -85,7 +109,14 @@ export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Eleme
             onValueChange={setSoundEnabled}
             accessibilityLabel="Sound effects"
           />
-          <GeometricRule variant="quiet" style={styles.divider} />
+          <View style={styles.divider} />
+          <Row
+            label="Music"
+            value={settings.musicEnabled}
+            onValueChange={setMusicEnabled}
+            accessibilityLabel="Background music"
+          />
+          <View style={styles.divider} />
           <Row
             label="Haptics"
             value={settings.hapticsEnabled}
@@ -114,7 +145,7 @@ export function SettingsScreen({ onExit }: SettingsScreenProps): React.JSX.Eleme
           />
           {settings.remindersEnabled && (
             <>
-              <GeometricRule variant="quiet" style={styles.divider} />
+              <View style={styles.divider} />
               <View style={styles.hours}>
                 {REMINDER_HOURS.map(([hour, label]) => {
                   const on = settings.reminderHour === hour;
@@ -231,6 +262,13 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.sm,
     marginTop: theme.spacing.lg,
   },
+  accountWrap: { marginTop: theme.spacing.sm },
+  account: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, padding: theme.spacing.md, borderRadius: theme.radii.lg, backgroundColor: theme.colors.surfaceHi, borderWidth: 1, borderColor: theme.colors.border },
+  accountMark: { width: 46, height: 46, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceAlt },
+  accountText: { flex: 1 },
+  accountTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  accountSub: { marginTop: 1, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
+  accountChevron: { fontSize: 24, color: theme.colors.textTertiary },
   card: {
     backgroundColor: theme.colors.surface,
     borderRadius: theme.radii.lg,
@@ -252,6 +290,8 @@ const styles = themedStyles(() => ({
   },
   divider: {
     marginLeft: theme.spacing.lg,
+    height: StyleSheet.hairlineWidth,
+    backgroundColor: theme.colors.border,
   },
   hours: {
     flexDirection: 'row',

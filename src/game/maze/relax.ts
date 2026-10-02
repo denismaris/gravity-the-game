@@ -64,6 +64,10 @@ export interface RelaxMazeStats {
   readonly width: number;
   readonly height: number;
   readonly density: number;
+  /** The longest corridor that sticks out of the shape to a dead end,
+   * counted from the junction it leaves. Long thin arms make silhouettes
+   * that read as something other than a maze, so a break never shows one. */
+  readonly longestSpur: number;
 }
 
 /* eslint-disable no-bitwise -- mulberry32 is bitwise by definition */
@@ -237,7 +241,29 @@ export function relaxMazeStats(floor: ReadonlyArray<ReadonlyArray<boolean>>, sta
     else trapFree = false;
   }
 
+  // Spurs: from each dead end, walk back along single-file squares to the
+  // first junction (or a corner where the corridor stops being single-file).
+  const degree = (c: number, r: number) => DIRS.filter(d => on(c + d.dc, r + d.dr)).length;
+  let longestSpur = 0;
+  for (let r = 0; r < rows; r += 1) {
+    for (let c = 0; c < cols; c += 1) {
+      if (!on(c, r) || degree(c, r) !== 1) continue;
+      let length = 1;
+      let prev = { col: -1, row: -1 };
+      let at = { col: c, row: r };
+      for (;;) {
+        const next = DIRS.map(d => ({ col: at.col + d.dc, row: at.row + d.dr })).find(n => on(n.col, n.row) && !(n.col === prev.col && n.row === prev.row));
+        if (!next || degree(next.col, next.row) !== 2) break;
+        prev = at;
+        at = next;
+        length += 1;
+      }
+      longestSpur = Math.max(longestSpur, length);
+    }
+  }
+
   return {
+    longestSpur,
     cells,
     connected: cells > 0 && reached.size === cells,
     finishable: on(start.col, start.row) && painted.size === cells,
@@ -265,8 +291,17 @@ function fitsTier(stats: RelaxMazeStats, tier: RelaxTier): boolean {
     stats.loops >= 2 &&
     stats.width >= 5 &&
     stats.height >= 6 &&
-    stats.density >= 0.55
+    stats.density >= 0.55 &&
+    safeSilhouette(stats)
   );
+}
+
+/** Whether a maze's outline is safe to show: no long arm sticking out, and
+ * not much taller than wide (or wider than tall). Random carving can, now and then, draw something
+ * that is not a maze at all - these two rules are what such outlines have
+ * in common, and every maze shown passes them, fallbacks included. */
+export function safeSilhouette(stats: RelaxMazeStats): boolean {
+  return stats.longestSpur <= 2 && Math.max(stats.width, stats.height) <= Math.min(stats.width, stats.height) * 1.6;
 }
 
 /** Trims empty rows and columns off every side, so the maze fills the
@@ -297,11 +332,14 @@ function toShape(floor: ReadonlyArray<ReadonlyArray<boolean>>, start: Cell): Maz
 export function generateRelaxMaze(random: () => number, tier: RelaxTier): MazeShape {
   let fallback: { floor: boolean[][]; start: Cell } | null = null;
   for (let attempt = 0; attempt < 4000; attempt += 1) {
-    const carved = carve(random, random() < 0.5);
+    // Small mazes are mirror-symmetric only now and then: at that size the
+    // symmetric carvings are few (so they repeat) and their outlines are
+    // the likeliest to read as a figure. Larger tiers need them to fill out.
+    const carved = carve(random, random() < (tier.maxCells <= 30 ? 0.2 : 0.5));
     if (!carved) continue;
     const stats = relaxMazeStats(carved.floor, carved.start);
     if (fitsTier(stats, tier)) return toShape(carved.floor, carved.start);
-    if (!fallback && stats.connected && stats.finishable && stats.cells >= 12) fallback = carved;
+    if (!fallback && stats.connected && stats.finishable && stats.trapFree && safeSilhouette(stats) && stats.cells >= 12) fallback = carved;
   }
   if (fallback) return toShape(fallback.floor, fallback.start);
   // Unreachable in practice (see the generator tests); a plain ring, so

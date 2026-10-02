@@ -216,11 +216,19 @@ const BreakProgress = React.memo(function BreakProgressImpl({ painted, total, pa
 // ---------------------------------------------------------------------------
 
 export function CalmingInterstitialScreen({ onDone }: CalmingInterstitialScreenProps): React.JSX.Element {
-  const mazes = useMemo(() => relaxBreakMazes(breakSeed(), MAZE_TARGET_COUNT), []);
+  // The first maze is dealt at once; the rest once the screen has
+  // finished arriving, so the break opens without a pause while they are
+  // found. Same seed, so the first maze is the same one either way.
+  const seed = useMemo(() => breakSeed(), []);
+  const [mazes, setMazes] = useState<ReadonlyArray<MazeShape>>(() => relaxBreakMazes(seed, 1));
+  useEffect(() => {
+    const timer = setTimeout(() => setMazes(relaxBreakMazes(seed, MAZE_TARGET_COUNT)), 400);
+    return () => clearTimeout(timer);
+  }, [seed]);
   const paints = useMemo(() => {
     const offset = Math.floor(Math.random() * MAZE_PAINTS.length);
-    return mazes.map((_m, i) => MAZE_PAINTS[(offset + i) % MAZE_PAINTS.length]);
-  }, [mazes]);
+    return Array.from({ length: MAZE_TARGET_COUNT }, (_m, i) => MAZE_PAINTS[(offset + i) % MAZE_PAINTS.length]);
+  }, []);
   const [phase, setPhase] = useState<'intro' | 'play'>('intro');
   const doneRef = useRef(false);
   const finish = (): void => {
@@ -234,7 +242,7 @@ export function CalmingInterstitialScreen({ onDone }: CalmingInterstitialScreenP
     <View style={styles.container}>
       {bloom}
       {phase === 'intro' ? (
-        <BreatherIntro paint={paints[0]} mazeCount={mazes.length} onBegin={() => setPhase('play')} onSkip={finish} />
+        <BreatherIntro paint={paints[0]} mazeCount={MAZE_TARGET_COUNT} onBegin={() => setPhase('play')} onSkip={finish} />
       ) : (
         <MazeBreak mazes={mazes} paints={paints} onDone={finish} />
       )}
@@ -435,6 +443,10 @@ const MarbleBall = React.memo(function MarbleBallImpl({
 });
 
 function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>; paints: ReadonlyArray<Paint>; onDone: () => void }): React.JSX.Element {
+  // Read through a ref: the gesture handlers are made once, and the rest of
+  // the break's mazes arrive after the first is already in play.
+  const mazesRef = useRef(mazes);
+  mazesRef.current = mazes;
   // The marble the player wears (see the shop) - violet by default.
   const marble = useEquipped('ball');
   const { width, height } = useWindowDimensions();
@@ -586,7 +598,8 @@ function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>;
   }, []);
 
   const startMaze = (next: number): void => {
-    const m = mazes[next % mazes.length];
+    const list = mazesRef.current;
+    const m = list[next % list.length];
     const cell = fitCell(m);
     paintedRef.current = new Set();
     restRef.current = startPoint(m);
@@ -629,7 +642,7 @@ function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>;
       readyRef.current = false;
       setCelebrating(true);
       triggerFeedback('mazeSolve');
-      const last = level + 1 >= mazes.length;
+      const last = level + 1 >= MAZE_TARGET_COUNT;
       timersRef.current.push(setTimeout(() => (last ? onDone() : startMaze(level + 1)), CELEBRATE_PAUSE_MS));
       return;
     }
@@ -781,7 +794,7 @@ function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>;
         </PressableScale>
       </View>
 
-      <BreakHeader index={level} count={mazes.length} paints={paints} celebrating={celebrating} />
+      <BreakHeader index={level} count={MAZE_TARGET_COUNT} paints={paints} celebrating={celebrating} />
 
       <View style={styles.stage}>
         {rule}

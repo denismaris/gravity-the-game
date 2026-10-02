@@ -7,6 +7,7 @@ import com.facebook.react.ReactHost
 import com.facebook.react.ReactNativeApplicationEntryPoint.loadReactNative
 import com.facebook.react.defaults.DefaultReactHost.getDefaultReactHost
 import com.gravitygame.reminders.RemindersPackage
+import com.gravitygame.widget.TesseraWidgetPackage
 
 class MainApplication : Application(), ReactApplication {
 
@@ -17,6 +18,7 @@ class MainApplication : Application(), ReactApplication {
         PackageList(this).packages.apply {
           // The app's own native module - not a library, so not autolinked.
           add(RemindersPackage())
+          add(TesseraWidgetPackage())
         },
     )
   }

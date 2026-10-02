@@ -13,14 +13,12 @@ import { StarRating } from '../game/scoring';
 
 /** What a new player (and an existing save on its first load with coins)
  * starts with - enough to try a few hints before earning any. */
-export const STARTING_COINS = 50;
+export const STARTING_COINS = 100;
 
-/** One hint, in every game that has them. Normally 10 - set to 0 while
- * the games are being playtested, at the owner's request, so hints can be
- * used freely. A zero-cost purchase skips the coin system entirely (see
- * `useCoinPurchase`) and the Hint pill hides its price tag; put this back
- * to 10 to restore the economy, nothing else needs to change. */
-export const HINT_COST = 0;
+/** One hint, in every game that has them: about one solve's pay, so a
+ * hint is a real choice without ever being out of reach. (Setting this to
+ * 0 makes hints free - the Hint pill then hides its price tag.) */
+export const HINT_COST = 15;
 /** One undo (Gravity, Fill-a-Pix, Adjacent). Deliberately cheap: an undo
  * fixes a slip, it does not solve anything. */
 export const UNDO_COST = 2;

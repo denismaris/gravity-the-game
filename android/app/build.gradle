@@ -79,7 +79,7 @@ android {
 
     namespace "com.gravitygame"
     defaultConfig {
-        applicationId "com.gravitygame"
+        applicationId "com.marisdenis.tessera"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

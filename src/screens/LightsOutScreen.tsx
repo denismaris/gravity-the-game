@@ -1,5 +1,8 @@
 import { HintNote } from '../components/HintNote';
 import { HintKind } from '../game/hints';
+import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
+import { isTodaysDaily } from '../game/journey/daily';
+import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +17,6 @@ import {
   press,
   explainLightsOutHint } from '../game/lightsout';
 import {
-  BatchProgressDots,
   DifficultyChip,
   GeometricRule,
   LevelSetComplete,
@@ -235,7 +237,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
             {puzzle.name ?? 'Lights Out'}
           </Text>
           <AnimatedKicker presses={presses} par={puzzle.par} solved={solved} difficulty={puzzle.difficulty} />
-          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
+          <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale
           accessibilityRole="button"
@@ -249,6 +251,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
       </View>
 
       <View style={styles.boardArea}>
+        <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
           {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('lightsout')} onGone={clearNote} />}
@@ -287,7 +290,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
           coinsEarned={coinsEarned}
           onReplay={restart}
           onDone={onExit}
-          hasNext={nextEntry !== null}
+          hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
           onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
         />
       )}
@@ -401,7 +404,7 @@ const styles = themedStyles(() => ({
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   stageRule: {
     marginBottom: theme.spacing.sm,

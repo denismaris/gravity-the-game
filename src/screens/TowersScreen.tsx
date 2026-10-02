@@ -1,5 +1,8 @@
 import { HintNote } from '../components/HintNote';
 import { HintKind } from '../game/hints';
+import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
+import { isTodaysDaily } from '../game/journey/daily';
+import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -14,7 +17,7 @@ import {
   setCell,
   TowersCell,
   TowersPuzzle, explainTowersHint } from '../game/towers';
-import { BatchProgressDots, DifficultyChip, GeometricRule, LevelSetComplete, MechanicsCarousel, NumberKeypad, PressableScale, PuzzleSolved, TowersBoard, renderTowersIllustration, useSolveCelebration } from '../components';
+import { DifficultyChip, GeometricRule, LevelSetComplete, MechanicsCarousel, NumberKeypad, PressableScale, PuzzleSolved, TowersBoard, renderTowersIllustration, useSolveCelebration } from '../components';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
@@ -286,7 +289,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
               ]}
             />
           </View>
-          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
+          <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale
           accessibilityRole="button"
@@ -300,6 +303,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
       </View>
 
       <View style={styles.boardArea}>
+        <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
           {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('towers')} onGone={clearNote} />}
@@ -358,7 +362,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
           coinsEarned={coinsEarned}
           onReplay={restart}
           onDone={onExit}
-          hasNext={nextEntry !== null}
+          hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
           onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
         />
       )}
@@ -493,7 +497,7 @@ const styles = themedStyles(() => ({
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`. No
   // fill of its own now - just the page's background plus a snug

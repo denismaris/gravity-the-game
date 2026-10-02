@@ -10,6 +10,8 @@
 export interface Settings {
   readonly version: 1;
   readonly soundEnabled: boolean;
+  /** The ambient music loop (see `game/rendering/music.ts`). */
+  readonly musicEnabled: boolean;
   readonly hapticsEnabled: boolean;
   /** Whether the calming swipe-maze interstitial shows between level
    * batches (see `src/interstitial/`). Defaults to `true` - shown by
@@ -45,6 +47,7 @@ export function defaultSettings(): Settings {
   return {
     version: SETTINGS_VERSION,
     soundEnabled: true,
+    musicEnabled: true,
     hapticsEnabled: true,
     calmingInterstitialEnabled: true,
     seenTutorials: [],
@@ -66,6 +69,11 @@ export function withReminders(settings: Settings, enabled: boolean, hour: number
 export function withSoundEnabled(settings: Settings, enabled: boolean): Settings {
   if (settings.soundEnabled === enabled) return settings;
   return { ...settings, soundEnabled: enabled };
+}
+
+export function withMusicEnabled(settings: Settings, enabled: boolean): Settings {
+  if (settings.musicEnabled === enabled) return settings;
+  return { ...settings, musicEnabled: enabled };
 }
 
 export function withHapticsEnabled(settings: Settings, enabled: boolean): Settings {

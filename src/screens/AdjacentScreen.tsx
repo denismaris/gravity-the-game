@@ -1,3 +1,6 @@
+import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
+import { isTodaysDaily } from '../game/journey/daily';
+import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -17,7 +20,6 @@ import {
   AdjacentAnimation,
   AdjacentBoard,
   AdjacentPopup,
-  BatchProgressDots,
   DifficultyChip,
   GeometricRule,
   LevelFailedCard,
@@ -309,7 +311,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
           </Text>
           <AnimatedKicker score={state.score} target={puzzle.targetScore} solved={solved} difficulty={puzzle.difficulty} />
           <ScoreTrack score={state.score} target={puzzle.targetScore} />
-          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
+          <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale
           accessibilityRole="button"
@@ -323,6 +325,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
       </View>
 
       <View style={styles.boardArea}>
+        <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
           <AdjacentBoard
@@ -377,7 +380,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
           }`}
           onReplay={restart}
           onDone={onExit}
-          hasNext={nextEntry !== null}
+          hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
           onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
         />
       )}
@@ -539,7 +542,7 @@ const styles = themedStyles(() => ({
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   stageRule: {
     marginBottom: theme.spacing.sm,

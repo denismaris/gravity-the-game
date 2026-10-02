@@ -39,6 +39,11 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
     return true
   }
+
+  // tessera://daily, from the home-screen widget - handed to JS (`Linking`).
+  func application(_ app: UIApplication, open url: URL, options: [UIApplication.OpenURLOptionsKey: Any] = [:]) -> Bool {
+    RCTLinkingManager.application(app, open: url, options: options)
+  }
 }
 
 /** The app's own paper colour (`theme.colors.background`): #EDE5D3 by day,

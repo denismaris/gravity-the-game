@@ -127,6 +127,8 @@ export interface PlayerProgress {
   readonly setsClaimed: ReadonlyArray<string>;
   /** Bought the Patron pass (see `store.ts`). */
   readonly patron: boolean;
+  /** When bought ad-free time runs out (epoch ms), or null. See `shop.ts`. */
+  readonly adFreeUntil: number | null;
 }
 
 export const PLAYER_PROGRESS_VERSION = 5 as const;
@@ -161,6 +163,7 @@ export function emptyProgress(): PlayerProgress {
     gift: EMPTY_GIFT,
     setsClaimed: [],
     patron: false,
+    adFreeUntil: null,
   };
 }
 

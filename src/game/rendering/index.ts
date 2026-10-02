@@ -26,4 +26,5 @@ export { useScreenReader } from './useScreenReader';
 export { playHapticEvents, setHapticsEnabled, stopHaptics, triggerHaptic } from './haptics';
 export type { HapticKind } from './haptics';
 export { previewChime, setSoundEnabled, setSolveChime, triggerSound } from './sound';
+export { setMusicEnabled } from './music';
 export { triggerFeedback } from './feedback';

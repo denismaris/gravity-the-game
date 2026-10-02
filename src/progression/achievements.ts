@@ -11,6 +11,7 @@ import { MIRROR_MAZES } from '../game/mirror';
 import { TENTS_TREES } from '../game/tents';
 import { TOWERS } from '../game/towers';
 import { WORLDS } from '../game/worlds';
+import type { GameKind } from '../game/journey';
 
 /** Every puzzle in every game, for the two achievements that used to read
  * this off the old interleaved Journey (`JOURNEY.length` / `JOURNEY.every`)
@@ -40,10 +41,27 @@ export const TOTAL_PUZZLE_COUNT = ALL_PUZZLE_IDS.length;
 import { getLevelStars, getTotalStars, isLevelCompleted, PlayerProgress } from './playerProgress';
 import { isWorldComplete } from './worldProgress';
 
+/** Where an achievement sits on the shelf. */
+export type AchievementGroup = 'road' | 'daily' | 'stars' | 'games' | 'gravity' | 'craft';
+
+export const ACHIEVEMENT_GROUPS: ReadonlyArray<{ id: AchievementGroup; title: string }> = [
+  { id: 'road', title: 'The long road' },
+  { id: 'daily', title: 'The Daily' },
+  { id: 'stars', title: 'Stars' },
+  { id: 'games', title: 'Every game' },
+  { id: 'gravity', title: "Gravity's collections" },
+  { id: 'craft', title: 'Craft' },
+];
+
 export interface Achievement {
   readonly id: string;
   readonly title: string;
   readonly description: string;
+  readonly group: AchievementGroup;
+  /** The game it belongs to, for its medal. */
+  readonly game?: GameKind;
+  /** How far along the player is, for the progress line. */
+  readonly measure: (progress: PlayerProgress) => { readonly value: number; readonly target: number };
   /** Whether `progress` has earned this. Pure and derived - nothing about
    * "which achievements are earned" is ever stored, the same "derive, don't
    * duplicate" rule `worldProgress.ts` follows for unlocks. Every check here
@@ -67,6 +85,23 @@ function allCompleted(progress: PlayerProgress, pool: ReadonlyArray<{ id: string
   return pool.every(puzzle => isLevelCompleted(progress, puzzle.id));
 }
 
+function solvedIn(progress: PlayerProgress, pool: ReadonlyArray<{ id: string }>): { value: number; target: number } {
+  return { value: pool.filter(puzzle => isLevelCompleted(progress, puzzle.id)).length, target: pool.length };
+}
+
+/** "Solve every X puzzle", for one game's whole pool. */
+function everyPuzzle(id: string, game: GameKind, title: string, description: string, pool: ReadonlyArray<{ id: string }>): Achievement {
+  return {
+    id,
+    title,
+    description,
+    group: 'games',
+    game,
+    measure: progress => solvedIn(progress, pool),
+    isEarned: progress => allCompleted(progress, pool),
+  };
+}
+
 /** Whether any puzzle in `pool` has ever been solved for the full 3 stars -
  * for every hint-scored game (Mirror Maze/Tents and Trees/Skyscrapers/
  * Binairo/Arukone+) that means zero hints (see `HINT_STAR_THRESHOLDS` in
@@ -76,6 +111,7 @@ function anyFlawless(progress: PlayerProgress, pool: ReadonlyArray<{ id: string 
 }
 
 const TOTAL_STARS_POSSIBLE = ALL_PUZZLE_IDS.length * 3;
+const NOT_GRAVITY = [...MIRROR_MAZES, ...TENTS_TREES, ...TOWERS, ...BINAIRO, ...ARUKONE, ...FILLAPIX, ...LIGHTS_OUT, ...ADJACENT, ...BLOOM, ...MOSAIC, ...BRIDGES];
 
 /**
  * The fixed set of achievements. Order here is display order. Ids are
@@ -88,110 +124,70 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
     (world): Achievement => ({
       id: `world:${world.id}`,
       title: WORLD_ACHIEVEMENT_TITLES[world.order] ?? world.name,
-      description: `Complete every level in World ${world.order}: ${world.name}.`,
+      description: `Solve all ${world.levelIds.length} Gravity puzzles in "${world.name}".`,
+      group: 'gravity',
+      game: 'gravity',
+      measure: progress => ({ value: world.levelIds.filter(id => isLevelCompleted(progress, id)).length, target: world.levelIds.length }),
       isEarned: progress => isWorldComplete(progress, world),
     }),
   ),
-  {
-    id: 'game:mirror',
-    title: 'Bending Light',
-    description: 'Solve every Mirror Maze puzzle.',
-    isEarned: progress => allCompleted(progress, MIRROR_MAZES),
-  },
-  {
-    id: 'game:tents',
-    title: 'Under Canvas',
-    description: 'Solve every Tents and Trees puzzle.',
-    isEarned: progress => allCompleted(progress, TENTS_TREES),
-  },
-  {
-    id: 'game:towers',
-    title: 'Top Floor',
-    description: 'Solve every Skyscrapers puzzle.',
-    isEarned: progress => allCompleted(progress, TOWERS),
-  },
-  {
-    id: 'game:binairo',
-    title: 'Binary Star',
-    description: 'Solve every Binairo puzzle.',
-    isEarned: progress => allCompleted(progress, BINAIRO),
-  },
-  {
-    id: 'game:arukone',
-    title: 'Both Sides',
-    description: 'Solve every Arukone+ puzzle.',
-    isEarned: progress => allCompleted(progress, ARUKONE),
-  },
-  {
-    id: 'game:fillapix',
-    title: 'Picture Perfect',
-    description: 'Solve every Fill-a-Pix puzzle.',
-    isEarned: progress => allCompleted(progress, FILLAPIX),
-  },
-  {
-    id: 'game:lightsout',
-    title: 'Nothing Burning',
-    description: 'Solve every Lights Out puzzle.',
-    isEarned: progress => allCompleted(progress, LIGHTS_OUT),
-  },
-  {
-    id: 'game:adjacent',
-    title: 'Down to the Tray',
-    description: 'Solve every Adjacent puzzle.',
-    isEarned: progress => allCompleted(progress, ADJACENT),
-  },
-  {
-    id: 'game:bloom',
-    title: 'Walled Garden',
-    description: 'Solve every Bloom puzzle.',
-    isEarned: progress => allCompleted(progress, BLOOM),
-  },
-  {
-    id: 'game:mosaic',
-    title: 'Gallery Wall',
-    description: 'Complete every Mosaic picture.',
-    isEarned: progress => allCompleted(progress, MOSAIC),
-  },
-  {
-    id: 'game:bridges',
-    title: 'Harbour Master',
-    description: 'Connect every Bridges archipelago.',
-    isEarned: progress => allCompleted(progress, BRIDGES),
-  },
+  everyPuzzle('game:mirror', 'mirror', 'Bending Light', 'Solve every Mirror Maze puzzle.', MIRROR_MAZES),
+  everyPuzzle('game:tents', 'tents', 'Under Canvas', 'Solve every Tents and Trees puzzle.', TENTS_TREES),
+  everyPuzzle('game:towers', 'towers', 'Top Floor', 'Solve every Skyscrapers puzzle.', TOWERS),
+  everyPuzzle('game:binairo', 'binairo', 'Binary Star', 'Solve every Binairo puzzle.', BINAIRO),
+  everyPuzzle('game:arukone', 'arukone', 'Both Sides', 'Solve every Arukone+ puzzle.', ARUKONE),
+  everyPuzzle('game:fillapix', 'fillapix', 'Picture Perfect', 'Solve every Fill-a-Pix puzzle.', FILLAPIX),
+  everyPuzzle('game:lightsout', 'lightsout', 'Nothing Burning', 'Solve every Lights Out puzzle.', LIGHTS_OUT),
+  everyPuzzle('game:adjacent', 'adjacent', 'Down to the Tray', 'Solve every Adjacent puzzle.', ADJACENT),
+  everyPuzzle('game:bloom', 'bloom', 'Walled Garden', 'Solve every Bloom puzzle.', BLOOM),
+  everyPuzzle('game:mosaic', 'mosaic', 'Gallery Wall', 'Complete every Mosaic picture.', MOSAIC),
+  everyPuzzle('game:bridges', 'bridges', 'Harbour Master', 'Connect every Bridges archipelago.', BRIDGES),
   {
     id: 'stars:100',
     title: 'Rising Star',
     description: 'Earn 100 stars.',
+    group: 'stars',
+    measure: progress => ({ value: getTotalStars(progress), target: 100 }),
     isEarned: progress => getTotalStars(progress) >= 100,
   },
   {
     id: 'stars:300',
     title: 'Bright Sky',
     description: 'Earn 300 stars.',
+    group: 'stars',
+    measure: progress => ({ value: getTotalStars(progress), target: 300 }),
     isEarned: progress => getTotalStars(progress) >= 300,
   },
   {
     id: 'stars:all',
     title: 'Full Almanac',
     description: `Earn every star, all ${TOTAL_STARS_POSSIBLE} of them.`,
+    group: 'stars',
+    measure: progress => ({ value: getTotalStars(progress), target: TOTAL_STARS_POSSIBLE }),
     isEarned: progress => getTotalStars(progress) >= TOTAL_STARS_POSSIBLE,
   },
   {
     id: 'streak:3',
     title: 'Habit Forming',
     description: 'Reach a 3-day Daily streak.',
+    group: 'daily',
+    measure: progress => ({ value: progress.bestDailyStreak, target: 3 }),
     isEarned: progress => progress.bestDailyStreak >= 3,
   },
   {
     id: 'streak:7',
     title: 'Week One',
     description: 'Reach a 7-day Daily streak.',
+    group: 'daily',
+    measure: progress => ({ value: progress.bestDailyStreak, target: 7 }),
     isEarned: progress => progress.bestDailyStreak >= 7,
   },
   {
     id: 'streak:30',
     title: 'Dedicated',
     description: 'Reach a 30-day Daily streak.',
+    group: 'daily',
+    measure: progress => ({ value: progress.bestDailyStreak, target: 30 }),
     isEarned: progress => progress.bestDailyStreak >= 30,
   },
   // The long road: level sets now run forever, so the milestones along it
@@ -200,39 +196,64 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
     id: 'level:100',
     title: 'Centurion',
     description: 'Reach level 100.',
+    group: 'road',
+    measure: progress => ({ value: progress.currentLevel, target: 100 }),
     isEarned: progress => progress.currentLevel >= 100,
   },
   {
     id: 'level:250',
     title: 'Long Distance',
     description: 'Reach level 250.',
+    group: 'road',
+    measure: progress => ({ value: progress.currentLevel, target: 250 }),
     isEarned: progress => progress.currentLevel >= 250,
   },
   {
     id: 'level:500',
     title: 'Half a Thousand',
     description: 'Reach level 500.',
+    group: 'road',
+    measure: progress => ({ value: progress.currentLevel, target: 500 }),
     isEarned: progress => progress.currentLevel >= 500,
   },
   {
     id: 'level:1000',
     title: 'The Thousand',
     description: 'Reach level 1000.',
+    group: 'road',
+    measure: progress => ({ value: progress.currentLevel, target: 1000 }),
     isEarned: progress => progress.currentLevel >= 1000,
   },
   {
     id: 'skill:flawless',
     title: 'Flawless',
     description: 'Solve any puzzle outside Gravity without using a hint.',
-    isEarned: progress => anyFlawless(progress, [...MIRROR_MAZES, ...TENTS_TREES, ...TOWERS, ...BINAIRO, ...ARUKONE, ...FILLAPIX, ...LIGHTS_OUT, ...ADJACENT, ...BLOOM, ...MOSAIC, ...BRIDGES]),
+    group: 'craft',
+    measure: progress => ({ value: anyFlawless(progress, NOT_GRAVITY) ? 1 : 0, target: 1 }),
+    isEarned: progress => anyFlawless(progress, NOT_GRAVITY),
   },
   {
     id: 'journey:complete',
     title: 'Completionist',
     description: `Solve every puzzle in every game, all ${ALL_PUZZLE_IDS.length} of them.`,
+    group: 'craft',
+    measure: progress => solvedIn(progress, ALL_PUZZLE_IDS.map(id => ({ id }))),
     isEarned: progress => ALL_PUZZLE_IDS.every(puzzleId => isLevelCompleted(progress, puzzleId)),
   },
 ];
+
+/** The unearned achievements closest to done, nearest first. */
+export function nearestAchievements(progress: PlayerProgress, count: number): ReadonlyArray<Achievement> {
+  return ACHIEVEMENTS.filter(a => !a.isEarned(progress))
+    .map(a => {
+      const m = a.measure(progress);
+      return { a, share: m.target > 0 ? Math.min(1, m.value / m.target) : 0 };
+    })
+    .filter(x => x.share > 0)
+    .sort((x, y) => y.share - x.share)
+    .slice(0, count)
+    .map(x => x.a);
+}
 
 export function getEarnedAchievements(progress: PlayerProgress): ReadonlyArray<Achievement> {
   return ACHIEVEMENTS.filter(a => a.isEarned(progress));

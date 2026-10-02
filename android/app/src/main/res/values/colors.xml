@@ -9,4 +9,11 @@
          one game's. -->
     <color name="ic_launcher_background">#8E2F76</color>
     <color name="window_background">#F3EEE3</color>
+    <!-- The home-screen widget, in the app's own paper and ink. -->
+    <color name="widget_paper">#EDE5D3</color>
+    <color name="widget_ink">#3B1F52</color>
+    <color name="widget_quiet">#7D6E86</color>
+    <color name="widget_terracotta">#C46C33</color>
+    <color name="widget_mark">#D9CDB6</color>
+    <color name="widget_solved">#5C7C4A</color>
 </resources>

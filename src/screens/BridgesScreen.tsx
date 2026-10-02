@@ -1,5 +1,8 @@
 import { HintNote } from '../components/HintNote';
 import { HintKind } from '../game/hints';
+import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
+import { isTodaysDaily } from '../game/journey/daily';
+import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Platform, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -18,7 +21,6 @@ import {
   islandLoads,
   explainBridgesHint } from '../game/bridges';
 import {
-  BatchProgressDots,
   BridgesBoard,
   DifficultyChip,
   GeometricRule,
@@ -335,7 +337,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
             {puzzle.name ?? 'Bridges'}
           </Text>
           <AnimatedKicker left={left} solved={solved} difficulty={puzzle.difficulty} />
-          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
+          <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale accessibilityRole="button" accessibilityLabel="How to play" onPress={reopenTutorial} hitSlop={8} containerStyle={styles.headerRightSpacer}>
           <HelpIcon />
@@ -343,6 +345,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
       </View>
 
       <View style={styles.boardArea}>
+        <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
           {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('bridges')} onGone={clearNote} />}
@@ -388,7 +391,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
           coinsEarned={coinsEarned}
           onReplay={restart}
           onDone={onExit}
-          hasNext={nextEntry !== null}
+          hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
           onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
         />
       )}
@@ -493,7 +496,7 @@ const styles = themedStyles(() => ({
   boardArea: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
   },
   stageRule: {
     marginBottom: theme.spacing.sm,

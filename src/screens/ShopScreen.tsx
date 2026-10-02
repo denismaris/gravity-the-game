@@ -47,6 +47,8 @@ import {
   equipped,
   owns,
   usePlayerProgress,
+  AD_FREE_OPTIONS,
+  isAdFree,
   COIN_PACKS,
   PATRON_COINS,
   PATRON_PRICE,
@@ -118,7 +120,7 @@ const PATRON_PERKS: ReadonlyArray<string> = [
 
 /** About how much play a pack is worth, against what a day earns. */
 function playDays(coins: number): string {
-  const days = coins / 350;
+  const days = coins / 400;
   if (days < 1.75) return 'ABOUT 1½ DAYS OF PLAY';
   return `ABOUT ${Math.round(days)} DAYS OF PLAY`;
 }
@@ -230,7 +232,7 @@ function CoinsTab({ onNotice, onPaid }: { onNotice: (title: string, text: string
         )}
       </View>
 
-      <SectionHeader kicker="350 COINS ≈ A DAY OF PLAY" title="Coin packs" blurb="For a piece you would rather not wait for. Everything in the shop can also be earned by playing." />
+      <SectionHeader kicker="400 COINS ≈ A DAY OF PLAY" title="Coin packs" blurb="For a piece you would rather not wait for. Everything in the shop can also be earned by playing." />
       <View style={styles.grid}>
         {COIN_PACKS.map((pack, i) => (
           <View key={pack.id} style={[styles.item, pack.tag && styles.itemFeatured]}>
@@ -410,6 +412,67 @@ function Shimmer({ seed, strength }: { seed: string; strength: number }): React.
           { opacity: strength, transform: [{ rotate: '20deg' }, { translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [-160, 260] }) }] },
         ]}
       />
+    </View>
+  );
+}
+
+/** "AD", struck through: the mark for ad-free time. */
+function NoAdsMark(): React.JSX.Element {
+  return (
+    <View style={styles.noAds}>
+      <Text style={styles.noAdsText}>AD</Text>
+      <View style={styles.noAdsStrike} />
+    </View>
+  );
+}
+
+/** Ad-free time: a day, a week or a month, bought with coins and added to
+ * whatever is left. Shows when it runs out. */
+function AdFreeCard({ onBought }: { onBought: () => void }): React.JSX.Element {
+  const { progress, coins, buyAdFree } = usePlayerProgress();
+  const active = isAdFree(progress);
+  const until = progress.adFreeUntil ? new Date(progress.adFreeUntil) : null;
+  const when = until
+    ? `${until.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}, ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
+    : '';
+  return (
+    <View style={styles.pass}>
+      <View style={styles.charmRow}>
+        <View style={styles.adPlate}>
+          <NoAdsMark />
+        </View>
+        <View style={styles.freezeBody}>
+          <Text style={styles.passTitle}>Ad-free time</Text>
+          <Text style={styles.passText}>No ads while it runs. Buying more adds to the time you have left.</Text>
+        </View>
+      </View>
+      <Text style={[styles.adStatus, active && styles.adStatusOn]}>{active ? `Ad-free until ${when}` : 'Not active'}</Text>
+      <View style={styles.adOptions}>
+        {AD_FREE_OPTIONS.map(option => {
+          const affordable = coins >= option.price;
+          return (
+            <PressableScale
+              key={option.id}
+              accessibilityRole="button"
+              accessibilityLabel={`Buy ${option.label} ad-free for ${option.price} coins`}
+              onPress={() => {
+                if (buyAdFree(option.id)) {
+                  triggerFeedback('coin');
+                  onBought();
+                } else triggerFeedback('tap');
+              }}
+              containerStyle={styles.adOptionWrap}
+              style={({ pressed }) => [styles.adOption, !affordable && styles.actionShort, pressed && styles.pressed]}
+            >
+              <Text style={styles.adOptionLabel}>{option.label}</Text>
+              <View style={styles.priceRow}>
+                <CoinGlyph size={12} />
+                <Text style={styles.adOptionPrice}>{option.price.toLocaleString('en-US')}</Text>
+              </View>
+            </PressableScale>
+          );
+        })}
+      </View>
     </View>
   );
 }
@@ -961,7 +1024,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
                 ))}
               </ScrollView>
 
-              <SectionHeader kicker="COLLECT THEM ALL" title="Sets" blurb="Pieces that belong together. Own every piece of a set and it pays you back." />
+              <SectionHeader kicker={`${COSMETIC_SETS.length} SETS`} title="Sets" blurb="Own every piece of a set and it pays you back." />
               {sets.map(set => (
                 <SetCard key={set.id} set={set} onClaimed={celebrate} />
               ))}
@@ -1057,7 +1120,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
 
           {tab === 'boosts' && (
             <View>
-              <SectionHeader kicker="NEVER SOLVES A PUZZLE FOR YOU" title="Boosts" blurb="Keep a streak alive, earn faster, or choose what your level sets deal." />
+              <SectionHeader title="Boosts" blurb="Keep a streak alive, earn faster, or choose what your level sets deal. None of them solves anything for you." />
               <View style={styles.freeze}>
                 <View style={styles.freezePlate}>
                   <FrostMark size={46} />
@@ -1120,6 +1183,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
                   </PressableScale>
                 </View>
               </View>
+              <AdFreeCard onBought={celebrate} />
               <RetireCard onRetired={celebrate} />
             </View>
           )}
@@ -1143,6 +1207,17 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
 }
 
 const styles = themedStyles(() => ({
+  adPlate: { width: 64, height: 64, borderRadius: 18, backgroundColor: theme.colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
+  noAds: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, borderWidth: 2, borderColor: theme.colors.textSecondary, alignItems: 'center', justifyContent: 'center' },
+  noAdsText: { fontSize: 15, fontWeight: theme.typography.weights.bold, letterSpacing: 1, color: theme.colors.textSecondary },
+  noAdsStrike: { position: 'absolute', width: 44, height: 2.5, borderRadius: 2, backgroundColor: theme.colors.danger, transform: [{ rotate: '-24deg' }] },
+  adStatus: { marginTop: theme.spacing.md, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
+  adStatusOn: { color: theme.colors.success },
+  adOptions: { flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.sm },
+  adOptionWrap: { flex: 1 },
+  adOption: { alignItems: 'center', paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface, gap: 2 },
+  adOptionLabel: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
+  adOptionPrice: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   purse: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 4, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.goldRim, backgroundColor: theme.colors.surfaceHi },
   pursePlus: { width: 20, height: 20, borderRadius: 10, backgroundColor: theme.colors.goldFill, alignItems: 'center', justifyContent: 'center' },
   pursePlusText: { color: theme.colors.onGold, fontSize: 14, lineHeight: 16, fontWeight: theme.typography.weights.bold },

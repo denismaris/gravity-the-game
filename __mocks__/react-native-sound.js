@@ -34,6 +34,15 @@ class Sound {
   setVolume() {
     return this;
   }
+
+  setNumberOfLoops() {
+    return this;
+  }
+
+  pause(callback) {
+    if (callback) callback();
+    return this;
+  }
 }
 
 Sound.MAIN_BUNDLE = '';

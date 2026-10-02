@@ -6,12 +6,14 @@
  */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { StatusBar, View } from 'react-native';
+import { Linking, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   AchievementsScreen,
   JourneyScreen,
   LedgerScreen,
+  LeaderboardScreen,
+  AccountScreen,
   ShopScreen,
   AdjacentScreen,
   BloomScreen,
@@ -29,6 +31,7 @@ import {
   TowersScreen,
 } from './src/screens';
 import { useReminderSync } from './src/notifications';
+import { useCloudSync } from './src/backend';
 import { EmblemHandoff } from './src/components/EmblemHandoff';
 import { ErrorBoundary, IntroWalkthrough, LaunchSequence, ScreenTransition } from './src/components';
 import { getLevelById } from './src/game/levels';
@@ -43,7 +46,7 @@ import { getAdjacentById } from './src/game/adjacent';
 import { getBloomById } from './src/game/bloom';
 import { getMosaicById } from './src/game/mosaic';
 import { getBridgesById } from './src/game/bridges';
-import { GameKind, NextPuzzleOptions } from './src/game/journey';
+import { GameKind, NextPuzzleOptions, getDailyEntry } from './src/game/journey';
 import { CalmingInterstitialScreen } from './src/interstitial';
 import { PlayerProgressProvider, notePuzzleOpened, usePlayerProgress } from './src/progression';
 import { AppearanceProvider, SettingsProvider, useAppearance, useHoldAppearance, useSettings } from './src/settings';
@@ -61,7 +64,7 @@ interface Selected {
  * `src/progression/batches.ts`) replaces the need for a manual
  * level-select/browse screen entirely; there is deliberately no way to
  * pick a specific puzzle by hand. */
-type OverlayRoute = 'settings' | 'achievements' | 'journey' | 'shop' | 'ledger' | null;
+type OverlayRoute = 'settings' | 'achievements' | 'journey' | 'shop' | 'ledger' | 'leaderboard' | 'account' | null;
 
 /**
  * App wires up the global providers and renders `AppRoutes` inside them -
@@ -130,6 +133,8 @@ function Boot(): React.JSX.Element {
  */
 function AppRoutes(): React.JSX.Element {
   const { settings } = useSettings();
+  // The cloud save (does nothing until the backend is configured).
+  useCloudSync();
   const [selected, setSelected] = useState<Selected | null>(null);
   const [overlayRoute, setOverlayRoute] = useState<OverlayRoute>(null);
   // Where the shop returns to: Home, or the Almanac it was opened from.
@@ -158,6 +163,21 @@ function AppRoutes(): React.JSX.Element {
     setSelected(target);
   }, []);
   const endHandoff = useCallback(() => setHandoff(null), []);
+
+  // tessera://daily - the home-screen widget's tap - opens today's Daily,
+  // whether it launched the app or found it already running.
+  useEffect(() => {
+    const open = (url: string | null | undefined) => {
+      if (!url || !url.startsWith('tessera://daily')) return;
+      const daily = getDailyEntry();
+      setOverlayRoute(null);
+      setPendingNext(null);
+      openFromHome({ kind: daily.kind, puzzleId: daily.puzzleId });
+    };
+    Linking.getInitialURL().then(open).catch(() => {});
+    const subscription = Linking.addEventListener('url', event => open(event.url));
+    return () => subscription.remove();
+  }, [openFromHome]);
 
   const exit = useCallback(() => setSelected(null), []);
   // Shared by every game's completion screen as "next puzzle": advancing
@@ -192,8 +212,14 @@ function AppRoutes(): React.JSX.Element {
       onOpenJourney={() => setOverlayRoute('journey')}
       onOpenShop={() => openShop(null)}
       onOpenLedger={() => setOverlayRoute('ledger')}
+      onOpenLeaderboard={() => setOverlayRoute('leaderboard')}
     />
   );
+  const playDaily = () => {
+    const daily = getDailyEntry();
+    setOverlayRoute(null);
+    openFromHome({ kind: daily.kind, puzzleId: daily.puzzleId });
+  };
 
   let screen: React.JSX.Element;
   let routeKey: string;
@@ -201,7 +227,7 @@ function AppRoutes(): React.JSX.Element {
     screen = <CalmingInterstitialScreen onDone={finishInterstitial} />;
     routeKey = 'interstitial';
   } else if (!selected && overlayRoute === 'settings') {
-    screen = <SettingsScreen onExit={() => setOverlayRoute(null)} />;
+    screen = <SettingsScreen onExit={() => setOverlayRoute(null)} onOpenAccount={() => setOverlayRoute('account')} />;
     routeKey = 'settings';
   } else if (!selected && overlayRoute === 'journey') {
     screen = <JourneyScreen onExit={() => setOverlayRoute(null)} onOpenShop={() => openShop('journey')} />;
@@ -212,6 +238,12 @@ function AppRoutes(): React.JSX.Element {
   } else if (!selected && overlayRoute === 'shop') {
     screen = <ShopScreen onExit={() => setOverlayRoute(shopReturn)} />;
     routeKey = 'shop';
+  } else if (!selected && overlayRoute === 'account') {
+    screen = <AccountScreen onExit={() => setOverlayRoute('settings')} />;
+    routeKey = 'account';
+  } else if (!selected && overlayRoute === 'leaderboard') {
+    screen = <LeaderboardScreen onExit={() => setOverlayRoute(null)} onPlayDaily={playDaily} />;
+    routeKey = 'leaderboard';
   } else if (!selected && overlayRoute === 'achievements') {
     screen = <AchievementsScreen onExit={() => setOverlayRoute(null)} />;
     routeKey = 'achievements';

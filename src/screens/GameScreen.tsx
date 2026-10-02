@@ -1,3 +1,5 @@
+import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
+import { isTodaysDaily } from '../game/journey/daily';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { AccessibilityActionEvent, AccessibilityInfo, Animated, Text, View, useWindowDimensions } from 'react-native';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
@@ -16,7 +18,6 @@ import {
 } from '../game/engine';
 import { createGameStateFromLevel, getStarThresholds, LevelDefinition } from '../game/levels';
 import {
-  BatchProgressDots,
   DifficultyChip,
   directionForAccessibilityAction,
   GeometricRule,
@@ -153,6 +154,8 @@ function AnimatedMoveCount({ moves }: { moves: number }): React.JSX.Element {
 export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): React.JSX.Element {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+  // The header is laid over the top of the screen; its height places the stage.
+  const [headerHeight, setHeaderHeight] = useState(insets.top + 96);
   const stageIn = useStageEntrance();
   const controlsIn = useStageEntrance(110);
 
@@ -464,16 +467,20 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   );
   const boardAccessibilityValue = `${onTargetIds.size} of ${gameState.movables.length} pieces on target, ${moveCount} move${moveCount === 1 ? '' : 's'} so far.`;
 
+  // The stage starts the same distance under the header as every other
+  // game's (see `StageTopGap`), so moving between games in a set the board
+  // never jumps up or down; the board takes the room that leaves.
+  const topGap = Math.round(Math.max(8, Math.min(88, (height - 640) * 0.45)));
+  const stageTop = headerHeight + topGap;
   const padding = theme.spacing.lg;
   const availableWidth = width - padding * 2 - STAGE_H_PADDING * 2;
-  const availableHeight =
-    height - insets.top - insets.bottom - padding * 2 - CONTROLS_AREA_HEIGHT;
+  const availableHeight = height - stageTop - insets.bottom - CONTROLS_AREA_HEIGHT;
   const boardSize = Math.max(0, Math.floor(Math.min(availableWidth, availableHeight)));
 
   return (
     <View style={styles.container}>
       <PageBloom />
-      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
+      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]} onLayout={e => setHeaderHeight(e.nativeEvent.layout.height)}>
         <PressableScale
           accessibilityRole="button"
           accessibilityLabel="Back to home"
@@ -500,7 +507,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
               {priorBest !== null ? ` · BEST ${priorBest}` : ''}
             </Text>
           </View>
-          {progress.currentBatch && <BatchProgressDots batch={progress.currentBatch} style={styles.batchDots} />}
+          <PuzzleProgressMark batch={progress.currentBatch} puzzleId={level.id} style={styles.batchDots} />
         </View>
         <PressableScale
           accessibilityRole="button"
@@ -516,7 +523,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
       {/* Swipes are read across the whole stage, not just the board: a
           swipe that starts a finger's width outside the board is still
           plainly a swipe, and ignoring it read as the game not listening. */}
-      <Animated.View style={[styles.stage, stageIn]} {...swipeHandlers}>
+      <Animated.View style={[styles.stage, { marginTop: stageTop }, stageIn]} {...swipeHandlers}>
         {/* The same ruled ornament every other game's stage opens with -
             Gravity was the one board without it, so moving between games
             in a batch made this screen look like it belonged elsewhere. */}
@@ -582,7 +589,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           runStars={outcome.runStars}
           moves={outcome.runMoves}
           bestMoves={outcome.best.bestMoves}
-          hasNextLevel={nextEntry !== null}
+          hasNextLevel={nextEntry !== null && !isTodaysDaily(level.id)}
           onReplay={handleRestart}
           onNext={outcome.batchCompleted && finishedSetRef.current ? () => setShowSetComplete(true) : handleNext}
           onExit={onExit}
@@ -617,7 +624,7 @@ const styles = themedStyles(() => ({
   container: {
     flex: 1,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-start',
     backgroundColor: theme.colors.background,
   },
   header: {

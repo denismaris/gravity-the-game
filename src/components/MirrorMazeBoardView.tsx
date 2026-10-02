@@ -16,12 +16,11 @@ import {
   ObstacleBlock,
   shade,
   TargetMarker,
-  IDLE_MOTION_FPS,
-  useAnimationClock,
   useReducedMotion,
 } from '../game/rendering';
 import { theme, lightColors } from '../theme';
 import { SkiaEntrance } from './SkiaEntrance';
+import { cancelAnimation, Easing, SharedValue, useDerivedValue, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
 /** How long a mirror takes to spin into place after a tap. */
 const FLOURISH_MS = 260;
@@ -39,11 +38,8 @@ function positionKey(row: number, col: number): string {
   return `${row}:${col}`;
 }
 
-function clamp01(value: number): number {
-  return value < 0 ? 0 : value > 1 ? 1 : value;
-}
-
 function easeOutCubic(t: number): number {
+  'worklet';
   const inv = 1 - t;
   return 1 - inv * inv * inv;
 }
@@ -101,6 +97,7 @@ export function renderMirror(key: string, cx: number, cy: number, halfLength: nu
 /** A small diamond marking a gem - distinct from the mirror's straight
  * diagonal, the target's ring and the obstacle's square. */
 export function gemPath(cx: number, cy: number, size: number): string {
+  'worklet';
   return `M ${cx} ${cy - size} L ${cx + size} ${cy} L ${cx} ${cy + size} L ${cx - size} ${cy} Z`;
 }
 
@@ -200,31 +197,6 @@ function useMirrorFlourish(mirrors: MirrorMazeState['mirrors']): Flourish | null
   }, [mirrors]);
 
   return flourish;
-}
-
-/** When each gem was first reached by the beam, so a newly-lit one can throw
- * a collected ring. Keyed by cell, and never cleared - a gem the beam later
- * stops reaching simply stops being `lit`, and re-lighting it restamps. */
-function useGemBursts(litGemKeys: ReadonlySet<string>): ReadonlyMap<string, number> {
-  const [bursts, setBursts] = useState<ReadonlyMap<string, number>>(new Map());
-  const previousRef = useRef(litGemKeys);
-
-  useEffect(() => {
-    const previous = previousRef.current;
-    previousRef.current = litGemKeys;
-
-    const newlyLit = [...litGemKeys].filter(key => !previous.has(key));
-    if (newlyLit.length === 0) return;
-
-    setBursts(current => {
-      const next = new Map(current);
-      const now = Date.now();
-      for (const key of newlyLit) next.set(key, now);
-      return next;
-    });
-  }, [litGemKeys]);
-
-  return bursts;
 }
 
 interface StaticMazeLayerProps {
@@ -343,41 +315,42 @@ const StaticMazeLayer = React.memo(function StaticMazeLayerImpl({
   );
 });
 
-interface StaticGemsProps {
-  layout: BoardLayout;
-  gems: ReadonlyArray<MirrorMazeCell>;
-  gemSize: number;
-  /** Comma-joined keys of gems currently unlit (shimmering) or mid-burst -
-   * the same `transitioningKeys`-as-a-primitive-string idiom
-   * `StaticBinairoTiles` uses, so `React.memo`'s shallow prop comparison
-   * can actually tell "nothing changed" apart from "something changed"
-   * between ticks. Everything *not* in this set is lit and settled, which
-   * is a fixed, clock-independent shape - the steady state a solved
-   * board's gems (all of them) sit in for good. */
-  activeKeys: string;
-}
+/** The beam's slow breath and the gems' shimmer: one full cycle of each,
+ * in milliseconds (the old clock's `sin(t / 700)` and `sin(t / 820)`). */
+const PULSE_PERIOD_MS = Math.round(2 * Math.PI * 700);
+const SHIMMER_PERIOD_MS = Math.round(2 * Math.PI * 820);
 
 /**
- * Every gem that is lit and done bursting, at its own fixed resting
- * shape - no shimmer term, no burst ring, because neither applies once a
- * gem has settled. Memoized so a board that is mostly or fully lit stops
- * paying the idle clock's cost for gems that no longer have anything left
- * to animate; still-unlit gems (which do need the shimmer) are drawn by a
- * separate, unmemoized layer in `MirrorMazeBoardView` itself.
+ * One gem. Waiting, it shimmers; the moment the beam first reaches it, it
+ * throws a ring; lit, it rests. All of it on the UI thread - Skia reads
+ * these values directly, so nothing here re-renders while it moves.
  */
-const StaticGems = React.memo(function StaticGemsImpl({ layout, gems, gemSize, activeKeys }: StaticGemsProps) {
-  const skip = useMemo(() => new Set(activeKeys ? activeKeys.split(',') : []), [activeKeys]);
+function MazeGem({ cx, cy, size, lit, index, shimmerPhase, reducedMotion }: { cx: number; cy: number; size: number; lit: boolean; index: number; shimmerPhase: SharedValue<number>; reducedMotion: boolean }): React.JSX.Element {
+  const burst = useSharedValue(1);
+  const wasLit = useRef(lit);
+  useEffect(() => {
+    if (lit && !wasLit.current && !reducedMotion) {
+      burst.value = 0;
+      burst.value = withTiming(1, { duration: GEM_BURST_MS, easing: Easing.linear });
+    }
+    wasLit.current = lit;
+  }, [lit, burst, reducedMotion]);
+
+  const shimmer = useDerivedValue(() => (reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(shimmerPhase.value + index * 0.9)));
+  const restingPath = useMemo(() => gemPath(cx, cy, size * 1.08), [cx, cy, size]);
+  const waitingPath = useDerivedValue(() => gemPath(cx, cy, size * (0.9 + 0.14 * shimmer.value)));
+  const waitingOpacity = useDerivedValue(() => 0.55 + 0.35 * shimmer.value);
+  const ringR = useDerivedValue(() => size * (1 + easeOutCubic(burst.value) * 2.2));
+  const ringWidth = useDerivedValue(() => Math.max(1, size * 0.35 * (1 - burst.value)));
+  const ringOpacity = useDerivedValue(() => (burst.value >= 1 ? 0 : 0.7 * (1 - burst.value)));
+
   return (
     <Group>
-      {gems.map((cell, i) => {
-        const key = positionKey(cell.row, cell.col);
-        if (skip.has(key)) return null;
-        const center = getCellCenter(layout, cell.row, cell.col);
-        return <Path key={`gem-${i}`} path={gemPath(center.x, center.y, gemSize * 1.08)} color={theme.colors.accent} opacity={1} />;
-      })}
+      {lit && <Circle cx={cx} cy={cy} r={ringR} color={theme.colors.accent} style="stroke" strokeWidth={ringWidth} opacity={ringOpacity} />}
+      {lit ? <Path path={restingPath} color={theme.colors.accent} /> : <Path path={waitingPath} color={theme.colors.mirrorGlass} opacity={waitingOpacity} />}
     </Group>
   );
-});
+}
 
 interface StaticMirrorsProps {
   layout: BoardLayout;
@@ -446,17 +419,6 @@ export function MirrorMazeBoardView({
   const layout = useMemo(() => computeBoardLayout(puzzle.rows, size), [puzzle.rows, size]);
   const reducedMotion = useReducedMotion();
 
-  // Idle motion runs while there's still a puzzle to solve, and through the
-  // ignition so the last gem's burst isn't cut off mid-flight.
-  // The beam reveal is real motion and keeps the full rate; the idle
-  // shimmer and pulse are decoration and do not. Under reduced motion both
-  // are pinned to constants, so once the beam has finished revealing there
-  // is nothing left for a clock to drive.
-  // `solved &&` matters: `revealProgress` sits at 0 for the whole time a
-  // puzzle is unsolved, so without it this read as "revealing" throughout
-  // ordinary play and the idle shimmer ran at the full 60fps instead of
-  // `IDLE_MOTION_FPS` - five times the steady render cost it was tuned to.
-  const revealing = solved && revealProgress < 1;
 
   const seed = useMemo(() => [...puzzle.id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0), [puzzle.id]);
   const speckle = useSpeckle(layout.boardSize, seed);
@@ -466,61 +428,35 @@ export function MirrorMazeBoardView({
   const ignitionPathString = partialPathThroughCells(layout, path, revealProgress);
 
   const flourish = useMirrorFlourish(state.mirrors);
-  const gemBursts = useGemBursts(litGemKeys);
-
-  // A mirror flipping (260ms) or a gem bursting (420ms) is real motion.
-  // On the 12fps idle clock a flip got about three frames and read as lag,
-  // so while either is in flight the clock runs at full rate, dropping back
-  // to idle the frame the last one settles. Declared after both hooks so it
-  // can see them.
-  const renderNow = Date.now();
-  // A mirror's own flourish plays on the UI thread (`SkiaEntrance`); only
-  // a gem bursting still needs real frames from here.
-  let placing = false;
-  if (!reducedMotion) {
-    for (const at of gemBursts.values()) {
-      if (renderNow - at < GEM_BURST_MS) {
-        placing = true;
-        break;
-      }
-    }
-  }
-  const fullRate = revealing || placing;
-  const clock = useAnimationClock(fullRate || (!solved && !reducedMotion), fullRate ? 60 : IDLE_MOTION_FPS);
   const flourishingKey = flourish ? positionKey(flourish.cell.row, flourish.cell.col) : null;
 
-  // Which gems still need the clock this tick: not yet lit, or lit but
-  // still within their own burst window - recomputed every tick (cheap,
-  // just key membership checks), but only turned into a *new string* when
-  // the actual membership changes, so `StaticGems`' own memo comparison
-  // keeps bailing out across every tick where nothing about "which gems
-  // are settled" changed - which, on a mostly-lit board, is most of them.
-  const activeGemKeySet = useMemo(() => {
-    const set = new Set<string>();
-    for (const cell of puzzle.gems) {
-      const key = positionKey(cell.row, cell.col);
-      const lit = litGemKeys.has(key);
-      const burstAt = gemBursts.get(key);
-      const burst = burstAt === undefined ? 1 : clamp01((Date.now() - burstAt) / GEM_BURST_MS);
-      if (!lit || burst < 1) set.add(key);
+  // The beam breathes and the waiting gems shimmer - on the UI thread.
+  // This board used to run a JavaScript clock that re-rendered all of it
+  // twelve times a second (sixty while anything moved), which is what made
+  // turning a mirror feel heavy on a phone.
+  const idle = !solved && !reducedMotion;
+  const pulsePhase = useSharedValue(Math.PI / 2);
+  const shimmerPhase = useSharedValue(0);
+  useEffect(() => {
+    if (!idle) {
+      cancelAnimation(pulsePhase);
+      cancelAnimation(shimmerPhase);
+      pulsePhase.value = Math.PI / 2;
+      return;
     }
-    return set;
-    // `clock` isn't read directly (the burst check uses `Date.now()`,
-    // which eslint can't see as reactive) - it's here purely so this
-    // recomputes every tick, the only way to notice a burst crossing
-    // `GEM_BURST_MS` and settling.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [puzzle.gems, litGemKeys, gemBursts, clock]);
-  const activeGemKeys = useMemo(() => Array.from(activeGemKeySet).join(','), [activeGemKeySet]);
+    pulsePhase.value = 0;
+    pulsePhase.value = withRepeat(withTiming(2 * Math.PI, { duration: PULSE_PERIOD_MS, easing: Easing.linear }), -1, false);
+    shimmerPhase.value = 0;
+    shimmerPhase.value = withRepeat(withTiming(2 * Math.PI, { duration: SHIMMER_PERIOD_MS, easing: Easing.linear }), -1, false);
+  }, [idle, pulsePhase, shimmerPhase]);
+  const pulse = useDerivedValue(() => 0.5 + 0.5 * Math.sin(pulsePhase.value));
 
-  // Frozen at its own midpoint under reduced motion, not fully removed -
-  // the beam still shows the same halo/core presence, it just stops
-  // breathing. `clock / 700` is a ~0.23Hz idle oscillation, inside the
-  // slow-loop band motion-sensitive users are most bothered by.
-  const pulse = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(clock / 700);
   // Light wants to be thin and sharp with a wide, faint bloom around it -
   // a thick core just reads as a glowing rod.
-  const haloWidth = Math.max(4, layout.cellSize * 0.17) * (0.85 + 0.3 * pulse);
+  const haloBase = Math.max(4, layout.cellSize * 0.17);
+  const haloWidth = useDerivedValue(() => haloBase * (0.85 + 0.3 * pulse.value));
+  const haloOpacity = useDerivedValue(() => 0.16 + 0.12 * pulse.value);
+  const coreOpacity = useDerivedValue(() => 0.85 + 0.15 * pulse.value);
   const midWidth = Math.max(1.8, layout.cellSize * 0.055);
   const coreWidth = Math.max(1, layout.cellSize * 0.026);
   const arrowSize = layout.cellSize * 0.26;
@@ -544,7 +480,7 @@ export function MirrorMazeBoardView({
             strokeWidth={haloWidth}
             strokeCap="round"
             strokeJoin="round"
-            opacity={0.16 + 0.12 * pulse}
+            opacity={haloOpacity}
           />
           <Path
             path={livePathString}
@@ -562,7 +498,7 @@ export function MirrorMazeBoardView({
             strokeWidth={coreWidth}
             strokeCap="round"
             strokeJoin="round"
-            opacity={0.85 + 0.15 * pulse}
+            opacity={coreOpacity}
           />
         </Group>
       )}
@@ -575,7 +511,7 @@ export function MirrorMazeBoardView({
             path={ignitionPathString}
             color={theme.colors.accent}
             style="stroke"
-            strokeWidth={haloWidth * 1.25}
+            strokeWidth={haloBase * 1.25}
             strokeCap="round"
             strokeJoin="round"
             opacity={0.30}
@@ -607,40 +543,19 @@ export function MirrorMazeBoardView({
         color={lightColors.background}
       />
 
-      <StaticGems layout={layout} gems={puzzle.gems} gemSize={gemSize} activeKeys={activeGemKeys} />
-      {/* Gems still worth the clock: a slow shimmer while waiting, a ring
-          thrown outward the moment the beam first reaches one. Everything
-          settled (lit, burst finished) is `StaticGems`' job instead. */}
       {puzzle.gems.map((cell, i) => {
-        const key = positionKey(cell.row, cell.col);
-        if (!activeGemKeySet.has(key)) return null;
         const center = getCellCenter(layout, cell.row, cell.col);
-        const lit = litGemKeys.has(key);
-        const shimmer = reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(clock / 820 + i * 0.9);
-
-        const burstAt = gemBursts.get(key);
-        const burst = burstAt === undefined ? 1 : clamp01((Date.now() - burstAt) / GEM_BURST_MS);
-        const bursting = lit && burst < 1;
-
         return (
-          <Group key={`gem-${i}`}>
-            {bursting && (
-              <Circle
-                cx={center.x}
-                cy={center.y}
-                r={gemSize * (1 + easeOutCubic(burst) * 2.2)}
-                color={theme.colors.accent}
-                style="stroke"
-                strokeWidth={Math.max(1, gemSize * 0.35 * (1 - burst))}
-                opacity={0.7 * (1 - burst)}
-              />
-            )}
-            <Path
-              path={gemPath(center.x, center.y, gemSize * (lit ? 1.08 : 0.9 + 0.14 * shimmer))}
-              color={lit ? theme.colors.accent : theme.colors.mirrorGlass}
-              opacity={lit ? 1 : 0.55 + 0.35 * shimmer}
-            />
-          </Group>
+          <MazeGem
+            key={`gem-${cell.row}-${cell.col}`}
+            cx={center.x}
+            cy={center.y}
+            size={gemSize}
+            lit={litGemKeys.has(positionKey(cell.row, cell.col))}
+            index={i}
+            shimmerPhase={shimmerPhase}
+            reducedMotion={reducedMotion}
+          />
         );
       })}
 

@@ -11,6 +11,7 @@ describe('defaultSettings', () => {
     expect(defaultSettings()).toEqual({
       version: 1,
       soundEnabled: true,
+      musicEnabled: true,
       hapticsEnabled: true,
       calmingInterstitialEnabled: true,
       seenTutorials: [],

@@ -97,3 +97,9 @@ export function getDailyEntry(date: Date = new Date()): DailyEntry {
   const info = puzzleDisplayInfo(ref.kind, ref.puzzleId) ?? { name: ref.puzzleId, chapter: '' };
   return { kind: ref.kind, puzzleId: ref.puzzleId, name: info.name, chapter: info.chapter };
 }
+
+/** Whether `puzzleId` is today's Daily - which is played on its own, not
+ * as part of the level set, and so ends back at Home. */
+export function isTodaysDaily(puzzleId: string, date: Date = new Date()): boolean {
+  return getDailyEntry(date).puzzleId === puzzleId;
+}

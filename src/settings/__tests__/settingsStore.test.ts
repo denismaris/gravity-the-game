@@ -22,6 +22,7 @@ describe('parseSettings', () => {
       JSON.stringify({
         version: 1,
         soundEnabled: false,
+        musicEnabled: false,
         hapticsEnabled: false,
         calmingInterstitialEnabled: false,
         seenTutorials: ['game:gravity', 'mechanic:hazard'],
@@ -30,6 +31,7 @@ describe('parseSettings', () => {
     expect(parsed).toEqual({
       version: 1,
       soundEnabled: false,
+      musicEnabled: false,
       hapticsEnabled: false,
       calmingInterstitialEnabled: false,
       seenTutorials: ['game:gravity', 'mechanic:hazard'],

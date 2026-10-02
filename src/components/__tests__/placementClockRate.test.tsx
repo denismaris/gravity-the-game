@@ -81,7 +81,7 @@ describe('placement animations get full-rate frames', () => {
     act(() => renderer.unmount());
   });
 
-  test('Mirror Maze: a flipped mirror turns in on the UI thread, and the clock stays idle', () => {
+  test('Mirror Maze: a flipped mirror turns in on the UI thread, with no clock at all', () => {
     const puzzle = getMirrorMazeById('mirror-001')!;
     const empty = emptyMirrorMazeState(puzzle);
     let target: [number, number] | null = null;
@@ -93,15 +93,14 @@ describe('placement animations get full-rate frames', () => {
       <MirrorMazeBoardView puzzle={puzzle} state={state} size={280} path={traceBeam(puzzle, state)} revealProgress={0} solved={false} />
     );
 
+    clockSpy.mockClear();
     let renderer!: ReactTestRenderer.ReactTestRenderer;
     act(() => {
       renderer = ReactTestRenderer.create(board(empty));
     });
-    expect(lastRate()).toBe(IDLE_MOTION_FPS);
-
     act(() => renderer.update(board(flipped)));
     expect(renderer.root.findAllByType(SkiaEntrance)).toHaveLength(1);
-    expect(lastRate()).toBe(IDLE_MOTION_FPS);
+    expect(clockSpy).not.toHaveBeenCalled();
     act(() => renderer.unmount());
   });
 });

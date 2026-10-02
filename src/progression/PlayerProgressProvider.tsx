@@ -31,10 +31,11 @@ import {
 import { clearProgress, loadProgress, saveProgress } from './playerProgressStore';
 import { GOLDEN_MULTIPLIER, cleanRunMultiplier, coinsForSolve } from './coins';
 import { setColorOverrides } from '../theme';
-import { COSMETICS, claimSet as claimSetPure, skinOverrides } from './shop';
+import { AdFreeOption, COSMETICS, buyAdFree as buyAdFreePure, claimSet as claimSetPure, skinOverrides } from './shop';
 import { claimGift as claimGiftPure, Gift } from './gift';
 import { applyPurchase, ProductId } from './store';
 import { setSolveChime } from '../game/rendering/sound';
+import { syncWidget } from '../widget';
 import { advanceErrands, claimErrand as claimErrandPure } from './errands';
 import { chaptersFinished, claimChapter as claimChapterPure } from './chapters';
 import { recordGrand } from './grand';
@@ -152,6 +153,8 @@ interface PlayerProgressContextValue {
   /** Wipes every star and completion, in memory and on disk. Irreversible -
    * the Settings screen is expected to confirm with the player first. */
   resetProgress(): void;
+  /** Replaces the whole save - with the cloud's copy, merged in. */
+  adoptProgress(progress: PlayerProgress): void;
   /** The coin balance. */
   readonly coins: number;
   /** Takes `amount` coins if the player has them. Returns whether it did -
@@ -184,6 +187,8 @@ interface PlayerProgressContextValue {
   /** Brings a retired game back - free. */
   reinstateGame(kind: GameKind): void;
   buyLuckyCharm(): boolean;
+  /** Buys ad-free time with coins; returns whether it did. */
+  buyAdFree(id: AdFreeOption['id']): boolean;
   /** Claims today's gift; returns it, or null if already claimed. */
   claimGift(): Gift | null;
   /** Pays a completed shop set's bonus; returns whether it did. */
@@ -532,6 +537,15 @@ export function PlayerProgressProvider({
     });
     return done;
   }, [applyMutation]);
+  const buyAdFree = useCallback((id: AdFreeOption['id']): boolean => {
+    let done = false;
+    applyMutation(current => {
+      const next = buyAdFreePure(current, id);
+      done = next !== null;
+      return next ?? current;
+    });
+    return done;
+  }, [applyMutation]);
   const swapPuzzle = useCallback((): BatchPuzzleRef | null => {
     let swapped: BatchPuzzleRef | null = null;
     applyMutation(current => {
@@ -650,6 +664,13 @@ export function PlayerProgressProvider({
     [applyMutation],
   );
 
+  const adoptProgress = useCallback(
+    (next: PlayerProgress): void => {
+      applyMutation(() => next);
+    },
+    [applyMutation],
+  );
+
   const resetProgress = useCallback((): void => {
     const fresh = emptyProgress();
     progressRef.current = fresh;
@@ -663,6 +684,10 @@ export function PlayerProgressProvider({
   // them.
   const repaints = useMemo(() => skinOverrides(progress), [progress]);
   setColorOverrides(repaints.light, repaints.dark);
+  // The home-screen widget: is today's Daily done, and the streak.
+  useEffect(() => {
+    if (ready) syncWidget({ streak: progress.daily.streak, solvedKey: progress.daily.lastCompletedKey });
+  }, [ready, progress.daily.streak, progress.daily.lastCompletedKey]);
   // The worn solve chime replaces every game's own finish sound.
   const chime = equippedPure(progress, 'chime').sound ?? null;
   useEffect(() => setSolveChime(chime), [chime]);
@@ -674,6 +699,7 @@ export function PlayerProgressProvider({
       recordCompletion: recordAndMark,
       markLevelOpened,
       resetProgress,
+      adoptProgress,
       coins: progress.coins,
       spendCoins,
       claimErrand,
@@ -688,6 +714,7 @@ export function PlayerProgressProvider({
       retireGame,
       reinstateGame,
       buyLuckyCharm,
+      buyAdFree,
       claimGift,
       claimSet,
       completePurchase,
@@ -701,7 +728,7 @@ export function PlayerProgressProvider({
       dailyStreak: getDisplayDailyStreak(progress, dailyKeyOf(new Date())),
       dailyCompletedToday: isDailyCompleted(progress, dailyKeyOf(new Date())),
     }),
-    [progress, ready, recordAndMark, markLevelOpened, resetProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, setShopGoal, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, claimGift, claimSet, completePurchase, swapPuzzle, lastCharmed, lastBonus],
+    [progress, ready, recordAndMark, markLevelOpened, resetProgress, adoptProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, setShopGoal, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, buyAdFree, claimGift, claimSet, completePurchase, swapPuzzle, lastCharmed, lastBonus],
   );
 
   return (

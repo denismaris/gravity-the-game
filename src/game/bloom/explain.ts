@@ -30,6 +30,6 @@ export function explainBloomHint(puzzle: BloomPuzzle, state: BloomState): ({ sta
     reason:
       settled >= 3
         ? 'Its neighbours are already set. Only one turn joins every line here.'
-        : 'Turn this one so no line runs loose into its neighbours.',
+        : 'Turn this tile so none of its lines ends in a dead end.',
   };
 }

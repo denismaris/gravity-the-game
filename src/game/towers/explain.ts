@@ -41,7 +41,7 @@ export function explainTowersHint(puzzle: TowersPuzzle, state: TowersState): ({ 
       state: setCell(state, cell.row, cell.col, right),
       cell,
       kind: 'fix',
-      reason: dupRow || dupCol ? `There's already a ${h} in this ${dupRow ? 'row' : 'column'} - this one is ${right}.` : `A ${h} here can't satisfy the clues. This tower is ${right}.`,
+      reason: dupRow || dupCol ? `There's already a ${h} in this ${dupRow ? 'row' : 'column'}. This tower is a ${right}.` : `A ${h} here would break a clue. This tower is a ${right}.`,
     };
   }
 
@@ -78,12 +78,12 @@ export function explainTowersHint(puzzle: TowersPuzzle, state: TowersState): ({ 
       ];
       for (const [clue, d, side] of sides) {
         if (clue === 1 && d === 0) add(0, `A 1 clue sees only the first tower, so the one next to it must be the tallest: ${n}.`);
-        if (clue === n) add(0, `A ${n} clue (${side}) sees every tower, so they climb 1, 2, 3... - this one is ${d + 1}.`);
+        if (clue === n) add(0, `A ${n} clue (${side}) sees every tower, so they climb 1, 2, 3 in order. This one is ${d + 1}.`);
       }
       const all = allowed(r, c);
       const fitting = all.filter(o => o.why === 'latin');
-      if (all.length === 1) add(1, `Every other height is already in this row or column. Only ${want} is left.`);
-      else if (fitting.length === 1) add(2, `The clues rule out the taller heights here. Only ${want} fits.`);
+      if (all.length === 1) add(1, `Every other height is already used in this row or column, so only ${want} is left.`);
+      else if (fitting.length === 1) add(2, `The clues rule out every other height here, so only ${want} fits.`);
       // Hidden single: `want` has nowhere else to go in this row/column.
       const rowSpots = Array.from({ length: n }, (_v, i) => i).filter(i => !v(r, i) && allowed(r, i).some(o => o.h === want && o.why === 'latin'));
       const colSpots = Array.from({ length: n }, (_v, i) => i).filter(i => !v(i, c) && allowed(i, c).some(o => o.h === want && o.why === 'latin'));
@@ -103,6 +103,6 @@ export function explainTowersHint(puzzle: TowersPuzzle, state: TowersState): ({ 
     state: setCell(state, best.row, best.col, h),
     cell: best,
     kind: 'nudge',
-    reason: `Count what each clue can see along this row and column: only a ${h} lets them all come true.`,
+    reason: `Count how many towers each clue can see: only a ${h} here makes every clue true.`,
   };
 }

@@ -1,4 +1,4 @@
-import { buildShareMessage } from '../shareMessage';
+import { buildDailyShare, buildShareMessage, dailyNumber } from '../shareMessage';
 
 describe('buildShareMessage', () => {
   test('leads with the streak when one exists', () => {
@@ -26,5 +26,23 @@ describe('buildShareMessage', () => {
   test('never invents a URL', () => {
     const message = buildShareMessage({ dailyStreak: 1, totalStars: 1, solved: 1, totalPuzzles: 1 });
     expect(message).not.toMatch(/https?:\/\//);
+  });
+});
+
+describe('buildDailyShare', () => {
+  it('numbers the Daily from the first day of 2026', () => {
+    expect(dailyNumber('2026-01-01')).toBe(1);
+    expect(dailyNumber('2026-10-02')).toBe(275);
+  });
+
+  it('reads like a result card, with no spoilers', () => {
+    expect(buildDailyShare({ dayKey: '2026-10-02', game: 'Gravity', stars: 3, ms: 48000, streak: 4 })).toBe(
+      'Tessera Daily #275 · Gravity\n★★★ · 0:48\n🟧🟧🟧🟧⬜⬜⬜ 4-day streak',
+    );
+  });
+
+  it('leaves out what it does not know, and caps the streak row at a week', () => {
+    expect(buildDailyShare({ dayKey: '2026-10-02', game: 'Bloom', stars: 1, ms: null, streak: 0 })).toBe('Tessera Daily #275 · Bloom\n★☆☆\n⬜⬜⬜⬜⬜⬜⬜');
+    expect(buildDailyShare({ dayKey: '2026-10-02', game: 'Bloom', stars: 2, ms: null, streak: 12 }).split('\n')[2]).toBe('🟧🟧🟧🟧🟧🟧🟧 12-day streak');
   });
 });

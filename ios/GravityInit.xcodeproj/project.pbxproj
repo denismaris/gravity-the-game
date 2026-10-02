@@ -8,10 +8,12 @@
 
 /* Begin PBXBuildFile section */
 		0B412B3721CBFD813FA426DA /* sfx_target.wav in Resources */ = {isa = PBXBuildFile; fileRef = 004E61D0AED9BE6563C58D22 /* sfx_target.wav */; };
+		0B5E4A149C729A0B712CD550 /* music_almanac.m4a in Resources */ = {isa = PBXBuildFile; fileRef = C7F3E5F74E047E8B43F83A49 /* music_almanac.m4a */; };
 		0C7C1669BDB2E97747AD659C /* sfx_arukone_reject.wav in Resources */ = {isa = PBXBuildFile; fileRef = FFB72BD55F48513A7EA28641 /* sfx_arukone_reject.wav */; };
 		0C80B921A6F3F58F76C31292 /* libPods-GravityInit.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 5DCACB8F33CDC322A6C60F78 /* libPods-GravityInit.a */; };
 		103E266DC96111ECDC638735 /* sfx_binairo_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = F317E282D8AEEA9FDD698D15 /* sfx_binairo_solve.wav */; };
 		1210564D9271BA2284DC905A /* sfx_bridges_build.wav in Resources */ = {isa = PBXBuildFile; fileRef = 174889A22302B38C207CCBB5 /* sfx_bridges_build.wav */; };
+		121601B2AB6DD257406D119B /* TesseraWidgetBridge.m in Sources */ = {isa = PBXBuildFile; fileRef = F25C9EB17D355773E3E3AEB1 /* TesseraWidgetBridge.m */; };
 		12B09D86EE9787F5F822CA1E /* sfx_coin.wav in Resources */ = {isa = PBXBuildFile; fileRef = E2CA00CBA0A26EE543BF18E1 /* sfx_coin.wav */; };
 		139D034796C454514FD4461C /* sfx_move.wav in Resources */ = {isa = PBXBuildFile; fileRef = 82C8FD3C1722BA279244080C /* sfx_move.wav */; };
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
@@ -40,6 +42,8 @@
 		6C3831620F8AE6B073B174E0 /* sfx_lightsout_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = A4DBD945DD03D910EEC12653 /* sfx_lightsout_solve.wav */; };
 		6E7E904FF5E100B2BCDCC2A3 /* sfx_bridges_remove.wav in Resources */ = {isa = PBXBuildFile; fileRef = 6E798D4D25AEC083F94F8AEE /* sfx_bridges_remove.wav */; };
 		6EE4BBC59B4547653F6B6999 /* sfx_binairo_error.wav in Resources */ = {isa = PBXBuildFile; fileRef = FC23D3BF292257E5217ACC95 /* sfx_binairo_error.wav */; };
+		7343BF0BCA5795F26837C68C /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 32D19525581619BCF5513724 /* WidgetKit.framework */; };
+		7433DA2B708E1731899D72DE /* daily-schedule.json in Resources */ = {isa = PBXBuildFile; fileRef = 65430377FBC6EE8689AE8559 /* daily-schedule.json */; };
 		761780ED2CA45674006654EE /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 761780EC2CA45674006654EE /* AppDelegate.swift */; };
 		766697C60B96947080FF03C7 /* sfx_mirror_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = 369F0C92F8C5839051C7486F /* sfx_mirror_solve.wav */; };
 		7704181FF0AD2DDAB0646744 /* sfx_tents_plant.wav in Resources */ = {isa = PBXBuildFile; fileRef = 18D648F25764C6A01DF64BC2 /* sfx_tents_plant.wav */; };
@@ -49,12 +53,15 @@
 		7CED867168456542ED382E39 /* sfx_binairo_toggle.wav in Resources */ = {isa = PBXBuildFile; fileRef = 64406E1A073E9C3E3F54E9CB /* sfx_binairo_toggle.wav */; };
 		81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */; };
 		81C7516F3DF5BD2158A14B2F /* sfx_adjacent_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = 2A484D05531918208DBC14CC /* sfx_adjacent_solve.wav */; };
+		87B291DA74C494AC202F656E /* TesseraWidgetReloader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C6655CF4B72BD8067173D76 /* TesseraWidgetReloader.swift */; };
 		8DA680DF67209FEDA9F39F4A /* sfx_step.wav in Resources */ = {isa = PBXBuildFile; fileRef = BF4A64503A5344D1F60D5457 /* sfx_step.wav */; };
 		8F7E1CD7A95EA22DF6F9CAAE /* sfx_lightsout_tap.wav in Resources */ = {isa = PBXBuildFile; fileRef = 8CBFE152EECF1CE38AE30EDE /* sfx_lightsout_tap.wav */; };
 		9F5469FC6DB931CB042985F5 /* sfx_towers_conflict.wav in Resources */ = {isa = PBXBuildFile; fileRef = 9EF4F30E6CCB820AA0E73F82 /* sfx_towers_conflict.wav */; };
+		A1656BB6D32835A8B1E38D39 /* TesseraWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 00522217014CADB7AA3F5CBA /* TesseraWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		A3C80C12944B68B102554B7E /* sfx_lightsout_darker.wav in Resources */ = {isa = PBXBuildFile; fileRef = 091A002588969DA5725E963F /* sfx_lightsout_darker.wav */; };
 		A88628172EEE414793683535 /* TesseraReminders.m in Sources */ = {isa = PBXBuildFile; fileRef = E9393C3C1D287906F3CB9FF4 /* TesseraReminders.m */; };
 		AA234A743259FBC8A98D859D /* sfx_ink_trail_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = C6A09C40ADE31CC2E6AAE983 /* sfx_ink_trail_solve.wav */; };
+		B2428A9A0C395695EB461554 /* TesseraWidget.swift in Sources */ = {isa = PBXBuildFile; fileRef = 64198BE6DD4FBF7446D87F8D /* TesseraWidget.swift */; };
 		BD26C04614B83E6C23D8EE1D /* sfx_chime_patron.wav in Resources */ = {isa = PBXBuildFile; fileRef = B7A92B754AD2B6C8E3BAF8C3 /* sfx_chime_patron.wav */; };
 		BD94BB3E149A7EA6D5B47038 /* sfx_arukone_step.wav in Resources */ = {isa = PBXBuildFile; fileRef = BA0C9804E19654197006E5F2 /* sfx_arukone_step.wav */; };
 		C69E9DA997F25CB0DA994111 /* sfx_bridges_island.wav in Resources */ = {isa = PBXBuildFile; fileRef = 28005D0291680A8B98B8E3A9 /* sfx_bridges_island.wav */; };
@@ -64,15 +71,44 @@
 		CF1E418E887E39CBBCC51615 /* sfx_chime_wind.wav in Resources */ = {isa = PBXBuildFile; fileRef = D6AB41301899245ADE02CE5D /* sfx_chime_wind.wav */; };
 		D14419D1337840ACF62532D2 /* sfx_bloom_turn.wav in Resources */ = {isa = PBXBuildFile; fileRef = F6543F1051E5E411DAA5608C /* sfx_bloom_turn.wav */; };
 		D898C04D9AB36BAF9C909DC8 /* sfx_chime_bell.wav in Resources */ = {isa = PBXBuildFile; fileRef = 3FE6A0613B2DC6E13E5639E0 /* sfx_chime_bell.wav */; };
+		DCB180AE430739DA2276C2AD /* Foundation.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 07995C70D0C67EBB3294513F /* Foundation.framework */; };
 		E0C7A0C4C46364B81D5E27E6 /* sfx_mosaic_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = C76C0CF785BB38F0FB435554 /* sfx_mosaic_solve.wav */; };
+		E24E88A578DAA6A234DB9551 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = BC2AC78C831923A206D51A7B /* SwiftUI.framework */; };
 		E32B288A57E5B905EA185645 /* sfx_towers_solve.wav in Resources */ = {isa = PBXBuildFile; fileRef = 6E4C97F0D249C82985E84986 /* sfx_towers_solve.wav */; };
 		E6DEC47F2E183A18E4721154 /* sfx_mosaic_pickup.wav in Resources */ = {isa = PBXBuildFile; fileRef = A01F9B190BCC2BCFFA4A6D33 /* sfx_mosaic_pickup.wav */; };
 		F524EFAE2A8C2F54DDD1AD7D /* sfx_ui_page.wav in Resources */ = {isa = PBXBuildFile; fileRef = 4C3AC5DAE3ED4BABAD67BC83 /* sfx_ui_page.wav */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		4FB717E377ABC6E5E5B08B46 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 83CBB9F71A601CBA00E9B192 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 65EA2B4E83915526F94A4A22;
+			remoteInfo = TesseraWidget;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		51FC63E91A5A451900FB67EB /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				A1656BB6D32835A8B1E38D39 /* TesseraWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		004E61D0AED9BE6563C58D22 /* sfx_target.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_target.wav; path = GravityInit/Sounds/sfx_target.wav; sourceTree = "<group>"; };
+		00522217014CADB7AA3F5CBA /* TesseraWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TesseraWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		0163F917EB544A92C0B5B551 /* sfx_mosaic_place.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_mosaic_place.wav; path = GravityInit/Sounds/sfx_mosaic_place.wav; sourceTree = "<group>"; };
+		048199F4D37387C2224F7EDF /* Info.plist */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		07995C70D0C67EBB3294513F /* Foundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Foundation.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/Foundation.framework; sourceTree = DEVELOPER_DIR; };
 		091A002588969DA5725E963F /* sfx_lightsout_darker.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_lightsout_darker.wav; path = GravityInit/Sounds/sfx_lightsout_darker.wav; sourceTree = "<group>"; };
 		0A6212DBB44BEC00DD621749 /* sfx_ink_trail_contact.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_ink_trail_contact.wav; path = GravityInit/Sounds/sfx_ink_trail_contact.wav; sourceTree = "<group>"; };
 		0BE463B4E3DBCB2D279BFC24 /* sfx_fail.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_fail.wav; path = GravityInit/Sounds/sfx_fail.wav; sourceTree = "<group>"; };
@@ -87,6 +123,7 @@
 		1E96CE94D4CB06168C226B9A /* sfx_tents_row_complete.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_tents_row_complete.wav; path = GravityInit/Sounds/sfx_tents_row_complete.wav; sourceTree = "<group>"; };
 		28005D0291680A8B98B8E3A9 /* sfx_bridges_island.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_bridges_island.wav; path = GravityInit/Sounds/sfx_bridges_island.wav; sourceTree = "<group>"; };
 		2A484D05531918208DBC14CC /* sfx_adjacent_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_adjacent_solve.wav; path = GravityInit/Sounds/sfx_adjacent_solve.wav; sourceTree = "<group>"; };
+		32D19525581619BCF5513724 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/WidgetKit.framework; sourceTree = DEVELOPER_DIR; };
 		369F0C92F8C5839051C7486F /* sfx_mirror_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_mirror_solve.wav; path = GravityInit/Sounds/sfx_mirror_solve.wav; sourceTree = "<group>"; };
 		373318F8AFD9AF43B0FE7A5B /* sfx_bloom_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_bloom_solve.wav; path = GravityInit/Sounds/sfx_bloom_solve.wav; sourceTree = "<group>"; };
 		3B4392A12AC88292D35C810B /* Pods-GravityInit.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GravityInit.debug.xcconfig"; path = "Target Support Files/Pods-GravityInit/Pods-GravityInit.debug.xcconfig"; sourceTree = "<group>"; };
@@ -96,7 +133,9 @@
 		4C3AC5DAE3ED4BABAD67BC83 /* sfx_ui_page.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_ui_page.wav; path = GravityInit/Sounds/sfx_ui_page.wav; sourceTree = "<group>"; };
 		5709B34CF0A7D63546082F79 /* Pods-GravityInit.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-GravityInit.release.xcconfig"; path = "Target Support Files/Pods-GravityInit/Pods-GravityInit.release.xcconfig"; sourceTree = "<group>"; };
 		5DCACB8F33CDC322A6C60F78 /* libPods-GravityInit.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-GravityInit.a"; sourceTree = BUILT_PRODUCTS_DIR; };
+		64198BE6DD4FBF7446D87F8D /* TesseraWidget.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; path = TesseraWidget.swift; sourceTree = "<group>"; };
 		64406E1A073E9C3E3F54E9CB /* sfx_binairo_toggle.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_binairo_toggle.wav; path = GravityInit/Sounds/sfx_binairo_toggle.wav; sourceTree = "<group>"; };
+		65430377FBC6EE8689AE8559 /* daily-schedule.json */ = {isa = PBXFileReference; includeInIndex = 1; path = "daily-schedule.json"; sourceTree = "<group>"; };
 		6E4C97F0D249C82985E84986 /* sfx_towers_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_towers_solve.wav; path = GravityInit/Sounds/sfx_towers_solve.wav; sourceTree = "<group>"; };
 		6E798D4D25AEC083F94F8AEE /* sfx_bridges_remove.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_bridges_remove.wav; path = GravityInit/Sounds/sfx_bridges_remove.wav; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = GravityInit/AppDelegate.swift; sourceTree = "<group>"; };
@@ -110,6 +149,7 @@
 		92DD3365B4D262FC5B9413FB /* sfx_mosaic_return.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_mosaic_return.wav; path = GravityInit/Sounds/sfx_mosaic_return.wav; sourceTree = "<group>"; };
 		99E3439AE38D96E62E4138FC /* sfx_adjacent_pop.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_adjacent_pop.wav; path = GravityInit/Sounds/sfx_adjacent_pop.wav; sourceTree = "<group>"; };
 		9C0D9F01714DCB0BFDA7F9FB /* sfx_tents_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_tents_solve.wav; path = GravityInit/Sounds/sfx_tents_solve.wav; sourceTree = "<group>"; };
+		9C6655CF4B72BD8067173D76 /* TesseraWidgetReloader.swift */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.swift; name = TesseraWidgetReloader.swift; path = GravityInit/TesseraWidgetReloader.swift; sourceTree = "<group>"; };
 		9EF4F30E6CCB820AA0E73F82 /* sfx_towers_conflict.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_towers_conflict.wav; path = GravityInit/Sounds/sfx_towers_conflict.wav; sourceTree = "<group>"; };
 		A01F9B190BCC2BCFFA4A6D33 /* sfx_mosaic_pickup.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_mosaic_pickup.wav; path = GravityInit/Sounds/sfx_mosaic_pickup.wav; sourceTree = "<group>"; };
 		A403FE84681547EF6403E82E /* sfx_fillapix_clue.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_fillapix_clue.wav; path = GravityInit/Sounds/sfx_fillapix_clue.wav; sourceTree = "<group>"; };
@@ -120,12 +160,14 @@
 		B4EE1D3E6C53746442CB35B9 /* sfx_arukone_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_arukone_solve.wav; path = GravityInit/Sounds/sfx_arukone_solve.wav; sourceTree = "<group>"; };
 		B7A92B754AD2B6C8E3BAF8C3 /* sfx_chime_patron.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_chime_patron.wav; path = GravityInit/Sounds/sfx_chime_patron.wav; sourceTree = "<group>"; };
 		BA0C9804E19654197006E5F2 /* sfx_arukone_step.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_arukone_step.wav; path = GravityInit/Sounds/sfx_arukone_step.wav; sourceTree = "<group>"; };
+		BC2AC78C831923A206D51A7B /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS26.0.sdk/System/Library/Frameworks/SwiftUI.framework; sourceTree = DEVELOPER_DIR; };
 		BF4A64503A5344D1F60D5457 /* sfx_step.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_step.wav; path = GravityInit/Sounds/sfx_step.wav; sourceTree = "<group>"; };
 		BFAAE301FFA1BC61BD53DC70 /* sfx_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_solve.wav; path = GravityInit/Sounds/sfx_solve.wav; sourceTree = "<group>"; };
 		C0D02C6443B34F16A94B898A /* sfx_bloom_close.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_bloom_close.wav; path = GravityInit/Sounds/sfx_bloom_close.wav; sourceTree = "<group>"; };
 		C2CD9879DB1D9ECEBF008AE7 /* sfx_arukone_join.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_arukone_join.wav; path = GravityInit/Sounds/sfx_arukone_join.wav; sourceTree = "<group>"; };
 		C6A09C40ADE31CC2E6AAE983 /* sfx_ink_trail_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_ink_trail_solve.wav; path = GravityInit/Sounds/sfx_ink_trail_solve.wav; sourceTree = "<group>"; };
 		C76C0CF785BB38F0FB435554 /* sfx_mosaic_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_mosaic_solve.wav; path = GravityInit/Sounds/sfx_mosaic_solve.wav; sourceTree = "<group>"; };
+		C7F3E5F74E047E8B43F83A49 /* music_almanac.m4a */ = {isa = PBXFileReference; includeInIndex = 1; name = music_almanac.m4a; path = GravityInit/Sounds/music_almanac.m4a; sourceTree = "<group>"; };
 		D6AB41301899245ADE02CE5D /* sfx_chime_wind.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_chime_wind.wav; path = GravityInit/Sounds/sfx_chime_wind.wav; sourceTree = "<group>"; };
 		D9BBB737A0FEDF8A0EE4FB01 /* sfx_tents_error.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_tents_error.wav; path = GravityInit/Sounds/sfx_tents_error.wav; sourceTree = "<group>"; };
 		E2CA00CBA0A26EE543BF18E1 /* sfx_coin.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_coin.wav; path = GravityInit/Sounds/sfx_coin.wav; sourceTree = "<group>"; };
@@ -133,6 +175,7 @@
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F002F5190C506BAACACE55E8 /* sfx_bridges_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_bridges_solve.wav; path = GravityInit/Sounds/sfx_bridges_solve.wav; sourceTree = "<group>"; };
 		F22E9895B032E02CF9D3E44D /* sfx_chime_harp.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_chime_harp.wav; path = GravityInit/Sounds/sfx_chime_harp.wav; sourceTree = "<group>"; };
+		F25C9EB17D355773E3E3AEB1 /* TesseraWidgetBridge.m */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = sourcecode.c.objc; name = TesseraWidgetBridge.m; path = GravityInit/TesseraWidgetBridge.m; sourceTree = "<group>"; };
 		F317E282D8AEEA9FDD698D15 /* sfx_binairo_solve.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_binairo_solve.wav; path = GravityInit/Sounds/sfx_binairo_solve.wav; sourceTree = "<group>"; };
 		F6543F1051E5E411DAA5608C /* sfx_bloom_turn.wav */ = {isa = PBXFileReference; includeInIndex = 1; name = sfx_bloom_turn.wav; path = GravityInit/Sounds/sfx_bloom_turn.wav; sourceTree = "<group>"; };
 		FC23D3BF292257E5217ACC95 /* sfx_binairo_error.wav */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = audio.wav; name = sfx_binairo_error.wav; path = GravityInit/Sounds/sfx_binairo_error.wav; sourceTree = "<group>"; };
@@ -140,6 +183,16 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		11A58843261E5B1781508283 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				DCB180AE430739DA2276C2AD /* Foundation.framework in Frameworks */,
+				7343BF0BCA5795F26837C68C /* WidgetKit.framework in Frameworks */,
+				E24E88A578DAA6A234DB9551 /* SwiftUI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		13B07F8C1A680F5B00A75B9A /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -161,6 +214,8 @@
 				13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */,
 				FEEF680F4D9F8C9D2BFDDC87 /* Sounds */,
 				E9393C3C1D287906F3CB9FF4 /* TesseraReminders.m */,
+				F25C9EB17D355773E3E3AEB1 /* TesseraWidgetBridge.m */,
+				9C6655CF4B72BD8067173D76 /* TesseraWidgetReloader.swift */,
 			);
 			name = GravityInit;
 			sourceTree = "<group>";
@@ -170,8 +225,20 @@
 			children = (
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				5DCACB8F33CDC322A6C60F78 /* libPods-GravityInit.a */,
+				E3EB1D8CC1E40DD3BEEE4F97 /* iOS */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		5C5B55311345EBA180F3B8F8 /* TesseraWidget */ = {
+			isa = PBXGroup;
+			children = (
+				64198BE6DD4FBF7446D87F8D /* TesseraWidget.swift */,
+				65430377FBC6EE8689AE8559 /* daily-schedule.json */,
+				048199F4D37387C2224F7EDF /* Info.plist */,
+			);
+			name = TesseraWidget;
+			path = TesseraWidget;
 			sourceTree = "<group>";
 		};
 		832341AE1AAA6A7D00B99B32 /* Libraries */ = {
@@ -189,6 +256,7 @@
 				83CBBA001A601CBA00E9B192 /* Products */,
 				2D16E6871FA4F8E400B85C8A /* Frameworks */,
 				BBD78D7AC51CEA395F1C20DB /* Pods */,
+				5C5B55311345EBA180F3B8F8 /* TesseraWidget */,
 			);
 			indentWidth = 2;
 			sourceTree = "<group>";
@@ -199,6 +267,7 @@
 			isa = PBXGroup;
 			children = (
 				13B07F961A680F5B00A75B9A /* GravityInit.app */,
+				00522217014CADB7AA3F5CBA /* TesseraWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -210,6 +279,16 @@
 				5709B34CF0A7D63546082F79 /* Pods-GravityInit.release.xcconfig */,
 			);
 			path = Pods;
+			sourceTree = "<group>";
+		};
+		E3EB1D8CC1E40DD3BEEE4F97 /* iOS */ = {
+			isa = PBXGroup;
+			children = (
+				07995C70D0C67EBB3294513F /* Foundation.framework */,
+				32D19525581619BCF5513724 /* WidgetKit.framework */,
+				BC2AC78C831923A206D51A7B /* SwiftUI.framework */,
+			);
+			name = iOS;
 			sourceTree = "<group>";
 		};
 		FEEF680F4D9F8C9D2BFDDC87 /* Sounds */ = {
@@ -270,6 +349,7 @@
 				1673F406B9C979B4FCF41A58 /* sfx_chime_kalimba.wav */,
 				D6AB41301899245ADE02CE5D /* sfx_chime_wind.wav */,
 				B7A92B754AD2B6C8E3BAF8C3 /* sfx_chime_patron.wav */,
+				C7F3E5F74E047E8B43F83A49 /* music_almanac.m4a */,
 			);
 			name = Sounds;
 			sourceTree = "<group>";
@@ -288,15 +368,34 @@
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				00EEFC60759A1932668264C0 /* [CP] Embed Pods Frameworks */,
 				E235C05ADACE081382539298 /* [CP] Copy Pods Resources */,
+				51FC63E91A5A451900FB67EB /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				A4732391BEEA5704FA86A63C /* PBXTargetDependency */,
 			);
 			name = GravityInit;
 			productName = GravityInit;
 			productReference = 13B07F961A680F5B00A75B9A /* GravityInit.app */;
 			productType = "com.apple.product-type.application";
+		};
+		65EA2B4E83915526F94A4A22 /* TesseraWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = C59D542CAA7701CD40ED36DA /* Build configuration list for PBXNativeTarget "TesseraWidget" */;
+			buildPhases = (
+				99575722CC4AA655DAFCF7A6 /* Sources */,
+				11A58843261E5B1781508283 /* Frameworks */,
+				B4685C49B68C8FEBF23031DD /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = TesseraWidget;
+			productName = TesseraWidget;
+			productReference = 00522217014CADB7AA3F5CBA /* TesseraWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
 		};
 /* End PBXNativeTarget section */
 
@@ -325,6 +424,7 @@
 			projectRoot = "";
 			targets = (
 				13B07F861A680F5B00A75B9A /* GravityInit */,
+				65EA2B4E83915526F94A4A22 /* TesseraWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -392,6 +492,15 @@
 				3D9FDED5EC21D0D92409D262 /* sfx_chime_kalimba.wav in Resources */,
 				CF1E418E887E39CBBCC51615 /* sfx_chime_wind.wav in Resources */,
 				BD26C04614B83E6C23D8EE1D /* sfx_chime_patron.wav in Resources */,
+				0B5E4A149C729A0B712CD550 /* music_almanac.m4a in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		B4685C49B68C8FEBF23031DD /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				7433DA2B708E1731899D72DE /* daily-schedule.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -479,10 +588,29 @@
 			files = (
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
 				A88628172EEE414793683535 /* TesseraReminders.m in Sources */,
+				121601B2AB6DD257406D119B /* TesseraWidgetBridge.m in Sources */,
+				87B291DA74C494AC202F656E /* TesseraWidgetReloader.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		99575722CC4AA655DAFCF7A6 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				B2428A9A0C395695EB461554 /* TesseraWidget.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A4732391BEEA5704FA86A63C /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			name = TesseraWidget;
+			target = 65EA2B4E83915526F94A4A22 /* TesseraWidget */;
+			targetProxy = 4FB717E377ABC6E5E5B08B46 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
@@ -507,7 +635,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.marisdenis.tessera;
 				PRODUCT_NAME = GravityInit;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -538,12 +666,40 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = "org.reactjs.native.example.$(PRODUCT_NAME:rfc1034identifier)";
+				PRODUCT_BUNDLE_IDENTIFIER = com.marisdenis.tessera;
 				PRODUCT_NAME = GravityInit;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				VERSIONING_SYSTEM = "apple-generic";
+			};
+			name = Release;
+		};
+		60D59DF1A06BFF0179F8E637 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VXM327WT2T;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TesseraWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marisdenis.tessera.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				VALIDATE_PRODUCT = YES;
 			};
 			name = Release;
 		};
@@ -703,6 +859,33 @@
 			};
 			name = Release;
 		};
+		8976B04FA55FF04FB1F22409 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				APPLICATION_EXTENSION_API_ONLY = YES;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CLANG_ENABLE_OBJC_WEAK = NO;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = VXM327WT2T;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = TesseraWidget/Info.plist;
+				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = com.marisdenis.tessera.widget;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = iphoneos;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
@@ -720,6 +903,15 @@
 			buildConfigurations = (
 				83CBBA201A601CBA00E9B192 /* Debug */,
 				83CBBA211A601CBA00E9B192 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		C59D542CAA7701CD40ED36DA /* Build configuration list for PBXNativeTarget "TesseraWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				60D59DF1A06BFF0179F8E637 /* Release */,
+				8976B04FA55FF04FB1F22409 /* Debug */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

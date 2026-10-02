@@ -25,14 +25,14 @@ export interface CoinPack {
 }
 
 export const COIN_PACKS: ReadonlyArray<CoinPack> = [
-  { id: 'coins-pouch', name: 'Pouch', coins: 500, bonus: 0, price: '$0.99' },
-  { id: 'coins-purse', name: 'Purse', coins: 1200, bonus: 20, price: '$1.99' },
-  { id: 'coins-chest', name: 'Chest', coins: 2800, bonus: 40, price: '$3.99', tag: 'MOST POPULAR' },
-  { id: 'coins-vault', name: 'Vault', coins: 7500, bonus: 50, price: '$8.99', tag: 'BEST VALUE' },
+  { id: 'coins-pouch', name: 'Pouch', coins: 600, bonus: 0, price: '$0.99' },
+  { id: 'coins-purse', name: 'Purse', coins: 1500, bonus: 25, price: '$1.99' },
+  { id: 'coins-chest', name: 'Chest', coins: 3600, bonus: 50, price: '$3.99', tag: 'MOST POPULAR' },
+  { id: 'coins-vault', name: 'Vault', coins: 9000, bonus: 65, price: '$8.99', tag: 'BEST VALUE' },
 ];
 
 export const PATRON_PRICE = '$4.99';
-export const PATRON_COINS = 2000;
+export const PATRON_COINS = 4000;
 /** What a Patron pays for this season's pieces. */
 export const PATRON_SEASON_DISCOUNT = 0.5;
 

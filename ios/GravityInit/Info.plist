@@ -22,6 +22,26 @@
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>tessera</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>tessera</string>
+			</array>
+		</dict>
+		<dict>
+			<key>CFBundleURLName</key>
+			<string>google-sign-in</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<!-- The iOS OAuth client id, reversed: Google Sign-In returns here. -->
+				<string>com.googleusercontent.apps.361676279398-fmanmbj5nnslebqlq7ggrots038ggg8m</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleVersion</key>
 	<string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key>

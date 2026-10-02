@@ -29,11 +29,11 @@ export function explainFillaPixHint(puzzle: FillaPixPuzzle, state: FillaPixState
     const shouldFill = puzzle.solution[cell.row][cell.col];
     const reason = shouldFill
       ? value === window.length
-        ? `This ${value} needs every square around it filled.`
-        : `This ${value} has ${count(filledNow, 'square')} filled around it and needs ${value} - fill this one.`
+        ? `This ${value} needs all the squares around it filled.`
+        : `This ${value} has ${count(filledNow, 'square')} filled around it and needs ${value}. Fill this one.`
       : filledNow > value
-        ? `This ${value} has too many squares filled around it - clear this one.`
-        : `This ${value} already has its squares. This one stays empty.`;
+        ? `This ${value} has too many squares filled around it. Clear this one.`
+        : `This ${value} already has all its squares. Leave this one empty.`;
     return { state: set(cell.row, cell.col), cell, kind: filledNow > value || (!shouldFill && state.filled[cell.row][cell.col]) ? 'fix' : 'rule', reason };
   }
 

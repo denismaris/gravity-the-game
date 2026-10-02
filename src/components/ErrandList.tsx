@@ -135,8 +135,8 @@ export function ErrandList({ compact = false }: { compact?: boolean }): React.JS
           last errand and fits the card. */}
       {compact && (
         <View style={styles.head}>
-          <Text style={styles.headLabel}>ERRANDS</Text>
-          <Text style={styles.headClock}>{`${doneCount}/${errands.length} · NEW IN ${clock}`}</Text>
+          <Text style={styles.headLabel}>Errands</Text>
+          <Text style={styles.headClock}>{`${doneCount} of ${errands.length} done · new in ${clock.toLowerCase()}`}</Text>
         </View>
       )}
       {errands.map((errand, i) => (
@@ -175,8 +175,8 @@ const styles = themedStyles(() => ({
     borderWidth: 1.5,
   },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 },
-  headLabel: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.4, color: theme.colors.textTertiary },
-  headClock: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1, color: theme.colors.textTertiary },
+  headLabel: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
+  headClock: { fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
   rowCompact: { paddingVertical: 6, borderRadius: 13 },
   rowBodyCompact: { gap: 4 },
   titleCompact: { fontSize: theme.typography.sizes.caption },
