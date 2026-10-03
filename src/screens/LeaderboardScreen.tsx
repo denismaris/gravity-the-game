@@ -15,7 +15,11 @@ import {
   fetchBoard,
   flagOf,
   getProfile,
+  hiddenPlayers,
+  nameAllowed,
+  reportPlayer,
   saveProfile,
+  setPlayerHidden,
 } from '../backend';
 import { dailyKeyOf } from '../game/journey';
 import { triggerFeedback, useReducedMotion } from '../game/rendering';
@@ -42,7 +46,7 @@ function medal(place: number): string | null {
   return null;
 }
 
-function Row({ row, kind, index }: { row: BoardRow; kind: BoardKind; index: number }): React.JSX.Element {
+function Row({ row, kind, index, hidden, onMore }: { row: BoardRow; kind: BoardKind; index: number; hidden: boolean; onMore: (row: BoardRow) => void }): React.JSX.Element {
   const reduced = useReducedMotion();
   const enter = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   useEffect(() => {
@@ -50,28 +54,34 @@ function Row({ row, kind, index }: { row: BoardRow; kind: BoardKind; index: numb
     Animated.timing(enter, { toValue: 1, duration: 260, delay: Math.min(index, 12) * 28, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
   }, [enter, index, reduced]);
   const metal = medal(row.place);
-  const where = [flagOf(row.country), row.city ?? countryName(row.country) ?? ''].filter(Boolean).join(' ');
+  const name = hidden ? 'Hidden player' : row.name;
+  const where = hidden ? '' : [flagOf(row.country), row.city ?? countryName(row.country) ?? ''].filter(Boolean).join(' ');
   return (
     <Animated.View
       style={[styles.row, row.isMe && styles.rowMe, { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }]}
-      accessible
-      accessibilityLabel={`${row.isMe ? 'You, ' : ''}place ${row.place}, ${row.name}${where ? `, ${where}` : ''}, ${kind === 'daily' ? formatDuration(row.score) : `${row.score} experience`}`}
     >
-      <View style={[styles.place, metal ? { backgroundColor: metal } : null]}>
-        <Text style={[styles.placeText, metal ? styles.placeTextMedal : null]}>{row.place}</Text>
-      </View>
-      <View style={styles.who}>
-        <Text style={styles.name} numberOfLines={1}>
-          {row.name}
-          {row.isMe ? <Text style={styles.you}>{'  you'}</Text> : null}
-        </Text>
-        {where ? (
-          <Text style={styles.where} numberOfLines={1}>
-            {where}
+      <View style={styles.rowMain} accessible accessibilityLabel={`${row.isMe ? 'You, ' : ''}place ${row.place}, ${name}${where ? `, ${where}` : ''}, ${kind === 'daily' ? formatDuration(row.score) : `${row.score} experience`}`}>
+        <View style={[styles.place, metal ? { backgroundColor: metal } : null]}>
+          <Text style={[styles.placeText, metal ? styles.placeTextMedal : null]}>{row.place}</Text>
+        </View>
+        <View style={styles.who}>
+          <Text style={[styles.name, hidden && styles.nameHidden]} numberOfLines={1}>
+            {name}
+            {row.isMe ? <Text style={styles.you}>{'  you'}</Text> : null}
           </Text>
-        ) : null}
+          {where ? (
+            <Text style={styles.where} numberOfLines={1}>
+              {where}
+            </Text>
+          ) : null}
+        </View>
+        <Text style={styles.score}>{kind === 'daily' ? formatDuration(row.score) : `${row.score.toLocaleString('en-US')} XP`}</Text>
       </View>
-      <Text style={styles.score}>{kind === 'daily' ? formatDuration(row.score) : `${row.score.toLocaleString('en-US')} XP`}</Text>
+      {!row.isMe && (
+        <PressableScale accessibilityRole="button" accessibilityLabel={`Report or hide ${name}`} onPress={() => onMore(row)} hitSlop={10} style={({ pressed }) => [styles.more, pressed && styles.pressed]}>
+          <Text style={styles.moreText}>{'\u22EF'}</Text>
+        </PressableScale>
+      )}
     </Animated.View>
   );
 }
@@ -102,8 +112,10 @@ function ProfileEditor({ profile, onClose, onSaved }: { profile: Profile; onClos
     if (!q) return [];
     return COUNTRIES.filter(([code, label]) => label.toLowerCase().includes(q) || code.toLowerCase() === q).slice(0, 6);
   }, [search]);
-  const nameOk = name.trim().length === 0 || (name.trim().length >= 2 && name.trim().length <= 24);
-  const cityOk = city.trim().length === 0 || (city.trim().length >= 2 && city.trim().length <= 40);
+  const nameClean = name.trim().length === 0 || nameAllowed(name);
+  const cityClean = city.trim().length === 0 || nameAllowed(city);
+  const nameOk = nameClean && (name.trim().length === 0 || (name.trim().length >= 2 && name.trim().length <= 24));
+  const cityOk = cityClean && (city.trim().length === 0 || (city.trim().length >= 2 && city.trim().length <= 40));
 
   const save = async () => {
     if (!nameOk || !cityOk || saving) return;
@@ -180,6 +192,7 @@ function ProfileEditor({ profile, onClose, onSaved }: { profile: Profile; onClos
             </>
           )}
 
+          {(!nameClean || !cityClean) && <Text style={styles.failed}>{`That ${!nameClean ? 'name' : 'city'} can\u2019t be shown on the leaderboards. Try another.`}</Text>}
           {failed && <Text style={styles.failed}>That did not save. Check your connection and try again.</Text>}
           <View style={styles.sheetActions}>
             <PressableScale accessibilityRole="button" accessibilityLabel="Cancel" onPress={onClose} containerStyle={styles.flex} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
@@ -209,7 +222,30 @@ export function LeaderboardScreen({ onExit, onPlayDaily }: LeaderboardScreenProp
   const [editing, setEditing] = useState(false);
   const [load, setLoad] = useState<Load>({ state: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const [acting, setActing] = useState<BoardRow | null>(null);
+  const [reported, setReported] = useState<ReadonlySet<string>>(new Set());
+  const [notice, setNotice] = useState<string | null>(null);
   const online = backendConfigured();
+
+  useEffect(() => {
+    hiddenPlayers().then(setHidden);
+  }, []);
+
+  const report = async (row: BoardRow) => {
+    setActing(null);
+    const ok = await reportPlayer(row.player);
+    if (ok) {
+      setReported(prev => new Set(prev).add(row.player));
+      setNotice('Thanks. A name reported by several players is hidden from every board.');
+    } else setNotice('That did not send. Check your connection and try again.');
+  };
+  const toggleHidden = async (row: BoardRow) => {
+    setActing(null);
+    const hide = !hidden.has(row.player);
+    setHidden(await setPlayerHidden(row.player, hide));
+    setNotice(hide ? 'Hidden. Their name and city no longer show for you.' : 'Shown again.');
+  };
   const dayKey = dailyKeyOf(new Date());
 
   useEffect(() => {
@@ -321,6 +357,12 @@ export function LeaderboardScreen({ onExit, onPlayDaily }: LeaderboardScreenProp
           </View>
         )}
 
+        {notice && (
+          <Text style={styles.flash} accessibilityLiveRegion="polite">
+            {notice}
+          </Text>
+        )}
+
         {!online ? (
           <View style={styles.notice}>
             <Text style={styles.noticeTitle}>Not connected yet</Text>
@@ -364,12 +406,12 @@ export function LeaderboardScreen({ onExit, onPlayDaily }: LeaderboardScreenProp
         ) : (
           <View style={styles.list}>
             {top.map((row, i) => (
-              <Row key={`${row.place}-${row.name}-${i}`} row={row} kind={kind} index={i} />
+              <Row key={`${row.place}-${row.player}-${i}`} row={row} kind={kind} index={i} hidden={hidden.has(row.player)} onMore={setActing} />
             ))}
             {meBelow && (
               <>
                 <Text style={styles.gap}>· · ·</Text>
-                <Row row={meBelow} kind={kind} index={top.length} />
+                <Row row={meBelow} kind={kind} index={top.length} hidden={false} onMore={setActing} />
               </>
             )}
             {kind === 'daily' && !dailyCompletedToday && (
@@ -383,6 +425,37 @@ export function LeaderboardScreen({ onExit, onPlayDaily }: LeaderboardScreenProp
           </View>
         )}
       </ScrollView>
+
+      {acting && (
+        <View style={styles.sheetLayer}>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Close" onPress={() => setActing(null)} feedback={false} scaleTo={1} containerStyle={styles.scrim}>
+            <View style={styles.scrimFill} />
+          </PressableScale>
+          <View style={[styles.sheet, styles.sheetContent, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
+            <Text style={styles.sheetTitle} numberOfLines={1}>
+              {hidden.has(acting.player) ? 'Hidden player' : acting.name}
+            </Text>
+            <Text style={styles.sheetLede}>Names on the leaderboards are chosen by players. If one is offensive, report it.</Text>
+            <View style={styles.actionList}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Report this name"
+                disabled={reported.has(acting.player)}
+                onPress={() => report(acting)}
+                style={({ pressed }) => [styles.secondary, reported.has(acting.player) && styles.disabled, pressed && styles.pressed]}
+              >
+                <Text style={styles.secondaryText}>{reported.has(acting.player) ? 'Reported' : 'Report this name'}</Text>
+              </PressableScale>
+              <PressableScale accessibilityRole="button" accessibilityLabel={hidden.has(acting.player) ? 'Show this player again' : 'Hide this player'} onPress={() => toggleHidden(acting)} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
+                <Text style={styles.secondaryText}>{hidden.has(acting.player) ? 'Show this player again' : 'Hide this player'}</Text>
+              </PressableScale>
+              <PressableScale accessibilityRole="button" accessibilityLabel="Cancel" onPress={() => setActing(null)} style={({ pressed }) => [styles.primary, pressed && styles.pressed]}>
+                <Text style={styles.primaryText}>Cancel</Text>
+              </PressableScale>
+            </View>
+          </View>
+        </View>
+      )}
 
       {editing && profile && (
         <ProfileEditor
@@ -447,6 +520,12 @@ const styles = themedStyles(() => ({
     borderWidth: 1,
     borderColor: theme.colors.border,
   },
+  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
+  more: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', marginLeft: -4, marginRight: -6 },
+  moreText: { fontSize: 18, lineHeight: 20, color: theme.colors.textTertiary },
+  nameHidden: { color: theme.colors.textTertiary, fontStyle: 'italic' },
+  flash: { marginTop: theme.spacing.md, fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textSecondary, textAlign: 'center' },
+  actionList: { gap: theme.spacing.sm, marginTop: theme.spacing.lg },
   rowMe: { borderColor: theme.colors.secondary, borderWidth: 1.5, backgroundColor: theme.colors.surfaceHi },
   place: { width: 30, height: 30, borderRadius: 15, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceAlt },
   placeText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, color: theme.colors.textSecondary, fontVariant: ['tabular-nums'] },

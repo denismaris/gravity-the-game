@@ -377,7 +377,7 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
     body: 'Fill every row and column with each height exactly once. Tap a cell, then tap a number. The clues outside the grid show how many towers are visible from that side.',
   },
   binairo: {
-    title: 'Binairo',
+    title: 'Twos',
     body: 'Tap a cell to cycle a square, a circle, then blank. No three of the same in a row or column, and each needs an equal split of both, to solve it.',
   },
   arukone: {
@@ -385,11 +385,11 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
     body: 'Drag from a number to its twin to join them, routing around the blocked squares. The board is folded down the middle: draw one side and the other side draws itself. Join every pair without two paths crossing, and fill every square, to solve it.',
   },
   fillapix: {
-    title: 'Fill-a-Pix',
+    title: 'Pixel Clues',
     body: 'Tap a cell to fill it, tap again to clear it. The filled cells form a hidden picture. Each clue counts the filled squares in its own 3x3 block, all nine, including the square the number sits on, match every clue to complete it.',
   },
   lightsout: {
-    title: 'Lights Out',
+    title: 'Lanterns',
     body: 'Tap a light to flip it - and the four lights directly above, below and beside it flip with it. Diagonals stay put. Turn every light off to solve the board.',
   },
   adjacent: {

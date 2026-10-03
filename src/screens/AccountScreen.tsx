@@ -5,7 +5,9 @@ import { Canvas, Group, Path } from '@shopify/react-native-skia';
 import { PressableScale } from '../components';
 import { PageBloom } from '../components/PageBloom';
 import { TesseraMark } from '../components/TesseraMark';
-import { Account, Provider, adoptAccountName, availableProviders, backendConfigured, currentAccount, deleteAccount, signIn, signOut, syncProgress } from '../backend';
+import { LegalDoc, LegalScreen } from './LegalScreen';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Account, Provider, accountNameSuggestion, applyAccountName, availableProviders, backendConfigured, currentAccount, deleteAccount, signIn, signOut, syncProgress } from '../backend';
 import { triggerFeedback, useReducedMotion } from '../game/rendering';
 import { usePlayerProgress } from '../progression';
 import { useAppearance } from '../settings';
@@ -77,6 +79,9 @@ const BENEFITS: ReadonlyArray<string> = [
  * Apple or Google only makes it findable again, on a new phone or after a
  * reinstall. Signed in, this is where to sign out, or delete it all.
  */
+/** Set once the player turns down showing their account name. */
+const NAME_OFFER_DECLINED = 'tessera.board.nameOfferDeclined';
+
 export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
@@ -93,6 +98,10 @@ export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element
   // line - so a failed sign-in can be reported exactly.
   const [detail, setDetail] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  // The account's own name, offered for the leaderboards - shown only
+  // when the player has no name there yet and has not said no.
+  const [nameOffer, setNameOffer] = useState<string | null>(null);
+  const [legal, setLegal] = useState<LegalDoc | null>(null);
 
   const enter = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   useEffect(() => {
@@ -109,9 +118,20 @@ export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element
     const found = await currentAccount();
     setAccount(found);
     setLoading(false);
-    // Signed in before names were taken from accounts: take it now.
-    if (found && found.kind !== 'anonymous') adoptAccountName();
+    if (found && found.kind !== 'anonymous' && (await AsyncStorage.getItem(NAME_OFFER_DECLINED)) !== '1') setNameOffer(await accountNameSuggestion());
+    else setNameOffer(null);
   }, [online]);
+
+  const takeName = async (yes: boolean) => {
+    const name = nameOffer;
+    setNameOffer(null);
+    if (yes && name) {
+      triggerFeedback('coin');
+      const ok = await applyAccountName(name);
+      setMessage(ok ? `You now appear as ${name} on the leaderboards.` : 'That did not save. Check your connection and try again.');
+      if (!ok) setNameOffer(name);
+    } else await AsyncStorage.setItem(NAME_OFFER_DECLINED, '1');
+  };
   useEffect(() => {
     refresh();
   }, [refresh]);
@@ -211,6 +231,21 @@ export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element
               </View>
             </View>
 
+            {nameOffer && (
+              <View style={styles.panel}>
+                <Text style={styles.panelTitle}>Your name on the leaderboards</Text>
+                <Text style={styles.panelText}>{`Show as “${nameOffer}”? Until you choose, you appear as an anonymous player. You can change it any time.`}</Text>
+                <View style={styles.offerActions}>
+                  <PressableScale accessibilityRole="button" accessibilityLabel="Stay anonymous" onPress={() => takeName(false)} containerStyle={styles.flex} style={({ pressed }) => [styles.offerNo, pressed && styles.pressed]}>
+                    <Text style={styles.secondaryText}>Stay anonymous</Text>
+                  </PressableScale>
+                  <PressableScale accessibilityRole="button" accessibilityLabel={`Use ${nameOffer}`} onPress={() => takeName(true)} containerStyle={styles.flex} style={({ pressed }) => [styles.offerYes, pressed && styles.pressed]}>
+                    <Text style={styles.offerYesText} numberOfLines={1}>{`Use ${nameOffer}`}</Text>
+                  </PressableScale>
+                </View>
+              </View>
+            )}
+
             <PressableScale accessibilityRole="button" accessibilityLabel="Sign out" onPress={leave} disabled={busy !== null} style={({ pressed }) => [styles.secondary, pressed && styles.pressed]}>
               <Text style={styles.secondaryText}>{busy === 'out' ? 'Signing out…' : 'Sign out'}</Text>
             </PressableScale>
@@ -249,6 +284,17 @@ export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element
             </Animated.View>
 
             <Text style={styles.fine}>Until you sign in, your progress is backed up without a name. Signing in keeps everything you have now.</Text>
+            <Text style={styles.fine}>
+              {'By signing in you agree to the '}
+              <Text style={styles.fineLink} accessibilityRole="link" onPress={() => setLegal('terms')}>
+                Terms of Use
+              </Text>
+              {' and the '}
+              <Text style={styles.fineLink} accessibilityRole="link" onPress={() => setLegal('privacy')}>
+                Privacy Policy
+              </Text>
+              .
+            </Text>
           </View>
         )}
 
@@ -287,6 +333,7 @@ export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element
           </View>
         )}
       </ScrollView>
+      {legal && <LegalScreen doc={legal} onClose={() => setLegal(null)} />}
     </View>
   );
 }
@@ -349,6 +396,7 @@ const styles = themedStyles(() => ({
   soon: { padding: theme.spacing.md, borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: theme.colors.borderStrong, alignItems: 'center' },
   soonTitle: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   fine: { marginTop: theme.spacing.lg, fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textTertiary, textAlign: 'center', paddingHorizontal: theme.spacing.md },
+  fineLink: { color: theme.colors.textSecondary, fontWeight: theme.typography.weights.semibold, textDecorationLine: 'underline' },
   identity: { alignItems: 'center', paddingTop: theme.spacing.md },
   avatar: { width: 80, height: 80, borderRadius: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary },
   avatarText: { fontFamily: theme.typography.families.display, fontSize: 34, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
@@ -364,6 +412,10 @@ const styles = themedStyles(() => ({
   panelText: { marginTop: 2, fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textSecondary },
   secondary: { marginTop: theme.spacing.lg, height: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 25, borderWidth: 1, borderColor: theme.colors.borderStrong },
   secondaryText: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
+  offerActions: { flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.md },
+  offerNo: { height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, borderWidth: 1, borderColor: theme.colors.borderStrong },
+  offerYes: { height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, paddingHorizontal: theme.spacing.sm, backgroundColor: theme.colors.primary },
+  offerYesText: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.surfaceHi },
   message: { marginTop: theme.spacing.lg, padding: theme.spacing.md, borderRadius: 16, backgroundColor: theme.colors.surfaceAlt },
   detailText: { marginTop: 6, fontSize: theme.typography.sizes.micro + 1, lineHeight: 15, color: theme.colors.textTertiary, textAlign: 'center' },
   messageText: { fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textPrimary, textAlign: 'center' },

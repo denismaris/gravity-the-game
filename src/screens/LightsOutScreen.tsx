@@ -234,7 +234,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {puzzle.name ?? 'Lights Out'}
+            {puzzle.name ?? 'Lanterns'}
           </Text>
           <AnimatedKicker presses={presses} par={puzzle.par} solved={solved} difficulty={puzzle.difficulty} />
           <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
@@ -343,7 +343,7 @@ function AnimatedKicker({ presses, par, solved, difficulty }: { presses: number;
     <View style={styles.kickerRow}>
       <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
       <Animated.Text numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
-        {`LIGHTS OUT · ${presses} / PAR ${par}`}
+        {`LANTERNS · ${presses} / PAR ${par}`}
       </Animated.Text>
       {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
     </View>

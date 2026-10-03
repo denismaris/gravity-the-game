@@ -11,6 +11,8 @@ import { PageBloom } from '../components/PageBloom';
 import { TesseraMark } from '../components/TesseraMark';
 import { Account, currentAccount } from '../backend';
 import { AppearancePicker } from '../components/AppearancePicker';
+import { copyrightLine } from '../legal/documents';
+import { LegalDoc, LegalScreen } from './LegalScreen';
 
 export interface SettingsScreenProps {
   onExit: () => void;
@@ -43,6 +45,7 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
   // Set when the system refused permission, so the switch can say why it
   // stayed off rather than silently flicking back.
   const [blocked, setBlocked] = useState(false);
+  const [legal, setLegal] = useState<LegalDoc | null>(null);
 
   // The permission prompt is asked for here, in answer to the player
   // turning reminders on - never on launch.
@@ -185,15 +188,36 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
           </PressableScale>
         </View>
 
+        <Text style={styles.sectionLabel}>LEGAL</Text>
+        <View style={styles.card}>
+          {LEGAL_ROWS.map(([doc, label], i) => (
+            <React.Fragment key={doc}>
+              {i > 0 && <View style={styles.divider} />}
+              <PressableScale accessibilityRole="button" accessibilityLabel={label} onPress={() => setLegal(doc)} feedback={false} scaleTo={1} style={({ pressed }) => [styles.row, pressed && styles.resetRowPressed]}>
+                <Text style={styles.rowLabel}>{label}</Text>
+                <Text style={styles.chevron}>›</Text>
+              </PressableScale>
+            </React.Fragment>
+          ))}
+        </View>
+
         <View style={styles.footer}>
           <Text style={styles.footerTitle}>TESSERA</Text>
           <Text style={styles.footerMeta}>Version {version}</Text>
           <Text style={styles.footerTagline}>An Almanac of Puzzles</Text>
+          <Text style={styles.footerCopyright}>{copyrightLine()}</Text>
         </View>
       </ScrollView>
+      {legal && <LegalScreen doc={legal} onClose={() => setLegal(null)} />}
     </View>
   );
 }
+
+const LEGAL_ROWS: ReadonlyArray<readonly [LegalDoc, string]> = [
+  ['privacy', 'Privacy Policy'],
+  ['terms', 'Terms of Use'],
+  ['licenses', 'Open-Source Licences'],
+];
 
 /** The reminder times on offer: morning coffee, lunch, early evening,
  * last thing at night. */
@@ -350,6 +374,12 @@ const styles = themedStyles(() => ({
     fontSize: theme.typography.sizes.caption,
     color: theme.colors.textTertiary,
     marginTop: theme.spacing.xs,
+  },
+  chevron: { fontSize: 22, lineHeight: 24, color: theme.colors.textTertiary },
+  footerCopyright: {
+    fontSize: theme.typography.sizes.caption,
+    color: theme.colors.textTertiary,
+    marginTop: theme.spacing.md,
   },
   footerTagline: {
     fontFamily: theme.typography.families.mono,

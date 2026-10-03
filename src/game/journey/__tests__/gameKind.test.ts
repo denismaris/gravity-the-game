@@ -53,11 +53,11 @@ describe('puzzleDisplayInfo', () => {
     });
   });
 
-  test('resolves a Binairo puzzle to the game display name', () => {
+  test('resolves a Twos (binairo) puzzle to the game display name', () => {
     const puzzle = BINAIRO[0];
     expect(puzzleDisplayInfo('binairo', puzzle.id)).toEqual({
       name: puzzle.name ?? puzzle.id,
-      chapter: 'Binairo',
+      chapter: 'Twos',
       difficulty: puzzle.difficulty,
     });
   });

@@ -50,10 +50,10 @@ const DISPLAY_NAMES: Readonly<Record<GameKind, string>> = {
   mirror: 'Mirror Maze',
   tents: 'Tents and Trees',
   towers: 'Skyscrapers',
-  binairo: 'Binairo',
+  binairo: 'Twos',
   arukone: 'Arukone+',
-  fillapix: 'Fill-a-Pix',
-  lightsout: 'Lights Out',
+  fillapix: 'Pixel Clues',
+  lightsout: 'Lanterns',
   adjacent: 'Adjacent',
   bloom: 'Bloom',
   mosaic: 'Mosaic',
@@ -81,9 +81,9 @@ export function gameShortName(kind: GameKind): string {
     case 'arukone':
       return 'Arukone';
     case 'fillapix':
-      return 'Fill-a-Pix';
+      return 'Pixels';
     case 'lightsout':
-      return 'Lights';
+      return 'Lanterns';
     case 'gravity':
     case 'binairo':
     case 'adjacent':

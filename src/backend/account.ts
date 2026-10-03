@@ -56,15 +56,26 @@ export function boardNameFrom(fullName: string | null | undefined): string | nul
   return name.length >= 2 ? name : null;
 }
 
-/** Gives a player who has not chosen a leaderboard name the one from the
- * account they just signed in with. A name they chose themselves stays. */
-export async function adoptAccountName(): Promise<void> {
+/** The leaderboard name a signed-in player could take from their account
+ * ("Maris D."), for the account screen to *offer* - never set on its own:
+ * the boards are public, so a real name only goes on them when the player
+ * says so. Null when there is nothing to offer: no account name, or the
+ * player already has a name of their own. */
+export async function accountNameSuggestion(): Promise<string | null> {
   const account = await currentAccount();
-  const name = boardNameFrom(account?.name);
-  if (!name) return;
+  if (!account || account.kind === 'anonymous') return null;
+  const name = boardNameFrom(account.name);
+  if (!name) return null;
   const profile = await getProfile();
-  if (!profile || profile.displayName) return;
-  await saveProfile({ ...profile, displayName: name });
+  if (!profile || profile.displayName) return null;
+  return name;
+}
+
+/** Puts the offered account name on the leaderboards - the player said yes. */
+export async function applyAccountName(name: string): Promise<boolean> {
+  const profile = await getProfile();
+  if (!profile) return false;
+  return saveProfile({ ...profile, displayName: name });
 }
 
 /** Asks Apple or Google who the player is: an ID token, and the nonce it
@@ -114,10 +125,7 @@ export async function signIn(provider: Provider): Promise<SignInResult> {
     const { data } = await api.auth.getSession();
     if (data.session?.user.is_anonymous) {
       const linked = await api.auth.linkIdentity(credentials);
-      if (!linked.error) {
-        await adoptAccountName();
-        return { ok: true, switched: false };
-      }
+      if (!linked.error) return { ok: true, switched: false };
     }
     const { error } = await api.auth.signInWithIdToken(credentials);
     if (error) {
@@ -127,7 +135,6 @@ export async function signIn(provider: Provider): Promise<SignInResult> {
     // Another account: forget this phone's agreed revision, so the next
     // sync reads that account's save and merges this phone's into it.
     await forgetCloudRevision();
-    await adoptAccountName();
     return { ok: true, switched: true };
   } catch (error) {
     if (cancelled(error)) return { ok: false, cancelled: true, message: '' };

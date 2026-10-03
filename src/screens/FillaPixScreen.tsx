@@ -278,7 +278,7 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {puzzle.name ?? 'Fill-a-Pix'}
+            {puzzle.name ?? 'Pixel Clues'}
           </Text>
           <AnimatedKicker unsatisfied={unsatisfied} solved={solved} difficulty={puzzle.difficulty} />
           <View style={styles.track}>
@@ -409,7 +409,7 @@ function AnimatedKicker({ unsatisfied, solved, difficulty }: { unsatisfied: numb
     <View style={styles.kickerRow}>
       <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
       <Animated.Text numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
-        {solved ? 'FILL-A-PIX · SOLVED' : `FILL-A-PIX · ${unsatisfied} LEFT`}
+        {solved ? 'PIXEL CLUES · SOLVED' : `PIXEL CLUES · ${unsatisfied} LEFT`}
       </Animated.Text>
       {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
     </View>
