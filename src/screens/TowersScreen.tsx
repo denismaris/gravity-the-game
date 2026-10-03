@@ -163,7 +163,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
       toValue: totalCells ? (totalCells - left) / totalCells : 0,
       duration: TRACK_MS,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: false, // width isn't a transform - can't use the native driver
+      useNativeDriver: true, // a scaleX from the left edge, so it runs on the UI thread
     }).start();
   }, [left, totalCells, trackFill]);
 
@@ -284,7 +284,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
               style={[
                 styles.trackFill,
                 {
-                  width: trackFill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' }),
+                  width: '100%', transformOrigin: 'left', transform: [{ scaleX: trackFill.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }) }],
                 },
               ]}
             />

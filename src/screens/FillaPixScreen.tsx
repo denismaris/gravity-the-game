@@ -182,7 +182,7 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
       toValue: filled,
       duration: TRACK_MS,
       easing: Easing.out(Easing.cubic),
-      useNativeDriver: false, // width isn't a transform - can't use the native driver
+      useNativeDriver: true, // a scaleX from the left edge, so it runs on the UI thread
     }).start();
   }, [filled, trackFill]);
 
@@ -286,7 +286,7 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
               style={[
                 styles.trackFill,
                 {
-                  width: trackFill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' }),
+                  width: '100%', transformOrigin: 'left', transform: [{ scaleX: trackFill.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }) }],
                 },
               ]}
             />

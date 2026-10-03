@@ -672,7 +672,10 @@ export function PlayerProgressProvider({
   );
 
   const resetProgress = useCallback((): void => {
-    const fresh = emptyProgress();
+    // A new player's save, with its first level set dealt - as a fresh
+    // install gets on load. Without one, Home (mounted under Settings or
+    // the account screen) throws on its next render.
+    const fresh = ensureBatch(emptyProgress());
     progressRef.current = fresh;
     pendingRef.current = [];
     setProgress(fresh);

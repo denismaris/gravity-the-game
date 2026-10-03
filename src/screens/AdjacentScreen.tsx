@@ -459,7 +459,7 @@ function ScoreTrack({ score, target }: { score: number; target: number }): React
     Animated.timing(fill, {
       toValue: pct,
       duration: 420,
-      useNativeDriver: false, // width isn't a transform - can't use the native driver
+      useNativeDriver: true, // a scaleX from the left edge, so it runs on the UI thread
     }).start();
   }, [pct, fill]);
 
@@ -468,7 +468,7 @@ function ScoreTrack({ score, target }: { score: number; target: number }): React
       <Animated.View
         style={[
           styles.trackFill,
-          { width: fill.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'], extrapolate: 'clamp' }) },
+          { width: '100%', transformOrigin: 'left', transform: [{ scaleX: fill.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }) }] },
         ]}
       />
     </View>

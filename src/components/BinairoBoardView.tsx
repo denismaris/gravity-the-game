@@ -9,10 +9,12 @@ import {
   BinairoValue,
   constraintKey,
   constraintPartner,
-  errorLines,
+  duplicateLineGroups,
   isGiven,
+  tripleRunGroups,
   twinKey,
   twinPartner,
+  unbalancedLines,
   violatedConstraints,
   violatedTwins,
 } from '../game/binairo';
@@ -57,15 +59,13 @@ const STAMP_OVERSHOOT_SCALE = 1.3;
  * underneath an already-legible mark. */
 const RING_FADE_MS = 70;
 
-/** All three rule violations - a triple run, an unequal count, a
- * duplicated line - render as the *same* hazard-tape zone at the *same*
- * extent: the entire offending row or column, never a tight box around
- * just the 3 or 4 cells that happen to be the run itself. A player still
- * mid-cycle through blank -> ring -> dot on some other cell of that same
- * line would otherwise see a small error patch flare up and vanish
- * around their finger on every pass, with no specific tile to fix and no
- * way to act on it yet - the whole-line treatment reads as "this line
- * still needs work" instead. */
+/** The three rule violations share one hazard-tape look, at the extent
+ * of what is actually wrong: a triple run tapes just the cells of the run
+ * (the three, or four, that match - the player sees exactly which tiles
+ * to change), while an unequal count or a duplicated line - wrong as a
+ * whole line, with no single culprit - tapes the entire row or column.
+ * The onset delay (`ERROR_DELAY_MS`) keeps a run passed through
+ * mid-cycle from flaring up under the player's finger. */
 const ERROR_ENTER_MS = 140;
 const ERROR_SCALE_MS = 220;
 const ERROR_EXIT_MS = 160;
@@ -897,9 +897,9 @@ export interface BinairoBoardViewProps {
  * flat surface, a flat gold disc vs. a flat blue rounded square as the
  * two fillable symbols (told apart by shape *and* colour together - see
  * `markColor`), an empty cell reading as a faint dashed ring, and one
- * consistent hazard-tape zone - always the entire offending row or
- * column, never a tight box around a handful of cells - for whichever of
- * the three rule violations is at fault.
+ * consistent hazard-tape zone for the three rule violations - around
+ * just the cells of a triple run, or the entire row or column for an
+ * unequal count or a duplicated line.
  */
 export function BinairoBoardView({ puzzle, state, size, solved, flashCell, pressedCell, introKey }: BinairoBoardViewProps): React.JSX.Element {
   const reducedMotion = useReducedMotion();
@@ -923,14 +923,32 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
   // while an unequal count or a duplicated line wait for the row/column to
   // be complete) - this view only turns that answer into pixel-space
   // hazard-tape boxes.
-  const wrongLines = useMemo(() => errorLines(puzzle, state), [puzzle, state]);
   const errorBoxes = useMemo(() => {
     const map = new Map<string, ErrorZoneBox>();
     const cellSize = layout.cellSize;
-    for (const r of wrongLines.rows) map.set(`line:row:${r}`, { x: 0, y: r * cellSize, w: layout.boardSize, h: cellSize });
-    for (const c of wrongLines.cols) map.set(`line:col:${c}`, { x: c * cellSize, y: 0, w: cellSize, h: layout.boardSize });
+    // Whole lines: an unequal count, or a line that duplicates another.
+    const unbalanced = unbalancedLines(puzzle, state);
+    const duplicate = duplicateLineGroups(puzzle, state);
+    const rows = new Set<number>(unbalanced.rows);
+    const cols = new Set<number>(unbalanced.cols);
+    for (const group of duplicate.rows) for (const r of group) rows.add(r);
+    for (const group of duplicate.cols) for (const c of group) cols.add(c);
+    for (const r of rows) map.set(`line:row:${r}`, { x: 0, y: r * cellSize, w: layout.boardSize, h: cellSize });
+    for (const c of cols) map.set(`line:col:${c}`, { x: c * cellSize, y: 0, w: cellSize, h: layout.boardSize });
+    // Triple runs: just the run's own cells - unless its whole line is
+    // already taped, which covers it.
+    for (const run of tripleRunGroups(state)) {
+      const length = run.end - run.start + 1;
+      if (run.orientation === 'row') {
+        if (rows.has(run.index)) continue;
+        map.set(`run:row:${run.index}:${run.start}`, { x: run.start * cellSize, y: run.index * cellSize, w: length * cellSize, h: cellSize });
+      } else {
+        if (cols.has(run.index)) continue;
+        map.set(`run:col:${run.index}:${run.start}`, { x: run.index * cellSize, y: run.start * cellSize, w: cellSize, h: length * cellSize });
+      }
+    }
     return map;
-  }, [wrongLines, layout]);
+  }, [puzzle, state, layout]);
 
   const readyErrorKeys = useDelayedKeys(errorBoxes.keys(), now, ERROR_DELAY_MS);
   const delayedErrorBoxes = useMemo(() => {
@@ -1058,14 +1076,12 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
       {renderTray(layout)}
 
       {/* Error zone: one consistent hazard-tape treatment for all three
-          rule violations - always the entire offending row or column
-          (see `errorBoxes` above), regardless of which of the three
-          rules actually broke. Rendered *behind* the tile chrome
+          rule violations - a triple run's own cells, or a whole row or
+          column (see `errorBoxes` above). Rendered *behind* the tile chrome
           (`StaticBinairoTiles`, below) rather than over it: a tile's own
           opaque face fully covers the tape across its own footprint, so
           the diagonal stripes only show through the gaps between and
-          around tiles in the offending line - a red seam running the
-          length of the row/column, not a wash painted across the tiles
+          around the offending tiles - a red seam, not a wash painted across the tiles
           and symbols themselves. */}
       {Array.from(errorLifecycles.entries()).map(([key, { box, firstSeenAt, removedAt }]) => {
         let opacity: number;
