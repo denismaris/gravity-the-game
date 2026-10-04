@@ -4,6 +4,7 @@ import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
 import { theme, themedStyles } from '../theme';
 import { CoinCost } from './Coins';
+import { InsightCount } from './InsightPower';
 
 export interface SessionControlsProps {
   onUndo: () => void;
@@ -11,6 +12,9 @@ export interface SessionControlsProps {
   /** Shows the next move - when set, a Hint pill leads the row. */
   onHint?: () => void;
   hintCost?: number;
+  /** Insight charges left - when set, the hint is the Insight superpower
+   * and shows its count instead of a price. */
+  insightCount?: number;
   undoDisabled?: boolean;
   /** Coins an undo costs, shown on the button when set. */
   undoCost?: number;
@@ -31,16 +35,17 @@ function SessionControlsImpl({
   undoCost,
   onHint,
   hintCost,
+  insightCount,
 }: SessionControlsProps): React.JSX.Element {
   return (
     <View style={styles.container}>
       {onHint && (
         <>
           <SessionButton
-            label="Hint"
+            label={insightCount === undefined ? 'Hint' : 'Insight'}
             icon={<HintIcon />}
             onPress={onHint}
-            cost={hintCost === undefined ? undefined : <CoinCost cost={hintCost} />}
+            cost={insightCount !== undefined ? <InsightCount count={insightCount} /> : hintCost === undefined ? undefined : <CoinCost cost={hintCost} />}
           />
           <View style={styles.spacer} />
         </>

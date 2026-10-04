@@ -39,7 +39,8 @@ import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
-import { HINT_COST, UNDO_COST } from '../progression/coins';
+import { useInsightPower } from '../components/InsightPower';
+import { UNDO_COST } from '../progression/coins';
 import { GravityHintArrow } from '../components/GravityHintArrow';
 import { findShortestSolution } from '../game/engine';
 import { useStageEntrance } from '../components/useStageEntrance';
@@ -245,6 +246,9 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   hintsUsedRef.current = hintsUsed;
   const [hintDirection, setHintDirection] = useState<Direction | null>(null);
   const { coins, shortBy, buy } = useCoinPurchase();
+  // Insight, the superpower: charges first, then a video or coins.
+  const insight = useInsightPower();
+  const spendInsight = insight.spend;
 
   // Which kind of transition produced the current `gameState`, so we know
   // whether to animate (gravity) or snap instantly (undo/restart/mount).
@@ -415,13 +419,13 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     if (movePendingRef.current || isAnimatingRef.current || solvedRef.current || failedRef.current) return;
     const path = findShortestSolution(gameStateRef.current, 16);
     if (!path || path.length === 0) return;
-    buy(HINT_COST, () => {
+    spendInsight(() => {
       setHintsUsed(n => n + 1);
       setHintDirection(path[0]);
       triggerFeedback('targetReached');
-      AccessibilityInfo.announceForAccessibility(`Hint: pull ${path[0]}.`);
+      AccessibilityInfo.announceForAccessibility(`Insight: pull ${path[0]}.`);
     });
-  }, [buy]);
+  }, [spendInsight]);
   const clearHint = useCallback(() => setHintDirection(null), []);
 
   const handleNext = useCallback(() => {
@@ -572,8 +576,9 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           undoDisabled={!canUndo(session) || failed}
           undoCost={UNDO_COST}
           onHint={handleHint}
-          hintCost={HINT_COST}
+          insightCount={insight.count}
         />
+        {insight.sheet}
         <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
       </Animated.View>
 

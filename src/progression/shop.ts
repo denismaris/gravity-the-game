@@ -29,13 +29,14 @@ export function skinSlot(game: GameKind): CosmeticSlot {
 }
 
 /** Four tiers, priced against what play actually earns. A regular player
- * (ten puzzles, the Daily, three errands and the gift) collects about 400
- * coins a day; a casual one about 225, a devoted one about 750. A Common
+ * (ten puzzles, the Daily, three errands, the gift and a couple of
+ * optional videos) collects about 450 coins a day; a casual one about 250,
+ * a devoted one about 900. A Common
  * piece is about a regular day, Fine two, Rare three, and a Masterwork
  * most of a week - something to save for, not something that falls into
  * your lap. */
 export type Rarity = 'common' | 'fine' | 'rare' | 'masterwork';
-export const RARITY_PRICES: Readonly<Record<Rarity, number>> = { common: 400, fine: 750, rare: 1200, masterwork: 2400 };
+export const RARITY_PRICES: Readonly<Record<Rarity, number>> = { common: 450, fine: 850, rare: 1350, masterwork: 2700 };
 export const RARITY_NAMES: Readonly<Record<Rarity, string>> = { common: 'Common', fine: 'Fine', rare: 'Rare', masterwork: 'Masterwork' };
 
 export function rarityOf(item: Cosmetic): Rarity | null {
@@ -405,12 +406,12 @@ export interface CosmeticSet {
 }
 
 export const COSMETIC_SETS: ReadonlyArray<CosmeticSet> = [
-  { id: 'set-kiln', name: 'The Kiln', blurb: 'Everything fired, glazed and warm.', items: ['skin-gravity-ember', 'skin-tents-ember', 'skin-fillapix-ember', 'ball-coral', 'skin-arukone-copper'], reward: 380 },
-  { id: 'set-green', name: 'The Green Room', blurb: 'Jade, sage and sea.', items: ['ball-jade', 'skin-gravity-jade', 'skin-mirror-emerald', 'garden-sage', 'chart-tropic'], reward: 450 },
-  { id: 'set-garden', name: 'Garden Party', blurb: 'Petals, lanterns and soft glaze.', items: ['confetti-blossom', 'garden-camellia', 'skin-bloom-lavender', 'skin-lightsout-rose', 'skin-adjacent-pastel'], reward: 450 },
-  { id: 'set-night', name: 'Night Sea', blurb: 'Lamps and stars over dark water.', items: ['chart-night', 'ball-obsidian', 'confetti-starlight', 'skin-towers-midnight', 'skin-lightsout-ice'], reward: 600 },
-  { id: 'set-gilded', name: 'The Gilded Age', blurb: 'Gold, and then more gold.', items: ['confetti-gold', 'ball-gold', 'skin-binairo-gold', 'garden-marigold', 'skin-arukone-gold', 'chime-bell'], reward: 850 },
-  { id: 'set-seasons', name: 'Four Seasons', blurb: "One confetti from each season. A year's work.", items: ['confetti-showers', 'confetti-fireflies', 'confetti-leaves', 'confetti-snowfall'], reward: 900 },
+  { id: 'set-kiln', name: 'The Kiln', blurb: 'Everything fired, glazed and warm.', items: ['skin-gravity-ember', 'skin-tents-ember', 'skin-fillapix-ember', 'ball-coral', 'skin-arukone-copper'], reward: 430 },
+  { id: 'set-green', name: 'The Green Room', blurb: 'Jade, sage and sea.', items: ['ball-jade', 'skin-gravity-jade', 'skin-mirror-emerald', 'garden-sage', 'chart-tropic'], reward: 500 },
+  { id: 'set-garden', name: 'Garden Party', blurb: 'Petals, lanterns and soft glaze.', items: ['confetti-blossom', 'garden-camellia', 'skin-bloom-lavender', 'skin-lightsout-rose', 'skin-adjacent-pastel'], reward: 500 },
+  { id: 'set-night', name: 'Night Sea', blurb: 'Lamps and stars over dark water.', items: ['chart-night', 'ball-obsidian', 'confetti-starlight', 'skin-towers-midnight', 'skin-lightsout-ice'], reward: 670 },
+  { id: 'set-gilded', name: 'The Gilded Age', blurb: 'Gold, and then more gold.', items: ['confetti-gold', 'ball-gold', 'skin-binairo-gold', 'garden-marigold', 'skin-arukone-gold', 'chime-bell'], reward: 950 },
+  { id: 'set-seasons', name: 'Four Seasons', blurb: "One confetti from each season. A year's work.", items: ['confetti-showers', 'confetti-fireflies', 'confetti-leaves', 'confetti-snowfall'], reward: 1000 },
 ];
 
 export function setProgress(progress: PlayerProgress, set: CosmeticSet): { owned: number; total: number; complete: boolean; claimed: boolean } {
@@ -452,13 +453,14 @@ export interface AdFreeOption {
   readonly price: number;
 }
 
-/** Priced above what a regular player earns in the same time, so ads stay
- * the norm and ad-free stays a treat: a day costs more than a day of play
- * pays, a month is the Vault pack exactly. */
+/** Ads are light (see src/ads/policy.ts: one between level sets at most,
+ * never mid-puzzle), so a day without them costs most of a day of play -
+ * a treat, not a tax: a regular player can afford it now and then, and
+ * a month is a real goal to save for. */
 export const AD_FREE_OPTIONS: ReadonlyArray<AdFreeOption> = [
-  { id: 'day', label: '1 day', hours: 24, price: 500 },
-  { id: 'week', label: '7 days', hours: 24 * 7, price: 2800 },
-  { id: 'month', label: '30 days', hours: 24 * 30, price: 9000 },
+  { id: 'day', label: '1 day', hours: 24, price: 300 },
+  { id: 'week', label: '7 days', hours: 24 * 7, price: 1600 },
+  { id: 'month', label: '30 days', hours: 24 * 30, price: 5000 },
 ];
 
 /** Whether ad-free time is running at `now`. */

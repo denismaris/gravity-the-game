@@ -35,8 +35,8 @@ import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
-import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
-import { HINT_COST } from '../progression/coins';
+import { CoinBalance, useCoinPurchase } from '../components/Coins';
+import { InsightCount, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
 
 const TUTORIAL_ID = tutorialIdForGame('arukone');
@@ -123,7 +123,10 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState<ArukoneState>(() => emptyArukoneState());
-  const { coins, shortBy, buy } = useCoinPurchase();
+  const { coins, shortBy } = useCoinPurchase();
+  // Insight, the superpower: charges first, then a video or coins.
+  const insight = useInsightPower();
+  const spendInsight = insight.spend;
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [hints, setHints] = useState(0);
   const [introKey, setIntroKey] = useState(0);
@@ -209,19 +212,19 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
   }, []);
 
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
   const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const next = explainArukoneHint(puzzle, state);
     if (!next) return;
     // Charged only when there is a hint to give, and before applying it.
-    buy(HINT_COST, () => {
-      setNote({ reason: next.reason, kind: next.kind, id: Date.now() });
+    spendInsight(() => {
+      setNote({ reason: next.reason, tip: next.tip, kind: next.kind, id: Date.now() });
       setHints(n => n + 1);
       setState(next.state);
       triggerFeedback('targetReached');
     });
-  }, [puzzle, state, buy]);
+  }, [puzzle, state, spendInsight]);
 
   const restart = useCallback(() => {
     recorded.current = false;
@@ -281,7 +284,7 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('arukone')} onGone={clearNote} />}
+          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('arukone')} onGone={clearNote} />}
           <ArukoneBoard
             puzzle={puzzle}
             state={state}
@@ -297,14 +300,16 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
         <Animated.View style={[styles.controls, controlsIn]}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Reveal a hint"
+            accessibilityLabel={`Insight: reveal the next move, ${insight.count} left`}
             onPress={useHint}
             style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
           >
             <HintIcon />
-            <Text style={styles.pillText}>Hint</Text>
-            <CoinCost cost={HINT_COST} />
+            <Text style={styles.pillText}>Insight</Text>
+
+            <InsightCount count={insight.count} />
           </PressableScale>
+          {insight.sheet}
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Restart puzzle"

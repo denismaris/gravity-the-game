@@ -31,6 +31,9 @@ export interface TutorialSlide {
   readonly title: string;
   readonly body: string;
   readonly illustration: string;
+  /** How to *use* the rule - the strategy a good player reaches for -
+   * shown under the body. */
+  readonly tip?: string;
 }
 
 /**
@@ -46,43 +49,51 @@ export interface TutorialSlide {
 export const BINAIRO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap to fill',
-    body: 'Tap a cell to cycle it: blank, a blue square, a gold circle, then blank again.',
+    body: "Tap a square to cycle it: empty, then a square, then a circle, then empty again. Every square on the board gets one of the two shapes.",
     illustration: 'toggle',
+    tip: "Fill the squares you are sure of first. A wrong guess early on makes everything after it harder.",
   },
   {
     title: 'No three in a row',
-    body: "Three of the same shape in a row or column isn't allowed. Hazard stripes flare up across the whole line the moment it happens.",
+    body: "Three of the same shape side by side in a row or column is never allowed. If it happens, a red outline appears around them.",
     illustration: 'triple',
+    tip: "Two alike side by side? The squares at both ends must be the other shape. A gap between two alike is always the other shape too.",
   },
   {
     title: 'Keep it even',
-    body: 'Every full row and column needs the same number of circles as squares.',
+    body: "Every row and column holds exactly as many circles as squares. A line with more than half of one shape turns red straight away.",
     illustration: 'balance',
+    tip: "Count as you go: once a line has half of one shape, every empty square left in it is the other.",
   },
   {
     title: 'No repeats',
-    body: 'No two rows, and no two columns, can end up identical.',
+    body: "No two rows may end up exactly the same, and no two columns either.",
     illustration: 'duplicate',
+    tip: "Near the end, compare a nearly full line with a finished one. If they would match, the last squares go the other way.",
   },
   {
     title: 'Equal badges',
-    body: "A small '=' badge between two cells means they must match.",
+    body: "An = sign between two squares means they hold the same shape.",
     illustration: 'equal',
+    tip: "One known square settles its partner, and that can start a chain across the board.",
   },
   {
     title: 'Different badges',
-    body: 'A small × badge means those two cells must differ.',
+    body: "A × sign between two squares means they hold different shapes.",
     illustration: 'different',
+    tip: "One known square settles its partner, and that can start a chain across the board.",
   },
   {
     title: 'Twin cells',
-    body: "A small dot marks a cell as twinned with its mirror opposite, straight across the board's center. Twins always match.",
+    body: "A small dot marks a pair of twin squares, mirror opposites across the centre of the board. Twins always hold the same shape.",
     illustration: 'twin',
+    tip: "Solve one twin and you get the other for free, on the far side of the board.",
   },
   {
     title: 'Counting clues',
-    body: 'A number counts the circles directly above, below, left and right of it - exactly that many, no more.',
+    body: "A number counts the circles directly above, below, left and right of it. Exactly that many, no more and no less.",
     illustration: 'count',
+    tip: "A 0 makes all four neighbours squares. Stuck anywhere? Insight shows your next move and explains which rule it uses.",
   },
 ];
 
@@ -95,23 +106,27 @@ export const BINAIRO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const TENTS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Pitch a tent',
-    body: "Tap a cell to cycle it: empty, a tent, then a small mark for 'definitely not a tent.'",
+    body: "Tap a square to cycle it: empty, a tent, then a grass mark for a square that can never hold a tent.",
     illustration: 'cycle',
+    tip: "Mark grass generously. Every square you rule out makes the tents easier to see.",
   },
   {
     title: 'One tent per tree',
-    body: 'Every tree hides exactly one tent, directly beside it - never diagonal.',
+    body: "Every tree has exactly one tent of its own, right beside it: above, below, left or right, never diagonally.",
     illustration: 'adjacency',
+    tip: "A tree with only one free square beside it shows you exactly where its tent goes.",
   },
   {
     title: 'Tents never touch',
-    body: "Two tents can't sit next to each other, not even diagonally.",
+    body: "Two tents never sit next to each other, not even corner to corner.",
     illustration: 'touching',
+    tip: "Once you place a tent, all eight squares around it are grass.",
   },
   {
     title: 'Match the count',
-    body: 'Each row and column shows how many tents belong in it - fill exactly that many.',
+    body: "The numbers along the edges say how many tents each row and column holds. Exactly that many.",
     illustration: 'counts',
+    tip: "A 0 makes the whole line grass. When a line needs as many tents as it has free squares, they are all tents. Stuck? Insight explains the next tent.",
   },
 ];
 
@@ -130,18 +145,21 @@ export const TENTS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const GRAVITY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Swipe to pull',
-    body: 'Swipe any direction and every piece slides that way at once, like gravity flipping instantly.',
+    body: "Swipe in any direction and every piece slides that way at once, until it meets a wall or another piece.",
     illustration: 'swipe',
+    tip: "Pieces never stop halfway. Look for walls and blockers that stop a piece exactly where you need it.",
   },
   {
     title: 'Land on target',
-    body: 'Every piece needs to land on its ringed target to solve the board.',
+    body: "Every piece has to finish on its ringed target, all at the same time, to solve the board.",
     illustration: 'target',
+    tip: "Work backwards: from which side can each piece slide into its target and stop there?",
   },
   {
     title: 'Move together',
-    body: 'One swipe moves every piece on the board. Plan a direction that helps all of them, not just one.',
+    body: "One swipe moves every piece. A move that helps one piece can push another out of place.",
     illustration: 'multi',
+    tip: "Bring the hardest piece home first, then use the others as stoppers. Undo is free, and Insight shows the next swipe.",
   },
 ];
 
@@ -154,23 +172,27 @@ export const GRAVITY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const MIRROR_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap to place',
-    body: 'Tap a cell to cycle it: no mirror, a "/" mirror, a "\\" mirror, then blank again.',
+    body: "Tap a square to cycle it: no mirror, a / mirror, a \\ mirror, then empty again.",
     illustration: 'place',
+    tip: "You only need a mirror where the beam has to turn. Keep the rest of the board empty.",
   },
   {
     title: 'Mirrors bend the beam',
-    body: 'The beam runs straight from its source until it hits a mirror, which turns it a quarter turn.',
+    body: "The beam runs straight from its source until it meets a mirror, which turns it a quarter turn.",
     illustration: 'reflect',
+    tip: "Trace the beam with your finger from the source to see where it goes next.",
   },
   {
     title: 'Light every gem',
-    body: 'Route the beam so it touches every gem on the board.',
+    body: "The beam must pass through every gem on the board on its way.",
     illustration: 'gems',
+    tip: "Plan the route through the gems first, then decide where each turn goes.",
   },
   {
     title: 'Reach the target',
-    body: 'Once the beam has touched every gem and reaches the target, the puzzle solves itself.',
+    body: "Once the beam has passed every gem and ends on the target, the puzzle is solved.",
     illustration: 'target',
+    tip: "Stuck? Insight follows your own beam and fixes the first mirror that sends it astray.",
   },
 ];
 
@@ -183,18 +205,21 @@ export const MIRROR_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const TOWERS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap and fill',
-    body: 'Tap a cell, then tap a height below to fill it - tap the eraser to clear it again.',
+    body: "Tap a square, then tap a height below the board to place it. The eraser clears a square again.",
     illustration: 'fill',
+    tip: "Fill the heights you are certain of first, and leave the doubtful squares for last.",
   },
   {
     title: 'Every height once',
-    body: 'Each row and column needs every height from 1 to the grid size, exactly once.',
+    body: "Each row and each column holds every height from 1 up to the board size, exactly once, like a sudoku.",
     illustration: 'unique',
+    tip: "When a row has only one height missing, it goes in its last empty square.",
   },
   {
     title: 'Clues count what you see',
-    body: "Each clue outside the grid is how many towers you'd see looking straight in from that side. A taller tower hides every shorter one behind it.",
+    body: "Each number outside the board says how many towers you would see looking in from that side. A taller tower hides every shorter one behind it.",
     illustration: 'visibility',
+    tip: "A 1 means the tallest tower stands right next to the clue. A clue equal to the board size means the towers climb 1, 2, 3 in order. Stuck? Insight explains the next height.",
   },
 ];
 
@@ -214,18 +239,21 @@ export const TOWERS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const ARUKONE_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Join the pairs',
-    body: 'Connect matching number pairs with paths. Touch a number and drag through the squares beside it.',
+    body: "Connect each pair of matching numbers with a path. Touch a number and drag through the squares next to it.",
     illustration: 'connect',
+    tip: "Start with the pairs closest together. They have the fewest ways to join.",
   },
   {
     title: 'The board folds',
-    body: 'All paths are mirror-symmetric and route around obstacles. Draw one side and the other side draws itself, folded across the middle.',
+    body: "Paths are mirror images across the middle of the board. Draw one side and the other side draws itself.",
     illustration: 'symmetry',
+    tip: "Plan on one half only: whatever fits there fits on the other side too.",
   },
   {
     title: 'Fill every square',
-    body: 'Complete all pairs without crossing paths, and leave no square empty. Every square belongs to exactly one path.',
+    body: "Paths may not cross, and every square must belong to exactly one path, with none left empty.",
     illustration: 'crossing',
+    tip: "Hug the walls: a path along the edge blocks the fewest other pairs. Stuck? Insight joins the next pair for you.",
   },
 ];
 
@@ -247,18 +275,21 @@ export const ARUKONE_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const FILLAPIX_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Paint the hidden picture',
-    body: 'Tap a cell to fill it in. The filled cells you leave behind form a small picture.',
+    body: "Tap a square to fill it, and tap again to clear it. The filled squares slowly reveal a small picture.",
     illustration: 'goal',
+    tip: "Start with the numbers that can only be filled one way.",
   },
   {
     title: 'A number counts its own 3x3',
-    body: 'Each clue counts the filled cells in the block around it - all nine squares, corners and the clue\'s own square included. So a 0 means none of those nine are filled, and a 9 means every one of them is.',
+    body: "Each number counts the filled squares in the block of nine around it, its own square and the corners included. A 0 means all nine stay empty, and a 9 means all nine are filled.",
     illustration: 'clue',
+    tip: "On an edge a block has only 6 squares, in a corner only 4. A 6 on an edge or a 4 in a corner fills its whole block.",
   },
   {
     title: 'Match every clue to solve it',
-    body: 'Once every clue matches its number, the picture is complete.',
+    body: "When every number matches the filled squares around it, the picture is complete.",
     illustration: 'reveal',
+    tip: "Once a number has all its squares, every other square around it stays empty. Stuck? Insight finds the clue you are closest to finishing.",
   },
 ];
 
@@ -272,90 +303,105 @@ export const FILLAPIX_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const LIGHTSOUT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap to toggle',
-    body: 'Tap any light to switch it - on to off, off to on.',
+    body: "Tap a lantern to switch it on or off.",
     illustration: 'tap',
+    tip: "Tapping the same lantern twice undoes it, so each lantern is tapped once or not at all.",
   },
   {
     title: 'Neighbours flip too',
-    body: 'A tap never lands alone: the four lights directly above, below and beside it flip with it. Diagonals stay put.',
+    body: "Every tap also flips the four lanterns directly above, below, left and right of it. Diagonals stay as they are.",
     illustration: 'cross',
+    tip: "The order of your taps never matters, only which lanterns you tap.",
   },
   {
     title: 'Turn them all off',
-    body: 'The board is solved the moment every light is dark.',
+    body: "The puzzle is solved the moment every lantern is dark.",
     illustration: 'dark',
+    tip: "Work row by row: to put out a lit lantern, tap the one just below it. Stuck? Insight shows the next tap.",
   },
 ];
 
 export const BLOOM_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap to turn',
-    body: 'Tap a tile to turn it a quarter. Every line has to meet another line. None may stop in the open or run off the edge.',
+    body: "Tap a tile to turn it a quarter. Every line on a tile must meet a line from its neighbour. None may end in the open or run off the edge.",
     illustration: 'turn',
+    tip: "Start at the edges and corners: a line can never point off the board, so those tiles have few ways to turn.",
   },
   {
     title: 'Pins never turn',
-    body: 'A tile with an ochre pin is fixed, and so is every knot (the tiles with two arcs). Read outward from them, and from the rim.',
+    body: "A tile with an ochre pin is fixed in place, and so is every knot (a tile with two arcs). They are your starting points.",
     illustration: 'knot',
+    tip: "Read outwards from the pins: each fixed line tells its neighbour which way to face.",
   },
   {
     title: 'Closed loops bloom',
-    body: 'A loop that closes fills with colour. Close every loop, with no loose ends anywhere, to finish the board.',
+    body: "A loop that closes fills with colour. Close every loop, with no loose ends anywhere, to finish the board.",
     illustration: 'bloom',
+    tip: "A loose end always points at the tile that needs turning. Stuck? Insight turns the tile closest to settled.",
   },
 ];
 
 export const MOSAIC_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Drag into the picture',
-    body: 'Lift a piece from the tray and drop it into the picture. A shadow shows where it will land. The flat pieces are already set, to start you off.',
+    body: "Lift a piece from the tray and drop it onto the picture. A shadow shows where it will land. The flat pieces are already set to start you off.",
     illustration: 'drag',
+    tip: "Begin with the corners and narrow gaps: only a few pieces fit there.",
   },
   {
     title: 'Tap to turn',
-    body: 'Tap a piece in the tray to turn it a quarter. Drag a placed piece out again whenever you like.',
+    body: "Tap a piece in the tray to turn it a quarter. Drag a placed piece back out at any time.",
     illustration: 'turn',
+    tip: "Turn a piece before you lift it, so you can see whether it matches the gap.",
   },
   {
     title: 'Fill every square',
-    body: 'Every piece, every square, one way to fit. Start where the picture is narrow. Only one piece can go there.',
+    body: "Every piece fits in exactly one place, and together they cover every square of the picture.",
     illustration: 'fill',
+    tip: "Place the awkward shapes early while there is still room. Stuck? Insight places the piece the picture is readiest for.",
   },
 ];
 
 export const BRIDGES_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Drag or tap to build',
-    body: 'Drag from an island toward another, or just tap the water between them, to lay a bridge. Bridges run straight across open water: up, down, left or right.',
+    body: "Drag from one island towards another, or tap the water between them, to build a bridge. Bridges run straight: up, down, left or right.",
     illustration: 'drag',
+    tip: "Tap the same bridge again for a double bridge, and once more to take it away.",
   },
   {
     title: 'Meet every number',
-    body: 'Each number is how many bridges that island needs; met, it plants a flag. Two islands can share one bridge or two: tap it again for the second, once more to take them away.',
+    body: "Each number says how many bridges that island needs. When it has them all, it raises a flag. Two islands can share one bridge or two.",
     illustration: 'double',
+    tip: "An island whose number is twice its neighbours needs a double bridge to every one of them.",
   },
   {
     title: 'One archipelago',
-    body: 'Bridges may never cross each other, and every island must end up joined into one network. Never close off a finished group.',
+    body: "Bridges never cross each other, and in the end every island must be joined into one network.",
     illustration: 'network',
+    tip: "Never close a finished group off from the rest. Stuck? Insight builds the bridge the numbers force.",
   },
 ];
 
 export const ADJACENT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap a tile',
-    body: 'Tap any tile that touches another of its own colour, and the whole connected run clears at once.',
+    body: "Tap any tile that touches another of its own colour, and the whole connected group clears at once.",
     illustration: 'run',
+    tip: "Press and hold to preview a group before it clears.",
   },
   {
     title: 'The tray falls in',
-    body: 'Whatever sat above the gap drops straight down into it. Columns never slide sideways. What is in a column stays in it.',
+    body: "Tiles above a gap fall straight down to fill it. Columns never slide sideways, so what is in a column stays in it.",
     illustration: 'fall',
+    tip: "Clearing a small group can drop two bigger ones together into one large group.",
   },
   {
     title: 'Reach the target',
-    body: 'Bigger runs are worth much more per tile, so hold your colours together. Hit the target score, or clear the tray outright, to finish.',
+    body: "Bigger groups score much more per tile. Reach the target score, or clear the whole tray, to finish.",
     illustration: 'target',
+    tip: "Save your big groups until they grow. Stuck? Insight looks ahead and points at the best tap.",
   },
 ];
 
@@ -378,7 +424,7 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   },
   binairo: {
     title: 'Twos',
-    body: 'Tap a cell to cycle a square, a circle, then blank. No three of the same in a row or column, and each needs an equal split of both, to solve it.',
+    body: 'Tap a square to cycle it: a square shape, a circle, then empty. Never three of the same side by side, and every row and column splits evenly between the two shapes.',
   },
   arukone: {
     title: 'Arukone+',
@@ -386,11 +432,11 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   },
   fillapix: {
     title: 'Pixel Clues',
-    body: 'Tap a cell to fill it, tap again to clear it. The filled cells form a hidden picture. Each clue counts the filled squares in its own 3x3 block, all nine, including the square the number sits on, match every clue to complete it.',
+    body: 'Tap a square to fill it, and tap again to clear it. The filled squares form a hidden picture. Each number counts the filled squares in its own block of nine, including the square it sits on. Match every number to complete the picture.',
   },
   lightsout: {
     title: 'Lanterns',
-    body: 'Tap a light to flip it - and the four lights directly above, below and beside it flip with it. Diagonals stay put. Turn every light off to solve the board.',
+    body: 'Tap a lantern to switch it, and the four lanterns directly above, below and beside it switch with it. Diagonals stay as they are. Put every lantern out to solve the board.',
   },
   adjacent: {
     title: 'Adjacent',

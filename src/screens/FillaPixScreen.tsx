@@ -36,7 +36,8 @@ import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
-import { HINT_COST, UNDO_COST } from '../progression/coins';
+import { InsightCount, useInsightPower } from '../components/InsightPower';
+import { UNDO_COST } from '../progression/coins';
 import { useStageEntrance } from '../components/useStageEntrance';
 
 /** How many of `puzzle`'s revealed clues `state` currently satisfies -
@@ -143,6 +144,9 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
   // Squares that open already filled - locked, so a tap on one does nothing.
   const givens = useMemo(() => givenFills(puzzle), [puzzle]);
   const { coins, shortBy, buy } = useCoinPurchase();
+  // Insight, the superpower: charges first, then a video or coins.
+  const insight = useInsightPower();
+  const spendInsight = insight.spend;
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [hints, setHints] = useState(0);
   const [flashCell, setFlashCell] = useState<FillaPixCell | null>(null);
@@ -224,14 +228,14 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
   );
 
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
   const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const result = explainFillaPixHint(puzzle, state);
     if (!result) return;
     // Charged only when there is a hint to give, and before applying it.
-    buy(HINT_COST, () => {
-      setNote({ reason: result.reason, kind: result.kind, id: Date.now() });
+    spendInsight(() => {
+      setNote({ reason: result.reason, tip: result.tip, kind: result.kind, id: Date.now() });
       historyRef.current.push(state);
       setHints(n => n + 1);
       setState(result.state);
@@ -240,7 +244,7 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
       flashTimeoutRef.current = setTimeout(() => setFlashCell(null), HINT_FLASH_MS);
       triggerFeedback('targetReached');
     });
-  }, [puzzle, state, buy]);
+  }, [puzzle, state, spendInsight]);
 
   const undo = useCallback(() => {
     if (historyRef.current.length === 0) return;
@@ -308,21 +312,23 @@ export function FillaPixScreen({ puzzle, onExit, onNextPuzzle }: FillaPixScreenP
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('fillapix')} onGone={clearNote} />}
+          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('fillapix')} onGone={clearNote} />}
           <FillaPixBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={onToggleCell} flashCell={flashCell} givens={givens} />
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Reveal a hint"
+            accessibilityLabel={`Insight: reveal the next move, ${insight.count} left`}
             onPress={useHint}
             style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
           >
             <HintIcon />
-            <Text style={styles.pillText}>Hint</Text>
-            <CoinCost cost={HINT_COST} />
+            <Text style={styles.pillText}>Insight</Text>
+
+            <InsightCount count={insight.count} />
           </PressableScale>
+          {insight.sheet}
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Undo last move"

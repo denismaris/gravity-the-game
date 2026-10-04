@@ -40,7 +40,8 @@ import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
-import { HINT_COST, UNDO_COST } from '../progression/coins';
+import { InsightCount, useInsightPower } from '../components/InsightPower';
+import { UNDO_COST } from '../progression/coins';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { buildDurationMs, buildTimeAt } from '../components/bridgesMotion';
 
@@ -155,6 +156,9 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
   const historyRef = useRef<BridgesState[]>([]);
   const [canUndo, setCanUndo] = useState(false);
   const { coins, shortBy, buy } = useCoinPurchase();
+  // Insight, the superpower: charges first, then a video or coins.
+  const insight = useInsightPower();
+  const spendInsight = insight.spend;
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [hints, setHints] = useState(0);
   const [origin, setOrigin] = useState<{ link: number; at: number } | null>(null);
@@ -271,13 +275,13 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
   const onTapLane = useCallback((link: number, at: number) => build(link, at), [build]);
 
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
   const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const result = explainBridgesHint(puzzle, stateRef.current);
     if (!result) return;
-    buy(HINT_COST, () => {
-      setNote({ reason: result.reason, kind: result.kind, id: Date.now() });
+    spendInsight(() => {
+      setNote({ reason: result.reason, tip: result.tip, kind: result.kind, id: Date.now() });
       historyRef.current.push(stateRef.current);
       setCanUndo(true);
       stateRef.current = result.state;
@@ -288,7 +292,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
       timersRef.current.push(setTimeout(() => setFlashLink(null), HINT_FLASH_MS));
       triggerFeedback('targetReached');
     });
-  }, [puzzle, buy]);
+  }, [puzzle, spendInsight]);
 
   const undo = useCallback(() => {
     if (historyRef.current.length === 0 || solved) return;
@@ -348,7 +352,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('bridges')} onGone={clearNote} />}
+          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('bridges')} onGone={clearNote} />}
           <BridgesBoard
             puzzle={puzzle}
             state={state}
@@ -365,11 +369,13 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
-          <PressableScale accessibilityRole="button" accessibilityLabel="Reveal a hint" onPress={useHint} style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}>
+          <PressableScale accessibilityRole="button" accessibilityLabel={`Insight: reveal the next move, ${insight.count} left`} onPress={useHint} style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}>
             <HintIcon />
-            <Text style={styles.pillText}>Hint</Text>
-            <CoinCost cost={HINT_COST} />
+            <Text style={styles.pillText}>Insight</Text>
+
+            <InsightCount count={insight.count} />
           </PressableScale>
+          {insight.sheet}
           <PressableScale accessibilityRole="button" accessibilityLabel="Undo last move" onPress={undo} style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}>
             <UndoIcon />
             <Text style={styles.pillText}>Undo</Text>

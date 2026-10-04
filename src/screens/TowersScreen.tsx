@@ -26,8 +26,8 @@ import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
-import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
-import { HINT_COST } from '../progression/coins';
+import { CoinBalance, useCoinPurchase } from '../components/Coins';
+import { InsightCount, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
 
 const TUTORIAL_ID = tutorialIdForGame('towers');
@@ -117,7 +117,10 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState(() => emptyTowersState(puzzle));
-  const { coins, shortBy, buy } = useCoinPurchase();
+  const { coins, shortBy } = useCoinPurchase();
+  // Insight, the superpower: charges first, then a video or coins.
+  const insight = useInsightPower();
+  const spendInsight = insight.spend;
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [selected, setSelected] = useState<TowersCell | null>(null);
   const [hints, setHints] = useState(0);
@@ -232,13 +235,13 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
   // \`state\` rather than inside a \`setState\` updater: React may run an
   // updater twice, which would charge twice.
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
   const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const h = explainTowersHint(puzzle, state);
     if (!h) return;
-    buy(HINT_COST, () => {
-      setNote({ reason: h.reason, kind: h.kind, id: Date.now() });
+    spendInsight(() => {
+      setNote({ reason: h.reason, tip: h.tip, kind: h.kind, id: Date.now() });
       setState(h.state);
       setHints(n => n + 1);
       setFlash(h.cell);
@@ -247,7 +250,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
       flashTimeoutRef.current = setTimeout(() => setFlash(null), 450);
       triggerFeedback('targetReached');
     });
-  }, [puzzle, state, buy]);
+  }, [puzzle, state, spendInsight]);
 
   const restart = useCallback(() => {
     recorded.current = false;
@@ -306,7 +309,7 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('towers')} onGone={clearNote} />}
+          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('towers')} onGone={clearNote} />}
           <TowersBoard
             puzzle={puzzle}
             state={state}
@@ -331,14 +334,16 @@ export function TowersScreen({ puzzle, onExit, onNextPuzzle }: TowersScreenProps
         <Animated.View style={[styles.controls, controlsIn]}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Reveal a hint"
+            accessibilityLabel={`Insight: reveal the next move, ${insight.count} left`}
             onPress={useHint}
             style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
           >
             <HintIcon />
-            <Text style={styles.pillText}>Hint</Text>
-            <CoinCost cost={HINT_COST} />
+            <Text style={styles.pillText}>Insight</Text>
+
+            <InsightCount count={insight.count} />
           </PressableScale>
+          {insight.sheet}
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Restart puzzle"

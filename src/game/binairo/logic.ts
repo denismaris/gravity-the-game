@@ -139,22 +139,21 @@ export interface BinairoLineSet {
   readonly cols: ReadonlySet<number>;
 }
 
-/** Rows/columns that are completely filled but not evenly split - the
- * second error geometry (a line hugging the outside of the offending
- * row/column). A line still being filled in is never "wrong yet". */
+/** Rows/columns that can no longer be evenly split: one symbol already
+ * fills more than half of the line. That is decided the moment it happens
+ * - a six-wide row with four circles is wrong whatever goes in its last two
+ * cells - so, like a triple run, it is flagged straight away rather than
+ * only once the line is full (which left a player filling in a row that
+ * was already lost, with nothing telling them so). A full line that is not
+ * evenly split always has a symbol over half, so it is caught here too. */
 export function unbalancedLines(puzzle: BinairoPuzzle, state: BinairoState): BinairoLineSet {
   const n = puzzle.size;
   const rows = new Set<number>();
   const cols = new Set<number>();
+  const over = (line: ReadonlyArray<BinairoValue>) => line.filter(v => v === 0).length > n / 2 || line.filter(v => v === 1).length > n / 2;
 
-  for (let r = 0; r < n; r += 1) {
-    const row = state.values[r];
-    if (row.every(v => v !== null) && row.filter(v => v === 0).length !== n / 2) rows.add(r);
-  }
-  for (let c = 0; c < n; c += 1) {
-    const col = colValues(state, c);
-    if (col.every(v => v !== null) && col.filter(v => v === 0).length !== n / 2) cols.add(c);
-  }
+  for (let r = 0; r < n; r += 1) if (over(state.values[r])) rows.add(r);
+  for (let c = 0; c < n; c += 1) if (over(colValues(state, c))) cols.add(c);
   return { rows, cols };
 }
 
@@ -483,4 +482,31 @@ export function isBinairoSolved(puzzle: BinairoPuzzle, state: BinairoState): boo
   }
 
   return true;
+}
+
+/**
+ * Whether the cell at (`row`, `col`) is part of anything currently wrong,
+ * by any of the rules: a run of three, a line with more than half of one
+ * symbol, a duplicated line, a broken = or × sign, a broken twin, or a
+ * count clue that can no longer come good. One place for the screen's
+ * error sound to ask, so no rule is ever left without one.
+ */
+export function cellBreaksARule(puzzle: BinairoPuzzle, state: BinairoState, row: number, col: number): boolean {
+  if (tripleRunCells(state).has(`${row}:${col}`)) return true;
+  const unbalanced = unbalancedLines(puzzle, state);
+  if (unbalanced.rows.has(row) || unbalanced.cols.has(col)) return true;
+  const duplicate = duplicateLines(puzzle, state);
+  if (duplicate.rows.has(row) || duplicate.cols.has(col)) return true;
+  const touches = (a: { row: number; col: number }, b: { row: number; col: number }) => (a.row === row && a.col === col) || (b.row === row && b.col === col);
+  for (const constraint of puzzle.constraints ?? []) {
+    if (touches(constraint, constraintPartner(constraint)) && isConstraintViolated(state, constraint)) return true;
+  }
+  for (const cell of puzzle.twinCells ?? []) {
+    if (touches(cell, twinPartner(puzzle.size, cell)) && isTwinViolated(puzzle, state, cell)) return true;
+  }
+  for (const clue of puzzle.countClues ?? []) {
+    const near = countClueNeighbours(puzzle.size, clue).some(n => n.row === row && n.col === col);
+    if (near && isCountClueViolated(puzzle, state, clue)) return true;
+  }
+  return false;
 }

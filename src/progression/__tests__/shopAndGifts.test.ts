@@ -223,7 +223,7 @@ describe('ad-free time', () => {
     const more = buyAdFree(day, 'week', now + 3600000)!;
     expect(more.adFreeUntil).toBe(now + 24 * 3600000 + 7 * 24 * 3600000);
     expect(isAdFree(more, more.adFreeUntil! + 1)).toBe(false);
-    expect(more.coins).toBe(rich().coins - 500 - 2800);
+    expect(more.coins).toBe(rich().coins - 300 - 1600);
   });
 
   it('costs coins the player has, and survives a save', () => {

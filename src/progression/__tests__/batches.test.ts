@@ -11,8 +11,9 @@ import { getMirrorMazesByDifficulty } from '../../game/mirror';
 import { GameKind, ROTATION } from '../../game/journey';
 import { getTentsTreesByDifficulty } from '../../game/tents';
 import { getTowersByDifficulty } from '../../game/towers';
-import { CHALLENGE_EVERY, generateBatch, HARD_TIER_FIRST_LEVEL, isBatchComplete, markPuzzleCompleted, nextInBatch } from '../batches';
+import { generateBatch, HARD_TIER_FIRST_LEVEL, isBatchComplete, markPuzzleCompleted, nextInBatch } from '../batches';
 import { emptyProgress, PlayerProgress, recordCompletion } from '../playerProgress';
+import { endlessId } from '../../game/endlessId';
 
 /**
  * Every puzzle id tagged `hard` in its own game's pool, across every game
@@ -92,6 +93,14 @@ function complete(progress: PlayerProgress, levelId: string): PlayerProgress {
   return recordCompletion(progress, levelId, 1, { two: 4, three: 2 });
 }
 
+/** A player with `count` solved boards of every game (generated ones, so
+ * the curated pools stay untouched for the dealer). */
+function experienced(count: number): PlayerProgress {
+  let progress = emptyProgress();
+  for (const kind of ROTATION) for (let i = 0; i < count; i += 1) progress = complete(progress, endlessId(kind, 'medium', 900 + i));
+  return progress;
+}
+
 describe('tier curve (levels 1-40 explicit, 41+ a permanent plateau)', () => {
   test('level 1 is pure easy, batch size 3', () => {
     const rng = seededRng(1);
@@ -142,7 +151,7 @@ describe('tier curve (levels 1-40 explicit, 41+ a permanent plateau)', () => {
     let seenLate = 0;
     for (const level of [30, 50, 120, 10000]) {
       for (let seed = 0; seed < 40; seed += 1) {
-        const batch = generateBatch(level, emptyProgress(), null, seededRng(level * 1000 + seed));
+        const batch = generateBatch(level, experienced(20), null, seededRng(level * 1000 + seed));
         for (const ref of batch.puzzles) {
           if (ref.kind === 'gravity' && expertIds.has(ref.puzzleId)) seenLate += 1;
         }
@@ -188,18 +197,7 @@ describe('the challenge cadence', () => {
     return run;
   }
 
-  test('lands on exactly every sixth puzzle, counted across levels rather than within one', () => {
-    for (let seed = 1; seed <= 5; seed += 1) {
-      const run = playThrough(30, seed);
-      run.forEach((puzzle, index) => {
-        const onCadence = index % CHALLENGE_EVERY === CHALLENGE_EVERY - 1;
-        // Before the curve opens the hard tier there is nothing to deal,
-        // so those cadence positions are skipped rather than softened.
-        const expected = onCadence && puzzle.level >= HARD_TIER_FIRST_LEVEL;
-        expect(puzzle.challenge).toBe(expected);
-      });
-    }
-  });
+
 
   test('every challenge is genuinely a hard-tier puzzle', () => {
     for (let seed = 1; seed <= 5; seed += 1) {
@@ -220,22 +218,15 @@ describe('the challenge cadence', () => {
     }
   });
 
-  test('is a property of the position, not of the draw - different seeds flag the same slots', () => {
-    const positionsFor = (seed: number) =>
-      playThrough(25, seed)
-        .map((puzzle, index) => (puzzle.challenge ? index : -1))
-        .filter(index => index >= 0);
-    expect(positionsFor(2)).toEqual(positionsFor(1));
-    expect(positionsFor(3)).toEqual(positionsFor(1));
-    expect(positionsFor(1).length).toBeGreaterThan(0);
+
+
+  test('an experienced player keeps meeting them, extremes included', () => {
+    const batches = Array.from({ length: 30 }, (_v, k) => generateBatch(200 + k, experienced(20), null, seededRng(k)));
+    const all = batches.flatMap(batch => batch.puzzles);
+    expect(all.filter(ref => ref.challenge).length).toBeGreaterThanOrEqual(15);
+    expect(all.some(ref => ref.extreme)).toBe(true);
   });
 
-  test('the plateau keeps dealing them - the rhythm does not stop once the curve flattens', () => {
-    const batches = [200, 201, 202, 203].map(level => generateBatch(level, emptyProgress(), null, seededRng(level)));
-    const challenges = batches.flatMap(batch => batch.puzzles.filter(ref => ref.challenge));
-    // Four plateau batches of five is twenty puzzles, so three or four.
-    expect(challenges.length).toBeGreaterThanOrEqual(3);
-  });
 });
 
 describe('generateBatch - randomization rules', () => {
@@ -315,17 +306,75 @@ describe('generateBatch - shape and spread', () => {
     }
   });
 
-  test('past the early levels an ordinary slot is almost never an easy puzzle', () => {
-    let easy = 0;
-    let total = 0;
-    for (let seed = 0; seed < 60; seed += 1) {
-      for (const ref of generateBatch(30, emptyProgress(), null, seededRng(seed)).puzzles) {
-        if (ref.challenge) continue;
-        total += 1;
-        if (EASY_IDS.has(ref.puzzleId)) easy += 1;
+  /** A player who knows every game: six puzzles of each solved. */
+  function veteran(): PlayerProgress {
+    let progress = emptyProgress();
+    for (const kind of ROTATION) for (const id of [...poolIdsFor(kind, 'easy'), ...poolIdsFor(kind, 'medium')].slice(0, 6)) progress = complete(progress, id);
+    return progress;
+  }
+
+  test('in levels 8-14 the run alternates: an easy breather after every challenge, a medium before the next', () => {
+    const progress = veteran();
+    for (let seed = 0; seed < 20; seed += 1) {
+      const run = [9, 10, 11].flatMap(level => generateBatch(level, progress, null, seededRng(seed * 13 + level)).puzzles);
+      // Levels 9-11 sit in the fixed-rhythm phase (levels 8-14).
+      for (let i = 1; i < run.length; i += 1) {
+        // Generated boards carry their tier in their id (`towers-e-easy-0`).
+        const isEasy = (id: string) => EASY_IDS.has(id) || id.includes('-e-easy-');
+        const isMedium = (id: string) => MEDIUM_IDS.has(id) || id.includes('-e-medium-');
+        if (run[i - 1].challenge) expect(isEasy(run[i].puzzleId)).toBe(true);
+        if (run[i].challenge) expect(isMedium(run[i - 1].puzzleId)).toBe(true);
       }
     }
-    expect(easy / total).toBeLessThan(0.12);
+  });
+
+  test('the first three levels are all easy', () => {
+    for (let seed = 0; seed < 20; seed += 1) {
+      for (const level of [1, 2, 3]) {
+        for (const ref of generateBatch(level, emptyProgress(), null, seededRng(seed * 7 + level)).puzzles) {
+          expect(EASY_IDS.has(ref.puzzleId) || ref.puzzleId.includes('easy')).toBe(true);
+        }
+      }
+    }
+  });
+
+  test("a game new to the player opens with its easiest boards, in order, even late in the run", () => {
+    // Knows every game but Bloom.
+    let progress = emptyProgress();
+    for (const kind of ROTATION) {
+      if (kind === 'bloom') continue;
+      for (const id of [...poolIdsFor(kind, 'easy'), ...poolIdsFor(kind, 'medium')].slice(0, 6)) progress = complete(progress, id);
+    }
+    const easyBloom = poolIdsFor('bloom', 'easy');
+    let seen = 0;
+    for (let seed = 0; seed < 40; seed += 1) {
+      for (const ref of generateBatch(60, progress, null, seededRng(seed)).puzzles) {
+        if (ref.kind !== 'bloom') continue;
+        seen += 1;
+        expect(ref.challenge).toBeUndefined();
+        expect(ref.puzzleId).toBe(easyBloom[0]);
+      }
+    }
+    expect(seen).toBeGreaterThan(0);
+  });
+
+  test('a game from the last four puzzles is not dealt again', () => {
+    for (let seed = 0; seed < 30; seed += 1) {
+      let progress = veteran();
+      let previous = null as ReturnType<typeof generateBatch> | null;
+      const run: GameKind[] = [];
+      for (let level = 20; level < 30; level += 1) {
+        const batch = generateBatch(level, progress, previous, seededRng(seed * 101 + level));
+        for (const ref of batch.puzzles) {
+          run.push(ref.kind);
+          progress = complete(progress, ref.puzzleId);
+        }
+        previous = batch;
+      }
+      for (let i = 0; i < run.length; i += 1) {
+        expect(run.slice(Math.max(0, i - 4), i)).not.toContain(run[i]);
+      }
+    }
   });
 
   test('a level rarely repeats a game', () => {

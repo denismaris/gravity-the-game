@@ -53,8 +53,8 @@ describe('TentsBoardView - the solve wave gets a clock to run on', () => {
         <TentsBoardView puzzle={puzzle} state={state} cellSize={40} solved={false} />,
       );
     });
-    // Unsolved: the idle decoration wants frames.
-    expect(askedForFrames()).toBe(true);
+    // Unsolved and untouched: no idle ambience, so no frames.
+    expect(askedForFrames()).toBe(false);
 
     clockSpy.mockClear();
     act(() => {

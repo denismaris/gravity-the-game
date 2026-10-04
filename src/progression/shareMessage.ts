@@ -22,8 +22,8 @@ export interface ShareMessageInput {
 export function buildShareMessage({ dailyStreak, totalStars, solved, totalPuzzles }: ShareMessageInput): string {
   const headline =
     dailyStreak > 0
-      ? `🔥 ${dailyStreak}-day streak on Tessera. ★${totalStars}, ${solved}/${totalPuzzles} solved.`
-      : `★${totalStars} · ${solved}/${totalPuzzles} puzzles solved on Tessera.`;
+      ? `🔥 ${dailyStreak}-day streak on Tessellatum. ★${totalStars}, ${solved}/${totalPuzzles} solved.`
+      : `★${totalStars} · ${solved}/${totalPuzzles} puzzles solved on Tessellatum.`;
   return `${headline}\nTwelve calm puzzle games, one app.`;
 }
 
@@ -55,5 +55,5 @@ export function buildDailyShare({ dayKey, game, stars, ms, streak }: DailyShareI
   const time = ms !== null && ms > 0 ? ` · ${formatDuration(ms)}` : '';
   const marks = Array.from({ length: 7 }, (_v, i) => (i < Math.min(streak, 7) ? '🟧' : '⬜')).join('');
   const run = streak > 0 ? `${marks} ${streak}-day streak` : marks;
-  return `Tessera Daily #${dailyNumber(dayKey)} · ${game}\n${rating}${time}\n${run}`;
+  return `Tessellatum Daily #${dailyNumber(dayKey)} · ${game}\n${rating}${time}\n${run}`;
 }

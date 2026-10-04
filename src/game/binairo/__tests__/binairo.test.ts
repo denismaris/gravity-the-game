@@ -1,4 +1,5 @@
 import {
+  cellBreaksARule,
   colValues,
   constraintKey,
   constraintPartner,
@@ -213,9 +214,16 @@ describe('unbalancedLines', () => {
     expect(unbalancedLines(SIMPLE, state).rows.has(0)).toBe(true);
   });
 
-  test('a still-blank row is never flagged, however skewed so far', () => {
-    const state: BinairoState = { values: [[0, 0, 0, null], [null, null, null, null], [null, null, null, null], [null, null, null, null]] };
+  test('a row still in progress is not flagged while it can still be split evenly', () => {
+    const state: BinairoState = { values: [[0, 0, null, null], [null, null, null, null], [null, null, null, null], [null, null, null, null]] };
     expect(unbalancedLines(SIMPLE, state).rows.has(0)).toBe(false);
+  });
+
+  test('a row with more than half of one symbol is flagged at once, before it is full', () => {
+    const state: BinairoState = { values: [[0, 1, 0, 0], [null, null, null, null], [null, null, null, null], [null, null, null, null]] };
+    const early: BinairoState = { values: [[0, null, 0, 0], [null, null, null, null], [null, null, null, null], [null, null, null, null]] };
+    expect(unbalancedLines(SIMPLE, state).rows.has(0)).toBe(true);
+    expect(unbalancedLines(SIMPLE, early).rows.has(0)).toBe(true);
   });
 
   test('the real solution has no unbalanced lines', () => {
@@ -280,11 +288,9 @@ describe('errorLines', () => {
 
   // Unlike a triple run, these two genuinely cannot be judged until the
   // line is complete - and still shouldn't be, through this same function.
-  test('an unequal count still waits for the row to be complete', () => {
-    const state: BinairoState = { values: [[0, 0, 0, null], [null, null, null, null], [null, null, null, null], [null, null, null, null]] };
-    // Row 0 is flagged here for its triple run, not its count (still
-    // incomplete) - `unbalancedLines` on its own confirms the count half.
-    expect(unbalancedLines(SIMPLE, state).rows.has(0)).toBe(false);
+  test('a count that is merely unfinished is not an error', () => {
+    const state: BinairoState = { values: [[0, null, 0, null], [null, null, null, null], [null, null, null, null], [null, null, null, null]] };
+    expect(errorLines(SIMPLE, state).rows.has(0)).toBe(false);
   });
 
   test('a duplicate row still waits for both rows to be complete', () => {
@@ -1019,5 +1025,35 @@ describe('the shipped Binairo pool', () => {
       expect(Math.min(...counts)).toBeGreaterThanOrEqual(previousMax);
       previousMax = Math.max(...counts);
     }
+  });
+});
+
+describe('cellBreaksARule - one question behind the error sound', () => {
+  const blank = (): BinairoValue[][] => Array.from({ length: 4 }, () => [null, null, null, null] as BinairoValue[]);
+
+  test('a run of three, on every cell of it', () => {
+    const values = blank();
+    values[0] = [0, 0, 0, null];
+    const state: BinairoState = { values };
+    expect([0, 1, 2].map(c => cellBreaksARule(SIMPLE, state, 0, c))).toEqual([true, true, true]);
+    expect(cellBreaksARule(SIMPLE, state, 1, 3)).toBe(false);
+  });
+
+  test('more than half of one symbol in a line, before it is full', () => {
+    const values = blank();
+    values[2] = [1, null, 1, 1];
+    expect(cellBreaksARule(SIMPLE, { values }, 2, 0)).toBe(true);
+  });
+
+  test('a broken = or x sign, on both of its cells', () => {
+    const puzzle: BinairoPuzzle = { ...SIMPLE, constraints: [{ row: 3, col: 0, direction: 'right', kind: 'same' }] };
+    const values = blank();
+    values[3] = [0, 1, null, null];
+    expect(cellBreaksARule(puzzle, { values }, 3, 0)).toBe(true);
+    expect(cellBreaksARule(puzzle, { values }, 3, 1)).toBe(true);
+  });
+
+  test('nothing wrong on the solution', () => {
+    for (let r = 0; r < 4; r += 1) for (let c = 0; c < 4; c += 1) expect(cellBreaksARule(SIMPLE, SIMPLE_SOLUTION, r, c)).toBe(false);
   });
 });

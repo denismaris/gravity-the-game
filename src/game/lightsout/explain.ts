@@ -1,4 +1,4 @@
-import { count, HintReason } from '../hints';
+import { count, HintReason, place } from '../hints';
 import { pressedCells } from './logic';
 import { solveLightsOut } from './solver';
 import { LightsOutCell, LightsOutPuzzle, LightsOutState } from './types';
@@ -21,7 +21,8 @@ export function explainLightsOutHint(puzzle: LightsOutPuzzle, state: LightsOutSt
     kind: 'rule',
     reason:
       net > 0
-        ? `This press is on the way out. It puts out ${count(net, 'lamp')}. ${count(solution.length - 1, 'press', 'presses')} to go after it.`
-        : `It lights a few lamps first, but this press is on the only way out. ${count(solution.length - 1, 'press', 'presses')} to go after it.`,
+        ? `Press ${place(cell.row, cell.col)}: it flips that lantern and its four neighbours, and puts out ${count(net, 'lantern')} overall. It is one of the presses on the way out, with ${count(solution.length - 1, 'press', 'presses')} to go after it.`
+        : `Press ${place(cell.row, cell.col)}: it lights a few lanterns first, but it is on the only way out, with ${count(solution.length - 1, 'press', 'presses')} to go after it.`,
+    tip: 'Pressing a lantern twice undoes it, so each one is pressed once or not at all. Clear the board row by row: press under each lit lantern to put it out.',
   };
 }

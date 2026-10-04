@@ -13,6 +13,15 @@ export type HintKind = 'fix' | 'rule' | 'nudge';
 export interface HintReason {
   readonly reason: string;
   readonly kind: HintKind;
+  /** The general pattern behind this step, so the player can spot it on
+   * their own next time ("Two alike side by side? Both ends are the other
+   * shape."). Shown under the reason. */
+  readonly tip?: string;
+}
+
+/** "row 3, column 2" - 1-based, the way a player counts squares. */
+export function place(row: number, col: number): string {
+  return `row ${row + 1}, column ${col + 1}`;
 }
 
 /** Plural helper: "1 tent", "2 tents". */

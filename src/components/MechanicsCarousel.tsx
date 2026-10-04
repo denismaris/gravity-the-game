@@ -104,6 +104,12 @@ export function MechanicsCarousel({
               <Canvas style={{ width: ILLUSTRATION_WIDTH, height: ILLUSTRATION_HEIGHT }}>{renderIllustration(slide.illustration)}</Canvas>
               <Text style={styles.title}>{slide.title}</Text>
               <Text style={styles.body}>{slide.body}</Text>
+              {slide.tip ? (
+                <View style={[styles.tip, { borderColor: accentColor }]}>
+                  <Text style={[styles.tipLabel, { color: accentColor }]}>TIP</Text>
+                  <Text style={styles.tipText}>{slide.tip}</Text>
+                </View>
+              ) : null}
             </View>
           ))}
         </ScrollView>
@@ -190,6 +196,19 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.sm,
     textAlign: 'center',
   },
+  tip: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: 8,
+    marginTop: theme.spacing.md,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    backgroundColor: theme.colors.surfaceHi,
+  },
+  tipLabel: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1, marginTop: 2 },
+  tipText: { flex: 1, fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textPrimary },
   body: {
     fontSize: theme.typography.sizes.body,
     lineHeight: theme.typography.lineHeights.body,

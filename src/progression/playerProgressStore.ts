@@ -11,7 +11,7 @@ import {
   PlayerProgress,
   ProgressCursor,
 } from './playerProgress';
-import { STARTING_COINS } from './coins';
+import { STARTING_COINS, STARTING_INSIGHTS } from './coins';
 import { EMPTY_GIFT, GIFT_DAYS, GiftLog } from './gift';
 
 /** Single key everything player-progress-related is stored under. */
@@ -103,8 +103,10 @@ function isGameKind(value: unknown): value is GameKind {
 
 function parseBatchPuzzleRef(value: unknown): BatchPuzzleRef | null {
   if (typeof value !== 'object' || value === null) return null;
-  const ref = value as { kind?: unknown; puzzleId?: unknown; challenge?: unknown; golden?: unknown };
+  const ref = value as { kind?: unknown; puzzleId?: unknown; challenge?: unknown; golden?: unknown; extreme?: unknown };
   if (!isGameKind(ref.kind) || typeof ref.puzzleId !== 'string') return null;
+  // An extreme is always a challenge, so it keeps both flags.
+  if (ref.extreme === true) return { kind: ref.kind, puzzleId: ref.puzzleId, challenge: true, ...(ref.golden === true ? { golden: true } : {}), extreme: true };
   if (ref.golden === true) return { kind: ref.kind, puzzleId: ref.puzzleId, ...(ref.challenge === true ? { challenge: true } : {}), golden: true };
   // `challenge` post-dates v5 and is deliberately not a version bump: a
   // batch saved without it is a valid batch with no challenge slot, which
@@ -202,6 +204,7 @@ export function parseProgress(raw: string | null): PlayerProgress {
     streakFreezes?: unknown;
     retired?: unknown;
     luckyCharges?: unknown;
+    insights?: unknown;
     cleanRun?: unknown;
     grandsSolved?: unknown;
     stampsClaimed?: unknown;
@@ -252,6 +255,8 @@ export function parseProgress(raw: string | null): PlayerProgress {
     streakFreezes: Math.min(3, parseCount(record.streakFreezes, 0)),
     retired: Array.isArray(record.retired) ? [...new Set(record.retired.filter(isGameKind))].slice(0, 3) : [],
     luckyCharges: parseCount(record.luckyCharges, 0),
+    // A save from before Insight existed starts with the same few charges.
+    insights: parseCount(record.insights, STARTING_INSIGHTS),
     cleanRun: parseCount(record.cleanRun, 0),
     grandsSolved: Array.isArray(record.grandsSolved)
       ? [...new Set(record.grandsSolved.filter((n): n is number => typeof n === 'number' && Number.isInteger(n) && n >= 0))]

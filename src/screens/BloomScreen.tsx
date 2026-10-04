@@ -35,8 +35,8 @@ import { BLOOM_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
-import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
-import { HINT_COST } from '../progression/coins';
+import { CoinBalance, useCoinPurchase } from '../components/Coins';
+import { InsightCount, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
 
 const TUTORIAL_ID = tutorialIdForGame('bloom');
@@ -109,7 +109,10 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState<BloomState>(() => initialBloomState(puzzle));
-  const { coins, shortBy, buy } = useCoinPurchase();
+  const { coins, shortBy } = useCoinPurchase();
+  // Insight, the superpower: charges first, then a video or coins.
+  const insight = useInsightPower();
+  const spendInsight = insight.spend;
   const [coinsEarned, setCoinsEarned] = useState(0);
   // The live board, for reading outside a state updater - see `onTurn`.
   const stateRef = useRef(state);
@@ -165,14 +168,14 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
   );
 
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
   const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const result = explainBloomHint(puzzle, stateRef.current);
     if (!result) return;
     // Charged only when there is a hint to give, and before applying it.
-    buy(HINT_COST, () => {
-      setNote({ reason: result.reason, kind: result.kind, id: Date.now() });
+    spendInsight(() => {
+      setNote({ reason: result.reason, tip: result.tip, kind: result.kind, id: Date.now() });
       stateRef.current = result.state;
       setState(result.state);
       setHints(n => n + 1);
@@ -181,7 +184,7 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
       flashTimeoutRef.current = setTimeout(() => setFlashCell(null), HINT_FLASH_MS);
       triggerFeedback('targetReached');
     });
-  }, [puzzle, buy]);
+  }, [puzzle, spendInsight]);
 
   const restart = useCallback(() => {
     recorded.current = false;
@@ -232,21 +235,23 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('bloom')} onGone={clearNote} />}
+          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('bloom')} onGone={clearNote} />}
           <BloomBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onTurn={onTurn} flashCell={flashCell} />
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Reveal a hint"
+            accessibilityLabel={`Insight: reveal the next move, ${insight.count} left`}
             onPress={useHint}
             style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
           >
             <HintIcon />
-            <Text style={styles.pillText}>Hint</Text>
-            <CoinCost cost={HINT_COST} />
+            <Text style={styles.pillText}>Insight</Text>
+
+            <InsightCount count={insight.count} />
           </PressableScale>
+          {insight.sheet}
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Restart puzzle"

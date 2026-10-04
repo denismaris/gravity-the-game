@@ -101,7 +101,7 @@ interface IntroPage {
 
 const PAGES: ReadonlyArray<IntroPage> = [
   {
-    kicker: 'WELCOME TO TESSERA',
+    kicker: 'WELCOME TO TESSELLATUM',
     title: 'Twelve games, one almanac',
     body: 'Logic puzzles from twelve different games, dealt to you one after another. No level select, no menus to wade through. Just the next good puzzle.',
     points: [

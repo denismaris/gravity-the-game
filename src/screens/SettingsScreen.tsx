@@ -12,6 +12,7 @@ import { TesseraMark } from '../components/TesseraMark';
 import { Account, currentAccount } from '../backend';
 import { AppearancePicker } from '../components/AppearancePicker';
 import { copyrightLine } from '../legal/documents';
+import { privacyChoicesRequired, showPrivacyChoices } from '../ads';
 import { LegalDoc, LegalScreen } from './LegalScreen';
 
 export interface SettingsScreenProps {
@@ -46,6 +47,11 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
   // stayed off rather than silently flicking back.
   const [blocked, setBlocked] = useState(false);
   const [legal, setLegal] = useState<LegalDoc | null>(null);
+  // Where the law asks (the EU), a way back to Google's ad consent form.
+  const [adChoices, setAdChoices] = useState(false);
+  useEffect(() => {
+    privacyChoicesRequired().then(setAdChoices);
+  }, []);
 
   // The permission prompt is asked for here, in answer to the player
   // turning reminders on - never on launch.
@@ -171,7 +177,7 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
           )}
           <Text style={styles.note}>
             {blocked
-              ? 'Notifications are switched off for Tessera. Turn them on in your phone’s Settings, then try again.'
+              ? 'Notifications are switched off for Tessellatum. Turn them on in your phone’s Settings, then try again.'
               : 'One quiet note a day with the Daily’s name, never if you have already solved it.'}
           </Text>
         </View>
@@ -199,10 +205,19 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
               </PressableScale>
             </React.Fragment>
           ))}
+          {adChoices && (
+            <>
+              <View style={styles.divider} />
+              <PressableScale accessibilityRole="button" accessibilityLabel="Ad privacy choices" onPress={showPrivacyChoices} feedback={false} scaleTo={1} style={({ pressed }) => [styles.row, pressed && styles.resetRowPressed]}>
+                <Text style={styles.rowLabel}>Ad Privacy Choices</Text>
+                <Text style={styles.chevron}>›</Text>
+              </PressableScale>
+            </>
+          )}
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerTitle}>TESSERA</Text>
+          <Text style={styles.footerTitle}>TESSELLATUM</Text>
           <Text style={styles.footerMeta}>Version {version}</Text>
           <Text style={styles.footerTagline}>An Almanac of Puzzles</Text>
           <Text style={styles.footerCopyright}>{copyrightLine()}</Text>

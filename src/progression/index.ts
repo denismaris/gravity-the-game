@@ -69,4 +69,4 @@ export { COSMETIC_SETS, SEASON_NAMES, claimSet, inSeason, seasonDaysLeft, season
 export type { Gift, GiftLog } from './gift';
 export { EMPTY_GIFT, GIFT_COINS, GIFT_DAYS, WELCOME_BACK_COINS, claimGift, giftFor, tomorrowsGift } from './gift';
 export type { CoinPack, ProductId } from './store';
-export { COIN_PACKS, PATRON_COINS, PATRON_PRICE, PATRON_SEASON_DISCOUNT, STORE_SIMULATED, applyPurchase, purchase, restorePurchases } from './store';
+export { COIN_PACKS, PATRON_COINS, PATRON_PRICE, PATRON_SEASON_DISCOUNT, PURCHASES_ENABLED, STORE_SIMULATED, applyPurchase, purchase, restorePurchases } from './store';

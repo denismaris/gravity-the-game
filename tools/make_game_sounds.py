@@ -490,6 +490,61 @@ CHIMES = {
 SOUNDS.update(CHIMES)
 
 
+
+# --- Softer everyday sounds (2026-10-04) --------------------------------------
+# The coin and the row-complete sounds were bright glass and music-box
+# notes up around 1-2 kHz, heard many times a session - players found them
+# sharp and a little annoying. These are warm wooden plucks lower down,
+# with the top filtered off and a slower attack, and quieter than before:
+# a soft "tok" of reward, not a ting.
+
+def lowpass(signal, cutoff):
+    """A gentle one-pole low-pass, run twice (12 dB/octave)."""
+    a = np.exp(-2 * np.pi * cutoff / SR)
+    out = signal.copy()
+    for _ in range(2):
+        y = np.zeros_like(out)
+        acc = 0.0
+        for i, v in enumerate(out):
+            acc = (1 - a) * v + a * acc
+            y[i] = acc
+        out = y
+    return out
+
+
+def wood(t, freq, amp=1.0, ring=0.16):
+    """A felt-tipped wooden key: the fundamental, a soft low body, and only
+    a trace of the bright partial that made the old sounds sharp."""
+    env = np.exp(-t / ring) * np.clip(t / 0.006, 0, 1)
+    body = np.sin(2 * np.pi * freq * t) + 0.22 * np.sin(2 * np.pi * freq * 0.5 * t) * np.exp(-t / (ring * 0.6))
+    shine = 0.06 * np.sin(2 * np.pi * freq * 3.0 * t) * np.exp(-t / 0.02)
+    return amp * env * (body + shine)
+
+
+def soft_reward(notes, gap, peak, ring=0.16, cutoff=2600, tail=0.32):
+    total = int(SR * (gap * (len(notes) - 1) + tail))
+    t = timeline(tail)
+    out = np.zeros(total)
+    for i, f in enumerate(notes):
+        out += at(wood(t, f, 0.85 if i == 0 else 1.0, ring), i * gap, total)
+    return finish(lowpass(room(out, 0.12), cutoff), peak)
+
+
+A4_ = 440.0
+SOFTER = {
+    # A coin: two warm notes a fifth apart, low and quick.
+    'sfx_coin': lambda: soft_reward([A4_ * 1.5, A4_ * 2], 0.055, 0.26, ring=0.12),
+    # A line finished: one rounded dyad, quieter than a finish, never shrill.
+    'sfx_binairo_row_balance': lambda: soft_reward([392.0, 523.25], 0.045, 0.22),
+    'sfx_tents_row_complete': lambda: soft_reward([349.23, 440.0], 0.045, 0.22),
+    'sfx_towers_row_complete': lambda: soft_reward([329.63, 440.0], 0.045, 0.22),
+    # Fill-a-Pix's clue done, the same family.
+    'sfx_fillapix_clue': lambda: soft_reward([440.0, 587.33], 0.04, 0.2, ring=0.12),
+}
+SOUNDS.update(SOFTER)
+
+
+
 def write(path, signal):
     data = (np.clip(signal, -1, 1) * 32767).astype('<i2').tobytes()
     with wave.open(path, 'wb') as out:
@@ -500,7 +555,11 @@ def write(path, signal):
 
 
 if __name__ == '__main__':
+    import sys
+    only = set(sys.argv[sys.argv.index('--only') + 1].split(',')) if '--only' in sys.argv else None
     for name, make in SOUNDS.items():
+        if only is not None and name not in only:
+            continue
         signal = make()
         for directory in OUT_DIRS:
             write(os.path.join(directory, f'{name}.wav'), signal)

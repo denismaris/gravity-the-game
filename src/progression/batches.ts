@@ -32,7 +32,7 @@ export interface BatchPuzzleRef {
   readonly kind: GameKind;
   readonly puzzleId: string;
   /** The deliberately hard one, planted on a fixed rhythm (see
-   * `CHALLENGE_EVERY`) and announced everywhere it shows up rather than
+   * the per-game difficulty arc below) and announced everywhere it shows up rather than
    * sprung on the player. Absent rather than `false` on ordinary slots,
    * so a batch saved before this existed reads back correctly as "no
    * challenge" with no migration. */
@@ -40,6 +40,9 @@ export interface BatchPuzzleRef {
   /** A golden puzzle: triple coins on its first solve (see `coins.ts`).
    * Absent rather than `false`, like `challenge`. */
   readonly golden?: boolean;
+  /** The hardest kind of challenge, from level 15 on: one of the toughest
+   * boards in its game's hard collection. Always also a `challenge`. */
+  readonly extreme?: boolean;
 }
 
 export interface BatchState {
@@ -88,73 +91,123 @@ const TIER_CURVE: ReadonlyArray<TierBand> = [
 /** The first level number whose band can deal a hard-tier puzzle - read
  * off `TIER_CURVE` rather than written down twice, so re-tuning the table
  * cannot leave this behind. */
-export const HARD_TIER_FIRST_LEVEL: number = (() => {
-  for (let level = 1; level <= 200; level += 1) {
-    if (tierBandForLevel(level).weights.hard > 0) return level;
-  }
-  return 1;
-})();
+/**
+ * The difficulty arc - per game: every game ramps on its own, by how many
+ * of *that game's* puzzles the player has solved, so a game met for the
+ * first time late on still starts gently.
+ *  1. its first 3 puzzles: easy (its easiest boards, in order);
+ *  2. the next 3: easy and medium, alternating;
+ *  3. the next 6: easy, medium, then a signposted hard challenge;
+ *  4. after that: random, extreme challenges included - within guard
+ *     rails that hold across everything the player plays, so it never
+ *     turns stressful: every level has an easy puzzle, two challenges never
+ *     come back to back, an extreme is always followed by an easy one, and
+ *     a level holds at most one extreme.
+ * Hard and extreme puzzles only ever come as signposted challenges.
+ */
+export const GAME_EASY_ONLY = 3;
+export const GAME_EASY_MEDIUM = 6;
+export const GAME_RHYTHM = 12;
+/** No hard puzzle before this level for anyone: a game needs nine solved
+ * boards before it can deal one, so this is a floor, not the rule. */
+export const HARD_TIER_FIRST_LEVEL = 8;
+
+/** Phase 4's draw for one slot, before the guard rails. */
+const RANDOM_WEIGHTS: ReadonlyArray<readonly [Slot, number]> = [
+  ['easy', 0.3],
+  ['medium', 0.35],
+  ['hard', 0.25],
+  ['extreme', 0.1],
+];
+
+type Slot = 'easy' | 'medium' | 'hard' | 'extreme';
+
+/** A game's first puzzles for a player are always its easiest boards, in
+ * order (phase 1 of the arc above). */
+export const NEW_GAME_PUZZLES = GAME_EASY_ONLY;
+
+/** Variety: a game played in the player's last `RECENT_BLOCK` puzzles is
+ * not dealt again (unless nothing else is left), one from a little further
+ * back is much less likely, and one not seen for a while a little more. */
+const RECENT_BLOCK = 4;
+const RECENT_WINDOW = 9;
+const RECENT_PENALTY = 0.2;
+const FRESH_BONUS = 1.6;
 
 function tierBandForLevel(levelNumber: number): TierBand {
   return TIER_CURVE.find(band => levelNumber <= band.maxLevel) ?? TIER_CURVE[TIER_CURVE.length - 1];
 }
 
-/**
- * How often a deliberately hard, signposted puzzle lands: every fourth
- * one, counted continuously across levels rather than per batch, so the
- * rhythm survives batch size changing from three to five along the curve.
- * Three gentler puzzles, then one that asks something. (Every sixth was
- * the first setting; playtesting called the whole run "too easy", and a
- * hard puzzle in six was a large part of why.)
- *
- * This cadence is the whole point of the redesign: difficulty used to be
- * drawn independently per slot, which meant a level could deal three hard
- * puzzles in a row or none at all, with nothing anywhere saying which was
- * which. Players read that as the game being arbitrary rather than as
- * variety - which is exactly what it was.
- */
-export const CHALLENGE_EVERY = 4;
 
-/** How many puzzles came before `levelNumber` begins - the offset that
- * turns a within-batch slot into a continuous puzzle number. The explicit
- * bands are few and short, and every batch past the plateau is the same
- * size, so the tail is arithmetic rather than a loop that grows without
- * bound as the level count climbs. */
-function puzzlesBeforeLevel(levelNumber: number): number {
-  const plateau = TIER_CURVE[TIER_CURVE.length - 1];
-  const lastExplicitLevel = TIER_CURVE[TIER_CURVE.length - 2].maxLevel;
-  let total = 0;
-  for (let level = 1; level <= Math.min(levelNumber - 1, lastExplicitLevel); level += 1) {
-    total += tierBandForLevel(level).batchSize;
-  }
-  if (levelNumber - 1 > lastExplicitLevel) {
-    total += (levelNumber - 1 - lastExplicitLevel) * plateau.batchSize;
-  }
-  return total;
-}
 
 /** Whether the puzzle at continuous index `puzzleIndex` (0-based) is the
  * challenge. Hard tier has to actually be reachable at this level for the
  * answer to be yes, so a new player's opening levels stay a clean ramp
  * with no spikes at all. */
-function isChallengeSlot(levelNumber: number, puzzleIndex: number): boolean {
-  if (levelNumber < HARD_TIER_FIRST_LEVEL) return false;
-  return puzzleIndex % CHALLENGE_EVERY === CHALLENGE_EVERY - 1;
+/** What a game deals next to this player, from how many of its puzzles
+ * they have solved - phases 1 to 3 of the arc; phase 4 returns null (the
+ * caller draws it at random). */
+function rampSlot(played: number): Slot | null {
+  if (played < GAME_EASY_ONLY) return 'easy';
+  if (played < GAME_EASY_MEDIUM) return played % 2 === 0 ? 'medium' : 'easy';
+  if (played < GAME_RHYTHM) return ['easy', 'medium', 'hard'][(played - GAME_EASY_MEDIUM) % 3] as Slot;
+  return null;
 }
 
-/**
- * The tier mix for an ordinary, non-challenge slot: the band's own weights
- * with `hard` retired and its weight handed to *medium*. Hard arrives on
- * the cadence instead of at random, so leaving it in here would put
- * unannounced spikes straight back; but the first version split its weight
- * evenly with easy, which left the plateau dealing an easy puzzle in every
- * three or so ordinary slots, a long way past the point a player needs
- * them. Giving it all to medium keeps the curve's climb honest: by the
- * plateau an ordinary slot is almost always medium, and every hard puzzle
- * is still one the player was told about.
- */
-function restWeights(weights: TierWeights): TierWeights {
-  return { easy: weights.easy, medium: weights.medium + weights.hard, hard: 0 };
+/** The guard rails, applied to whatever a slot would deal. */
+function calm(wanted: Slot | null, context: { last: Slot | null; hadEasy: boolean; hadExtreme: boolean; lastSlot: boolean }, rng: () => number): Slot {
+  const allowed = (tier: Slot) => {
+    if (context.last === 'extreme') return tier === 'easy';
+    if (context.last === 'hard' && (tier === 'hard' || tier === 'extreme')) return false;
+    if (tier === 'extreme' && context.hadExtreme) return false;
+    if (context.lastSlot && !context.hadEasy) return tier === 'easy';
+    return true;
+  };
+  if (wanted !== null) {
+    if (allowed(wanted)) return wanted;
+    // A challenge held back by the rails becomes a medium, or an easy where
+    // only an easy will do.
+    return allowed('medium') ? 'medium' : 'easy';
+  }
+  return weightedPick(RANDOM_WEIGHTS.filter(([tier]) => allowed(tier)), rng);
+}
+
+function slotOf(ref: BatchPuzzleRef | undefined): Slot | null {
+  if (!ref) return null;
+  if (ref.extreme) return 'extreme';
+  if (ref.challenge) return 'hard';
+  return null;
+}
+
+/** How many puzzles of each game the player has solved. */
+function solvedPerGame(progress: PlayerProgress): ReadonlyMap<GameKind, number> {
+  const counts = new Map<GameKind, number>();
+  for (const id of Object.keys(progress.levels)) {
+    const kind = kindOfId(id);
+    if (kind) counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  }
+  return counts;
+}
+
+/** The games of the player's most recently solved puzzles, newest last -
+ * read off the save's own order (a puzzle's entry is added when it is
+ * first solved). */
+function recentGames(progress: PlayerProgress, count: number): GameKind[] {
+  const ids = Object.keys(progress.levels);
+  return ids
+    .slice(Math.max(0, ids.length - count))
+    .map(kindOfId)
+    .filter((kind): kind is GameKind => kind !== null);
+}
+
+const kindCache = new Map<string, GameKind | null>();
+function kindOfId(id: string): GameKind | null {
+  let kind = kindCache.get(id);
+  if (kind === undefined) {
+    kind = puzzleKindOf(id)?.kind ?? null;
+    kindCache.set(id, kind);
+  }
+  return kind;
 }
 
 /** Every puzzle id at one game+tier - the batch generator's only read path
@@ -190,14 +243,6 @@ function poolForKindAndTier(kind: GameKind, tier: PuzzleDifficulty): ReadonlyArr
   }
 }
 
-function sampleTier(weights: TierWeights, rng: () => number): PuzzleDifficulty {
-  const total = weights.easy + weights.medium + weights.hard;
-  const r = rng() * total;
-  if (r < weights.easy) return 'easy';
-  if (r < weights.easy + weights.medium) return 'medium';
-  return 'hard';
-}
-
 /** Weighted pick from `entries` (`[item, weight]` pairs) - falls back to a
  * uniform pick over all entries if every weight is zero (should not happen
  * in practice; every game has a non-empty pool at every tier), rather than
@@ -229,7 +274,6 @@ function gameWeight(kind: GameKind, tier: PuzzleDifficulty): number {
  * still be able to fill a level - but far enough down that a player sees
  * a real spread of games from one level to the next. */
 const SAME_LEVEL_PENALTY = 0.04;
-const PREVIOUS_LEVEL_PENALTY = 0.4;
 
 /** Every game deals new boards forever: once a game's curated pool is
  * used up at a tier, it moves on to endless boards generated from their id
@@ -281,56 +325,58 @@ function availablePuzzleIds(kind: GameKind, tier: PuzzleDifficulty, progress: Pl
  */
 export function generateBatch(levelNumber: number, progress: PlayerProgress, previousBatch: BatchState | null, rng: () => number = Math.random): BatchState {
   const band = tierBandForLevel(levelNumber);
-  const previousKinds = new Set(previousBatch?.puzzles.map(p => p.kind) ?? []);
+  const solved = solvedPerGame(progress);
+  // What the player has just been playing, newest last: their recent
+  // solves, then the set before this one (in case it was left unfinished),
+  // then each slot of this set as it is dealt.
+  const recent: GameKind[] = [...recentGames(progress, RECENT_WINDOW)];
+  for (const ref of previousBatch?.puzzles ?? []) if (!progress.levels[ref.puzzleId]) recent.push(ref.kind);
 
   const puzzles: BatchPuzzleRef[] = [];
   const usedIds = new Set<string>();
-  let lastKind: GameKind | null = null;
-  const firstPuzzleIndex = puzzlesBeforeLevel(levelNumber);
+  const dealtHere = new Map<GameKind, number>();
 
-  // The tiers first, for the whole level: challenges stay on their fixed
-  // positions, and the ordinary slots are then put in order, easier first -
-  // so every level warms up and builds, rather than lurching between tiers
-  // in whatever order the draws happened to fall.
-  const challengeAt = Array.from({ length: band.batchSize }, (_v, slot) => isChallengeSlot(levelNumber, firstPuzzleIndex + slot));
-  const TIER_ORDER: Record<PuzzleDifficulty, number> = { easy: 0, medium: 1, hard: 2 };
-  const ordinaryTiers = challengeAt
-    .filter(isChallenge => !isChallenge)
-    .map(() => sampleTier(restWeights(band.weights), rng))
-    .sort((a, b) => TIER_ORDER[a] - TIER_ORDER[b]);
-  const tiers: PuzzleDifficulty[] = challengeAt.map(isChallenge => (isChallenge ? 'hard' : ordinaryTiers.shift()!));
-  const usedKinds = new Set<GameKind>();
+  let last: Slot | null = slotOf(previousBatch ? previousBatch.puzzles[previousBatch.puzzles.length - 1] : undefined);
+  let hadEasy = false;
+  let hadExtreme = false;
 
   for (let slot = 0; slot < band.batchSize; slot += 1) {
-    const challenge = challengeAt[slot];
-    const tier = tiers[slot];
-
+    const lastBlock = new Set(recent.slice(-RECENT_BLOCK));
+    const lastWindow = new Set(recent.slice(-RECENT_WINDOW));
     const weighted = ROTATION.map((kind): readonly [GameKind, number] => {
       // A game the player retired (see the shop) is never dealt.
-      let weight = progress.retired.includes(kind) ? 0 : gameWeight(kind, tier);
-      if (usedKinds.has(kind)) weight *= SAME_LEVEL_PENALTY;
-      else if (previousKinds.has(kind)) weight *= PREVIOUS_LEVEL_PENALTY;
+      if (progress.retired.includes(kind)) return [kind, 0] as const;
+      let weight = gameWeight(kind, 'easy');
+      if (lastBlock.has(kind)) weight *= 0.0001;
+      else if (lastWindow.has(kind)) weight *= RECENT_PENALTY;
+      else weight *= FRESH_BONUS;
       return [kind, weight] as const;
     });
 
-    // No back-to-back repeat within a batch, unless every other game would
-    // then have zero weight (only the last-used game has anything left) -
-    // the same "only the last-used game is left" fallback the old Journey
-    // round-robin used.
-    const withoutLastKind = weighted.map(([kind, weight]) => [kind, kind === lastKind ? 0 : weight] as const);
-    const candidates = withoutLastKind.some(([, weight]) => weight > 0) ? withoutLastKind : weighted;
-
-    const kind = weightedPick(candidates, rng);
+    const kind = weightedPick(weighted, rng);
+    const played = (solved.get(kind) ?? 0) + (dealtHere.get(kind) ?? 0);
+    const wanted = levelNumber < HARD_TIER_FIRST_LEVEL ? (rampSlot(played) === 'hard' ? 'medium' : rampSlot(played) ?? 'medium') : rampSlot(played);
+    const dealt = calm(wanted, { last, hadEasy, hadExtreme, lastSlot: slot === band.batchSize - 1 }, rng);
+    const extreme = dealt === 'extreme';
+    const challenge = extreme || dealt === 'hard';
+    const tier: PuzzleDifficulty = challenge ? 'hard' : dealt === 'easy' ? 'easy' : 'medium';
     const ids = availablePuzzleIds(kind, tier, progress, usedIds);
-    const puzzleId = ids[Math.floor(rng() * ids.length)];
+    // A game's first boards are its easiest, in order. An extreme draws
+    // from the toughest third of what is left at hard - each game's hard
+    // collection runs from its gentler boards to its fiercest.
+    const pool = extreme && ids.length > 2 ? ids.slice(Math.floor((ids.length * 2) / 3)) : ids;
+    const puzzleId = played < GAME_EASY_ONLY ? ids[0] : pool[Math.floor(rng() * pool.length)];
+    last = dealt;
+    hadEasy = hadEasy || dealt === 'easy';
+    hadExtreme = hadExtreme || extreme;
 
     // About one puzzle in `GOLDEN_EVERY` is golden - a surprise, so it is
     // decided here, at random, and not on any rhythm a player could count.
     const golden = rng() < 1 / GOLDEN_EVERY;
-    puzzles.push({ kind, puzzleId, ...(challenge ? { challenge: true } : {}), ...(golden ? { golden: true } : {}) });
+    puzzles.push({ kind, puzzleId, ...(challenge ? { challenge: true } : {}), ...(golden ? { golden: true } : {}), ...(extreme ? { extreme: true } : {}) });
     usedIds.add(puzzleId);
-    usedKinds.add(kind);
-    lastKind = kind;
+    dealtHere.set(kind, (dealtHere.get(kind) ?? 0) + 1);
+    recent.push(kind);
   }
 
   return { levelNumber, puzzles, completedPuzzleIds: [] };
@@ -398,7 +444,7 @@ export function replaceInBatch(batch: BatchState, puzzleIds: ReadonlyArray<strin
     const ids = availablePuzzleIds(kind, tier, progress, usedIds);
     const puzzleId = ids[Math.floor(rng() * ids.length)];
     usedIds.add(puzzleId);
-    puzzles[slot] = { kind, puzzleId, ...(ref.challenge ? { challenge: true } : {}), ...(ref.golden ? { golden: true } : {}) };
+    puzzles[slot] = { kind, puzzleId, ...(ref.challenge ? { challenge: true } : {}), ...(ref.golden ? { golden: true } : {}), ...(ref.extreme ? { extreme: true } : {}) };
   }
   return { ...batch, puzzles };
 }

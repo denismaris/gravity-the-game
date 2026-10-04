@@ -72,6 +72,7 @@ export type { BatchProgressDotsProps } from './BatchProgressDots';
 export { AlmanacBackdrop } from './AlmanacBackdrop';
 export { PageBloom } from './PageBloom';
 export { CoinBalance, CoinCost, CoinGlyph, CoinsEarned, useCoinPurchase } from './Coins';
+export { InsightCount, useInsightPower } from './InsightPower';
 export type { AlmanacBackdropProps } from './AlmanacBackdrop';
 export { AptitudeChart } from './AptitudeChart';
 export type { AptitudeChartProps } from './AptitudeChart';

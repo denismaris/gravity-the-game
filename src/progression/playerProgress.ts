@@ -6,7 +6,7 @@ import {
   StarRating,
 } from '../game/scoring';
 import { BatchState } from './batches';
-import { STARTING_COINS } from './coins';
+import { STARTING_COINS, STARTING_INSIGHTS } from './coins';
 import type { ErrandLog } from './errands';
 import { EMPTY_GIFT, GiftLog } from './gift';
 import type { CosmeticSlot } from './shop';
@@ -106,6 +106,8 @@ export interface PlayerProgress {
   readonly retired: ReadonlyArray<GameKind>;
   /** Solves left on the lucky charm - each pays double coins. */
   readonly luckyCharges: number;
+  /** Insight charges held - the superpower that reveals the next move. */
+  readonly insights: number;
   /** Consecutive solves without a hint - the clean-run combo. */
   readonly cleanRun: number;
   /** Weeks (see `journey/weekly.ts`) whose Grand has been solved. */
@@ -153,6 +155,7 @@ export function emptyProgress(): PlayerProgress {
     streakFreezes: 0,
     retired: [],
     luckyCharges: 0,
+    insights: STARTING_INSIGHTS,
     cleanRun: 0,
     grandsSolved: [],
     stampsClaimed: [],

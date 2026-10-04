@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Canvas, Circle, Group, Path } from '@shopify/react-native-skia';
+import { Canvas, Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
 import { GameEmblem } from '../components/GameEmblem';
 import { GameKind, ROTATION, accentColorForKind, gameDisplayName, gameShortName } from '../game/journey';
 import { ConfettiBurst, PressableScale } from '../components';
@@ -10,6 +10,7 @@ import { CosmeticPreview } from '../components/CosmeticPreview';
 import { CoinPile } from '../components/CoinPile';
 import { TesseraMark } from '../components/TesseraMark';
 import { PageBloom } from '../components/PageBloom';
+import { AD_RULES, VIDEO_COINS, coinVideosLeft, watchCoinVideo } from '../ads';
 import { previewChime, triggerFeedback, useReducedMotion } from '../game/rendering';
 import {
   COSMETICS,
@@ -52,6 +53,7 @@ import {
   COIN_PACKS,
   PATRON_COINS,
   PATRON_PRICE,
+  PURCHASES_ENABLED,
   ProductId,
   STORE_SIMULATED,
   purchase,
@@ -79,7 +81,7 @@ const TABS: ReadonlyArray<{ id: Tab; label: string }> = [
   { id: 'games', label: 'Games' },
   { id: 'style', label: 'Style' },
   { id: 'boosts', label: 'Boosts' },
-  { id: 'coins', label: 'Coins' },
+  ...(PURCHASES_ENABLED ? [{ id: 'coins' as const, label: 'Coins' }] : []),
 ];
 
 /** A tab's content arriving: a short fade and lift, so switching tabs
@@ -120,7 +122,7 @@ const PATRON_PERKS: ReadonlyArray<string> = [
 
 /** About how much play a pack is worth, against what a day earns. */
 function playDays(coins: number): string {
-  const days = coins / 400;
+  const days = coins / 450;
   if (days < 1.75) return 'ABOUT 1½ DAYS OF PLAY';
   return `ABOUT ${Math.round(days)} DAYS OF PLAY`;
 }
@@ -203,7 +205,7 @@ function CoinsTab({ onNotice, onPaid }: { onNotice: (title: string, text: string
           </View>
           <View style={styles.freezeBody}>
             <Text style={styles.patronKicker}>{progress.patron ? 'PATRON · THANK YOU' : 'ONE TIME · YOURS FOR GOOD'}</Text>
-            <Text style={styles.patronTitle}>Tessera Patron</Text>
+            <Text style={styles.patronTitle}>Tessellatum Patron</Text>
             <Text style={styles.passText}>{progress.patron ? 'You keep the almanac going. Everything below is yours.' : 'For players who want to keep the almanac going.'}</Text>
           </View>
         </View>
@@ -232,7 +234,7 @@ function CoinsTab({ onNotice, onPaid }: { onNotice: (title: string, text: string
         )}
       </View>
 
-      <SectionHeader kicker="400 COINS ≈ A DAY OF PLAY" title="Coin packs" blurb="For a piece you would rather not wait for. Everything in the shop can also be earned by playing." />
+      <SectionHeader kicker="450 COINS ≈ A DAY OF PLAY" title="Coin packs" blurb="For a piece you would rather not wait for. Everything in the shop can also be earned by playing." />
       <View style={styles.grid}>
         {COIN_PACKS.map((pack, i) => (
           <View key={pack.id} style={[styles.item, pack.tag && styles.itemFeatured]}>
@@ -320,8 +322,12 @@ function rarityColor(rarity: Rarity): string {
   return theme.colors.textTertiary;
 }
 
+/** Patron pieces come with a paid pass: while nothing is sold for money,
+ * they are left off the shelves (and the collection count) unless owned. */
+const offered = (item: Cosmetic) => PURCHASES_ENABLED || !item.patron;
+
 /** Everything the shop sells or awards, for the collection count. */
-const COLLECTIBLE = COSMETICS.filter(item => item.price > 0 || item.exclusive);
+const COLLECTIBLE = COSMETICS.filter(item => (item.price > 0 || item.exclusive) && offered(item));
 
 const CONFIRM_MS = 3000;
 
@@ -474,6 +480,73 @@ function AdFreeCard({ onBought }: { onBought: () => void }): React.JSX.Element {
         })}
       </View>
     </View>
+  );
+}
+
+/** Coins for a video the player chooses to watch - never pushed, a few a
+ * day (see src/ads/policy.ts). */
+function VideoCard({ onEarned }: { onEarned: () => void }): React.JSX.Element {
+  const { rewardVideo } = usePlayerProgress();
+  const [left, setLeft] = useState<number | null>(null);
+  const [state, setState] = useState<'idle' | 'playing' | 'missed'>('idle');
+  useEffect(() => {
+    coinVideosLeft().then(setLeft);
+  }, []);
+  const watch = async () => {
+    if (state === 'playing' || !left) return;
+    triggerFeedback('tap');
+    setState('playing');
+    const earned = await watchCoinVideo();
+    if (earned) {
+      rewardVideo(VIDEO_COINS);
+      triggerFeedback('coin');
+      onEarned();
+    }
+    setState(earned ? 'idle' : 'missed');
+    setLeft(await coinVideosLeft());
+  };
+  const out = left === 0;
+  return (
+    <View style={styles.pass}>
+      <View style={styles.charmRow}>
+        <View style={styles.adPlate}>
+          <PlayMark />
+        </View>
+        <View style={styles.freezeBody}>
+          <Text style={styles.passTitle}>Coins for a video</Text>
+          <Text style={styles.passText}>{`Watch a short video to the end for ${VIDEO_COINS} coins. Up to ${AD_RULES.maxVideosPerDay} a day, only when you choose.`}</Text>
+        </View>
+      </View>
+      {state === 'missed' && <Text style={styles.adStatus}>No video right now. Try again in a little while.</Text>}
+      <View style={styles.adOptions}>
+        <PressableScale
+          accessibilityRole="button"
+          accessibilityLabel={out ? 'No more videos today' : `Watch a video for ${VIDEO_COINS} coins`}
+          accessibilityState={{ disabled: out || state === 'playing', busy: state === 'playing' }}
+          onPress={watch}
+          containerStyle={styles.adOptionWrap}
+          style={({ pressed }) => [styles.adOption, (out || state === 'playing') && styles.actionShort, pressed && styles.pressed]}
+        >
+          <Text style={styles.adOptionLabel}>{out ? 'Back tomorrow' : state === 'playing' ? 'Loading…' : 'Watch'}</Text>
+          {!out && (
+            <View style={styles.priceRow}>
+              <CoinGlyph size={12} />
+              <Text style={styles.adOptionPrice}>{`+${VIDEO_COINS}${left !== null ? ` · ${left} left today` : ''}`}</Text>
+            </View>
+          )}
+        </PressableScale>
+      </View>
+    </View>
+  );
+}
+
+/** A play triangle on a rounded screen, for the video card. */
+function PlayMark(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: 30, height: 30 }}>
+      <RoundedRect x={2} y={5} width={26} height={20} r={5} color={theme.colors.textSecondary} style="stroke" strokeWidth={2} />
+      <Path path="M 12 10 L 20 15 L 12 20 Z" color={theme.colors.textPrimary} />
+    </Canvas>
   );
 }
 
@@ -906,7 +979,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
   const shelfRank = (item: Cosmetic) => (item.exclusive ? 1e6 : item.price);
   const onShelf = (slot: CosmeticSlot) =>
     cosmeticsFor(slot)
-      .filter(item => inSeason(item) || owns(progress, item.id))
+      .filter(item => (inSeason(item) && offered(item)) || owns(progress, item.id))
       .sort((a, b) => shelfRank(a) - shelfRank(b));
   const forSaleIn = (slot: CosmeticSlot) => onShelf(slot).filter(item => item.price > 0).length;
 
@@ -961,14 +1034,20 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
         </View>
         <View style={[styles.headerSide, styles.headerRight]}>
           {/* The purse doubles as the way to more coins. */}
-          <PressableScale accessibilityRole="button" accessibilityLabel={`${coins} coins. Get more coins`} onPress={() => openTab('coins')} hitSlop={6}>
-            <View style={styles.purse}>
-              <CoinBalance coins={coins} />
-              <View style={styles.pursePlus}>
-                <Text style={styles.pursePlusText}>+</Text>
+          {PURCHASES_ENABLED ? (
+            <PressableScale accessibilityRole="button" accessibilityLabel={`${coins} coins. Get more coins`} onPress={() => openTab('coins')} hitSlop={6}>
+              <View style={styles.purse}>
+                <CoinBalance coins={coins} />
+                <View style={styles.pursePlus}>
+                  <Text style={styles.pursePlusText}>+</Text>
+                </View>
               </View>
+            </PressableScale>
+          ) : (
+            <View style={styles.purse} accessible accessibilityLabel={`${coins} coins`}>
+              <CoinBalance coins={coins} />
             </View>
-          </PressableScale>
+          )}
         </View>
       </View>
 
@@ -1184,6 +1263,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
                 </View>
               </View>
               <AdFreeCard onBought={celebrate} />
+              <VideoCard onEarned={celebrate} />
               <RetireCard onRetired={celebrate} />
             </View>
           )}

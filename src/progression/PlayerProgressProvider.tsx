@@ -189,6 +189,13 @@ interface PlayerProgressContextValue {
   buyLuckyCharm(): boolean;
   /** Buys ad-free time with coins; returns whether it did. */
   buyAdFree(id: AdFreeOption['id']): boolean;
+  /** Pays the coins of a video the player chose to watch to the end. */
+  rewardVideo(coins: number): void;
+  /** Uses one Insight charge. False (and nothing changes) when none are
+   * left. */
+  spendInsightCharge(): boolean;
+  /** Adds Insight charges - from a video, or bought. */
+  addInsights(count: number): void;
   /** Claims today's gift; returns it, or null if already claimed. */
   claimGift(): Gift | null;
   /** Pays a completed shop set's bonus; returns whether it did. */
@@ -376,6 +383,8 @@ export function PlayerProgressProvider({
       // just whatever was already completed before this call.
       // Golden: read off the set before it is marked done (or replaced).
       golden = previousStars === 0 && (current.currentBatch?.puzzles.some(p => p.puzzleId === levelId && p.golden) ?? false);
+      const challenge = current.currentBatch?.puzzles.some(p => p.puzzleId === levelId && p.challenge) ?? false;
+      const extreme = current.currentBatch?.puzzles.some(p => p.puzzleId === levelId && p.extreme) ?? false;
       let setCompleted = false;
       if (result.currentBatch) {
         const updatedBatch = markPuzzleCompleted(result.currentBatch, levelId);
@@ -385,7 +394,7 @@ export function PlayerProgressProvider({
           : { ...result, currentBatch: updatedBatch };
       }
 
-      coinsEarned = coinsForSolve({ previousStars, bestStars: getLevelStars(result, levelId) || 1, firstDailyToday, setCompleted });
+      coinsEarned = coinsForSolve({ previousStars, bestStars: getLevelStars(result, levelId) || 1, firstDailyToday, setCompleted, challenge, extreme });
       // The clean-run combo: a first solve without a hint extends it and is
       // paid by it; a hint resets it. Replays leave it be, so it cannot be
       // built up on boards already solved.
@@ -537,6 +546,24 @@ export function PlayerProgressProvider({
     });
     return done;
   }, [applyMutation]);
+  const spendInsightCharge = useCallback((): boolean => {
+    let used = false;
+    applyMutation(current => {
+      if (current.insights <= 0) return current;
+      used = true;
+      return { ...current, insights: current.insights - 1 };
+    });
+    return used;
+  }, [applyMutation]);
+
+  const addInsights = useCallback((count: number): void => {
+    applyMutation(current => ({ ...current, insights: current.insights + Math.max(0, Math.round(count)) }));
+  }, [applyMutation]);
+
+  const rewardVideo = useCallback((coins: number): void => {
+    applyMutation(current => ({ ...current, coins: current.coins + Math.max(0, Math.round(coins)) }));
+  }, [applyMutation]);
+
   const buyAdFree = useCallback((id: AdFreeOption['id']): boolean => {
     let done = false;
     applyMutation(current => {
@@ -718,6 +745,9 @@ export function PlayerProgressProvider({
       reinstateGame,
       buyLuckyCharm,
       buyAdFree,
+      rewardVideo,
+      spendInsightCharge,
+      addInsights,
       claimGift,
       claimSet,
       completePurchase,
@@ -731,7 +761,7 @@ export function PlayerProgressProvider({
       dailyStreak: getDisplayDailyStreak(progress, dailyKeyOf(new Date())),
       dailyCompletedToday: isDailyCompleted(progress, dailyKeyOf(new Date())),
     }),
-    [progress, ready, recordAndMark, markLevelOpened, resetProgress, adoptProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, setShopGoal, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, buyAdFree, claimGift, claimSet, completePurchase, swapPuzzle, lastCharmed, lastBonus],
+    [progress, ready, recordAndMark, markLevelOpened, resetProgress, adoptProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, setShopGoal, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, buyAdFree, rewardVideo, spendInsightCharge, addInsights, claimGift, claimSet, completePurchase, swapPuzzle, lastCharmed, lastBonus],
   );
 
   return (

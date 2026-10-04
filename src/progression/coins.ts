@@ -21,7 +21,14 @@ export const STARTING_COINS = 100;
 export const HINT_COST = 15;
 /** One undo (Gravity, Fill-a-Pix, Adjacent). Deliberately cheap: an undo
  * fixes a slip, it does not solve anything. */
-export const UNDO_COST = 2;
+/** Undo is free: taking a move back is part of thinking, not a power. */
+export const UNDO_COST = 0;
+
+/** Insight, the superpower: each charge reveals and explains the next
+ * move. A new player starts with a few; more come from a video (the
+ * player's choice) or are bought with coins when they run out. */
+export const STARTING_INSIGHTS = 3;
+export const INSIGHTS_PER_VIDEO = 2;
 
 /** A first solve, by the stars it earned. */
 export const FIRST_SOLVE_COINS: Readonly<Record<StarRating, number>> = { 1: 4, 2: 7, 3: 10 };
@@ -31,6 +38,11 @@ export const STAR_UPGRADE_COINS = 3;
 export const DAILY_BONUS = 15;
 /** Finishing a whole level set. */
 export const SET_BONUS = 20;
+/** On top of the stars, for a signposted challenge's first solve: the hard
+ * ones should be worth the effort. */
+export const CHALLENGE_BONUS = 15;
+/** For an extreme challenge, instead of the challenge bonus. */
+export const EXTREME_BONUS = 30;
 
 export interface SolveReward {
   /** Best stars before this solve, or 0 if it had never been solved. */
@@ -41,6 +53,10 @@ export interface SolveReward {
   readonly firstDailyToday: boolean;
   /** This solve completed the level set. */
   readonly setCompleted: boolean;
+  /** A signposted challenge (see `batches.ts`). */
+  readonly challenge?: boolean;
+  /** An extreme challenge. */
+  readonly extreme?: boolean;
 }
 
 /** One dealt puzzle in this many is golden, paying `GOLDEN_MULTIPLIER`
@@ -59,9 +75,9 @@ export function cleanRunMultiplier(run: number): number {
   return 1;
 }
 
-export function coinsForSolve({ previousStars, bestStars, firstDailyToday, setCompleted }: SolveReward): number {
+export function coinsForSolve({ previousStars, bestStars, firstDailyToday, setCompleted, challenge, extreme }: SolveReward): number {
   let coins = 0;
-  if (previousStars === 0) coins += FIRST_SOLVE_COINS[bestStars];
+  if (previousStars === 0) coins += FIRST_SOLVE_COINS[bestStars] + (extreme ? EXTREME_BONUS : challenge ? CHALLENGE_BONUS : 0);
   else if (bestStars > previousStars) coins += (bestStars - previousStars) * STAR_UPGRADE_COINS;
   if (firstDailyToday) coins += DAILY_BONUS;
   if (setCompleted) coins += SET_BONUS;

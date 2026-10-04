@@ -14,5 +14,11 @@ export function explainArukoneHint(puzzle: ArukonePuzzle, state: ArukoneState): 
   const target = [...unsolved].sort((a, b) => (puzzle.solution[a.value]?.length ?? 99) - (puzzle.solution[b.value]?.length ?? 99))[0];
   const next = revealArukoneHint(puzzle, state, target.value);
   if (!next) return null;
-  return { state: next, value: target.value, kind: 'rule', reason: `The two ${target.value}s can only join one way without blocking another pair. This is that path.` };
+  return {
+    state: next,
+    value: target.value,
+    kind: 'rule',
+    reason: `The two ${target.value}s have the shortest way to meet, and any other route would cut through a lane another pair needs. This is the one path that leaves every pair a way through.`,
+    tip: 'Join the pairs that sit closest together first, and hug the edges: a path along the wall blocks the fewest others.',
+  };
 }

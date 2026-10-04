@@ -21,7 +21,11 @@ export function explainBridgesHint(puzzle: BridgesPuzzle, state: BridgesState): 
       state: setBridges(state, wrong, puzzle.solution[wrong]),
       link: wrong,
       kind: 'fix',
-      reason: loads[links[wrong].a] > a.need || loads[links[wrong].b] > puzzle.islands[links[wrong].b].need ? `That ${over.need} has more bridges than its number. This one comes off.` : 'This bridge cuts the harbour the wrong way. It comes off.',
+      reason:
+        loads[links[wrong].a] > a.need || loads[links[wrong].b] > puzzle.islands[links[wrong].b].need
+          ? `That ${over.need} island has more bridges than its number allows. This bridge comes off.`
+          : 'This bridge leads the harbour the wrong way: with it, the islands can no longer all join up. It comes off.',
+      tip: "An island's number is exactly how many bridges touch it. Count both ends of every bridge.",
     };
   }
   const missing = state.bridges.map((n, l) => ({ l, gap: puzzle.solution[l] - n })).filter(({ gap }) => gap > 0);
@@ -38,8 +42,8 @@ export function explainBridgesHint(puzzle: BridgesPuzzle, state: BridgesState): 
     const lanes = byIsland[i].filter(k => !links[k].crosses.some(j => state.bridges[j] > 0));
     const room = lanes.reduce((sum, k) => sum + (k === l ? 0 : Math.min(2, known.hi[k] ?? 2)), 0);
     const left = island.need - loads[i];
-    if (lanes.length > 0 && island.need === lanes.length * 2) return `This ${island.need} has ${lanes.length} neighbours, so it needs a double bridge to each.`;
-    if (left > room) return `This ${island.need} can't reach its number without a bridge here. Its other lanes hold only ${room}.`;
+    if (lanes.length > 0 && island.need === lanes.length * 2) return `This ${island.need} has only ${lanes.length} neighbour${lanes.length === 1 ? '' : 's'} it can reach, and a lane holds at most two bridges, so it needs a double bridge to each.`;
+    if (left > room) return `This ${island.need} still needs ${left} more, but its other lanes can hold only ${room}. It cannot reach its number without a bridge here.`;
     return null;
   };
   const reason = reasonFor(links[l].a) ?? reasonFor(links[l].b);
@@ -47,6 +51,9 @@ export function explainBridgesHint(puzzle: BridgesPuzzle, state: BridgesState): 
     state: setBridges(state, l, next),
     link: l,
     kind: reason ? 'rule' : 'nudge',
-    reason: reason ?? 'Every island must join one harbour. This bridge is the link that keeps that possible.',
+    reason: reason ?? 'Every island must join one harbour in the end. This bridge is the link that keeps that possible.',
+    tip: reason
+      ? 'Start with islands whose number equals twice their neighbours: each lane is a double. Then islands with only one neighbour.'
+      : 'Avoid closing a group of islands off from the rest: everything must end up joined.',
   };
 }

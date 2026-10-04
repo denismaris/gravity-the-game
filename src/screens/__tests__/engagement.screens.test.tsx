@@ -53,10 +53,10 @@ describe('the shop', () => {
   test('a purchase takes two taps - the price, then the confirm - and is worn at once', async () => {
     const { api, press, renderer } = await mount(<ShopScreen onExit={() => {}} />, { coins: 500 });
     await press('Style');
-    await press('Buy Gold Leaf for 400 coins');
+    await press('Buy Gold Leaf for 450 coins');
     expect(api().coins).toBe(500);
-    await press('Confirm buying Gold Leaf for 400 coins');
-    expect(api().coins).toBe(100);
+    await press('Confirm buying Gold Leaf for 450 coins');
+    expect(api().coins).toBe(50);
     expect(api().progress.equipped.confetti).toBe('confetti-gold');
     expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'Gold Leaf, worn').length).toBeGreaterThan(0);
     await act(async () => renderer.unmount());
@@ -65,8 +65,8 @@ describe('the shop', () => {
   test('too few coins: no confirm, no charge', async () => {
     const { api, press, renderer } = await mount(<ShopScreen onExit={() => {}} />, { coins: 20 });
     await press('Style');
-    await press('Buy Gold Leaf for 400 coins');
-    await press('Buy Gold Leaf for 400 coins');
+    await press('Buy Gold Leaf for 450 coins');
+    await press('Buy Gold Leaf for 450 coins');
     expect(api().coins).toBe(20);
     expect(api().progress.owned).toEqual([]);
     await act(async () => renderer.unmount());
@@ -208,6 +208,22 @@ describe('the first-launch walkthrough', () => {
       jest.advanceTimersByTime(600);
     });
     expect(done).toHaveBeenCalledTimes(1);
+    await act(async () => renderer.unmount());
+  });
+});
+
+describe('no purchases in this release', () => {
+  beforeEach(() => jest.useFakeTimers());
+  afterEach(() => jest.useRealTimers());
+
+  test('the shop sells nothing for real money: no Coins tab, no Patron, no "+" on the purse', async () => {
+    const { press, renderer } = await mount(<ShopScreen onExit={() => {}} />, { coins: 500 });
+    const labels = () => renderer.root.findAll(node => typeof node.props.accessibilityLabel === 'string').map(node => node.props.accessibilityLabel as string);
+    for (const tab of ['Featured', 'Games', 'Style', 'Boosts']) {
+      await press(tab);
+      expect(labels()).not.toContain('Coins');
+      expect(labels().some(l => /Patron|Get more coins|\$\d/.test(l))).toBe(false);
+    }
     await act(async () => renderer.unmount());
   });
 });

@@ -1,4 +1,4 @@
-import { HintReason } from '../hints';
+import { HintReason, place } from '../hints';
 import { isRotatable, neighbourAcross, setRotation } from './logic';
 import { BloomCell, BloomPuzzle, BloomState } from './types';
 
@@ -29,7 +29,11 @@ export function explainBloomHint(puzzle: BloomPuzzle, state: BloomState): ({ sta
     kind: settled >= 3 ? 'rule' : 'nudge',
     reason:
       settled >= 3
-        ? 'Its neighbours are already set. Only one turn joins every line here.'
-        : 'Turn this tile so none of its lines ends in a dead end.',
+        ? `The tiles around ${place(cell.row, cell.col)} are already set, so only one turn of it joins every line that reaches it.`
+        : `Turn the tile at ${place(cell.row, cell.col)} so none of its lines points at a wall or at a neighbour with no line coming back.`,
+    tip:
+      settled >= 3
+        ? 'Every line must meet a line from the next tile. Finish the tiles whose neighbours are already set.'
+        : 'Start from the edges and corners: a line can never point off the board, which leaves edge tiles only a turn or two.',
   };
 }

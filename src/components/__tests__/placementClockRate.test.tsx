@@ -5,7 +5,6 @@ import { MirrorMazeBoardView } from '../MirrorMazeBoardView';
 import { SkiaEntrance } from '../SkiaEntrance';
 import { TENTS_TREES, emptyTentsTreesState, isEligible as tentEligible, setMark } from '../../game/tents';
 import { emptyMirrorMazeState, getMirrorMazeById, isEligible as mirrorEligible, setMirror, traceBeam } from '../../game/mirror';
-import { IDLE_MOTION_FPS } from '../../game/rendering';
 import * as AnimationClockModule from '../../game/rendering/useAnimationClock';
 
 /**
@@ -38,9 +37,9 @@ describe('placement animations get full-rate frames', () => {
     jest.restoreAllMocks();
   });
 
-  function lastRate(): number | undefined {
+  function lastActive(): boolean | undefined {
     const calls = clockSpy.mock.calls;
-    return calls[calls.length - 1][1] as number | undefined;
+    return calls.length ? (calls[calls.length - 1][0] as boolean) : undefined;
   }
 
   test('Tents: a pitched tent and a pencil mark arrive on the UI thread', () => {
@@ -58,14 +57,15 @@ describe('placement animations get full-rate frames', () => {
     act(() => {
       renderer = ReactTestRenderer.create(board(empty));
     });
-    expect(lastRate()).toBe(IDLE_MOTION_FPS);
+    // An untouched board asks for no frames at all (no idle ambience).
+    expect(lastActive()).toBe(false);
 
     // A pencil mark sets off nothing else: it fades in by itself, and the
     // clock does not move.
     now += 1000;
     act(() => renderer.update(board(marked)));
     expect(renderer.root.findAllByType(SkiaEntrance)).toHaveLength(1);
-    expect(lastRate()).toBe(IDLE_MOTION_FPS);
+    expect(lastActive()).toBe(false);
 
     // A tent pitches in by itself too (its glow may still take real frames
     // - that is an event of its own - but the pitch is not drawn from them).
@@ -77,7 +77,7 @@ describe('placement animations get full-rate frames', () => {
     now += 3000;
     act(() => renderer.update(board(pitched)));
     expect(renderer.root.findAllByType(SkiaEntrance)).toHaveLength(0);
-    expect(lastRate()).toBe(IDLE_MOTION_FPS);
+    expect(lastActive()).toBe(false);
     act(() => renderer.unmount());
   });
 

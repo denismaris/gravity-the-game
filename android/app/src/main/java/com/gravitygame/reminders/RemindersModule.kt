@@ -71,7 +71,7 @@ class RemindersModule(private val context: ReactApplicationContext) : ReactConte
     val plan = (0 until items.size()).mapNotNull { i ->
       val item = items.getMap(i) ?: return@mapNotNull null
       val id = item.getString("id") ?: return@mapNotNull null
-      Reminder(id, item.getString("title") ?: "Tessera", item.getString("body") ?: "", item.getDouble("at").toLong())
+      Reminder(id, item.getString("title") ?: "Tessellatum", item.getString("body") ?: "", item.getDouble("at").toLong())
     }
     ReminderScheduler.ensureChannel(context)
     ReminderScheduler.replace(context, plan)

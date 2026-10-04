@@ -14,6 +14,8 @@ export interface DifficultyChipProps {
    * the rhythm plants every few puzzles. Says so outright rather than
    * leaving the player to infer it from the tier label. */
   readonly challenge?: boolean;
+  /** The hardest challenge (level 15 on): says EXTREME. */
+  readonly extreme?: boolean;
   /** Spacing only. Each caller owns where its own chip sits, the same way
    * `BatchProgressDots` and the header hint buttons take theirs. */
   readonly style?: StyleProp<ViewStyle>;
@@ -34,9 +36,9 @@ export interface DifficultyChipProps {
  * use, which is the one colour in this palette that already means
  * "this one counts".
  */
-export function DifficultyChip({ difficulty, expert = false, challenge = false, style }: DifficultyChipProps): React.JSX.Element {
-  const label = challenge ? 'CHALLENGE' : expert ? 'EXPERT' : difficulty.toUpperCase();
-  const loud = challenge || expert || difficulty === 'hard';
+export function DifficultyChip({ difficulty, expert = false, challenge = false, extreme = false, style }: DifficultyChipProps): React.JSX.Element {
+  const label = extreme ? 'EXTREME' : challenge ? 'CHALLENGE' : expert ? 'EXPERT' : difficulty.toUpperCase();
+  const loud = extreme || challenge || expert || difficulty === 'hard';
 
   return (
     <View style={[styles.chip, loud ? styles.chipLoud : styles.chipQuiet, style]}>

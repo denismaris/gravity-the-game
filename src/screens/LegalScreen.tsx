@@ -76,7 +76,7 @@ function Licences({ bottom }: { bottom: number }): React.JSX.Element {
       data={list}
       keyExtractor={item => `${item.name}@${item.version}`}
       contentContainerStyle={[styles.content, { paddingBottom: bottom + theme.spacing.xxl }]}
-      ListHeaderComponent={<Text style={styles.lede}>Tessera is built with open-source software. Thank you to everyone who made these. Tap one to read its licence.</Text>}
+      ListHeaderComponent={<Text style={styles.lede}>Tessellatum is built with open-source software. Thank you to everyone who made these. Tap one to read its licence.</Text>}
       renderItem={({ item }) => {
         const key = `${item.name}@${item.version}`;
         const expanded = open === key;

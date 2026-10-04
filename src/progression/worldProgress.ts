@@ -197,6 +197,7 @@ export function getLevelPoint(progress: PlayerProgress): LevelPoint {
       difficulty: info.difficulty,
       ...(ref.challenge ? { challenge: true as const } : {}),
       ...(ref.golden ? { golden: true as const } : {}),
+      ...(ref.extreme ? { extreme: true as const } : {}),
     },
     batchPosition,
     batchSize: batch.puzzles.length,

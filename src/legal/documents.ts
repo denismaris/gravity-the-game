@@ -16,11 +16,11 @@ export const LEGAL = {
   /** Where the Supabase project's servers are (Dashboard > Project
    * Settings > General), e.g. 'Frankfurt, Germany'. */
   dataRegion: 'Arad, Romania',
-  updated: '3 October 2026',
+  updated: '4 October 2026',
 };
 
-const who = () => LEGAL.owner || 'the developer of Tessera';
-const contact = () => (LEGAL.email ? `by email at ${LEGAL.email}` : 'through the contact details on the Tessera page of the App Store or Google Play');
+const who = () => LEGAL.owner || 'the developer of Tessellatum';
+const contact = () => (LEGAL.email ? `by email at ${LEGAL.email}` : 'through the contact details on the Tessellatum page of the App Store or Google Play');
 
 export interface LegalSection {
   readonly heading: string;
@@ -36,7 +36,7 @@ export interface LegalDocument {
 export function privacyPolicy(): LegalDocument {
   return {
     title: 'Privacy policy',
-    lede: `Last updated ${LEGAL.updated}. Tessera is made by ${who()}. This policy explains what the game stores about you, why, and what you can do about it. The short version: only what the game needs to save your progress and run its leaderboards. No ads, no tracking, no selling of data.`,
+    lede: `Last updated ${LEGAL.updated}. Tessellatum is made by ${who()}. This policy explains what the game stores about you, why, and what you can do about it. The short version: only what the game needs to save your progress and run its leaderboards, plus what Google needs to show a few non-personalised ads. No tracking, no selling of data.`,
     sections: [
       {
         heading: 'What is stored',
@@ -52,7 +52,15 @@ export function privacyPolicy(): LegalDocument {
       {
         heading: 'What is not',
         paragraphs: [
-          'Tessera does not use your location (no GPS), your contacts, your photos, your microphone or camera, or any advertising identifier. It contains no advertising, analytics or tracking tools, and nothing about you is sold or shared for advertising.',
+          'Tessellatum does not use your location (no GPS), your contacts, your photos, your microphone or camera, or your advertising identifier. It contains no analytics or tracking tools, does not track you across other apps, and nothing about you is sold.',
+        ],
+      },
+      {
+        heading: 'Ads',
+        paragraphs: [
+          'Tessellatum is free and shows a few ads: now and then a full-screen ad between level sets (never during a puzzle, and none in your first sessions), and short videos for coins, only when you choose to watch one. Ad-free time from the shop switches the full-screen ads off.',
+          'The ads come from Google AdMob. They are always non-personalised: they are not based on your interests or your activity in other apps, and your device\u2019s advertising identifier is not used. To show an ad and count it, Google still processes technical information such as your IP address (for your approximate country), your device type and how you interact with the ad, under its own privacy policy (policies.google.com/privacy).',
+          'In the European Economic Area, the UK and Switzerland, you are asked for your choice before any ad is shown, and you can change it at any time in Settings, under Ad Privacy Choices.',
         ],
       },
       {
@@ -61,6 +69,7 @@ export function privacyPolicy(): LegalDocument {
           'To provide the game you asked for: saving and restoring your progress, and your account (performance of a contract, GDPR Article 6(1)(b)).',
           'To show your name and city on the leaderboards: your consent (Article 6(1)(a)). You can remove them at any time, and you then appear as an anonymous player.',
           'To keep the leaderboards fair and free of offensive names: our legitimate interest in a safe game (Article 6(1)(f)).',
+          'To show ads, which keep the game free: your consent where the law requires it (Article 6(1)(a)), given in the consent form and changeable in Settings.',
         ],
       },
       {
@@ -68,7 +77,7 @@ export function privacyPolicy(): LegalDocument {
         paragraphs: [
           `Supabase, Inc. hosts our database and sign-in service and processes the data above only on our instructions, under a data processing agreement${LEGAL.dataRegion ? `. The servers are in ${LEGAL.dataRegion}` : ''}. Where data is handled outside the European Economic Area, it is protected by the European Commission’s Standard Contractual Clauses.`,
           'Google and Apple, only if you choose to sign in with them; their own privacy policies apply to your account with them.',
-          'Apple and Google also process purchases you make in the app; we never receive your payment details.',
+          'Google AdMob, to show ads, as described under Ads above.'
         ],
       },
       {
@@ -87,7 +96,7 @@ export function privacyPolicy(): LegalDocument {
       {
         heading: 'Children',
         paragraphs: [
-          'Tessera is a general puzzle game and is not aimed at children. Signing in and showing a name on the leaderboards is meant for players aged 16 or older; younger players can play without signing in and appear on the leaderboards only as an anonymous player.',
+          'Tessellatum is a general puzzle game and is not aimed at children. Signing in and showing a name on the leaderboards is meant for players aged 16 or older; younger players can play without signing in and appear on the leaderboards only as an anonymous player.',
         ],
       },
       {
@@ -107,12 +116,12 @@ export function privacyPolicy(): LegalDocument {
 export function termsOfUse(): LegalDocument {
   return {
     title: 'Terms of use',
-    lede: `Last updated ${LEGAL.updated}. These terms are between you and ${who()}, the maker of Tessera. By playing, you agree to them. Nothing here takes away the rights you have as a consumer under the law of the country where you live.`,
+    lede: `Last updated ${LEGAL.updated}. These terms are between you and ${who()}, the maker of Tessellatum. By playing, you agree to them. Nothing here takes away the rights you have as a consumer under the law of the country where you live.`,
     sections: [
       {
         heading: 'Playing the game',
         paragraphs: [
-          'You may play Tessera for your own, personal use. Please do not copy, sell or reverse-engineer it, or use cheats, bots or modified versions of the app.',
+          'You may play Tessellatum for your own, personal use. Please do not copy, sell or reverse-engineer it, or use cheats, bots or modified versions of the app.',
           'The game, its puzzles, art, sounds and music are protected by copyright and belong to us.',
         ],
       },
@@ -126,7 +135,7 @@ export function termsOfUse(): LegalDocument {
       {
         heading: 'Purchases and refunds',
         paragraphs: [
-          'Purchases are made through the App Store or Google Play, and their terms and refund processes apply: request a refund from Apple (reportaproblem.apple.com) or Google (through Google Play).',
+          'Tessellatum is free and sells nothing for real money at the moment. If purchases are added later, they will be made through the App Store or Google Play, and their terms and refund processes apply: request a refund from Apple (reportaproblem.apple.com) or Google (through Google Play).',
           'In the EU you normally have 14 days to withdraw from an online purchase. For digital content delivered straight away, that right ends once delivery starts, which you agree to when you buy. This does not affect your rights if something you bought does not work as described.',
         ],
       },
@@ -140,7 +149,7 @@ export function termsOfUse(): LegalDocument {
       {
         heading: 'The service',
         paragraphs: [
-          'We work to keep Tessera available and your progress safe, but the game is provided as it is, and online features such as backup and leaderboards may sometimes be unavailable. We may change or end features; if we ever close the game, we will give notice in the app first.',
+          'We work to keep Tessellatum available and your progress safe, but the game is provided as it is, and online features such as backup and leaderboards may sometimes be unavailable. We may change or end features; if we ever close the game, we will give notice in the app first.',
           'To the extent the law allows, we are not liable for indirect losses, or for losses caused by events outside our reasonable control. Nothing in these terms limits liability that cannot be limited by law.',
         ],
       },
@@ -157,5 +166,5 @@ export function termsOfUse(): LegalDocument {
 
 /** The line at the foot of Settings. */
 export function copyrightLine(): string {
-  return `© 2026 ${LEGAL.owner || 'Tessera'}. All rights reserved.`;
+  return `© 2026 ${LEGAL.owner || 'Tessellatum'}. All rights reserved.`;
 }

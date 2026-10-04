@@ -11,6 +11,12 @@ import type { PlayerProgress } from './playerProgress';
  */
 export const STORE_SIMULATED = true;
 
+/** Whether the app sells anything for real money. Off for the first
+ * release: no coin packs, no Patron pass, no "get more coins" anywhere -
+ * coins come from playing only. Turning it back on brings the Coins tab,
+ * the Patron card and the purse's "+" back as they were. */
+export const PURCHASES_ENABLED = false;
+
 export type ProductId = 'coins-pouch' | 'coins-purse' | 'coins-chest' | 'coins-vault' | 'patron';
 
 export interface CoinPack {

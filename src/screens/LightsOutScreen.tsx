@@ -35,8 +35,8 @@ import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
-import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
-import { HINT_COST } from '../progression/coins';
+import { CoinBalance, useCoinPurchase } from '../components/Coins';
+import { InsightCount, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
 
 const TUTORIAL_ID = tutorialIdForGame('lightsout');
@@ -119,7 +119,10 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState<LightsOutState>(() => initialLightsOutState(puzzle));
-  const { coins, shortBy, buy } = useCoinPurchase();
+  const { coins, shortBy } = useCoinPurchase();
+  // Insight, the superpower: charges first, then a video or coins.
+  const insight = useInsightPower();
+  const spendInsight = insight.spend;
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [hints, setHints] = useState(0);
   const [presses, setPresses] = useState(0);
@@ -189,13 +192,13 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
   // \`state\` rather than inside a \`setState\` updater: React may run an
   // updater twice, which would charge twice.
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
   const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const result = explainLightsOutHint(puzzle, state);
     if (!result) return;
-    buy(HINT_COST, () => {
-      setNote({ reason: result.reason, kind: result.kind, id: Date.now() });
+    spendInsight(() => {
+      setNote({ reason: result.reason, tip: result.tip, kind: result.kind, id: Date.now() });
       setState(result.state);
       setHints(n => n + 1);
       setPresses(n => n + 1);
@@ -204,7 +207,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
       flashTimeoutRef.current = setTimeout(() => setFlashCell(null), HINT_FLASH_MS);
       triggerFeedback('targetReached');
     });
-  }, [puzzle, state, buy]);
+  }, [puzzle, state, spendInsight]);
 
   const restart = useCallback(() => {
     recorded.current = false;
@@ -254,21 +257,23 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('lightsout')} onGone={clearNote} />}
+          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('lightsout')} onGone={clearNote} />}
           <LightsOutBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onPressCell={onPressCell} flashCell={flashCell} />
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Reveal a hint"
+            accessibilityLabel={`Insight: reveal the next move, ${insight.count} left`}
             onPress={useHint}
             style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
           >
             <HintIcon />
-            <Text style={styles.pillText}>Hint</Text>
-            <CoinCost cost={HINT_COST} />
+            <Text style={styles.pillText}>Insight</Text>
+
+            <InsightCount count={insight.count} />
           </PressableScale>
+          {insight.sheet}
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Restart puzzle"

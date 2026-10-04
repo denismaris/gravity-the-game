@@ -9,20 +9,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
   BinairoCell,
-  BinairoConstraint,
   BinairoPuzzle,
-  constraintPartner,
-  duplicateLines,
+  cellBreaksARule,
   emptyBinairoState,
+  explainBinairoHint,
   isBinairoSolved,
   isColHealthy,
-  isConstraintViolated,
   isRowHealthy,
   nextValue,
   remainingCells,
   setValue,
-  tripleRunCells,
-  unbalancedLines, explainBinairoHint } from '../game/binairo';
+} from '../game/binairo';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { BinairoBoard, DifficultyChip, GeometricRule, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, renderBinairoIllustration, useSolveCelebration } from '../components';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
@@ -32,11 +29,13 @@ import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
-import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
-import { HINT_COST } from '../progression/coins';
+import { CoinBalance, useCoinPurchase } from '../components/Coins';
+import { InsightCount, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
 
 const TUTORIAL_ID = tutorialIdForGame('binairo');
+/** Matches the board's own delay before it shows a mistake. */
+const ERROR_SOUND_DELAY_MS = 450;
 
 export interface BinairoScreenProps {
   puzzle: BinairoPuzzle;
@@ -152,7 +151,10 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState(() => emptyBinairoState(puzzle));
-  const { coins, shortBy, buy } = useCoinPurchase();
+  const { coins, shortBy } = useCoinPurchase();
+  // Insight, the superpower: charges first, then a video or coins.
+  const insight = useInsightPower();
+  const spendInsight = insight.spend;
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [hints, setHints] = useState(0);
   const [flash, setFlash] = useState<BinairoCell | null>(null);
@@ -225,42 +227,45 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
     }
   }, [solved, hints, puzzle.id, recordCompletion]);
 
+  // The error sound waits as long as the board's red outline does (the
+  // board's own `ERROR_DELAY_MS`), and plays only if the mistake is still
+  // there: tapping a cell through blank, circle, square can pass through a
+  // state that breaks a rule for a moment, and buzzing at that read as the
+  // game scolding a mistake the player never made.
+  const stateRef = useRef(state);
+  stateRef.current = state;
+  const errorTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => () => {
+    if (errorTimer.current) clearTimeout(errorTimer.current);
+  }, []);
+
   const toggle = useCallback(
     (row: number, col: number) => {
-      setState(s => {
-        if (isBinairoSolved(puzzle, s)) return s;
-        const next = setValue(s, puzzle, row, col, nextValue(s.values[row][col]));
-        if (next === s) return next;
-
-        // The solved sound fires exactly once from the effect above,
-        // regardless of which toggle triggers it. Short of that: any of
-        // the three error geometries touching the cell just toggled beats
-        // a newly-healthy line (a wrong entry that happens to fill a line
-        // isn't a milestone); a genuinely new line beats the plain toggle.
-        if (!isBinairoSolved(puzzle, next)) {
-          const touchesCell = (constraint: BinairoConstraint): boolean => {
-            if (constraint.row === row && constraint.col === col) return true;
-            const partner = constraintPartner(constraint);
-            return partner.row === row && partner.col === col;
-          };
-          const isError =
-            tripleRunCells(next).has(`${row}:${col}`) ||
-            unbalancedLines(puzzle, next).rows.has(row) ||
-            unbalancedLines(puzzle, next).cols.has(col) ||
-            duplicateLines(puzzle, next).rows.has(row) ||
-            duplicateLines(puzzle, next).cols.has(col) ||
-            (puzzle.constraints ?? []).some(constraint => touchesCell(constraint) && isConstraintViolated(next, constraint));
-
-          if (isError) {
-            triggerFeedback('binairoError');
-          } else {
-            const rowJustHealthy = isRowHealthy(puzzle, next, row) && !isRowHealthy(puzzle, s, row);
-            const colJustHealthy = isColHealthy(puzzle, next, col) && !isColHealthy(puzzle, s, col);
-            triggerFeedback(rowJustHealthy || colJustHealthy ? 'binairoRowBalance' : 'binairoToggle');
-          }
-        }
-        return next;
-      });
+      const s = stateRef.current;
+      if (isBinairoSolved(puzzle, s)) return;
+      const next = setValue(s, puzzle, row, col, nextValue(s.values[row][col]));
+      if (next === s) return;
+      stateRef.current = next;
+      setState(next);
+      if (errorTimer.current) {
+        clearTimeout(errorTimer.current);
+        errorTimer.current = null;
+      }
+      // The solved sound fires exactly once from the effect above. Short
+      // of that: a newly finished, healthy line gets its own note, any
+      // other tap the plain one - and a rule broken by this tap, if it is
+      // still broken a moment later, the error.
+      if (isBinairoSolved(puzzle, next)) return;
+      const rowJustHealthy = isRowHealthy(puzzle, next, row) && !isRowHealthy(puzzle, s, row);
+      const colJustHealthy = isColHealthy(puzzle, next, col) && !isColHealthy(puzzle, s, col);
+      const breaks = cellBreaksARule(puzzle, next, row, col);
+      triggerFeedback(!breaks && (rowJustHealthy || colJustHealthy) ? 'binairoRowBalance' : 'binairoToggle');
+      if (breaks) {
+        errorTimer.current = setTimeout(() => {
+          errorTimer.current = null;
+          if (cellBreaksARule(puzzle, stateRef.current, row, col)) triggerFeedback('binairoError');
+        }, ERROR_SOUND_DELAY_MS);
+      }
     },
     [puzzle],
   );
@@ -270,13 +275,13 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
   // \`state\` rather than inside a \`setState\` updater: React may run an
   // updater twice, which would charge twice.
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; kind: HintKind; id: number } | null>(null);
+  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
   const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const h = explainBinairoHint(puzzle, state);
     if (!h) return;
-    buy(HINT_COST, () => {
-      setNote({ reason: h.reason, kind: h.kind, id: Date.now() });
+    spendInsight(() => {
+      setNote({ reason: h.reason, tip: h.tip, kind: h.kind, id: Date.now() });
       setState(h.state);
       setHints(n => n + 1);
       setFlash(h.cell);
@@ -284,7 +289,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
       flashTimeoutRef.current = setTimeout(() => setFlash(null), 450);
       triggerFeedback('targetReached');
     });
-  }, [puzzle, state, buy]);
+  }, [puzzle, state, spendInsight]);
 
   const restart = useCallback(() => {
     if (popupTimeoutRef.current) {
@@ -319,7 +324,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {puzzle.name ?? 'Binairo'}
+            {puzzle.name ?? 'Twos'}
           </Text>
           <AnimatedKicker left={left} solved={solved} difficulty={puzzle.difficulty} />
           <View style={styles.track}>
@@ -353,7 +358,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          {note && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accentColorForKind('binairo')} onGone={clearNote} />}
+          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('binairo')} onGone={clearNote} />}
           <BinairoBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} introKey={introKey} />
         </Animated.View>
 
@@ -377,14 +382,16 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
         <Animated.View style={[styles.controls, controlsIn]}>
           <PressableScale
             accessibilityRole="button"
-            accessibilityLabel="Reveal a hint"
+            accessibilityLabel={`Insight: reveal the next move, ${insight.count} left`}
             onPress={useHint}
             style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
           >
             <HintIcon />
-            <Text style={styles.pillText}>Hint</Text>
-            <CoinCost cost={HINT_COST} />
+            <Text style={styles.pillText}>Insight</Text>
+
+            <InsightCount count={insight.count} />
           </PressableScale>
+          {insight.sheet}
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Restart puzzle"
@@ -466,7 +473,7 @@ function AnimatedKicker({ left, solved, difficulty }: { left: number; solved: bo
     <View style={styles.kickerRow}>
       <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
       <Animated.Text numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
-        {solved ? 'BINAIRO · SOLVED' : `BINAIRO · ${left} LEFT`}
+        {solved ? 'TWOS · SOLVED' : `TWOS · ${left} LEFT`}
       </Animated.Text>
       {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
     </View>

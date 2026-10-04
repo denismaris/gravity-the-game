@@ -10,6 +10,7 @@ import {
   AdjacentPuzzle,
   AdjacentState,
   applyTap,
+  explainAdjacentHint,
   groupAt,
   initialAdjacentState,
   isAdjacentSolved,
@@ -39,6 +40,9 @@ import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
+import { InsightCount, useInsightPower } from '../components/InsightPower';
+import { HintNote } from '../components/HintNote';
+import { HintKind } from '../game/hints';
 import { UNDO_COST } from '../progression/coins';
 import { useStageEntrance } from '../components/useStageEntrance';
 
@@ -60,6 +64,8 @@ const POPUP_MS = 700;
  * unlimited undo would make every board a three-star board eventually.
  */
 const MAX_UNDOS = 3;
+/** How long Insight shows its group before tapping it. */
+const INSIGHT_TAP_DELAY_MS = 700;
 
 /** The same simple-stroke "?" every other screen's header carries. */
 function HelpIcon(): React.JSX.Element {
@@ -80,6 +86,17 @@ function UndoIcon({ muted }: { muted: boolean }): React.JSX.Element {
     <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
       <Path path="M 9.83 3.63 A 4.4 4.4 0 1 1 3.63 4.17" color={colour} style="stroke" strokeWidth={1.6} />
       <Path path="M 4.34 3.33 L 1.21 4.1 L 4.12 6.54 Z" color={colour} />
+    </Canvas>
+  );
+}
+
+/** A small lit bulb: Insight's mark, in this game's colour. */
+function InsightIcon(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
+      <Circle cx={7} cy={5.8} r={4.3} color={theme.colors.adjacentAccent} style="stroke" strokeWidth={1.4} />
+      <Path path="M 5.4 9.4 L 8.6 9.4" color={theme.colors.adjacentAccent} style="stroke" strokeWidth={1.3} />
+      <Path path="M 5.7 11.2 L 8.3 11.2" color={theme.colors.adjacentAccent} style="stroke" strokeWidth={1.3} />
     </Canvas>
   );
 }
@@ -142,6 +159,11 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
 
   const [state, setState] = useState<AdjacentState>(() => initialAdjacentState(puzzle));
   const { coins, shortBy, buy } = useCoinPurchase();
+  // Insight, the superpower: charges first, then a video or coins.
+  const insight = useInsightPower();
+  const [insightsUsed, setInsightsUsed] = useState(0);
+  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
+  const clearNote = useCallback(() => setNote(null), []);
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [history, setHistory] = useState<ReadonlyArray<AdjacentState>>([]);
   const [undosUsed, setUndosUsed] = useState(0);
@@ -192,13 +214,13 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
     if (solved && !recorded.current) {
       recorded.current = true;
       finishedSetRef.current = currentBatchRef.current ?? null;
-      const outcome = recordCompletion(puzzle.id, undosUsed);
+      const outcome = recordCompletion(puzzle.id, undosUsed + insightsUsed);
       batchCompletedRef.current = outcome.batchCompleted;
       setStars(outcome.best.stars);
       setCoinsEarned(outcome.coinsEarned);
       triggerFeedback('adjacentSolve');
     }
-  }, [solved, undosUsed, puzzle.id, recordCompletion]);
+  }, [solved, undosUsed, insightsUsed, puzzle.id, recordCompletion]);
 
   /**
    * Finger down: highlight the run immediately.
@@ -264,6 +286,21 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
     [solved, stuck, track],
   );
 
+  /** Insight: light up the best group and say why, then make the tap a
+   * moment later, so the player sees which run it was and what fell. */
+  const revealInsight = useCallback(() => {
+    if (solved || stuck) return;
+    const hint = explainAdjacentHint(puzzle, stateRef.current);
+    if (!hint) return;
+    insight.spend(() => {
+      setInsightsUsed(n => n + 1);
+      setNote({ reason: hint.reason, tip: hint.tip, kind: 'nudge', id: Date.now() });
+      setPreview(hint.group);
+      triggerFeedback('targetReached');
+      track(setTimeout(() => onPressCell(hint.tap.row, hint.tap.col), INSIGHT_TAP_DELAY_MS));
+    });
+  }, [solved, stuck, puzzle, insight, track, onPressCell]);
+
   const undo = useCallback(() => {
     if (history.length === 0 || undosUsed >= MAX_UNDOS || solved) return;
     buy(UNDO_COST, () => {
@@ -283,6 +320,8 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
     setState(initialAdjacentState(puzzle));
     setHistory([]);
     setUndosUsed(0);
+    setInsightsUsed(0);
+    setNote(null);
     setPreview(null);
     setAnimation(null);
     setPopups([]);
@@ -328,6 +367,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
+          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('adjacent')} onGone={clearNote} />}
           <AdjacentBoard
             puzzle={puzzle}
             state={state}
@@ -345,6 +385,17 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={`Insight: reveal the best next tap, ${insight.count} left`}
+            onPress={revealInsight}
+            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+          >
+            <InsightIcon />
+            <Text style={styles.pillText}>Insight</Text>
+            <InsightCount count={insight.count} />
+          </PressableScale>
+          {insight.sheet}
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel={`Undo the last clear, ${undosLeft} of ${MAX_UNDOS} left`}

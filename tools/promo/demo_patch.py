@@ -14,6 +14,12 @@ def patch(path, fn):
 # coins, and the Hint pill hides its price tag at 0.
 patch('src/progression/coins.ts', lambda s: s.replace('export const HINT_COST = 15;', 'export const HINT_COST = 0;', 1))
 
+# Autoplay reveals moves through Insight: on camera it never runs out.
+patch('src/components/InsightPower.tsx', lambda s: s.replace('    (apply: () => void) => {\n      if (spendInsightCharge()) {', '    (apply: () => void) => {\n      if (Date.now() > 0) {\n        apply();\n        return;\n      }\n      if (spendInsightCharge()) {', 1))
+
+# No ads and no consent form on camera.
+patch('src/ads/index.ts', lambda s: s.replace('export function startAds(): Promise<boolean> {', 'export function startAds(): Promise<boolean> {\n  if (Date.now() > 0) return Promise.resolve(false);', 1))
+
 # No hint captions on camera.
 patch('src/components/HintNote.tsx', lambda s: s.replace(
     "export function HintNote({ reason, kind, accent, onGone }: { reason: string; kind: HintKind; accent: string; onGone: () => void }): React.JSX.Element {",

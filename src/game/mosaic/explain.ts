@@ -21,7 +21,7 @@ export function explainMosaicHint(puzzle: MosaicPuzzle, state: MosaicState): ({ 
   const misplaced = state.pieces.findIndex((p, i) => p.at !== null && !correctlyPlaced(i));
   if (misplaced !== -1) {
     const hint = revealMosaicHint(puzzle, state, misplaced);
-    return hint && { ...hint, kind: 'fix', reason: "This piece was in the wrong place. It's now where it belongs." };
+    return hint && { ...hint, kind: 'fix', reason: "This piece was in the wrong place: with it there, the rest of the picture can't be filled. It's now where it belongs.", tip: 'Every piece has exactly one home. If the last gaps will not fill, one piece placed earlier is usually in the wrong spot.' };
   }
   const silhouette = new Set<string>();
   puzzle.pieces.forEach((_p, i) => placedCells(puzzle, i, puzzle.solution[i]).forEach(c => silhouette.add(cellKey(c.row, c.col))));
@@ -48,5 +48,5 @@ export function explainMosaicHint(puzzle: MosaicPuzzle, state: MosaicState): ({ 
   });
   if (best === -1) return null;
   const hint = revealMosaicHint(puzzle, state, best);
-  return hint && { ...hint, kind: 'rule', reason: 'Only this piece fits the gap next to your finished tiles, and only turned this way.' };
+  return hint && { ...hint, kind: 'rule', reason: 'Look at the gap next to your finished tiles: of all the pieces in the tray, only this one fits its shape, and only turned this way.', tip: 'Fill the outline from the edges and corners inward, and place the awkward shapes early while there is still room for them.' };
 }

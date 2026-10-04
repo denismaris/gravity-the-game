@@ -38,6 +38,7 @@ import {
   pendingRanks,
   rankOf,
   rankReward,
+  PURCHASES_ENABLED,
   SWAP_PRICE,
   rankTitle,
   toRoman,
@@ -485,7 +486,7 @@ export function HomeScreen({
       >
         <View style={styles.mastheadRow}>
           <TesseraMark size={34} />
-          <Text style={styles.wordmark}>TESSERA</Text>
+          <Text style={styles.wordmark}>TESSELLATUM</Text>
         </View>
         <View style={styles.rule}>
           <View style={styles.ruleLine} />
@@ -517,9 +518,11 @@ export function HomeScreen({
               {progress.patron && <View style={styles.pursePatron} accessible accessibilityLabel="Patron" />}
               <CoinBalance coins={coins} />
               {progress.luckyCharges > 0 && <Text style={styles.purseCharm}>{'\u00D72'}</Text>}
-              <View style={styles.pursePlus}>
-                <Text style={styles.pursePlusText}>+</Text>
-              </View>
+              {PURCHASES_ENABLED && (
+                <View style={styles.pursePlus}>
+                  <Text style={styles.pursePlusText}>+</Text>
+                </View>
+              )}
               {setsReady > 0 && <View style={styles.purseDot} accessibilityLabel="A set bonus is ready in the shop" />}
             </View>
           </PressableScale>
@@ -568,9 +571,11 @@ export function HomeScreen({
                 accessibilityLabel={`${
                   levelPoint.allDone ? 'Replay' : 'Continue'
                 }: ${entry.name}, ${
-                  entry.challenge
-                    ? 'the challenge of this set, hard'
-                    : entry.difficulty
+                  entry.extreme
+                    ? 'an extreme challenge, the hardest kind'
+                    : entry.challenge
+                      ? 'the challenge of this set, hard'
+                      : entry.difficulty
                 }${entry.golden && !levelPoint.allDone ? ', golden: triple coins' : ''}, Level ${levelPoint.levelNumber}, puzzle ${
                   levelPoint.batchPosition
                 } of ${levelPoint.batchSize}`}
@@ -599,6 +604,7 @@ export function HomeScreen({
                     <DifficultyChip
                       difficulty={entry.difficulty}
                       challenge={entry.challenge}
+                      extreme={entry.extreme}
                       style={styles.heroChip}
                     />
                     {entry.golden && !levelPoint.allDone && (
@@ -1212,12 +1218,14 @@ const styles = themedStyles(() => ({
    * (failure and hazards only; an unplayed Daily is not a mistake). */
   streakNudge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.secondary },
   streakNudgeText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary },
+  // TESSELLATUM is eleven letters: a size and tracking that leave clear
+  // room for the trophy and the gear on either side at phone width.
   wordmark: {
     fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.headline,
-    lineHeight: 33,
+    fontSize: 23,
+    lineHeight: 30,
     fontWeight: theme.typography.weights.bold,
-    letterSpacing: theme.typography.tracking.wordmark,
+    letterSpacing: 2,
     color: theme.colors.textPrimary,
   },
   /** Measured rather than fixed: the mark inside places itself at

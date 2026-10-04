@@ -29,7 +29,7 @@ export interface LaunchSequenceProps {
   readonly onDone: () => void;
 }
 
-const WORDMARK = 'TESSERA';
+const WORDMARK = 'TESSELLATUM';
 
 /**
  * The app's mark, building itself.

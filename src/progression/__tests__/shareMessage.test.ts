@@ -3,13 +3,13 @@ import { buildDailyShare, buildShareMessage, dailyNumber } from '../shareMessage
 describe('buildShareMessage', () => {
   test('leads with the streak when one exists', () => {
     expect(buildShareMessage({ dailyStreak: 12, totalStars: 161, solved: 64, totalPuzzles: 224 })).toBe(
-      '🔥 12-day streak on Tessera. ★161, 64/224 solved.\nTwelve calm puzzle games, one app.',
+      '🔥 12-day streak on Tessellatum. ★161, 64/224 solved.\nTwelve calm puzzle games, one app.',
     );
   });
 
   test('falls back to the solved count when there is no streak yet', () => {
     expect(buildShareMessage({ dailyStreak: 0, totalStars: 3, solved: 1, totalPuzzles: 224 })).toBe(
-      '★3 · 1/224 puzzles solved on Tessera.\nTwelve calm puzzle games, one app.',
+      '★3 · 1/224 puzzles solved on Tessellatum.\nTwelve calm puzzle games, one app.',
     );
   });
 
@@ -37,12 +37,12 @@ describe('buildDailyShare', () => {
 
   it('reads like a result card, with no spoilers', () => {
     expect(buildDailyShare({ dayKey: '2026-10-02', game: 'Gravity', stars: 3, ms: 48000, streak: 4 })).toBe(
-      'Tessera Daily #275 · Gravity\n★★★ · 0:48\n🟧🟧🟧🟧⬜⬜⬜ 4-day streak',
+      'Tessellatum Daily #275 · Gravity\n★★★ · 0:48\n🟧🟧🟧🟧⬜⬜⬜ 4-day streak',
     );
   });
 
   it('leaves out what it does not know, and caps the streak row at a week', () => {
-    expect(buildDailyShare({ dayKey: '2026-10-02', game: 'Bloom', stars: 1, ms: null, streak: 0 })).toBe('Tessera Daily #275 · Bloom\n★☆☆\n⬜⬜⬜⬜⬜⬜⬜');
+    expect(buildDailyShare({ dayKey: '2026-10-02', game: 'Bloom', stars: 1, ms: null, streak: 0 })).toBe('Tessellatum Daily #275 · Bloom\n★☆☆\n⬜⬜⬜⬜⬜⬜⬜');
     expect(buildDailyShare({ dayKey: '2026-10-02', game: 'Bloom', stars: 2, ms: null, streak: 12 }).split('\n')[2]).toBe('🟧🟧🟧🟧🟧🟧🟧 12-day streak');
   });
 });

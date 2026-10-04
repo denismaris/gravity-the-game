@@ -1,4 +1,12 @@
 {
   "name": "GravityTheGame",
-  "displayName": "Tessera"
+  "displayName": "Tessellatum",
+  "react-native-google-mobile-ads": {
+    "android_app_id": "ca-app-pub-6910889676255413~9770723351",
+    "ios_app_id": "ca-app-pub-6910889676255413~6597765105",
+    "delay_app_measurement_init": true,
+    "sk_ad_network_items": [
+      "cstr6suwn9.skadnetwork"
+    ]
+  }
 }

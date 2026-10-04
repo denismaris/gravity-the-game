@@ -5,7 +5,7 @@
  * @format
  */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Linking, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
@@ -48,7 +48,9 @@ import { getMosaicById } from './src/game/mosaic';
 import { getBridgesById } from './src/game/bridges';
 import { GameKind, NextPuzzleOptions, getDailyEntry } from './src/game/journey';
 import { CalmingInterstitialScreen } from './src/interstitial';
-import { PlayerProgressProvider, notePuzzleOpened, usePlayerProgress } from './src/progression';
+import { PlayerProgressProvider, isAdFree, notePuzzleOpened, usePlayerProgress } from './src/progression';
+import { learnedTutorials } from './src/progression/learnedTutorials';
+import { AD_RULES, betweenSets, startAds } from './src/ads';
 import { AppearanceProvider, SettingsProvider, useAppearance, useHoldAppearance, useSettings } from './src/settings';
 import { theme, themedStyles } from './src/theme';
 
@@ -105,8 +107,15 @@ function App(): React.JSX.Element {
  * window, so nobody sees it any more.
  */
 function Boot(): React.JSX.Element {
-  const { ready: settingsReady } = useSettings();
+  const { ready: settingsReady, settings, markTutorialSeen } = useSettings();
   const { ready: progressReady, progress, markIntroSeen } = usePlayerProgress();
+  // A game the player has already played needs no "how to play" - also
+  // after signing back in, on a new phone, or after a reinstall, when this
+  // phone's own memory of the guides is empty but the account is not.
+  useEffect(() => {
+    if (!settingsReady || !progressReady) return;
+    for (const id of learnedTutorials(progress)) if (!settings.seenTutorials.includes(id)) markTutorialSeen(id);
+  }, [settingsReady, progressReady, progress, settings.seenTutorials, markTutorialSeen]);
   // The daily reminder's schedule follows the save and the setting.
   useReminderSync();
   const scheme = useAppearance();
@@ -133,6 +142,16 @@ function Boot(): React.JSX.Element {
  */
 function AppRoutes(): React.JSX.Element {
   const { settings } = useSettings();
+  const { progress, ready: progressReady } = usePlayerProgress();
+  const progressRef = useRef(progress);
+  progressRef.current = progress;
+  // Ads start at launch only for a player who already sees them (see
+  // src/ads/policy.ts) - a new player meets no consent form and no ad.
+  useEffect(() => {
+    if (progressReady && Object.keys(progressRef.current.levels).length >= AD_RULES.minSolvedBeforeAds) startAds();
+  }, [progressReady]);
+  // A between-sets ad in progress: a second tap on Next waits for it.
+  const advancing = useRef(false);
   // The cloud save (does nothing until the backend is configured).
   useCloudSync();
   const [selected, setSelected] = useState<Selected | null>(null);
@@ -189,12 +208,29 @@ function AppRoutes(): React.JSX.Element {
   // Also closes Settings, in case this came from there.
   const openPuzzle = useCallback(
     (kind: GameKind, puzzleId: string, options?: NextPuzzleOptions) => {
-      setOverlayRoute(null);
-      if (options?.showInterstitial && settings.calmingInterstitialEnabled) {
-        setPendingNext({ kind, puzzleId });
-      } else {
-        setSelected({ kind, puzzleId });
+      const go = () => {
+        setOverlayRoute(null);
+        if (options?.showInterstitial && settings.calmingInterstitialEnabled) {
+          setPendingNext({ kind, puzzleId });
+        } else {
+          setSelected({ kind, puzzleId });
+        }
+      };
+      // A set just finished: the one place an ad may play, if the rules
+      // allow (src/ads/policy.ts) - then on to the next set as usual.
+      if (!options?.showInterstitial) {
+        go();
+        return;
       }
+      if (advancing.current) return;
+      advancing.current = true;
+      const now = progressRef.current;
+      betweenSets({ solved: Object.keys(now.levels).length, adFree: isAdFree(now) })
+        .catch(() => {})
+        .finally(() => {
+          advancing.current = false;
+          go();
+        });
     },
     [settings.calmingInterstitialEnabled],
   );

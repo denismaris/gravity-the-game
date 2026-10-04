@@ -22,7 +22,7 @@ class ReminderReceiver : BroadcastReceiver() {
     val notification = NotificationCompat.Builder(context, ReminderScheduler.CHANNEL_ID)
       .setSmallIcon(R.drawable.ic_stat_tessera)
       .setColor(0xFF3B1F52.toInt())
-      .setContentTitle(intent.getStringExtra("title") ?: "Tessera")
+      .setContentTitle(intent.getStringExtra("title") ?: "Tessellatum")
       .setContentText(intent.getStringExtra("body") ?: "")
       .setStyle(NotificationCompat.BigTextStyle().bigText(intent.getStringExtra("body") ?: ""))
       .setAutoCancel(true)

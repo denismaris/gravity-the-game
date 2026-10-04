@@ -69,16 +69,16 @@ const RING_FADE_MS = 70;
 const ERROR_ENTER_MS = 140;
 const ERROR_SCALE_MS = 220;
 const ERROR_EXIT_MS = 160;
-const ERROR_SCROLL_PERIOD_MS = 2400;
-const ERROR_STRIPE_WIDTH = 5;
-const ERROR_STRIPE_OPACITY = 0.55;
 /** A violation has to hold steady for this long before it's allowed to
  * start entering (see `useDelayedKeys` below) - it used to flag the
  * instant a line went bad, which read as too quick/twitchy while still
  * mid-move. Clearing is never delayed: fixing a line drops its tape/badge
  * immediately, only the *onset* waits. */
 const ERROR_DELAY_MS = 450;
-const ERROR_BORDER_OPACITY = 0.8;
+const ERROR_BORDER_OPACITY = 0.9;
+/** The soft wash behind the offending tiles, and how slowly the outline breathes. */
+const ERROR_FILL_OPACITY = 0.2;
+const ERROR_BREATHE_MS = 1800;
 
 /** Every tile is its own small raised surface inset from the raw cell
  * bounds, instead of a square on one shared flat board surface - see the
@@ -352,14 +352,6 @@ export function renderConstraintBadge(key: string, cx: number, cy: number, radiu
  */
 export function renderTwinBadge(key: string, cx: number, cy: number, radius: number, violated: boolean): React.JSX.Element {
   return <Circle key={key} cx={cx} cy={cy} r={radius} color={violated ? theme.colors.danger : theme.colors.binairoAccent} />;
-}
-
-/** A plain rectangle SVG path - used only where a plain `<Rect>` element
- * won't do, i.e. as a Skia `clip` value (which takes a path/rect, not a
- * drawable element). Every error zone is a full row/column now, always
- * square-cornered, so this needs no radius parameter. */
-function rectPath(x: number, y: number, w: number, h: number): string {
-  return `M ${x} ${y} L ${x + w} ${y} L ${x + w} ${y + h} L ${x} ${y + h} Z`;
 }
 
 /** Distance along the diagonal between consecutive stripe centres, for a
@@ -980,31 +972,13 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
   // It now runs only while something is genuinely animating:
   //  - any error zone, for its enter/exit fade (bounded, `ERROR_ENTER_MS`/
   //    `ERROR_EXIT_MS`) - and, unless reduced motion is on, for as long as
-  //    it stays on screen, since its hazard tape keeps idly scrolling;
+  //    it stays on screen, since its outline keeps breathing;
   //  - any constraint/twin badge mid-pop (`CONSTRAINT_POP_MS`, in either
   //    direction - becoming violated *or* becoming satisfied again both
   //    pop) - and, unless reduced motion is on, for as long as it stays
   //    actively violated, since it keeps breathing;
   //  - the solve wave, the intro wave, or an in-flight press glow, exactly
   //    as before.
-  // Stripe geometry, cached by the box it covers. Bounded by the number of
-  // distinct row/column zones a board can have (at most `2 * size`), so it
-  // never needs eviction - and a zone fading out keeps hitting the cache
-  // after its box has left `delayedErrorBoxes`.
-  const stripeCacheRef = useRef(new Map<string, { clip: string; stripes: string[] }>());
-  const stripeGeometry = (box: ErrorZoneBox): { clip: string; stripes: string[] } => {
-    const cacheKey = `${box.x}:${box.y}:${box.w}:${box.h}`;
-    let hit = stripeCacheRef.current.get(cacheKey);
-    if (!hit) {
-      hit = {
-        clip: rectPath(box.x, box.y, box.w, box.h),
-        stripes: hazardStripePaths(box.x, box.y, box.w, box.h, ERROR_STRIPE_WIDTH),
-      };
-      stripeCacheRef.current.set(cacheKey, hit);
-    }
-    return hit;
-  };
-
   const errorEntering = Array.from(errorLifecycles.values()).some(
     lifecycle =>
       (lifecycle.removedAt === null && now - lifecycle.firstSeenAt < ERROR_ENTER_MS) ||
@@ -1100,18 +1074,13 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
 
         const cx = box.x + box.w / 2;
         const cy = box.y + box.h / 2;
-        // The idle diagonal scroll is pure decoration on top of the
-        // zone's own presence (already the real signal) - reduced motion
-        // freezes it at a fixed phase instead of turning it off, so the
-        // tape still reads as "hazard tape", just still.
-        const scrollPhase = reducedMotion
-          ? 0
-          : (((now - firstSeenAt) % ERROR_SCROLL_PERIOD_MS) / ERROR_SCROLL_PERIOD_MS) * hazardStripePeriod(ERROR_STRIPE_WIDTH);
-        // Geometry for the *unscaled* box, cached. The enter/exit grow is
-        // applied as a transform about the box's own centre instead of by
-        // rebuilding the paths at a new size, so nothing in here changes
-        // shape from one frame to the next - only three numbers do.
-        const { clip, stripes } = stripeGeometry(box);
+        // A calm ring around just the offending tiles: a soft red wash
+        // behind them (it shows in the gaps between tiles) and a rounded
+        // outline that hugs them, breathing gently while the mistake
+        // stays. Inset into the cell gaps so it never spills past the
+        // board's edge. Reduced motion keeps it still.
+        const inset = TILE_GAP * 0.45;
+        const breathe = reducedMotion ? 1 : 0.72 + 0.28 * (0.5 + 0.5 * Math.cos(((now - firstSeenAt) / ERROR_BREATHE_MS) * Math.PI * 2));
 
         return (
           <Group
@@ -1119,14 +1088,18 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
             opacity={opacity}
             transform={[{ translateX: cx }, { translateY: cy }, { scale }, { translateX: -cx }, { translateY: -cy }]}
           >
-            <Group clip={clip}>
-              <Group transform={[{ translateY: -scrollPhase }]}>
-                {stripes.map((d, i) => (
-                  <Path key={i} path={d} color={theme.colors.danger} style="stroke" strokeWidth={ERROR_STRIPE_WIDTH} opacity={ERROR_STRIPE_OPACITY} />
-                ))}
-              </Group>
-            </Group>
-            <Path path={clip} color={theme.colors.danger} style="stroke" strokeWidth={1.5} opacity={ERROR_BORDER_OPACITY} />
+            <RoundedRect x={box.x + inset} y={box.y + inset} width={box.w - inset * 2} height={box.h - inset * 2} r={TILE_RADIUS + 4} color={theme.colors.danger} opacity={ERROR_FILL_OPACITY} />
+            <RoundedRect
+              x={box.x + inset}
+              y={box.y + inset}
+              width={box.w - inset * 2}
+              height={box.h - inset * 2}
+              r={TILE_RADIUS + 4}
+              color={theme.colors.danger}
+              style="stroke"
+              strokeWidth={2}
+              opacity={ERROR_BORDER_OPACITY * breathe}
+            />
           </Group>
         );
       })}

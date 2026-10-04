@@ -1,4 +1,11 @@
-import { count, HintReason } from '../hints';
+import { count, HintReason, place } from '../hints';
+
+const TIPS = {
+  all: 'A number counts the filled squares in the 3x3 block around it, itself included. A 9 (or a corner 4, an edge 6) fills its whole block.',
+  done: 'Once a number has all its squares filled, every other square around it stays empty.',
+  need: 'If a number needs exactly as many squares as are still blank around it, fill them all.',
+  over: 'Count the filled squares around each number: never more than the number itself.',
+};
 import { clueValue, clueWindow } from './logic';
 import { FillaPixCell, FillaPixPuzzle, FillaPixState } from './types';
 
@@ -27,14 +34,16 @@ export function explainFillaPixHint(puzzle: FillaPixPuzzle, state: FillaPixState
     const window = clueWindow(n, clue.row, clue.col);
     const filledNow = window.filter(c => state.filled[c.row][c.col]).length;
     const shouldFill = puzzle.solution[cell.row][cell.col];
+    const at = place(clue.row, clue.col);
     const reason = shouldFill
       ? value === window.length
-        ? `This ${value} needs all the squares around it filled.`
-        : `This ${value} has ${count(filledNow, 'square')} filled around it and needs ${value}. Fill this one.`
+        ? `The ${value} at ${at} counts its whole block of ${window.length} squares, so every one of them is filled, including ${place(cell.row, cell.col)}.`
+        : `The ${value} at ${at} has ${count(filledNow, 'square')} filled around it and needs ${value}. The only way to reach it is to fill ${place(cell.row, cell.col)}.`
       : filledNow > value
-        ? `This ${value} has too many squares filled around it. Clear this one.`
-        : `This ${value} already has all its squares. Leave this one empty.`;
-    return { state: set(cell.row, cell.col), cell, kind: filledNow > value || (!shouldFill && state.filled[cell.row][cell.col]) ? 'fix' : 'rule', reason };
+        ? `The ${value} at ${at} has ${filledNow} squares filled around it, more than ${value}. ${place(cell.row, cell.col).replace(/^./, ch => ch.toUpperCase())} must be cleared.`
+        : `The ${value} at ${at} already has all ${value} of its squares filled, so ${place(cell.row, cell.col)} stays empty.`;
+    const tip = shouldFill ? (value === window.length ? TIPS.all : TIPS.need) : filledNow > value ? TIPS.over : TIPS.done;
+    return { state: set(cell.row, cell.col), cell, kind: filledNow > value || (!shouldFill && state.filled[cell.row][cell.col]) ? 'fix' : 'rule', reason, tip };
   }
 
   // No clue's neighbourhood is wrong - a square outside every clue window.

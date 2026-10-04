@@ -9,7 +9,7 @@ import {
   TentsTreesState,
   touchingTentCells,
 } from '../game/tents';
-import { IDLE_MOTION_FPS, useAnimationClock, useReducedMotion } from '../game/rendering';
+import { useAnimationClock, useReducedMotion } from '../game/rendering';
 import { theme, inkWash } from '../theme';
 import { CellWell, PaperTray } from './boardChrome';
 import { SkiaEntrance } from './SkiaEntrance';
@@ -463,7 +463,12 @@ export function TentsBoardView({ puzzle, state, cellSize, solved, flashCell }: T
     }
   }
   const eventful = flaring || within(lineSatisfiedAt, sparkWindowMs) || within(shakeStarts, 220) || crossfading;
-  useAnimationClock(!reducedMotion && (!solved || eventful), eventful ? 60 : IDLE_MOTION_FPS);
+  // Only events get frames. The ambient fireflies and breathing glow used
+  // to keep a 12fps clock running for as long as a board was open - the
+  // whole board re-rendering a dozen times a second while nobody touched
+  // it, which on a phone is felt as lag on the next tap and as battery.
+  // They now hold still between events.
+  useAnimationClock(!reducedMotion && eventful, 60);
 
   return (
     <Group>
