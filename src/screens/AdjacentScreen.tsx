@@ -394,7 +394,11 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
             <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
         </Animated.View>
-        <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
+        {/* Coins only matter here once Insight runs out: until then the
+          line keeps its place but stays out of sight. */}
+        <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
+          <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
+        </View>
         {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('adjacent')} onGone={clearNote} />}
       </View>
 
@@ -609,4 +613,5 @@ const styles = themedStyles(() => ({
     fontWeight: theme.typography.weights.semibold,
   },
   pillTextDisabled: { color: theme.colors.textTertiary },
+  quiet: { opacity: 0 },
 }));

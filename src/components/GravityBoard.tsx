@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
 import { GameState } from '../game/engine';
-import { BoardView, useAnimatedMovables, useReducedMotion } from '../game/rendering';
+import { BoardView, useReducedMotion, useSlidePlan } from '../game/rendering';
 
 export interface GravityBoardProps {
   /** The engine's authoritative state - changes once per move, never
@@ -24,14 +24,12 @@ export interface GravityBoardProps {
 /**
  * Gravity's board, with the slide animation sealed inside it.
  *
- * This component exists for one reason: `useAnimatedMovables` calls
- * `setState` on every frame of a slide, and wherever that hook lives is
- * what re-renders sixty times a second. It used to live in `GameScreen`,
- * so a single swipe re-rendered the header, the move counter, the batch
- * dots and the session controls roughly fifteen times over - none of which
- * change during a slide. Moving the hook down here means a swipe re-renders
- * this subtree and nothing else, and the screen renders twice per move
- * (slide started, slide settled) instead of once per frame.
+ * The slide itself runs on the UI thread: `useSlidePlan` hands each
+ * piece where it starts and how long it has, and the pieces animate
+ * themselves (see `SlidingPiece`). A move costs React two renders, its
+ * start and its settle. It used to set state on every frame of the slide,
+ * which first re-rendered the whole screen and, once moved down here, still
+ * re-rendered this board sixty times a second on the JS thread.
  *
  * The screen still needs to know when a slide is in flight, but it must
  * learn that *synchronously* at dispatch, not from this component: a move
@@ -52,16 +50,17 @@ export const GravityBoard = React.memo(function GravityBoardImpl({
   // cell (that's real game state, not decoration), they just get there in
   // one frame instead of an animated slide.
   const reducedMotion = useReducedMotion();
-  const { movables, isAnimating } = useAnimatedMovables(state.movables, instant || reducedMotion);
+  const slide = useSlidePlan(state.movables, instant || reducedMotion);
 
   useEffect(() => {
-    onAnimatingChange(isAnimating);
-  }, [isAnimating, onAnimatingChange]);
+    onAnimatingChange(slide.isAnimating);
+  }, [slide.isAnimating, onAnimatingChange]);
 
   return (
     <Canvas style={styles.canvas}>
       <BoardView
-        state={{ ...state, movables }}
+        state={state}
+        slide={slide}
         size={size}
         onTargetIds={onTargetIds}
         solved={solved}

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import { Canvas, Circle, Path } from '@shopify/react-native-skia';
+import { Canvas, Circle, Group, Path } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
 import { theme, themedStyles } from '../theme';
 import { CoinCost } from './Coins';
@@ -49,15 +49,19 @@ function SessionControlsImpl({
           <View style={styles.spacer} />
         </>
       )}
+      {/* Undo and Restart are round icon keys beside the one labelled
+        button: the row reads as one action and two tools, not three
+        equal choices. With no Insight in the row, they keep their words. */}
       <SessionButton
         label="Undo"
         icon={<UndoIcon />}
         onPress={onUndo}
         disabled={undoDisabled}
-        cost={undoCost === undefined ? undefined : <CoinCost cost={undoCost} muted={undoDisabled} />}
+        compact={onHint !== undefined && !undoCost}
+        cost={undoCost ? <CoinCost cost={undoCost} muted={undoDisabled} /> : undefined}
       />
-      <View style={styles.spacer} />
-      <SessionButton label="Restart" icon={<RestartIcon />} onPress={onRestart} />
+      <View style={styles.spacerTight} />
+      <SessionButton label="Restart" icon={<RestartIcon />} onPress={onRestart} compact={onHint !== undefined} />
     </View>
   );
 }
@@ -74,11 +78,13 @@ const ICON_SIZE = 14;
  * in Gravity's own terracotta (`secondary`, the colour its header kicker
  * already uses), so this row stops being the one set of bare-text buttons
  * in the app. */
-function RestartIcon(): React.JSX.Element {
+function RestartIcon({ size = ICON_SIZE }: { size?: number }): React.JSX.Element {
   return (
-    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={theme.colors.secondary} style="stroke" strokeWidth={1.6} />
-      <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={theme.colors.secondary} />
+    <Canvas style={{ width: size, height: size }}>
+      <Group transform={[{ scale: size / ICON_SIZE }]}>
+        <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={theme.colors.secondary} style="stroke" strokeWidth={1.6} />
+        <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={theme.colors.secondary} />
+      </Group>
     </Canvas>
   );
 }
@@ -96,11 +102,13 @@ function HintIcon(): React.JSX.Element {
 }
 
 /** `RestartIcon` mirrored - "one step back" as the opposite of "start over". */
-function UndoIcon(): React.JSX.Element {
+function UndoIcon({ size = ICON_SIZE }: { size?: number }): React.JSX.Element {
   return (
-    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Path path="M 9.83 3.63 A 4.4 4.4 0 1 1 3.63 4.17" color={theme.colors.secondary} style="stroke" strokeWidth={1.6} />
-      <Path path="M 4.34 3.33 L 1.21 4.1 L 4.12 6.54 Z" color={theme.colors.secondary} />
+    <Canvas style={{ width: size, height: size }}>
+      <Group transform={[{ scale: size / ICON_SIZE }]}>
+        <Path path="M 9.83 3.63 A 4.4 4.4 0 1 1 3.63 4.17" color={theme.colors.secondary} style="stroke" strokeWidth={1.6} />
+        <Path path="M 4.34 3.33 L 1.21 4.1 L 4.12 6.54 Z" color={theme.colors.secondary} />
+      </Group>
     </Canvas>
   );
 }
@@ -111,9 +119,11 @@ interface SessionButtonProps {
   cost?: React.ReactNode;
   onPress: () => void;
   disabled?: boolean;
+  /** A round icon key, its label read out but not shown. */
+  compact?: boolean;
 }
 
-function SessionButton({ label, icon, cost, onPress, disabled = false }: SessionButtonProps) {
+function SessionButton({ label, icon, cost, onPress, disabled = false, compact = false }: SessionButtonProps) {
   return (
     <PressableScale
       accessibilityRole="button"
@@ -124,12 +134,13 @@ function SessionButton({ label, icon, cost, onPress, disabled = false }: Session
       hitSlop={8}
       style={({ pressed }) => [
         styles.button,
+        compact && styles.buttonRound,
         pressed && !disabled && styles.buttonPressed,
         disabled && styles.buttonDisabled,
       ]}
     >
-      {icon}
-      <Text style={[styles.buttonLabel, disabled && styles.buttonLabelDisabled]}>{label}</Text>
+      {compact && React.isValidElement<{ size?: number }>(icon) ? React.cloneElement(icon, { size: 19 }) : icon}
+      {!compact && <Text style={[styles.buttonLabel, disabled && styles.buttonLabelDisabled]}>{label}</Text>}
       {cost}
     </PressableScale>
   );
@@ -142,6 +153,16 @@ const styles = themedStyles(() => ({
   },
   spacer: {
     width: theme.spacing.md,
+  },
+  spacerTight: {
+    width: theme.spacing.sm,
+  },
+  buttonRound: {
+    width: 46,
+    height: 46,
+    paddingHorizontal: 0,
+    paddingVertical: 0,
+    justifyContent: 'center',
   },
   button: {
     flexDirection: 'row',

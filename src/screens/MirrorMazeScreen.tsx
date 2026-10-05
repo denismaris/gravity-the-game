@@ -299,7 +299,11 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
             <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
         </Animated.View>
-        <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
+        {/* Coins only matter here once Insight runs out: until then the
+          line keeps its place but stays out of sight. */}
+        <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
+          <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
+        </View>
         {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('mirror')} onGone={clearNote} />}
       </View>
 
@@ -505,4 +509,5 @@ const styles = themedStyles(() => ({
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },
+  quiet: { opacity: 0 },
 }));

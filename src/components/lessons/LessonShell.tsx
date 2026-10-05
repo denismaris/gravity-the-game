@@ -22,60 +22,127 @@ export interface LessonStepCopy {
   readonly praise: string;
 }
 
-export type LessonPhase = 'doing' | 'success' | 'done';
+export type LessonPhase = 'watch' | 'doing' | 'success' | 'done';
+
+/** The beat of a demo: a pause to read the step, each move, and a hold on
+ * the result before the board goes back for the player to try. */
+const DEMO_LEAD_MS = 700;
+const DEMO_FRAME_MS = 620;
+const DEMO_HOLD_MS = 900;
+/** A second miss on a step plays its demo again. */
+const MISSES_BEFORE_REPLAY = 2;
 
 /**
- * The flow of a lesson: which step is live, and the beat between steps -
- * a success holds for a moment so it lands, then the next step slides in.
+ * The flow of a lesson: which step is live, and its beats. A step opens
+ * with a demo ('watch': the lesson plays the move on the real board, then
+ * puts it back), then it is the player's turn ('doing'); a success holds
+ * for a moment so it lands, then the next step comes in.
+ *
+ * `demoLength` is how many frames the current step's demo has (0 for
+ * none). It is read when the demo starts, after the step has rendered, so
+ * a lesson can work it out from the step's own board.
  */
-export function useLessonFlow(stepCount: number, onEnterStep?: (index: number) => void): {
+export function useLessonFlow(
+  stepCount: number,
+  onEnterStep?: (index: number) => void,
+  demoLength = 0,
+): {
   index: number;
   phase: LessonPhase;
   succeed: () => void;
   wrong: () => void;
   wrongNonce: number;
+  /** The demo frame on show, or null when the board is the player's. */
+  demoFrame: number | null;
+  started: boolean;
+  start: () => void;
 } {
   const [index, setIndex] = useState(0);
-  const [phase, setPhase] = useState<LessonPhase>('doing');
+  const [phase, setPhase] = useState<LessonPhase>('watch');
   const [wrongNonce, setWrongNonce] = useState(0);
+  const [demoFrame, setDemoFrame] = useState<number | null>(null);
+  const [started, setStarted] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enter = useRef(onEnterStep);
   enter.current = onEnterStep;
+  const demoLengthRef = useRef(demoLength);
+  demoLengthRef.current = demoLength;
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);
 
-  // Kept in refs as well as state, so the beat between steps is decided
-  // once, outside any state updater (React may run an updater twice).
-  const phaseRef = useRef<LessonPhase>('doing');
+  // Kept in refs as well as state, so each beat is decided once, outside
+  // any state updater (React may run an updater twice).
+  const phaseRef = useRef<LessonPhase>('watch');
   const indexRef = useRef(0);
+  const misses = useRef(0);
+  const later = (ms: number, run: () => void) => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(run, ms);
+  };
+  const toPhase = (next: LessonPhase) => {
+    phaseRef.current = next;
+    setPhase(next);
+  };
+
+  const playDemo = useCallback(() => {
+    toPhase('watch');
+    setDemoFrame(null);
+    later(DEMO_LEAD_MS, () => {
+      const frames = demoLengthRef.current;
+      if (frames === 0) return toPhase('doing');
+      const show = (frame: number) => {
+        setDemoFrame(frame);
+        triggerFeedback('tap');
+        // A longer demo (a path drawn square by square) runs a little quicker.
+        if (frame + 1 < frames) later(Math.min(DEMO_FRAME_MS, 2000 / frames), () => show(frame + 1));
+        else
+          later(DEMO_HOLD_MS, () => {
+            setDemoFrame(null);
+            toPhase('doing');
+          });
+      };
+      show(0);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const start = useCallback(() => {
+    setStarted(true);
+    playDemo();
+  }, [playDemo]);
+
   const succeed = useCallback(() => {
     if (phaseRef.current !== 'doing') return;
-    phaseRef.current = 'success';
-    setPhase('success');
+    toPhase('success');
     triggerFeedback('targetReached');
-    timer.current = setTimeout(() => {
+    later(1300, () => {
       const next = indexRef.current + 1;
       if (next >= stepCount) {
-        phaseRef.current = 'done';
-        setPhase('done');
+        toPhase('done');
         triggerFeedback('coin');
         return;
       }
       indexRef.current = next;
+      misses.current = 0;
       enter.current?.(next);
       setIndex(next);
-      phaseRef.current = 'doing';
-      setPhase('doing');
-    }, 1300);
-  }, [stepCount]);
+      playDemo();
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stepCount, playDemo]);
 
   const wrong = useCallback(() => {
     triggerFeedback('tap');
     setWrongNonce(n => n + 1);
-  }, []);
+    misses.current += 1;
+    if (misses.current >= MISSES_BEFORE_REPLAY && phaseRef.current === 'doing') {
+      misses.current = 0;
+      playDemo();
+    }
+  }, [playDemo]);
 
-  return { index, phase, succeed, wrong, wrongNonce };
+  return { index, phase, succeed, wrong, wrongNonce, demoFrame, started, start };
 }
 
 /** The instruction card, down from the top. */
@@ -113,6 +180,8 @@ export function LessonShell({
   index,
   phase,
   wrongNonce,
+  started,
+  start,
   renderBoard,
   onDone,
 }: {
@@ -122,6 +191,8 @@ export function LessonShell({
   index: number;
   phase: LessonPhase;
   wrongNonce: number;
+  started: boolean;
+  start: () => void;
   /** Draws the board at `size` points square. */
   renderBoard: (size: number) => React.ReactNode;
   onDone: () => void;
@@ -151,12 +222,15 @@ export function LessonShell({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wrongNonce]);
   const guide = useContext(LessonGuideContext);
-  // The opening card: the game, its goal, and how it is played - before
-  // the first step asks for anything.
-  const [started, setStarted] = useState(guide === null);
+  // The opening card - the game, its goal, and how it is played - comes
+  // before the first step asks for anything. Without a guide, straight in.
+  useEffect(() => {
+    if (!guide && !started) start();
+  }, [guide, started, start]);
 
   const done = phase === 'done';
   const success = phase === 'success';
+  const watching = phase === 'watch';
 
   if (!started && guide) {
     return (
@@ -186,7 +260,7 @@ export function LessonShell({
           </Animated.View>
         </View>
         <Animated.View entering={FadeInUp.duration(420).delay(360)} style={styles.footer}>
-          <PressableScale accessibilityRole="button" accessibilityLabel="Show me how" onPress={() => setStarted(true)} style={({ pressed }) => [styles.start, { backgroundColor: accent }, pressed && styles.pressed]}>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Show me how" onPress={start} style={({ pressed }) => [styles.start, { backgroundColor: accent }, pressed && styles.pressed]}>
             <Text style={styles.startText}>Show me how</Text>
           </PressableScale>
         </Animated.View>
@@ -262,15 +336,15 @@ export function LessonShell({
           <Animated.View style={shakeStyle}>
             <Animated.View key={`${index}-${phase}`} entering={success ? PRAISE_IN : GUIDE_IN} style={[styles.guide, success && [styles.guideSuccess, { borderColor: accent }]]}>
               <View style={[styles.guideDot, { backgroundColor: success ? accent : theme.colors.surfaceAlt }]}>
-                {success ? <Text style={[styles.guideDotText, styles.guideDotTextOn]}>{'✓︎'}</Text> : <GestureCue gesture={guide?.gesture ?? 'tap'} color={accent} />}
+                {success ? <Text style={[styles.guideDotText, styles.guideDotTextOn]}>{'✓︎'}</Text> : <GestureCue gesture={watching ? 'tap' : guide?.gesture ?? 'tap'} color={watching ? theme.colors.textTertiary : accent} />}
               </View>
               <View style={styles.guideBody}>
-                {!success && missedStep === index && (
+                {phase === 'doing' && missedStep === index && (
                   <Animated.Text entering={FadeIn.duration(200)} style={[styles.miss, { color: accent }]}>
                     NOT QUITE
                   </Animated.Text>
                 )}
-                <Text style={styles.guideText}>{success ? step.praise : step.hint}</Text>
+                <Text style={styles.guideText}>{success ? step.praise : watching ? 'Watch the move first.' : step.hint}</Text>
               </View>
             </Animated.View>
           </Animated.View>

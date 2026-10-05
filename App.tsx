@@ -5,7 +5,7 @@
  * @format
  */
 
-import React, { useCallback, useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
@@ -35,6 +35,8 @@ import { useCloudSync } from './src/backend';
 import { EmblemHandoff } from './src/components/EmblemHandoff';
 import { ErrorBoundary, IntroWalkthrough, LaunchSequence, ScreenTransition } from './src/components';
 import { GameLesson } from './src/components/lessons';
+import { CollectionScreen } from './src/screens/CollectionScreen';
+import { FirstPuzzleCoach } from './src/components/lessons/FirstPuzzleCoach';
 import { tutorialIdForGame } from './src/game/tutorials';
 import { getLevelById } from './src/game/levels';
 import { getMirrorMazeById } from './src/game/mirror';
@@ -50,7 +52,7 @@ import { getMosaicById } from './src/game/mosaic';
 import { getBridgesById } from './src/game/bridges';
 import { GameKind, NextPuzzleOptions, getDailyEntry } from './src/game/journey';
 import { CalmingInterstitialScreen } from './src/interstitial';
-import { PlayerProgressProvider, getLevelPoint, isAdFree, notePuzzleOpened, usePlayerProgress } from './src/progression';
+import { PlayerProgressProvider, gamesPlayed, getLevelPoint, isAdFree, notePuzzleOpened, usePlayerProgress } from './src/progression';
 import { learnedTutorials } from './src/progression/learnedTutorials';
 import { AD_RULES, betweenSets, startAds } from './src/ads';
 import { AppearanceProvider, SettingsProvider, useAppearance, useHoldAppearance, useSettings } from './src/settings';
@@ -68,7 +70,7 @@ interface Selected {
  * `src/progression/batches.ts`) replaces the need for a manual
  * level-select/browse screen entirely; there is deliberately no way to
  * pick a specific puzzle by hand. */
-type OverlayRoute = 'settings' | 'achievements' | 'journey' | 'shop' | 'ledger' | 'leaderboard' | 'account' | null;
+type OverlayRoute = 'settings' | 'achievements' | 'journey' | 'shop' | 'ledger' | 'leaderboard' | 'account' | 'collection' | null;
 
 /**
  * App wires up the global providers and renders `AppRoutes` inside them -
@@ -141,7 +143,12 @@ function Boot(): React.JSX.Element {
  */
 function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
   const { settings, ready: settingsReady, markTutorialSeen } = useSettings();
-  const { progress, ready: progressReady, markIntroSeen } = usePlayerProgress();
+  const { progress, ready: progressReady, markIntroSeen, addInsights } = usePlayerProgress();
+  // The game whose lesson was just finished: its first board comes with a
+  // free Insight, and the coach says so.
+  const [justLearned, setJustLearned] = useState<GameKind | null>(null);
+  // A lesson replayed from Your games.
+  const [replaying, setReplaying] = useState<GameKind | null>(null);
   const progressRef = useRef(progress);
   progressRef.current = progress;
   // Ads start at launch only for a player who already sees them (see
@@ -263,6 +270,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       onOpenJourney={() => setOverlayRoute('journey')}
       onOpenShop={() => openShop(null)}
       onOpenLedger={() => setOverlayRoute('ledger')}
+      onOpenCollection={() => setOverlayRoute('collection')}
       onOpenLeaderboard={() => setOverlayRoute('leaderboard')}
     />
   );
@@ -283,6 +291,13 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
   } else if (!selected && overlayRoute === 'journey') {
     screen = <JourneyScreen onExit={() => setOverlayRoute(null)} onOpenShop={() => openShop('journey')} />;
     routeKey = 'journey';
+  } else if (!selected && overlayRoute === 'collection' && replaying) {
+    // A lesson played again from Your games, back there when it is done.
+    screen = <GameLesson kind={replaying} onDone={() => setReplaying(null)} />;
+    routeKey = `replay:${replaying}`;
+  } else if (!selected && overlayRoute === 'collection') {
+    screen = <CollectionScreen onExit={() => setOverlayRoute(null)} onReplayLesson={setReplaying} />;
+    routeKey = 'collection';
   } else if (!selected && overlayRoute === 'ledger') {
     screen = <LedgerScreen onExit={() => setOverlayRoute(null)} onOpenShop={() => openShop('ledger')} />;
     routeKey = 'ledger';
@@ -433,9 +448,19 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
   // its own, so once it is done the puzzle mounts fresh, entrance and all.
   // (Shown inside the puzzle's screen instead, the screen's entrance ran
   // while hidden and the puzzle came up blank.)
+  const playedKinds = useMemo(() => gamesPlayed(progress), [progress]);
   const lessonKind = selected && settingsReady && routeKey !== 'home' && !settings.seenTutorials.includes(tutorialIdForGame(selected.kind)) ? selected.kind : null;
   if (lessonKind) {
-    screen = <GameLesson kind={lessonKind} onDone={() => markTutorialSeen(tutorialIdForGame(lessonKind))} />;
+    screen = (
+      <GameLesson
+        kind={lessonKind}
+        onDone={() => {
+          markTutorialSeen(tutorialIdForGame(lessonKind));
+          addInsights(1);
+          setJustLearned(lessonKind);
+        }}
+      />
+    );
     routeKey = `lesson:${lessonKind}`;
   }
 
@@ -454,6 +479,11 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
         <React.Fragment key={scheme}>{screen}</React.Fragment>
       </ScreenTransition>
       {handoff && selected && <EmblemHandoff kind={handoff} onDone={endHandoff} />}
+      {/* A game's first real board: its goal once more, and the free
+          Insight its lesson left. */}
+      {selected && !lessonKind && routeKey !== 'home' && !playedKinds.has(selected.kind) && (
+        <FirstPuzzleCoach key={selected.puzzleId} kind={selected.kind} gift={justLearned === selected.kind} />
+      )}
       {/* The walkthrough, once, for a new player - after the launch mark,
           and only over Home: never over a game, the shop, or the sign-in
           screen (a sign-out or a reset makes the player new again while

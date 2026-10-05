@@ -581,7 +581,11 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           insightCount={insight.count}
         />
         {insight.sheet}
-        <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
+        {/* Coins only matter here once Insight runs out: until then the
+          line keeps its place but stays out of sight. */}
+        <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
+          <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
+        </View>
       </Animated.View>
 
       {/* Both outcome cards sit at the screen root, not inside the board.
@@ -724,4 +728,5 @@ const styles = themedStyles(() => ({
     alignItems: 'center',
   },
   coinBalance: { marginTop: theme.spacing.md },
+  quiet: { opacity: 0 },
 }));

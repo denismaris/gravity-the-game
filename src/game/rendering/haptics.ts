@@ -218,6 +218,15 @@ const tap = (time: number, intensity: number, sharpness: number): HapticEvent =>
 const hum = (time: number, duration: number, intensity: number, sharpness: number): HapticEvent => ({ time, type: 'continuous', duration, intensity, sharpness });
 
 /**
+ * A win, felt: three taps climbing in strength, then a short warm hum as
+ * the board settles - with `sharpness` the game's own material (soft earth
+ * for Tents, glass for Mirror Maze).
+ */
+function finale(sharpness: number): HapticEvent[] {
+  return [tap(0, 0.45, sharpness), tap(85, 0.62, sharpness), tap(170, 0.85, sharpness), hum(190, 240, 0.22, sharpness * 0.6)];
+}
+
+/**
  * Each game's own feel on the Taptic Engine, designed the way the sounds
  * were: what the thing would feel like if it were real. Low sharpness is
  * soft and dull (earth, felt, wood), high sharpness crisp (glass, a stamp,
@@ -225,6 +234,25 @@ const hum = (time: number, duration: number, intensity: number, sharpness: numbe
  * iOS only - Android's vibrator can play durations, not textures.
  */
 const TEXTURES: Partial<Record<HapticKind, HapticEvent[]>> = {
+  // Gravity: the board tilting is a short slide under the thumb; a piece
+  // landing on its ring is a soft, settled thunk.
+  gravityChange: [hum(0, 60, 0.28, 0.2)],
+  targetReached: [tap(0, 0.7, 0.3), tap(36, 0.25, 0.15)],
+  // A fall is one low, dull buzz - wrong before the eye finds why.
+  failed: [hum(0, 160, 0.55, 0.05)],
+  // Every win: a short climb that blooms - in each game's own material.
+  solved: finale(0.5),
+  mirrorSolve: finale(0.95),
+  towersSolve: finale(0.45),
+  binairoSolve: finale(0.75),
+  tentsSolve: finale(0.15),
+  arukoneSolve: finale(0.6),
+  fillapixSolve: finale(0.85),
+  lightsOutSolve: finale(0.35),
+  bloomSolve: finale(0.3),
+  mosaicSolve: finale(0.8),
+  bridgesSolve: finale(0.4),
+  adjacentSolve: finale(0.55),
   // Tents: a peg driven into soft ground - a dull thump and its settle.
   tentsPlant: [tap(0, 0.75, 0.08), tap(38, 0.3, 0.05)],
   tentsRowComplete: [tap(0, 0.5, 0.2), tap(70, 0.6, 0.25), tap(140, 0.75, 0.3)],

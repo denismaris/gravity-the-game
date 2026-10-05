@@ -1,5 +1,6 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { Circle, Group } from '@shopify/react-native-skia';
+import { Easing, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { GameState, StaticCellType } from '../engine';
 import { BoardLayout, computeBoardLayout, getCellCenter, getCellOrigin } from './layout';
 import {
@@ -15,6 +16,7 @@ import {
 } from './shapes';
 import { useAnimationClock } from './useAnimationClock';
 import { useReducedMotion } from './useReducedMotion';
+import { landingCurve, SlidePlan } from './useAnimatedMovables';
 import { theme } from '../../theme';
 
 export interface BoardViewProps {
@@ -32,6 +34,9 @@ export interface BoardViewProps {
   pulsingIds?: ReadonlySet<string>;
   /** Every object is home - runs the board's finish flare. */
   solved?: boolean;
+  /** When set, pieces slide from `slide.from` on the UI thread (see
+   * `useSlidePlan`) and `state.movables` holds where they end up. */
+  slide?: SlidePlan;
 }
 
 /**
@@ -191,6 +196,47 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
   );
 });
 
+interface SlidingPieceProps {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  squares: number;
+  slideKey: number;
+  duration: number;
+  radius: number;
+  color: string;
+}
+
+/**
+ * A piece that runs its own slide: the progress is a shared value timed on
+ * the UI thread and the landing curve a worklet, so the board's React tree
+ * renders once when the move starts, not on every frame of it.
+ */
+function SlidingPiece({ fromX, fromY, toX, toY, squares, slideKey, duration, radius, color }: SlidingPieceProps) {
+  const progress = useSharedValue(1);
+  // Before paint, so the piece never shows a frame at its destination.
+  useLayoutEffect(() => {
+    if (duration <= 0 || (fromX === toX && fromY === toY)) {
+      progress.value = 1;
+      return;
+    }
+    progress.value = 0;
+    progress.value = withTiming(1, { duration, easing: Easing.linear });
+    // A new slide is a new key; positions alone can repeat.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideKey]);
+  const transform = useDerivedValue(() => {
+    const along = landingCurve(progress.value, squares);
+    return [{ translateX: fromX + (toX - fromX) * along }, { translateY: fromY + (toY - fromY) * along }];
+  });
+  return (
+    <Group transform={transform}>
+      <MovablePiece cx={0} cy={0} radius={radius} color={color} />
+    </Group>
+  );
+}
+
 /**
  * Renders a `GameState` as a grid of Skia shapes.
  *
@@ -211,7 +257,7 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
  *      claimed them). Only this layer changes during a slide; anchored and
  *      destroyed pieces never move.
  */
-export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = EMPTY_IDS, solved = false }: BoardViewProps) {
+export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = EMPTY_IDS, solved = false, slide }: BoardViewProps) {
   const layout = useMemo(() => computeBoardLayout(state.cols, size), [state.cols, size]);
   const reducedMotion = useReducedMotion();
 
@@ -302,6 +348,25 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
 
         const onTarget = onTargetIds.has(movable.id);
         const pulsing = pulsingIds.has(movable.id);
+
+        if (slide) {
+          const start = slide.from.get(movable.id);
+          const from = start ? getCellCenter(layout, start.row, start.col) : center;
+          return (
+            <SlidingPiece
+              key={movable.id}
+              fromX={from.x}
+              fromY={from.y}
+              toX={center.x}
+              toY={center.y}
+              squares={start ? Math.abs(movable.row - start.row) + Math.abs(movable.col - start.col) : 0}
+              slideKey={slide.key}
+              duration={slide.duration}
+              radius={movableRadius}
+              color={onTarget ? theme.colors.success : theme.colors.pieceBlue}
+            />
+          );
+        }
 
         return (
           <MovablePiece

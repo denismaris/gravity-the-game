@@ -165,6 +165,8 @@ export interface HomeScreenProps {
   onOpenLedger: () => void;
   /** The leaderboards: world, country and city. */
   onOpenLeaderboard: () => void;
+  /** Your games: the twelve, collected one by one. */
+  onOpenCollection?: () => void;
 }
 
 /** How tall a card gets on a phone with room to spare. Tuned to what the
@@ -212,6 +214,7 @@ export function HomeScreen({
   onOpenJourney,
   onOpenShop,
   onOpenLedger,
+  onOpenCollection,
   onOpenLeaderboard,
 }: HomeScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
@@ -787,9 +790,12 @@ export function HomeScreen({
                       few puzzles from now. Named only once it lands. */}
                     <View style={styles.cardFoot}>
                       {arriving && (
-                        <View
+                        <PressableScale
+                          accessibilityRole="button"
+                          onPress={onOpenCollection}
+                          hitSlop={8}
                           style={styles.arriving}
-                          accessibilityLabel={`${roster.length} of ${INTRO_ORDER.length} games. The next arrives in ${arriving.inPuzzles} ${arriving.inPuzzles === 1 ? 'puzzle' : 'puzzles'}`}
+                          accessibilityLabel={`${roster.length} of ${INTRO_ORDER.length} games. The next arrives in ${arriving.inPuzzles} ${arriving.inPuzzles === 1 ? 'puzzle' : 'puzzles'}. Open your games`}
                         >
                           {/* The collection, one dot a game, filling in as they arrive. */}
                           <View style={styles.rosterDots}>
@@ -798,7 +804,7 @@ export function HomeScreen({
                             ))}
                           </View>
                           <Text style={styles.arrivingText}>{`Next game in ${arriving.inPuzzles}`}</Text>
-                        </View>
+                        </PressableScale>
                       )}
                       {/* Stuck? Swap the next puzzle for another game's - paid
                         for, so it is a choice, not a way round every board.
@@ -1102,6 +1108,9 @@ export function HomeScreen({
                 </View>
 
                 <View style={styles.youLinks}>
+                  <PressableScale accessibilityRole="button" accessibilityLabel="Open your games" onPress={onOpenCollection} containerStyle={styles.youLinkWrap} style={[styles.youLink]}>
+                    <Text style={styles.youLinkText}>Games</Text>
+                  </PressableScale>
                   <PressableScale accessibilityRole="button" accessibilityLabel="Open the ledger" onPress={onOpenLedger} containerStyle={styles.youLinkWrap} style={[styles.youLink]}>
                     <Text style={styles.youLinkText}>Ledger</Text>
                     {stampsWaiting > 0 && <View style={styles.youLinkDot} />}

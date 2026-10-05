@@ -15,8 +15,8 @@ export {
   PortalMark,
   TargetMarker,
 } from './shapes';
-export { useAnimatedMovables } from './useAnimatedMovables';
-export type { AnimatedMovablesResult } from './useAnimatedMovables';
+export { useSlidePlan } from './useAnimatedMovables';
+export type { SlidePlan } from './useAnimatedMovables';
 export { useAnimatedBeamReveal } from './useAnimatedBeamReveal';
 export type { AnimatedBeamRevealResult } from './useAnimatedBeamReveal';
 export { IDLE_MOTION_FPS, INTRO_STAGGER_MS, INTRO_TILE_MS, INTRO_TOTAL_MS, introCellProgress, isIntroActive, useIntroWave } from './introWave';
