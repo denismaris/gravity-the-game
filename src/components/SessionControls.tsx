@@ -4,7 +4,7 @@ import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
 import { theme, themedStyles } from '../theme';
 import { CoinCost } from './Coins';
-import { InsightCount } from './InsightPower';
+import { InsightButton } from './InsightPower';
 
 export interface SessionControlsProps {
   onUndo: () => void;
@@ -41,12 +41,11 @@ function SessionControlsImpl({
     <View style={styles.container}>
       {onHint && (
         <>
-          <SessionButton
-            label={insightCount === undefined ? 'Hint' : 'Insight'}
-            icon={<HintIcon />}
-            onPress={onHint}
-            cost={insightCount !== undefined ? <InsightCount count={insightCount} /> : hintCost === undefined ? undefined : <CoinCost cost={hintCost} />}
-          />
+          {insightCount !== undefined ? (
+            <InsightButton count={insightCount} onPress={onHint} />
+          ) : (
+            <SessionButton label="Hint" icon={<HintIcon />} onPress={onHint} cost={hintCost === undefined ? undefined : <CoinCost cost={hintCost} />} />
+          )}
           <View style={styles.spacer} />
         </>
       )}

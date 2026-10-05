@@ -195,7 +195,9 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   );
   const [tutorialToShow, setTutorialToShow] = useState<ReturnType<typeof pickTutorial>>(null);
   useEffect(() => {
-    if (settingsReady) setTutorialToShow(pickTutorial(settings.seenTutorials, tutorialCandidates));
+    if (!settingsReady) return;
+    const picked = pickTutorial(settings.seenTutorials, tutorialCandidates);
+    setTutorialToShow(picked);
   }, [settingsReady, settings.seenTutorials, tutorialCandidates]);
   const dismissTutorial = useCallback(() => {
     if (tutorialToShow) markTutorialSeen(tutorialToShow);

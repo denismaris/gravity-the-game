@@ -29,7 +29,7 @@ import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
-import { InsightCount, useInsightPower } from '../components/InsightPower';
+import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
 
 const TUTORIAL_ID = tutorialIdForGame('tents');
@@ -46,22 +46,6 @@ function HelpIcon(): React.JSX.Element {
       <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
       <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
       <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
-    </Canvas>
-  );
-}
-
-/** A small lightbulb - the same glyph the other play screens carry on
- * their Hint pill, in this game's own accent. Tents and Arukone+ were the
- * two screens whose pills were still bare text while Binairo, Skyscrapers
- * and Mirror Maze had icons; three out of five is the kind of gap that
- * reads as unfinished rather than as restraint. */
-function HintIcon(): React.JSX.Element {
-  return (
-    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Circle cx={7} cy={5.8} r={4.3} color={theme.colors.tentsAccent} style="stroke" strokeWidth={1.4} />
-      <Path path="M 5.4 9.4 L 8.6 9.4" color={theme.colors.tentsAccent} style="stroke" strokeWidth={1.3} />
-      <Path path="M 5.7 11.2 L 8.3 11.2" color={theme.colors.tentsAccent} style="stroke" strokeWidth={1.3} />
-      <Path path="M 6.3 12.6 L 7.7 12.6" color={theme.colors.tentsAccent} style="stroke" strokeWidth={1.1} />
     </Canvas>
   );
 }
@@ -103,12 +87,9 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
   const controlsIn = useStageEntrance(110);
   const { width, height } = useWindowDimensions();
   const { progress, recordCompletion } = usePlayerProgress();
-  const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
+  const { markTutorialSeen } = useSettings();
 
   const [showTutorial, setShowTutorial] = useState(false);
-  useEffect(() => {
-    if (settingsReady && !hasSeenTutorial(TUTORIAL_ID)) setShowTutorial(true);
-  }, [settingsReady, hasSeenTutorial]);
   const dismissTutorial = useCallback(() => {
     markTutorialSeen(TUTORIAL_ID);
     setShowTutorial(false);
@@ -230,7 +211,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
       setHints(n => n + 1);
       setFlash(h.cell);
       if (flashTimeoutRef.current) clearTimeout(flashTimeoutRef.current);
-      flashTimeoutRef.current = setTimeout(() => setFlash(null), 450);
+      flashTimeoutRef.current = setTimeout(() => setFlash(null), 1500);
       triggerFeedback('targetReached');
     });
   }, [puzzle, state, spendInsight]);
@@ -251,6 +232,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
     0,
     Math.min(width - theme.spacing.lg * 2 - STAGE_H_PADDING * 2, height - insets.top - insets.bottom - RESERVED),
   );
+
 
   return (
     <View style={styles.container}>
@@ -291,22 +273,11 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('tents')} onGone={clearNote} />}
           <TentsBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} />
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={`Insight: reveal the next move, ${insight.count} left`}
-            onPress={useHint}
-            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-          >
-            <HintIcon />
-            <Text style={styles.pillText}>Insight</Text>
-
-            <InsightCount count={insight.count} />
-          </PressableScale>
+          <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
           <PressableScale
             accessibilityRole="button"
@@ -319,6 +290,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
           </PressableScale>
         </Animated.View>
         <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
+        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('tents')} onGone={clearNote} />}
       </View>
 
 
@@ -343,14 +315,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
         />
       )}
 
-      {showTutorial && (
-        <MechanicsCarousel
-          slides={TENTS_MECHANICS_SLIDES}
-          renderIllustration={renderTentsIllustration}
-          onDone={dismissTutorial}
-          accentColor={accentColorForKind('tents')}
-        />
-      )}
+      {showTutorial && <MechanicsCarousel slides={TENTS_MECHANICS_SLIDES} renderIllustration={renderTentsIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('tents')} />}
     </View>
   );
 }

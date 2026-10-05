@@ -4,6 +4,7 @@ import {
   withHapticsEnabled,
   withSoundEnabled,
   withTutorialSeen,
+  withTutorialsCleared,
 } from '../settings';
 
 describe('defaultSettings', () => {
@@ -65,5 +66,17 @@ describe('withTutorialSeen', () => {
     const twice = withTutorialSeen(once, 'game:gravity');
     expect(twice).toBe(once);
     expect(twice.seenTutorials).toEqual(['game:gravity']);
+  });
+});
+
+describe('withTutorialsCleared', () => {
+  test('forgets every guide, so lessons play again after a reset', () => {
+    const seen = withTutorialSeen(withTutorialSeen(defaultSettings(), 'game:tents'), 'game:mosaic');
+    expect(withTutorialsCleared(seen).seenTutorials).toEqual([]);
+  });
+
+  test('returns the same object when nothing was seen', () => {
+    const fresh = defaultSettings();
+    expect(withTutorialsCleared(fresh)).toBe(fresh);
   });
 });

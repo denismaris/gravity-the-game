@@ -1,4 +1,4 @@
-import { Canvas, Path } from '@shopify/react-native-skia';
+import { Canvas, Path, RoundedRect } from '@shopify/react-native-skia';
 import React, {
   useCallback,
   useEffect,
@@ -12,6 +12,7 @@ import {
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
+  Pressable,
   ScrollView,
   Share,
   StyleSheet,
@@ -48,6 +49,10 @@ import {
   buildDailyShare,
   giftFor,
   unclaimedSets,
+  gamesPlayed,
+  INTRO_ORDER,
+  nextGameToArrive,
+  unlockedGames,
 } from '../progression';
 import { DailyGiftCard } from '../components/DailyGiftCard';
 import { getLevelById } from '../game/levels';
@@ -75,6 +80,8 @@ import { RankMedal } from '../components/RankMedal';
 import { RankUpCard } from '../components/RankUpCard';
 import { XpBar } from '../components/XpBar';
 import { CosmeticPreview } from '../components/CosmeticPreview';
+import { useSettings } from '../settings';
+import { tutorialIdForGame } from '../game/tutorials';
 
 /** A fade/rise that finishes at `endsAt` (a fraction of the shared `mount`
  * driver) - staggering several elements off one Animated.Value instead of
@@ -171,6 +178,19 @@ const MAX_CARD_HEIGHT = 400;
 /** The page each carousel slot is, in order - the order they are laid out
  * in below, and the order the dots read. */
 const PAGES = ['continue', 'today', 'grand', 'you'] as const;
+/** What each carousel page is called on its tab. */
+/** A small shopping bag, in the ink of the label beside it. */
+function ShopBag(): React.JSX.Element {
+  return (
+    <Canvas style={{ width: 13, height: 14 }}>
+      <RoundedRect x={1} y={4.5} width={11} height={8.5} r={2} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
+      <Path path="M 4.2 6.5 L 4.2 4 A 2.3 2.3 0 0 1 8.8 4 L 8.8 6.5" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
+    </Canvas>
+  );
+}
+
+const PAGE_LABELS: Record<(typeof PAGES)[number], string> = { continue: 'Play', today: 'Today', grand: 'Grand', you: 'You' };
+const TAB_WIDTH = 66;
 
 /**
  * Home - the cover page of a puzzle almanac.
@@ -266,6 +286,16 @@ export function HomeScreen({
   // lifetime total across every game lives on the progress card instead
   // (`solved`/`TOTAL_PUZZLE_COUNT`).
   const batchSolved = progress.currentBatch?.completedPuzzleIds.length ?? 0;
+  // Games arrive one at a time (see `INTRO_ORDER`): a debut in this set is
+  // marked new, the next arrival is teased, and Swap waits until there is
+  // a second game to swap to.
+  const played = useMemo(() => gamesPlayed(progress), [progress]);
+  const arriving = useMemo(() => nextGameToArrive(progress), [progress]);
+  const roster = useMemo(() => unlockedGames(progress), [progress]);
+  const canSwap = roster.length > 1;
+  const debut = !levelPoint.allDone && !played.has(entry.kind);
+  const { hasSeenTutorial } = useSettings();
+  const lessonFirst = debut && !hasSeenTutorial(tutorialIdForGame(entry.kind));
   const pct = levelPoint.batchSize ? batchSolved / levelPoint.batchSize : 0;
   const aptitude = useMemo(() => computeAptitude(progress), [progress]);
   // Deliberately `aptitude.solved`, not `getCompletedCount` - the save
@@ -356,6 +386,20 @@ export function HomeScreen({
   }, [pct, trackFill]);
 
   const [page, setPage] = useState(0);
+  const carouselRef = useRef<React.ElementRef<typeof ScrollView>>(null);
+  // The carousel's offset, driven natively: the tab highlight slides with
+  // the finger frame for frame, with no JavaScript in the loop (the first
+  // version set React state from every scroll event and stuttered).
+  const scrollX = useRef(new Animated.Value(0)).current;
+  const onCarouselNativeScroll = useMemo(() => Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true }), [scrollX]);
+  const goToPage = useCallback(
+    (index: number) => {
+      triggerFeedback('uiPage');
+      setPage(index);
+      carouselRef.current?.scrollTo({ x: index * width, animated: true });
+    },
+    [width],
+  );
   const onCarouselScroll = useCallback(
     (event: NativeSyntheticEvent<NativeScrollEvent>) => {
       const next = Math.round(event.nativeEvent.contentOffset.x / width);
@@ -513,8 +557,13 @@ export function HomeScreen({
             in flow, side by side, so neither can drift into the wordmark
             or the gear the way absolutely-placed badges here once did. */}
         <View style={styles.streakSlot}>
-          <PressableScale accessibilityRole="button" accessibilityLabel={`${coins} coins. Open the shop`} onPress={onOpenShop} hitSlop={8}>
+          <PressableScale accessibilityRole="button" accessibilityLabel={`Shop. You have ${coins} coins.`} onPress={onOpenShop} hitSlop={8}>
             <View style={styles.purse}>
+              {/* Says what it is: the way into the shop, not just a number. */}
+              <View style={styles.shopTag}>
+                <ShopBag />
+                <Text style={styles.shopTagText}>Shop</Text>
+              </View>
               {progress.patron && <View style={styles.pursePatron} accessible accessibilityLabel="Patron" />}
               <CoinBalance coins={coins} />
               {progress.luckyCharges > 0 && <Text style={styles.purseCharm}>{'\u00D72'}</Text>}
@@ -526,6 +575,10 @@ export function HomeScreen({
               {setsReady > 0 && <View style={styles.purseDot} accessibilityLabel="A set bonus is ready in the shop" />}
             </View>
           </PressableScale>
+          <View style={styles.insightChip} accessible accessibilityLabel={`${progress.insights} Insight`}>
+            <Text style={styles.insightGlyph}>{'\u2726'}</Text>
+            <Text style={styles.insightChipText}>{progress.insights}</Text>
+          </View>
           {dailyStreak > 0 && (
             <PressableScale
               accessibilityRole="button"
@@ -553,15 +606,17 @@ export function HomeScreen({
             report its offset inside the centring stage, which put the whole
             backdrop one centring-gap too high. */}
         <View onLayout={onCarouselLayout}>
-          <ScrollView
+          <Animated.ScrollView
+            ref={carouselRef as never}
             style={{ height: cardHeight }}
             horizontal
             contentContainerStyle={styles.carouselContent}
             pagingEnabled
             showsHorizontalScrollIndicator={false}
-            onScroll={onCarouselScroll}
+            onScroll={onCarouselNativeScroll}
             onMomentumScrollEnd={onCarouselScroll}
-            scrollEventThrottle={32}
+            onScrollEndDrag={onCarouselScroll}
+            scrollEventThrottle={16}
             decelerationRate="fast"
           >
             {/* --- Continue ------------------------------------------------ */}
@@ -601,12 +656,21 @@ export function HomeScreen({
                     >
                       Level {levelPoint.levelNumber} · {entry.chapter}
                     </Text>
-                    <DifficultyChip
-                      difficulty={entry.difficulty}
-                      challenge={entry.challenge}
-                      extreme={entry.extreme}
-                      style={styles.heroChip}
-                    />
+                    {/* A game's first puzzle is always easy: on a debut the
+                      "New game" chip says more, and the row stays readable. */}
+                    {!debut && (
+                      <DifficultyChip
+                        difficulty={entry.difficulty}
+                        challenge={entry.challenge}
+                        extreme={entry.extreme}
+                        style={styles.heroChip}
+                      />
+                    )}
+                    {debut && (
+                      <View style={[styles.newChip, { backgroundColor: accent }]}>
+                        <Text style={styles.newChipText}>New game</Text>
+                      </View>
+                    )}
                     {entry.golden && !levelPoint.allDone && (
                       <View style={styles.goldenChip}>
                         <CoinGlyph size={10} />
@@ -625,7 +689,9 @@ export function HomeScreen({
                     {entry.name}
                   </Text>
                   <Text style={styles.heroMeta}>
-                    Puzzle {levelPoint.batchPosition} of {levelPoint.batchSize} in this set
+                    {debut
+                      ? `Your first ${entry.chapter} puzzle.${lessonFirst ? ' A short lesson comes first.' : ''}`
+                      : `Puzzle ${levelPoint.batchPosition} of ${levelPoint.batchSize} in this set`}
                   </Text>
 
                   {/* The middle of every card is a flexible block holding real
@@ -667,6 +733,11 @@ export function HomeScreen({
                               {/* A golden puzzle wears a coin, like a seal on
                                 the corner of a page. Outside the fade, like
                                 the challenge rule: worth seeing coming. */}
+                              {!done && !played.has(entryRef.kind) && (
+                                <View style={[styles.setNew, { backgroundColor: accentColorForKind(entryRef.kind) }]} accessibilityLabel="new game">
+                                  <Text style={styles.setNewText}>NEW</Text>
+                                </View>
+                              )}
                               {entryRef.golden && !done && (
                                 <View style={styles.setGolden} accessibilityLabel="golden puzzle">
                                   <CoinGlyph size={13} />
@@ -712,32 +783,50 @@ export function HomeScreen({
                         ]}
                       />
                     </View>
-                    {/* Stuck? Swap the next puzzle for another game's - paid
-                      for, so it is a choice, not a way round every board.
-                      Nested inside the card's own press target: RN gives the
-                      touch to the deepest Pressable, so this never also
-                      opens the puzzle. */}
-                    {!levelPoint.allDone && (
-                      <PressableScale
-                        accessibilityRole="button"
-                        accessibilityLabel={`Swap this puzzle for another game's, for ${SWAP_PRICE} coins`}
-                        onPress={swap}
-                        hitSlop={8}
-                        containerStyle={styles.swapWrap}
-                      >
-                        <View style={styles.swap}>
-                          <Text style={[styles.swapText, swapNote === 'short' && styles.swapShort]}>
-                            {swapNote === 'short' ? `You need ${SWAP_PRICE} coins` : swapNote === 'done' ? 'Swapped \u2713\uFE0E' : 'Stuck? Swap it for'}
-                          </Text>
-                          {swapNote === null && (
-                            <>
-                              <CoinGlyph size={11} />
-                              <Text style={styles.swapText}>{SWAP_PRICE}</Text>
-                            </>
-                          )}
+                    {/* The next game on its way: a small promise, kept a
+                      few puzzles from now. Named only once it lands. */}
+                    <View style={styles.cardFoot}>
+                      {arriving && (
+                        <View
+                          style={styles.arriving}
+                          accessibilityLabel={`${roster.length} of ${INTRO_ORDER.length} games. The next arrives in ${arriving.inPuzzles} ${arriving.inPuzzles === 1 ? 'puzzle' : 'puzzles'}`}
+                        >
+                          {/* The collection, one dot a game, filling in as they arrive. */}
+                          <View style={styles.rosterDots}>
+                            {INTRO_ORDER.map(kind => (
+                              <View key={kind} style={[styles.rosterDot, roster.includes(kind) ? { backgroundColor: accentColorForKind(kind) } : styles.rosterDotLocked]} />
+                            ))}
+                          </View>
+                          <Text style={styles.arrivingText}>{`Next game in ${arriving.inPuzzles}`}</Text>
                         </View>
-                      </PressableScale>
-                    )}
+                      )}
+                      {/* Stuck? Swap the next puzzle for another game's - paid
+                        for, so it is a choice, not a way round every board.
+                        Nested inside the card's own press target: RN gives the
+                        touch to the deepest Pressable, so this never also
+                        opens the puzzle. */}
+                      {!levelPoint.allDone && canSwap && (
+                        <PressableScale
+                          accessibilityRole="button"
+                          accessibilityLabel={`Swap this puzzle for another game's, for ${SWAP_PRICE} coins`}
+                          onPress={swap}
+                          hitSlop={8}
+                          containerStyle={styles.swapWrap}
+                        >
+                          <View style={styles.swap}>
+                            <Text style={[styles.swapText, swapNote === 'short' && styles.swapShort]}>
+                              {swapNote === 'short' ? `You need ${SWAP_PRICE} coins` : swapNote === 'done' ? 'Swapped \u2713\uFE0E' : '\u21C4\uFE0E  Swap game'}
+                            </Text>
+                            {swapNote === null && (
+                              <>
+                                <CoinGlyph size={11} />
+                                <Text style={styles.swapText}>{SWAP_PRICE}</Text>
+                              </>
+                            )}
+                          </View>
+                        </PressableScale>
+                      )}
+                    </View>
                   </View>
 
                   <View style={styles.heroFoot}>
@@ -1030,7 +1119,7 @@ export function HomeScreen({
                 </View>
               </View>
             </View>
-          </ScrollView>
+          </Animated.ScrollView>
         </View>
       </Animated.View>
 
@@ -1041,14 +1130,53 @@ export function HomeScreen({
           riseIn(mount, 0.9),
         ]}
       >
-        {PAGES.map((name, i) => (
-          <View
-            key={name}
-            style={[styles.pageDot, i === page && styles.pageDotCurrent]}
-          >
-            {waiting[name] && i !== page && <View style={styles.pageDotBadge} />}
-          </View>
-        ))}
+        {/* Named tabs, not bare marks: a player sees at once that Home
+            has four pages, and can tap straight to one. */}
+        <View style={styles.tabs}>
+          {/* The highlight: one pill sliding under the labels with the
+              swipe itself. */}
+          <Animated.View
+            pointerEvents="none"
+            style={[
+              styles.tabPill,
+              {
+                transform: [
+                  {
+                    translateX: scrollX.interpolate({
+                      inputRange: [0, Math.max(1, width * (PAGES.length - 1))],
+                      outputRange: [0, TAB_WIDTH * (PAGES.length - 1)],
+                      extrapolate: 'clamp',
+                    }),
+                  },
+                ],
+              },
+            ]}
+          />
+          {PAGES.map((name, i) => {
+            const near = scrollX.interpolate({
+              inputRange: [(i - 1) * width, i * width, (i + 1) * width],
+              outputRange: [0, 1, 0],
+              extrapolate: 'clamp',
+            });
+            return (
+              <Pressable
+                key={name}
+                accessibilityRole="tab"
+                accessibilityState={{ selected: i === page }}
+                accessibilityLabel={`${PAGE_LABELS[name]}${waiting[name] && i !== page ? ', something waiting' : ''}`}
+                onPress={() => goToPage(i)}
+                hitSlop={4}
+                style={styles.tab}
+              >
+                <Text style={styles.tabText}>{PAGE_LABELS[name]}</Text>
+                {/* The light label over the pill, faded in by the same
+                    native offset, so the colour change glides too. */}
+                <Animated.Text style={[styles.tabText, styles.tabTextOn, { opacity: near }]}>{PAGE_LABELS[name]}</Animated.Text>
+                {waiting[name] && i !== page && <View style={styles.tabBadge} />}
+              </Pressable>
+            );
+          })}
+        </View>
       </Animated.View>
       {gift && (
         <DailyGiftCard
@@ -1150,9 +1278,9 @@ const styles = themedStyles(() => ({
     fontSize: 9.5,
     fontWeight: theme.typography.weights.bold,
   },
-  swapWrap: { alignSelf: 'center', marginTop: theme.spacing.sm },
-  swap: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  swapText: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
+  swapWrap: { alignSelf: 'center' },
+  swap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.border },
+  swapText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   swapShort: { color: theme.colors.danger },
   rankRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.sm },
   rankText: { flex: 1 },
@@ -1425,6 +1553,24 @@ const styles = themedStyles(() => ({
     letterSpacing: 1,
     color: theme.colors.onGold,
   },
+  setNew: {
+    position: 'absolute',
+    top: -7,
+    left: -6,
+    paddingHorizontal: 4,
+    paddingVertical: 1,
+    borderRadius: 5,
+    zIndex: 2,
+  },
+  setNewText: { fontSize: 7, fontWeight: theme.typography.weights.bold, letterSpacing: 0.8, color: theme.colors.surfaceHi },
+  cardFoot: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', columnGap: 12, rowGap: 6, marginTop: theme.spacing.sm },
+  arriving: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rosterDots: { flexDirection: 'row', gap: 3 },
+  rosterDot: { width: 6, height: 6, borderRadius: 3 },
+  rosterDotLocked: { borderWidth: 1, borderColor: theme.colors.borderStrong },
+  newChip: { marginLeft: 8, paddingHorizontal: 7, paddingVertical: 2, borderRadius: theme.radii.pill },
+  newChipText: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 0.4, color: theme.colors.surfaceHi },
+  arrivingText: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   setGolden: {
     position: 'absolute',
     top: -4,
@@ -1537,7 +1683,7 @@ const styles = themedStyles(() => ({
     color: theme.colors.textTertiary,
   },
   figureStar: {
-    color: theme.colors.accent,
+    color: theme.colors.accentText,
   },
   figureLabel: { fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary, marginTop: 2 },
 
@@ -1549,34 +1695,37 @@ const styles = themedStyles(() => ({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 12,
     paddingTop: theme.spacing.md,
   },
-  /** Tally marks, not dots. The bars are this app's own signature (the
-   * masthead rule, the backdrop's ornaments), and four of them counting
-   * off the pages belongs to an almanac in a way a row of circles does
-   * not. */
-  pageDot: {
-    width: 2,
-    height: 12,
-    borderRadius: 1,
-    backgroundColor: theme.colors.borderStrong,
+  tabs: {
+    flexDirection: 'row',
+    padding: 3,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
   },
-  pageDotBadge: {
-    position: 'absolute',
-    top: -7,
-    left: -2,
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-    backgroundColor: theme.colors.secondary,
+  tab: { width: TAB_WIDTH, height: 30, alignItems: 'center', justifyContent: 'center' },
+  tabPill: { position: 'absolute', top: 3, left: 3, width: TAB_WIDTH, height: 30, borderRadius: 15, backgroundColor: theme.colors.primary },
+  tabText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  tabTextOn: { position: 'absolute', color: theme.colors.surfaceHi },
+  tabBadge: { position: 'absolute', top: 4, right: 8, width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.secondary },
+  shopTag: { flexDirection: 'row', alignItems: 'center', gap: 5, paddingRight: 8, marginRight: 2, borderRightWidth: 1, borderRightColor: theme.colors.goldRim },
+  shopTagText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  insightChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 3,
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface,
   },
+  insightGlyph: { fontSize: 12, color: theme.colors.accent },
+  insightChipText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary, fontVariant: ['tabular-nums'] },
   dateLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   moon: { backgroundColor: theme.colors.accent, overflow: 'hidden' },
   moonShadow: { position: 'absolute', backgroundColor: theme.colors.background },
-  pageDotCurrent: {
-    width: 2,
-    height: 19,
-    backgroundColor: theme.colors.primary,
-  },
 }));

@@ -51,7 +51,7 @@ const DISPLAY_NAMES: Readonly<Record<GameKind, string>> = {
   tents: 'Tents and Trees',
   towers: 'Skyscrapers',
   binairo: 'Twos',
-  arukone: 'Arukone+',
+  arukone: 'Twinpath',
   fillapix: 'Pixel Clues',
   lightsout: 'Lanterns',
   adjacent: 'Adjacent',
@@ -79,7 +79,7 @@ export function gameShortName(kind: GameKind): string {
     case 'towers':
       return 'Towers';
     case 'arukone':
-      return 'Arukone';
+      return 'Twinpath';
     case 'fillapix':
       return 'Pixels';
     case 'lightsout':

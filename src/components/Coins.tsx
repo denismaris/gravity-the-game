@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Animated, StyleProp, Text, View, ViewStyle } from 'react-native';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
-import { triggerFeedback } from '../game/rendering';
+import { triggerFeedback, useReducedMotion } from '../game/rendering';
 import { usePlayerProgress } from '../progression';
 import { motion, theme, themedStyles } from '../theme';
 
@@ -99,14 +99,47 @@ export function CoinBalance({
   );
 }
 
-/** A line for a completion card: what this solve paid out. */
-export function CoinsEarned({ amount, style }: { amount: number; style?: StyleProp<ViewStyle> }): React.JSX.Element | null {
+/** A line for a completion card: what this solve paid out. The coin
+ * pops in once the card has settled (after the stars), then the number
+ * counts up to the payout with a small tick of the coin sound at the end -
+ * the moment a reward should feel like one. Reduced motion shows it at
+ * once. */
+export function CoinsEarned({ amount, style, delay = 750 }: { amount: number; style?: StyleProp<ViewStyle>; delay?: number }): React.JSX.Element | null {
+  const reduced = useReducedMotion();
+  const pop = useRef(new Animated.Value(reduced ? 1 : 0)).current;
+  const [shown, setShown] = useState(reduced ? amount : 0);
+  useEffect(() => {
+    if (reduced || amount <= 0) {
+      setShown(amount);
+      return;
+    }
+    let frame = 0;
+    const timer = setTimeout(() => {
+      Animated.spring(pop, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
+      const start = Date.now();
+      const duration = Math.min(800, 280 + amount * 18);
+      const step = () => {
+        const t = Math.min(1, (Date.now() - start) / duration);
+        setShown(Math.round(amount * (1 - (1 - t) ** 3)));
+        if (t < 1) frame = requestAnimationFrame(step);
+        else triggerFeedback('coin');
+      };
+      frame = requestAnimationFrame(step);
+    }, delay);
+    return () => {
+      clearTimeout(timer);
+      cancelAnimationFrame(frame);
+    };
+  }, [amount, delay, pop, reduced]);
   if (amount <= 0) return null;
   return (
-    <View style={[styles.earned, style]} accessibilityLabel={`${amount} coins earned`}>
+    <Animated.View
+      style={[styles.earned, style, { opacity: pop, transform: [{ scale: pop.interpolate({ inputRange: [0, 1], outputRange: [0.7, 1] }) }] }]}
+      accessibilityLabel={`${amount} coins earned`}
+    >
       <CoinGlyph size={16} />
-      <Text style={styles.earnedText}>{`+${amount}`}</Text>
-    </View>
+      <Text style={styles.earnedText}>{`+${shown}`}</Text>
+    </Animated.View>
   );
 }
 
@@ -200,7 +233,7 @@ const styles = themedStyles(() => ({
     fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
-    color: theme.colors.accent,
+    color: theme.colors.accentText,
     letterSpacing: 1,
   },
 }));

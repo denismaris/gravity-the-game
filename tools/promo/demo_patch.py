@@ -48,9 +48,8 @@ if mode == 'auto':
 if mode == 'home':
     # The Home carousel turns its own pages.
     def home(s):
-        s = s.replace("          <ScrollView\n            style={{ height: cardHeight }}\n            horizontal", "          <ScrollView\n            ref={demoScroll}\n            style={{ height: cardHeight }}\n            horizontal", 1)
-        anchor = "  const [page, setPage] = useState(0);"
-        s = s.replace(anchor, anchor + f"\n  const demoScroll = useRef<ScrollView>(null);\n  useEffect(() => {{ let i = 0; const t = setInterval(() => {{ i = (i + 1) % PAGES.length; demoScroll.current?.scrollTo({{ x: i * width, animated: true }}); }}, {interval}); return () => clearInterval(t); }}, [width]);", 1)
+        anchor = "  const carouselRef = useRef<React.ElementRef<typeof ScrollView>>(null);"
+        s = s.replace(anchor, anchor + f"\n  useEffect(() => {{ let i = 0; const t = setInterval(() => {{ i = (i + 1) % PAGES.length; carouselRef.current?.scrollTo({{ x: i * width, animated: true }}); }}, {interval}); return () => clearInterval(t); }}, [width]);", 1)
         return s
     patch('src/screens/HomeScreen.tsx', home)
     patch('src/screens/HomeScreen.tsx', lambda s: s.replace("const gift = ready && progress.introSeen ? giftFor", "const gift = false && ready && progress.introSeen ? giftFor", 1))

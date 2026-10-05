@@ -135,7 +135,7 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
   everyPuzzle('game:tents', 'tents', 'Under Canvas', 'Solve every Tents and Trees puzzle.', TENTS_TREES),
   everyPuzzle('game:towers', 'towers', 'Top Floor', 'Solve every Skyscrapers puzzle.', TOWERS),
   everyPuzzle('game:binairo', 'binairo', 'Binary Star', 'Solve every Twos puzzle.', BINAIRO),
-  everyPuzzle('game:arukone', 'arukone', 'Both Sides', 'Solve every Arukone+ puzzle.', ARUKONE),
+  everyPuzzle('game:arukone', 'arukone', 'Both Sides', 'Solve every Twinpath puzzle.', ARUKONE),
   everyPuzzle('game:fillapix', 'fillapix', 'Picture Perfect', 'Solve every Pixel Clues puzzle.', FILLAPIX),
   everyPuzzle('game:lightsout', 'lightsout', 'Nothing Burning', 'Solve every Lanterns puzzle.', LIGHTS_OUT),
   everyPuzzle('game:adjacent', 'adjacent', 'Down to the Tray', 'Solve every Adjacent puzzle.', ADJACENT),

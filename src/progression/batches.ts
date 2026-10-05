@@ -134,6 +134,88 @@ const RECENT_WINDOW = 9;
 const RECENT_PENALTY = 0.2;
 const FRESH_BONUS = 1.6;
 
+/**
+ * Games arrive one at a time. A new player starts with Gravity alone; a
+ * new game joins every `INTRO_EVERY` solved puzzles, in this order (from
+ * the simplest to pick up to the most involved, alternating kinds of
+ * play), until all twelve are in the mix. Each arrival is a small event:
+ * it is dealt at once, opens with its lesson, and comes up often until its
+ * first easy boards are done. Anyone who has already played a game keeps
+ * it, whatever the count says, so no existing player loses a game.
+ */
+export const INTRO_ORDER: ReadonlyArray<GameKind> = [
+  'gravity',
+  'lightsout',
+  'adjacent',
+  'binairo',
+  'tents',
+  'mosaic',
+  'bridges',
+  'mirror',
+  'bloom',
+  'fillapix',
+  'towers',
+  'arukone',
+];
+export const INTRO_EVERY = 5;
+/** A new game's weight while it is still in its first easy boards. */
+const NEWCOMER_BOOST = 5;
+
+function totalSolved(progress: PlayerProgress): number {
+  let total = 0;
+  for (const count of solvedPerGame(progress).values()) total += count;
+  return total;
+}
+
+/**
+ * The games this player has, in the order they arrived: every game they
+ * have played, then the next ones in `INTRO_ORDER` up to the count their
+ * solves have earned. `aheadBy` counts puzzles dealt but not yet solved
+ * (the earlier slots of a set being built), so a game can arrive mid-set.
+ * Retired games are never counted or dealt.
+ */
+export function unlockedGames(progress: PlayerProgress, aheadBy = 0): GameKind[] {
+  const solved = solvedPerGame(progress);
+  const order = INTRO_ORDER.filter(kind => !progress.retired.includes(kind));
+  const earned = earnedGames(progress, aheadBy);
+  const unlocked = order.filter(kind => (solved.get(kind) ?? 0) > 0);
+  for (const kind of order) {
+    if (unlocked.length >= earned) break;
+    if (!unlocked.includes(kind)) unlocked.push(kind);
+  }
+  return unlocked;
+}
+
+function earnedGames(progress: PlayerProgress, aheadBy: number): number {
+  return 1 + Math.floor((totalSolved(progress) + aheadBy) / INTRO_EVERY);
+}
+
+/** The game that has just arrived on the schedule, while it is still in
+ * its first easy boards - the one the dealer puts in the spotlight. None
+ * for a player whose games came from playing them before (their roster is
+ * ahead of the schedule, so nothing on it is new). */
+function spotlight(progress: PlayerProgress, unlocked: ReadonlyArray<GameKind>, aheadBy: number, played: (kind: GameKind) => number): GameKind | null {
+  if (unlocked.length > earnedGames(progress, aheadBy)) return null;
+  const newest = unlocked[unlocked.length - 1];
+  return newest && played(newest) < GAME_EASY_ONLY ? newest : null;
+}
+
+/** The games this player has solved at least one puzzle of - so Home can
+ * mark a game making its debut in the current set as new. */
+export function gamesPlayed(progress: PlayerProgress): ReadonlySet<GameKind> {
+  return new Set(solvedPerGame(progress).keys());
+}
+
+/** The game still to come, and how many more solves bring it - for Home's
+ * "next game" line. Null once every game has arrived. */
+export function nextGameToArrive(progress: PlayerProgress): { kind: GameKind; inPuzzles: number } | null {
+  const unlocked = new Set(unlockedGames(progress));
+  const kind = INTRO_ORDER.find(k => !unlocked.has(k) && !progress.retired.includes(k));
+  if (!kind) return null;
+  const total = totalSolved(progress);
+  return { kind, inPuzzles: INTRO_EVERY - (total % INTRO_EVERY) };
+}
+
 function tierBandForLevel(levelNumber: number): TierBand {
   return TIER_CURVE.find(band => levelNumber <= band.maxLevel) ?? TIER_CURVE[TIER_CURVE.length - 1];
 }
@@ -343,17 +425,24 @@ export function generateBatch(levelNumber: number, progress: PlayerProgress, pre
   for (let slot = 0; slot < band.batchSize; slot += 1) {
     const lastBlock = new Set(recent.slice(-RECENT_BLOCK));
     const lastWindow = new Set(recent.slice(-RECENT_WINDOW));
+    const unlocked = unlockedGames(progress, slot);
+    const playedSoFar = (kind: GameKind) => (solved.get(kind) ?? 0) + (dealtHere.get(kind) ?? 0);
+    // A game that has just arrived is dealt at once: its first puzzle,
+    // with its lesson, is the moment it is introduced.
+    const debut = unlocked.find(kind => playedSoFar(kind) === 0);
+    const newcomer = spotlight(progress, unlocked, slot, playedSoFar);
     const weighted = ROTATION.map((kind): readonly [GameKind, number] => {
-      // A game the player retired (see the shop) is never dealt.
-      if (progress.retired.includes(kind)) return [kind, 0] as const;
+      // A game not yet arrived, or retired (see the shop), is never dealt.
+      if (!unlocked.includes(kind)) return [kind, 0] as const;
       let weight = gameWeight(kind, 'easy');
-      if (lastBlock.has(kind)) weight *= 0.0001;
+      if (kind === newcomer && recent[recent.length - 1] !== kind) weight *= NEWCOMER_BOOST;
+      else if (lastBlock.has(kind)) weight *= 0.0001;
       else if (lastWindow.has(kind)) weight *= RECENT_PENALTY;
       else weight *= FRESH_BONUS;
       return [kind, weight] as const;
     });
 
-    const kind = weightedPick(weighted, rng);
+    const kind = debut ?? weightedPick(weighted, rng);
     const played = (solved.get(kind) ?? 0) + (dealtHere.get(kind) ?? 0);
     const wanted = levelNumber < HARD_TIER_FIRST_LEVEL ? (rampSlot(played) === 'hard' ? 'medium' : rampSlot(played) ?? 'medium') : rampSlot(played);
     const dealt = calm(wanted, { last, hadEasy, hadExtreme, lastSlot: slot === band.batchSize - 1 }, rng);
@@ -434,8 +523,9 @@ export function replaceInBatch(batch: BatchState, puzzleIds: ReadonlyArray<strin
     if (!puzzleIds.includes(ref.puzzleId) || done.has(ref.puzzleId)) continue;
     const tier = dealtTierOf(ref);
     const inSet = new Set(puzzles.map(p => p.kind));
+    const unlocked = unlockedGames(progress);
     const weighted = ROTATION.map((kind): readonly [GameKind, number] => {
-      if (kind === ref.kind || progress.retired.includes(kind)) return [kind, 0] as const;
+      if (kind === ref.kind || !unlocked.includes(kind)) return [kind, 0] as const;
       const weight = gameWeight(kind, tier);
       return [kind, inSet.has(kind) ? weight * SAME_LEVEL_PENALTY : weight] as const;
     });

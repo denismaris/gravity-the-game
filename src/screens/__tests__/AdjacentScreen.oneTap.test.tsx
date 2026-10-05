@@ -3,7 +3,9 @@ import ReactTestRenderer, { act } from 'react-test-renderer';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { AdjacentScreen } from '../AdjacentScreen';
 import { PlayerProgressProvider } from '../../progression';
-import { SettingsProvider } from '../../settings';
+import { SettingsProvider, defaultSettings } from '../../settings';
+import { SETTINGS_KEY } from '../../settings/settingsStore';
+import { createMemoryBackend } from '../../storage';
 import { AdjacentPuzzle, cascadeScore } from '../../game/adjacent';
 
 /**
@@ -71,7 +73,8 @@ describe('AdjacentScreen - one press applies exactly one clear', () => {
         <SafeAreaProvider
           initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } }}
         >
-          <SettingsProvider>
+          {/* A player past the first-time lesson, which takes the whole screen. */}
+          <SettingsProvider backend={createMemoryBackend({ [SETTINGS_KEY]: JSON.stringify({ ...defaultSettings(), seenTutorials: ['game:adjacent'] }) })}>
             <PlayerProgressProvider>
               <AdjacentScreen puzzle={PUZZLE} onExit={() => {}} onNextPuzzle={() => {}} />
             </PlayerProgressProvider>

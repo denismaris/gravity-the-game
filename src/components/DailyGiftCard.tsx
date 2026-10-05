@@ -143,7 +143,7 @@ const styles = themedStyles(() => ({
   coins: { marginTop: theme.spacing.lg },
   extras: { marginTop: theme.spacing.sm, alignItems: 'center', gap: 4 },
   extra: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  extraText: { fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.8, color: theme.colors.accent },
+  extraText: { fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.8, color: theme.colors.accentText },
   button: { marginTop: theme.spacing.lg, paddingHorizontal: theme.spacing.xxl, paddingVertical: theme.spacing.md, borderRadius: theme.radii.pill, backgroundColor: theme.colors.primary },
   pressed: { opacity: 0.85 },
   buttonText: { color: theme.colors.surfaceHi, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.semibold },

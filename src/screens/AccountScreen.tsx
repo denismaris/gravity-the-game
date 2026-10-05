@@ -10,7 +10,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Account, Provider, accountNameSuggestion, applyAccountName, availableProviders, backendConfigured, currentAccount, deleteAccount, signIn, signOut, syncProgress } from '../backend';
 import { triggerFeedback, useReducedMotion } from '../game/rendering';
 import { usePlayerProgress } from '../progression';
-import { useAppearance } from '../settings';
+import { useAppearance, useSettings } from '../settings';
 import { theme, themedStyles } from '../theme';
 
 export interface AccountScreenProps {
@@ -86,6 +86,7 @@ export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element
   const insets = useSafeAreaInsets();
   const reduced = useReducedMotion();
   const { progress, resetProgress, adoptProgress } = usePlayerProgress();
+  const { resetTutorials } = useSettings();
   const progressRef = useRef(progress);
   progressRef.current = progress;
   const online = backendConfigured();
@@ -169,6 +170,7 @@ export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element
     }
     await signOut();
     resetProgress();
+    resetTutorials();
     setBusy(null);
     setMessage('Signed out. This phone starts fresh, and signing in again brings your progress back.');
     refresh();
@@ -181,6 +183,7 @@ export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element
     setConfirmDelete(false);
     if (ok) {
       resetProgress();
+      resetTutorials();
       setMessage('Your account and everything saved with it have been deleted.');
       refresh();
     } else setMessage('Could not delete your account. Check your connection and try again.');

@@ -162,7 +162,7 @@ const styles = themedStyles(() => ({
     borderWidth: 1.5,
     borderColor: theme.colors.accent,
   },
-  chapterKicker: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.accent },
+  chapterKicker: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.accentText },
   chapterName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, marginTop: 2 },
   chapterNote: { marginTop: 2, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   overlay: {
@@ -217,7 +217,7 @@ const styles = themedStyles(() => ({
     fontSize: theme.typography.sizes.caption,
     fontWeight: theme.typography.weights.bold,
     letterSpacing: 3,
-    color: theme.colors.accent,
+    color: theme.colors.accentText,
     textAlign: 'center',
   },
   headline: {

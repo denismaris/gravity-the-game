@@ -33,7 +33,7 @@ export interface SettingsScreenProps {
  */
 export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { settings, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance } = useSettings();
+  const { settings, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance, resetTutorials } = useSettings();
   const { resetProgress } = usePlayerProgress();
   const [account, setAccount] = useState<Account | null>(null);
   useEffect(() => {
@@ -74,10 +74,13 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
       'This clears every star, completion and streak. This can’t be undone.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Reset', style: 'destructive', onPress: () => resetProgress() },
+        { text: 'Reset', style: 'destructive', onPress: () => {
+          resetProgress();
+          resetTutorials();
+        } },
       ],
     );
-  }, [resetProgress]);
+  }, [resetProgress, resetTutorials]);
 
   return (
     <View style={styles.container}>

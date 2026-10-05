@@ -40,7 +40,7 @@ import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
-import { InsightCount, useInsightPower } from '../components/InsightPower';
+import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { HintNote } from '../components/HintNote';
 import { HintKind } from '../game/hints';
 import { UNDO_COST } from '../progression/coins';
@@ -90,17 +90,6 @@ function UndoIcon({ muted }: { muted: boolean }): React.JSX.Element {
   );
 }
 
-/** A small lit bulb: Insight's mark, in this game's colour. */
-function InsightIcon(): React.JSX.Element {
-  return (
-    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Circle cx={7} cy={5.8} r={4.3} color={theme.colors.adjacentAccent} style="stroke" strokeWidth={1.4} />
-      <Path path="M 5.4 9.4 L 8.6 9.4" color={theme.colors.adjacentAccent} style="stroke" strokeWidth={1.3} />
-      <Path path="M 5.7 11.2 L 8.3 11.2" color={theme.colors.adjacentAccent} style="stroke" strokeWidth={1.3} />
-    </Canvas>
-  );
-}
-
 /** A restart-arrow glyph, same treatment. */
 function RestartIcon(): React.JSX.Element {
   return (
@@ -143,12 +132,9 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
   const controlsIn = useStageEntrance(110);
   const { width, height } = useWindowDimensions();
   const { progress, recordCompletion } = usePlayerProgress();
-  const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
+  const { markTutorialSeen } = useSettings();
 
   const [showTutorial, setShowTutorial] = useState(false);
-  useEffect(() => {
-    if (settingsReady && !hasSeenTutorial(TUTORIAL_ID)) setShowTutorial(true);
-  }, [settingsReady, hasSeenTutorial]);
   const dismissTutorial = useCallback(() => {
     markTutorialSeen(TUTORIAL_ID);
     setShowTutorial(false);
@@ -337,6 +323,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
   const undosLeft = MAX_UNDOS - undosUsed;
   const canUndo = history.length > 0 && undosLeft > 0 && !solved;
 
+
   return (
     <View style={styles.container}>
       <PageBloom />
@@ -367,7 +354,6 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('adjacent')} onGone={clearNote} />}
           <AdjacentBoard
             puzzle={puzzle}
             state={state}
@@ -385,16 +371,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={`Insight: reveal the best next tap, ${insight.count} left`}
-            onPress={revealInsight}
-            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-          >
-            <InsightIcon />
-            <Text style={styles.pillText}>Insight</Text>
-            <InsightCount count={insight.count} />
-          </PressableScale>
+          <InsightButton count={insight.count} onPress={revealInsight} />
           {insight.sheet}
           <PressableScale
             accessibilityRole="button"
@@ -418,6 +395,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
           </PressableScale>
         </Animated.View>
         <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
+        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('adjacent')} onGone={clearNote} />}
       </View>
 
       {showSolvedCard && stars && (
@@ -453,14 +431,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
         />
       )}
 
-      {showTutorial && (
-        <MechanicsCarousel
-          slides={ADJACENT_MECHANICS_SLIDES}
-          renderIllustration={renderAdjacentIllustration}
-          onDone={dismissTutorial}
-          accentColor={accentColorForKind('adjacent')}
-        />
-      )}
+      {showTutorial && <MechanicsCarousel slides={ADJACENT_MECHANICS_SLIDES} renderIllustration={renderAdjacentIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('adjacent')} />}
     </View>
   );
 }

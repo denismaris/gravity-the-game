@@ -9,7 +9,8 @@ import { IntroWalkthrough } from '../../components/IntroWalkthrough';
 import { PlayerProgressProvider, emptyProgress, errandsFor, usePlayerProgress } from '../../progression';
 import { PLAYER_PROGRESS_KEY } from '../../progression/playerProgressStore';
 import { createMemoryBackend } from '../../storage';
-import { dailyKeyOf } from '../../game/journey';
+import { dailyKeyOf, ROTATION } from '../../game/journey';
+import { endlessId } from '../../game/endlessId';
 
 /**
  * The shop, the almanac and the errands, driven through their real
@@ -145,7 +146,9 @@ describe('passes', () => {
   });
 
   test('swapping the current puzzle charges and replaces it', async () => {
-    const { api, renderer } = await mount(<ErrandList />, { coins: 500 });
+    // A player every game has reached, so there is another game to swap to.
+    const levels = Object.fromEntries(ROTATION.map(kind => [endlessId(kind, 'medium', 900), { completed: true, bestMoves: 1, stars: 3 }]));
+    const { api, renderer } = await mount(<ErrandList />, { coins: 500, levels });
     const before = api().progress.currentBatch!;
     let swapped: ReturnType<Api['swapPuzzle']> = null;
     await act(async () => {

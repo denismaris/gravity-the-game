@@ -39,13 +39,13 @@ import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
-import { InsightCount, useInsightPower } from '../components/InsightPower';
+import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
 
 const TUTORIAL_ID = tutorialIdForGame('mosaic');
 const ICON_SIZE = 14;
 const STAGE_H_PADDING = theme.spacing.sm;
-const HINT_FLASH_MS = 650;
+const HINT_FLASH_MS = 1500;
 const gameAccent = (): string => theme.colors.mosaicAccent;
 /** Header above the board, and the Hint/Restart row and coin line below
  * the tray - what the board's height budget leaves room for. */
@@ -57,18 +57,6 @@ function HelpIcon(): React.JSX.Element {
       <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
       <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
       <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
-    </Canvas>
-  );
-}
-
-/** The lightbulb every play screen's Hint pill carries, in Mosaic's lapis. */
-function HintIcon(): React.JSX.Element {
-  return (
-    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Circle cx={7} cy={5.8} r={4.3} color={gameAccent()} style="stroke" strokeWidth={1.4} />
-      <Path path="M 5.4 9.4 L 8.6 9.4" color={gameAccent()} style="stroke" strokeWidth={1.3} />
-      <Path path="M 5.7 11.2 L 8.3 11.2" color={gameAccent()} style="stroke" strokeWidth={1.3} />
-      <Path path="M 6.3 12.6 L 7.7 12.6" color={gameAccent()} style="stroke" strokeWidth={1.1} />
     </Canvas>
   );
 }
@@ -100,12 +88,9 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
   const controlsIn = useStageEntrance(110);
   const { width, height } = useWindowDimensions();
   const { progress, recordCompletion } = usePlayerProgress();
-  const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
+  const { markTutorialSeen } = useSettings();
 
   const [showTutorial, setShowTutorial] = useState(false);
-  useEffect(() => {
-    if (settingsReady && !hasSeenTutorial(TUTORIAL_ID)) setShowTutorial(true);
-  }, [settingsReady, hasSeenTutorial]);
   const dismissTutorial = useCallback(() => {
     markTutorialSeen(TUTORIAL_ID);
     setShowTutorial(false);
@@ -208,6 +193,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
   const trayHeight = mosaicTrayLayout(puzzle.fixed.filter(set => !set).length, playWidth).height;
   const maxBoardHeight = Math.max(160, height - insets.top - insets.bottom - CHROME_RESERVED - trayHeight);
 
+
   return (
     <View style={styles.container}>
       <PageBloom />
@@ -237,7 +223,6 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('mosaic')} onGone={clearNote} />}
           <MosaicPlay
             puzzle={puzzle}
             state={state}
@@ -253,17 +238,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={`Insight: reveal the next move, ${insight.count} left`}
-            onPress={useHint}
-            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
-          >
-            <HintIcon />
-            <Text style={styles.pillText}>Insight</Text>
-
-            <InsightCount count={insight.count} />
-          </PressableScale>
+          <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
           <PressableScale
             accessibilityRole="button"
@@ -276,6 +251,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
           </PressableScale>
         </Animated.View>
         <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
+        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('mosaic')} onGone={clearNote} />}
       </View>
 
       {showSolvedCard && stars && (
@@ -299,14 +275,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
         />
       )}
 
-      {showTutorial && (
-        <MechanicsCarousel
-          slides={MOSAIC_MECHANICS_SLIDES}
-          renderIllustration={renderMosaicIllustration}
-          onDone={dismissTutorial}
-          accentColor={accentColorForKind('mosaic')}
-        />
-      )}
+      {showTutorial && <MechanicsCarousel slides={MOSAIC_MECHANICS_SLIDES} renderIllustration={renderMosaicIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('mosaic')} />}
     </View>
   );
 }

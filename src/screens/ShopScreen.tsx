@@ -1526,7 +1526,7 @@ const styles = themedStyles(() => ({
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   pressed: { opacity: 0.85 },
   hint: { marginTop: 6, fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.8, color: theme.colors.textTertiary },
-  hintReady: { color: theme.colors.accent },
+  hintReady: { color: theme.colors.accentText },
   pass: {
     padding: theme.spacing.md,
     borderRadius: 22,
@@ -1540,7 +1540,7 @@ const styles = themedStyles(() => ({
   passFoot: { marginTop: theme.spacing.sm, fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.8, color: theme.colors.textTertiary, textAlign: 'center' },
   charmRow: { flexDirection: 'row', gap: theme.spacing.md },
   charmPlate: { width: 64, height: 64, borderRadius: 18, backgroundColor: theme.colors.creamPlate, alignItems: 'center', justifyContent: 'center' },
-  charmCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1, color: theme.colors.accent },
+  charmCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1, color: theme.colors.accentText },
   games: { flexDirection: 'row', flexWrap: 'wrap', marginTop: theme.spacing.md },
   gameCell: { width: '25%', padding: 3 },
   game: { alignItems: 'center', paddingVertical: 8, borderRadius: 14, borderWidth: 1.5, borderColor: 'transparent' },

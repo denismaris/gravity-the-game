@@ -5,6 +5,7 @@ import { HomeScreen } from '../HomeScreen';
 import { PlayerProgressProvider, emptyProgress, usePlayerProgress } from '../../progression';
 import { PLAYER_PROGRESS_KEY } from '../../progression/playerProgressStore';
 import { createMemoryBackend } from '../../storage';
+import { SettingsProvider } from '../../settings';
 
 /**
  * Resetting the save (Settings, or signing out) while Home is mounted
@@ -25,10 +26,12 @@ test('Home survives the save being reset under it', async () => {
   await act(async () => {
     renderer = ReactTestRenderer.create(
       <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } }}>
-        <PlayerProgressProvider backend={createMemoryBackend({ [PLAYER_PROGRESS_KEY]: JSON.stringify(played) })}>
-          <Probe />
-          <HomeScreen onOpen={noop} onOpenSettings={noop} onOpenAchievements={noop} onOpenJourney={noop} onOpenShop={noop} onOpenLedger={noop} onOpenLeaderboard={noop} />
-        </PlayerProgressProvider>
+        <SettingsProvider backend={createMemoryBackend({})}>
+          <PlayerProgressProvider backend={createMemoryBackend({ [PLAYER_PROGRESS_KEY]: JSON.stringify(played) })}>
+            <Probe />
+            <HomeScreen onOpen={noop} onOpenSettings={noop} onOpenAchievements={noop} onOpenJourney={noop} onOpenShop={noop} onOpenLedger={noop} onOpenLeaderboard={noop} />
+          </PlayerProgressProvider>
+        </SettingsProvider>
       </SafeAreaProvider>,
     );
   });

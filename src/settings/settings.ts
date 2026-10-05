@@ -88,6 +88,13 @@ export function withCalmingInterstitialEnabled(settings: Settings, enabled: bool
 
 /** Marks `tutorialId` as shown. Idempotent - showing the same one twice
  * (e.g. a queued mutation replayed - see `SettingsProvider`) is a no-op. */
+/** Forgets every guide shown, for a player starting over: after a reset or
+ * signing out, each game's lesson plays again the first time it opens. */
+export function withTutorialsCleared(settings: Settings): Settings {
+  if (settings.seenTutorials.length === 0) return settings;
+  return { ...settings, seenTutorials: [] };
+}
+
 export function withTutorialSeen(settings: Settings, tutorialId: string): Settings {
   if (settings.seenTutorials.includes(tutorialId)) return settings;
   return { ...settings, seenTutorials: [...settings.seenTutorials, tutorialId] };

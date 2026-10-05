@@ -401,7 +401,7 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.xs,
   },
   titlePerfect: {
-    color: theme.colors.accent,
+    color: theme.colors.accentText,
   },
   stars: {
     marginBottom: theme.spacing.md,

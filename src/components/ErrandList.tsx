@@ -192,7 +192,7 @@ const styles = themedStyles(() => ({
     backgroundColor: 'rgba(183,137,47,0.16)',
   },
   markDone: { backgroundColor: 'rgba(92,124,74,0.18)' },
-  markGlyph: { fontSize: 17, color: theme.colors.accent },
+  markGlyph: { fontSize: 17, color: theme.colors.accentText },
   markGlyphDone: { color: theme.colors.success },
   rowBody: { flex: 1, gap: 6 },
   title: {
@@ -234,7 +234,7 @@ const styles = themedStyles(() => ({
   },
   doneTickGlyph: { color: theme.colors.surfaceHi, fontSize: 14, fontWeight: theme.typography.weights.bold },
   float: { position: 'absolute', right: 18, top: 6, flexDirection: 'row', alignItems: 'center', gap: 3 },
-  floatText: { fontFamily: theme.typography.families.mono, fontWeight: theme.typography.weights.bold, color: theme.colors.accent, fontSize: theme.typography.sizes.body },
+  floatText: { fontFamily: theme.typography.families.mono, fontWeight: theme.typography.weights.bold, color: theme.colors.accentText, fontSize: theme.typography.sizes.body },
   foot: {
     marginTop: 2,
     fontFamily: theme.typography.families.mono,

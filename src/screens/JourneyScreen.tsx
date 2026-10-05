@@ -258,7 +258,7 @@ const styles = themedStyles(() => ({
   earnLabel: { fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
   sectionTitle: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.secondary, marginBottom: theme.spacing.sm },
   current: { padding: theme.spacing.lg, borderRadius: 22, backgroundColor: theme.colors.surfaceHi, borderWidth: 1.5, borderColor: theme.colors.accent, marginBottom: theme.spacing.xl },
-  currentKicker: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.accent },
+  currentKicker: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.accentText },
   currentName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   ticks: { flexDirection: 'row', gap: 4, marginTop: theme.spacing.md },
   tick: { flex: 1, height: 26, borderRadius: 6, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center' },

@@ -152,7 +152,10 @@ export function useAnimatedMovables(
     }
 
     const cellsTravelled = moved.reduce((max, movable) => {
-      const start = startById.get(movable.id)!;
+      // A piece new to the board (a different board swapped in) has no
+      // start; it appears where it is rather than sliding.
+      const start = startById.get(movable.id);
+      if (!start) return max;
       return Math.max(max, Math.abs(movable.row - start.row) + Math.abs(movable.col - start.col));
     }, 0);
     const duration = slideDurationFor(cellsTravelled);

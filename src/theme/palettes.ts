@@ -33,6 +33,10 @@ export const lightColors = {
   primary: '#3B1F52', // violet ink - primary buttons are ink on sand
   secondary: '#C46C33', // warm coral-terracotta - the app's one loud colour
   accent: '#B7892F', // ochre - target rings and stars only
+  /** Gold used as *text*: deep enough to read on cream (4.5:1 on the
+   * ground), where the bright ochre above, made for stars and rings,
+   * reads only 2.5:1. */
+  accentText: '#86601A',
 
   /** Ink for the page's printed artwork (leaves, stems, rules) - the same
    * violet as `primary` by day; a quieter tone of its own by night, so
@@ -197,6 +201,7 @@ export const darkColors: Palette = {
   primary: '#EFE3CC',
   secondary: '#E08A52',
   accent: '#D9AC4E',
+  accentText: '#D9AC4E',
 
   artInk: '#3A2C49',
   shadow: '#000000',

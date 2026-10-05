@@ -281,7 +281,7 @@ const styles = themedStyles(() => ({
   points: { marginTop: theme.spacing.md, gap: 8, paddingTop: theme.spacing.md, borderTopWidth: 1, borderTopColor: theme.colors.border },
   point: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   pointGlyphBox: { width: 24, height: 24, borderRadius: 7, backgroundColor: theme.colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  pointGlyph: { fontSize: 12, color: theme.colors.accent, fontWeight: theme.typography.weights.bold },
+  pointGlyph: { fontSize: 12, color: theme.colors.accentText, fontWeight: theme.typography.weights.bold },
   pointText: { flex: 1, fontSize: theme.typography.sizes.caption, color: theme.colors.textPrimary },
   foot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: theme.spacing.lg },
   dots: { flexDirection: 'row', gap: 6 },

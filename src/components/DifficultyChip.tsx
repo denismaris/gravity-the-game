@@ -72,7 +72,7 @@ const styles = themedStyles(() => ({
   labelEasy: { color: theme.colors.textTertiary },
   labelMedium: { color: theme.colors.textSecondary },
   labelLoud: {
-    color: theme.colors.accent,
+    color: theme.colors.accentText,
     fontWeight: theme.typography.weights.bold,
   },
 }));

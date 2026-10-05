@@ -1,7 +1,9 @@
 import React from 'react';
 import ReactTestRenderer, { act } from 'react-test-renderer';
 import { cleanRunMultiplier, FIRST_SOLVE_COINS, GOLDEN_EVERY, GOLDEN_MULTIPLIER } from '../coins';
-import { emptyProgress, PlayerProgress } from '../playerProgress';
+import { emptyProgress, PlayerProgress, recordCompletion } from '../playerProgress';
+import { ROTATION } from '../../game/journey';
+import { endlessId } from '../../game/endlessId';
 import { generateBatch, replaceInBatch } from '../batches';
 import { parseProgress, PLAYER_PROGRESS_KEY } from '../playerProgressStore';
 import { PlayerProgressProvider, usePlayerProgress } from '../PlayerProgressProvider';
@@ -29,12 +31,17 @@ describe('the clean-run combo', () => {
   });
 });
 
+/** A player every game has already reached, one generated board each. */
+function everyGame(): PlayerProgress {
+  return ROTATION.reduce((p, kind) => recordCompletion(p, endlessId(kind, 'medium', 900), 1, { two: 4, three: 2 }), emptyProgress());
+}
+
 describe('golden puzzles', () => {
   test('are dealt about one in eight, across every kind of slot', () => {
     let golden = 0;
     let dealt = 0;
     for (let seed = 1; seed <= 400; seed += 1) {
-      const batch = generateBatch(10 + (seed % 60), emptyProgress(), null, seeded(seed));
+      const batch = generateBatch(10 + (seed % 60), everyGame(), null, seeded(seed));
       dealt += batch.puzzles.length;
       golden += batch.puzzles.filter(p => p.golden).length;
     }

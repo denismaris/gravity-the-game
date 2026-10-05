@@ -34,6 +34,8 @@ import { useReminderSync } from './src/notifications';
 import { useCloudSync } from './src/backend';
 import { EmblemHandoff } from './src/components/EmblemHandoff';
 import { ErrorBoundary, IntroWalkthrough, LaunchSequence, ScreenTransition } from './src/components';
+import { GameLesson } from './src/components/lessons';
+import { tutorialIdForGame } from './src/game/tutorials';
 import { getLevelById } from './src/game/levels';
 import { getMirrorMazeById } from './src/game/mirror';
 import { getTentsTreesById } from './src/game/tents';
@@ -48,7 +50,7 @@ import { getMosaicById } from './src/game/mosaic';
 import { getBridgesById } from './src/game/bridges';
 import { GameKind, NextPuzzleOptions, getDailyEntry } from './src/game/journey';
 import { CalmingInterstitialScreen } from './src/interstitial';
-import { PlayerProgressProvider, isAdFree, notePuzzleOpened, usePlayerProgress } from './src/progression';
+import { PlayerProgressProvider, getLevelPoint, isAdFree, notePuzzleOpened, usePlayerProgress } from './src/progression';
 import { learnedTutorials } from './src/progression/learnedTutorials';
 import { AD_RULES, betweenSets, startAds } from './src/ads';
 import { AppearanceProvider, SettingsProvider, useAppearance, useHoldAppearance, useSettings } from './src/settings';
@@ -108,7 +110,7 @@ function App(): React.JSX.Element {
  */
 function Boot(): React.JSX.Element {
   const { ready: settingsReady, settings, markTutorialSeen } = useSettings();
-  const { ready: progressReady, progress, markIntroSeen } = usePlayerProgress();
+  const { ready: progressReady, progress } = usePlayerProgress();
   // A game the player has already played needs no "how to play" - also
   // after signing back in, on a new phone, or after a reinstall, when this
   // phone's own memory of the guides is empty but the account is not.
@@ -125,10 +127,7 @@ function Boot(): React.JSX.Element {
   return (
     <>
       <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} />
-      <AppRoutes />
-      {/* The walkthrough, once, for a new player - after the launch mark,
-          over Home. */}
-      {launched && progressReady && !progress.introSeen && <IntroWalkthrough key={scheme} onDone={markIntroSeen} />}
+      <AppRoutes launched={launched} />
       {!launched && <LaunchSequence appReady={settingsReady && progressReady} onDone={finishLaunch} />}
     </>
   );
@@ -140,9 +139,9 @@ function Boot(): React.JSX.Element {
  * interstitial (see `src/interstitial/`). There is no level select. A real
  * navigator can replace this state switch later.
  */
-function AppRoutes(): React.JSX.Element {
-  const { settings } = useSettings();
-  const { progress, ready: progressReady } = usePlayerProgress();
+function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
+  const { settings, ready: settingsReady, markTutorialSeen } = useSettings();
+  const { progress, ready: progressReady, markIntroSeen } = usePlayerProgress();
   const progressRef = useRef(progress);
   progressRef.current = progress;
   // Ads start at launch only for a player who already sees them (see
@@ -182,6 +181,22 @@ function AppRoutes(): React.JSX.Element {
     setSelected(target);
   }, []);
   const endHandoff = useCallback(() => setHandoff(null), []);
+
+  // A brand-new player's first minute: the moment the welcome walkthrough
+  // ends, their first puzzle (always an easy one) opens - straight into
+  // play, a first win and a first reward, rather than a Home screen to
+  // work out. Only on the transition, so a returning player is never
+  // pulled into a puzzle on launch.
+  const introSeenBefore = useRef<boolean | null>(null);
+  useEffect(() => {
+    if (!progressReady) return;
+    const wasSeen = introSeenBefore.current;
+    introSeenBefore.current = progress.introSeen;
+    if (wasSeen === false && progress.introSeen && Object.keys(progress.levels).length === 0) {
+      const { entry } = getLevelPoint(progress);
+      openFromHome({ kind: entry.kind, puzzleId: entry.puzzleId });
+    }
+  }, [progressReady, progress, openFromHome]);
 
   // tessera://daily - the home-screen widget's tap - opens today's Daily,
   // whether it launched the app or found it already running.
@@ -414,6 +429,16 @@ function AppRoutes(): React.JSX.Element {
     }
   }
 
+  // A game the player has never learned opens on its lesson: a route of
+  // its own, so once it is done the puzzle mounts fresh, entrance and all.
+  // (Shown inside the puzzle's screen instead, the screen's entrance ran
+  // while hidden and the puzzle came up blank.)
+  const lessonKind = selected && settingsReady && routeKey !== 'home' && !settings.seenTutorials.includes(tutorialIdForGame(selected.kind)) ? selected.kind : null;
+  if (lessonKind) {
+    screen = <GameLesson kind={lessonKind} onDone={() => markTutorialSeen(tutorialIdForGame(lessonKind))} />;
+    routeKey = `lesson:${lessonKind}`;
+  }
+
   // Home is the root of this app, so "deeper" simply means "not Home".
   // Arriving at Home is therefore always a step back, and everything else
   // a step forward - which is exactly how the two read to a player, and
@@ -429,6 +454,11 @@ function AppRoutes(): React.JSX.Element {
         <React.Fragment key={scheme}>{screen}</React.Fragment>
       </ScreenTransition>
       {handoff && selected && <EmblemHandoff kind={handoff} onDone={endHandoff} />}
+      {/* The walkthrough, once, for a new player - after the launch mark,
+          and only over Home: never over a game, the shop, or the sign-in
+          screen (a sign-out or a reset makes the player new again while
+          they are still on the account screen). */}
+      {launched && progressReady && !progress.introSeen && routeKey === 'home' && <IntroWalkthrough key={scheme} onDone={markIntroSeen} />}
     </View>
   );
 }

@@ -1,8 +1,9 @@
-import { emptyProgress, PlayerProgress } from '../playerProgress';
+import { emptyProgress, PlayerProgress, recordCompletion } from '../playerProgress';
+import { endlessId } from '../../game/endlessId';
 import { dealtTierOf, generateBatch, replaceInBatch } from '../batches';
 import { errandsFor } from '../errands';
 import { LUCKY_CHARM_CHARGES, LUCKY_CHARM_PRICE, MAX_LUCKY_CHARGES, RETIRE_PRICES, buyLuckyCharm, reinstateGame, retireGame, retirePrice } from '../shop';
-import { GameKind } from '../../game/journey';
+import { GameKind, ROTATION } from '../../game/journey';
 
 function seeded(seed: number): () => number {
   let s = seed;
@@ -10,6 +11,11 @@ function seeded(seed: number): () => number {
     s = (s * 16807) % 2147483647;
     return s / 2147483647;
   };
+}
+
+/** A player every game has already reached, one generated board each. */
+function everyGame(): PlayerProgress {
+  return ROTATION.reduce((p, kind) => recordCompletion(p, endlessId(kind, 'medium', 900), 1, { two: 4, three: 2 }), emptyProgress());
 }
 
 describe('retiring a game', () => {
@@ -47,7 +53,7 @@ describe('retiring a game', () => {
 
 describe('swapping a puzzle', () => {
   test('replaces only the unfinished slots asked for, with another game at the same tier', () => {
-    const p = { ...emptyProgress(), retired: ['bloom'] as GameKind[] };
+    const p = { ...everyGame(), retired: ['bloom'] as GameKind[] };
     const batch = generateBatch(24, p, null, seeded(7));
     const done = batch.puzzles[0].puzzleId;
     const target = batch.puzzles[1];

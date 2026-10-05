@@ -272,7 +272,7 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.lg,
   },
   titlePerfect: {
-    color: theme.colors.accent,
+    color: theme.colors.accentText,
   },
   stars: {
     marginBottom: theme.spacing.md,

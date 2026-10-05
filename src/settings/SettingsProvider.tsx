@@ -20,6 +20,7 @@ import {
   withSoundEnabled,
   withMusicEnabled,
   withTutorialSeen,
+  withTutorialsCleared,
 } from './settings';
 import { loadSettings, saveSettings } from './settingsStore';
 
@@ -43,6 +44,8 @@ interface SettingsContextValue {
   /** Marks a one-time tutorial overlay as shown, so it never appears again. */
   markTutorialSeen(tutorialId: string): void;
   hasSeenTutorial(tutorialId: string): boolean;
+  /** Forgets every guide shown - for a reset or a sign out. */
+  resetTutorials(): void;
 }
 
 const SettingsContext = createContext<SettingsContextValue | null>(null);
@@ -175,6 +178,8 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
     [applyMutation],
   );
 
+  const resetTutorials = useCallback(() => applyMutation(withTutorialsCleared), [applyMutation]);
+
   const value = useMemo<SettingsContextValue>(
     () => ({
       settings,
@@ -187,8 +192,9 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
       setAppearance,
       markTutorialSeen,
       hasSeenTutorial: (tutorialId: string) => settings.seenTutorials.includes(tutorialId),
+      resetTutorials,
     }),
-    [settings, ready, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance, markTutorialSeen],
+    [settings, ready, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance, markTutorialSeen, resetTutorials],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

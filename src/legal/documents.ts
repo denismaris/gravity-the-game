@@ -15,7 +15,7 @@ export const LEGAL = {
   email: 'marisdenis3333@gmail.com',
   /** Where the Supabase project's servers are (Dashboard > Project
    * Settings > General), e.g. 'Frankfurt, Germany'. */
-  dataRegion: 'Arad, Romania',
+  dataRegion: '',
   updated: '4 October 2026',
 };
 

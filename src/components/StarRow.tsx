@@ -123,7 +123,7 @@ const styles = themedStyles(() => ({
     marginHorizontal: 1.5,
   },
   earned: {
-    color: theme.colors.accent,
+    color: theme.colors.accentText,
   },
   empty: {
     color: theme.colors.border,

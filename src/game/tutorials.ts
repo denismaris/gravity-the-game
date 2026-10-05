@@ -427,7 +427,7 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
     body: 'Tap a square to cycle it: a square shape, a circle, then empty. Never three of the same side by side, and every row and column splits evenly between the two shapes.',
   },
   arukone: {
-    title: 'Arukone+',
+    title: 'Twinpath',
     body: 'Drag from a number to its twin to join them, routing around the blocked squares. The board is folded down the middle: draw one side and the other side draws itself. Join every pair without two paths crossing, and fill every square, to solve it.',
   },
   fillapix: {

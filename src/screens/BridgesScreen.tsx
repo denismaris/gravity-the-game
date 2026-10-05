@@ -40,7 +40,7 @@ import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
-import { InsightCount, useInsightPower } from '../components/InsightPower';
+import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { UNDO_COST } from '../progression/coins';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { buildDurationMs, buildTimeAt } from '../components/bridgesMotion';
@@ -49,7 +49,7 @@ const TUTORIAL_ID = tutorialIdForGame('bridges');
 const ICON_SIZE = 14;
 const RESERVED = 300;
 const STAGE_H_PADDING = theme.spacing.sm;
-const HINT_FLASH_MS = 520;
+const HINT_FLASH_MS = 1500;
 /** When a laid bridge reaches its shore - the board's build eases out, so
  * the bridge is all but down at 80% of its time; the island dips, and its
  * "island met" tap lands, right there. */
@@ -62,17 +62,6 @@ function HelpIcon(): React.JSX.Element {
       <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
       <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
       <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
-    </Canvas>
-  );
-}
-
-function HintIcon(): React.JSX.Element {
-  return (
-    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Circle cx={7} cy={5.8} r={4.3} color={gameAccent()} style="stroke" strokeWidth={1.4} />
-      <Path path="M 5.4 9.4 L 8.6 9.4" color={gameAccent()} style="stroke" strokeWidth={1.3} />
-      <Path path="M 5.7 11.2 L 8.3 11.2" color={gameAccent()} style="stroke" strokeWidth={1.3} />
-      <Path path="M 6.3 12.6 L 7.7 12.6" color={gameAccent()} style="stroke" strokeWidth={1.1} />
     </Canvas>
   );
 }
@@ -137,12 +126,9 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
   const controlsIn = useStageEntrance(110);
   const { width, height } = useWindowDimensions();
   const { progress, recordCompletion } = usePlayerProgress();
-  const { ready: settingsReady, hasSeenTutorial, markTutorialSeen } = useSettings();
+  const { markTutorialSeen } = useSettings();
 
   const [showTutorial, setShowTutorial] = useState(false);
-  useEffect(() => {
-    if (settingsReady && !hasSeenTutorial(TUTORIAL_ID)) setShowTutorial(true);
-  }, [settingsReady, hasSeenTutorial]);
   const dismissTutorial = useCallback(() => {
     markTutorialSeen(TUTORIAL_ID);
     setShowTutorial(false);
@@ -329,6 +315,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
 
   const boardSize = Math.max(0, Math.min(width - theme.spacing.lg * 2 - STAGE_H_PADDING * 2, height - insets.top - insets.bottom - RESERVED));
 
+
   return (
     <View style={styles.container}>
       <PageBloom />
@@ -352,7 +339,6 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
           <GeometricRule variant="stage" style={styles.stageRule} />
-          {note && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('bridges')} onGone={clearNote} />}
           <BridgesBoard
             puzzle={puzzle}
             state={state}
@@ -369,12 +355,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
-          <PressableScale accessibilityRole="button" accessibilityLabel={`Insight: reveal the next move, ${insight.count} left`} onPress={useHint} style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}>
-            <HintIcon />
-            <Text style={styles.pillText}>Insight</Text>
-
-            <InsightCount count={insight.count} />
-          </PressableScale>
+          <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
           <PressableScale accessibilityRole="button" accessibilityLabel="Undo last move" onPress={undo} style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}>
             <UndoIcon />
@@ -387,6 +368,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
           </PressableScale>
         </Animated.View>
         <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
+        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('bridges')} onGone={clearNote} />}
       </View>
 
       {showSolvedCard && stars && (
@@ -406,9 +388,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
         <LevelSetComplete levelNumber={finishedSetRef.current.levelNumber} kinds={finishedSetRef.current.puzzles.map(p => p.kind)} onContinue={goNext} />
       )}
 
-      {showTutorial && (
-        <MechanicsCarousel slides={BRIDGES_MECHANICS_SLIDES} renderIllustration={renderBridgesIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('bridges')} />
-      )}
+      {showTutorial && <MechanicsCarousel slides={BRIDGES_MECHANICS_SLIDES} renderIllustration={renderBridgesIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('bridges')} />}
     </View>
   );
 }

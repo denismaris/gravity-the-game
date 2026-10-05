@@ -244,7 +244,7 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
           {totals.waiting > 0 && <Text style={[styles.sectionTitle, styles.sectionLive]}>{`${totals.waiting} TO CLAIM`}</Text>}
         </View>
         <Text style={styles.albumNote}>
-          {`A stamp for ${STAMP_STEPS.slice(0, -1).join(', ')} and ${STAMP_STEPS[STAMP_STEPS.length - 1]} solves in each game - each one pays when you claim it.`}
+          {`A stamp for ${STAMP_STEPS.slice(0, -1).join(', ')} and ${STAMP_STEPS[STAMP_STEPS.length - 1]} solves in each game. Each one pays when you claim it.`}
         </Text>
         {/* Deliberately not animated in: twelve canvases mounting inside a
             fade is the pattern that has failed to paint on a real phone. */}
