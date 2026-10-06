@@ -32,8 +32,7 @@ const WELL_GAP = 1.5;
 export const TILE_SCALE = 0.72;
 /**
  * The tile's extruded side face: a darker copy of its own glaze, pushed
- * down-right toward the same upper-left light every board here shades
- * from.
+ * straight down, as if lit from above.
  *
  * This replaced a translucent drop shadow *plus* a lighter band across
  * the tile's top third, and both of those were the wrong register by
@@ -262,13 +261,13 @@ function Tile({ colour, x, y, cell, scale = 1, opacity = 1, highlighted = false 
 
   return (
     <Group opacity={opacity}>
-      {/* A solid block, the same way Mosaic's tesserae are drawn: a flat
-          shadow on the well, then its thickness showing as a lighter
-          right face and a darker bottom face - lit from the top-left -
-          then the glazed top. Geometry only, no gradient. */}
-      <RoundedRect x={left + offset * 1.2} y={top + offset * 2} width={size} height={size} r={radius} color={inkWash(0.14)} />
-      <RoundedRect x={left + offset * 0.55} y={top + offset * 0.4} width={size} height={size} r={radius} color={shade(base, 0.76)} />
-      <RoundedRect x={left + offset * 0.25} y={top + offset} width={size} height={size} r={radius} color={shade(base, SIDE_FACE_SHADE)} />
+      {/* A solid block, the same way Mosaic's tesserae are drawn: a soft
+          shadow on the well, then its thickness as one darker face
+          straight below - lit from above - then the glazed top. Geometry
+          only, no gradient. (The face used to lean right as well, which
+          read as a skewed tile.) */}
+      <RoundedRect x={left} y={top + offset * 1.9} width={size} height={size} r={radius} color={inkWash(0.14)} />
+      <RoundedRect x={left} y={top + offset} width={size} height={size} r={radius} color={shade(base, SIDE_FACE_SHADE)} />
       {/* The top face - flat, matte, one colour. */}
       <RoundedRect x={left} y={top} width={size} height={size} r={radius} color={face} />
       <TileGlyph colour={colour} cx={left + size / 2} cy={top + size / 2} r={size * 0.26} />
@@ -289,7 +288,7 @@ function Tile({ colour, x, y, cell, scale = 1, opacity = 1, highlighted = false 
 }
 
 /**
- * The tray itself - panel, lit edge, inner rule and accent rim.
+ * The tray itself - panel, inner rule and accent rim.
  *
  * Memoized on its own size, which is the only thing it depends on.
  * Without this the gradient and all four strokes were rebuilt on every
@@ -307,13 +306,6 @@ const TrayChrome = React.memo(function TrayChromeImpl({ width, height }: { width
           positions={[0, 0.55, 1]}
         />
       </RoundedRect>
-      <Path
-        path={`M 1.5 ${height - 12} L 1.5 12 Q 1.5 1.5 12 1.5 L ${width - 12} 1.5`}
-        color="rgba(255,255,255,0.9)"
-        style="stroke"
-        strokeWidth={1.5}
-        strokeCap="round"
-      />
       <RoundedRect x={2.5} y={2.5} width={width - 5} height={height - 5} r={10} color={inkWash(0.16)} style="stroke" strokeWidth={1} />
     </Group>
   );
@@ -509,10 +501,9 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
   return (
     <Group>
       {/* The tray, given the same panel treatment Binairo's board uses -
-          a near-neutral paper sheen, a white inner highlight along the
-          lit edges, a dark inner rule, then this game's own accent rim.
-          Four strokes is what makes a rectangle read as a made object
-          rather than a filled shape. */}
+          a near-neutral paper sheen, a dark inner rule, then this game's
+          own accent rim. (A white highlight along the lit edges read as
+          stray white stripes beside the rim, and is gone.) */}
       <TrayChrome width={width} height={height} />
 
       <StaticTiles layout={layout} grid={state.grid} activeKeys={activeKeys} previewKeys={previewKeys} />

@@ -53,7 +53,7 @@ export const LESSON_GUIDES: Record<GameKind, LessonGuide> = {
     recap: [
       'Fill every square with a square or a circle.',
       'Never three of the same in a row, across or down.',
-      'Every row and column holds as many of each, and no two are alike.',
+      'Every row and column holds as many circles as squares.',
     ],
   },
   tents: {
@@ -137,9 +137,6 @@ export const LESSON_GUIDES: Record<GameKind, LessonGuide> = {
     ],
   },
 };
-
-/** The verb on the lesson's opening card: "You play by tapping". */
-export const GESTURE_VERB: Record<LessonGesture, string> = { tap: 'tapping', swipe: 'swiping', drag: 'dragging' };
 
 /** The guide for the lesson on screen, provided by `GameLesson`. */
 export const LessonGuideContext = createContext<LessonGuide | null>(null);

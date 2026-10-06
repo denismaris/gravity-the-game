@@ -77,9 +77,8 @@ export interface TesseraeProps {
 /**
  * One piece, tile by tile, as solid blocks of glass. Depth is geometry
  * only - never a gradient, never a highlight line (this app's rule, learned
- * the hard way): a raised tile shows two faces of its thickness, a lighter
- * right face and a darker bottom face, as if lit from the top-left; a set
- * tile shows the wall of the socket it sits down in instead.
+ * the hard way): a raised tile shows its thickness as one darker face
+ * straight below, as if lit from above.
  */
 export function Tesserae({ cells, color, cellSize, seed, opacity = 1, set = false, shadow = false, part = 'all' }: TesseraeProps): React.JSX.Element {
   const gap = cellSize * GROUT_GAP;
@@ -87,7 +86,6 @@ export function Tesserae({ cells, color, cellSize, seed, opacity = 1, set = fals
   const r = size * 0.2;
 
   const depth = Math.max(2, cellSize * TILE_DEPTH);
-  const right = shade(color, 0.74);
   const bottom = shade(color, 0.55);
   const show = (layer: 'shadow' | 'sides' | 'tops') => part === 'all' || part === layer;
   return (
@@ -97,7 +95,7 @@ export function Tesserae({ cells, color, cellSize, seed, opacity = 1, set = fals
         cells.map(c => (
           <RoundedRect
             key={`g-${c.row}-${c.col}`}
-            x={c.col * cellSize + gap + depth * 1.1}
+            x={c.col * cellSize + gap}
             y={c.row * cellSize + gap + depth * 1.9}
             width={size}
             height={size}
@@ -105,13 +103,11 @@ export function Tesserae({ cells, color, cellSize, seed, opacity = 1, set = fals
             color={inkWash(0.16)}
           />
         ))}
+      {/* Its thickness: one darker face straight below. A right-hand face
+          as well made every tile lean, and the board read as skewed. */}
       {show('sides') &&
         cells.map(c => (
-        <RoundedRect key={`r-${c.row}-${c.col}`} x={c.col * cellSize + gap + depth * 0.5} y={c.row * cellSize + gap + depth * 0.35} width={size} height={size} r={r} color={right} />
-      ))}
-      {show('sides') &&
-        cells.map(c => (
-        <RoundedRect key={`b-${c.row}-${c.col}`} x={c.col * cellSize + gap + depth * 0.25} y={c.row * cellSize + gap + depth} width={size} height={size} r={r} color={bottom} />
+        <RoundedRect key={`b-${c.row}-${c.col}`} x={c.col * cellSize + gap} y={c.row * cellSize + gap + depth} width={size} height={size} r={r} color={bottom} />
       ))}
       {show('tops') &&
         cells.map(c => (

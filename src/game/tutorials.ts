@@ -66,12 +66,6 @@ export const BINAIRO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     tip: "Count as you go: once a line has half of one shape, every empty square left in it is the other.",
   },
   {
-    title: 'No repeats',
-    body: "No two rows may end up exactly the same, and no two columns either.",
-    illustration: 'duplicate',
-    tip: "Near the end, compare a nearly full line with a finished one. If they would match, the last squares go the other way.",
-  },
-  {
     title: 'Equal badges',
     body: "An = sign between two squares means they hold the same shape.",
     illustration: 'equal',

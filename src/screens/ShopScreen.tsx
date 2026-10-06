@@ -394,6 +394,9 @@ function phaseOf(id: string, span: number): number {
 function Shimmer({ seed, strength }: { seed: string; strength: number }): React.JSX.Element | null {
   const reduced = useReducedMotion();
   const sweep = useRef(new Animated.Value(0)).current;
+  // The card's own width: a fixed travel stopped short on a wide card, so
+  // the band froze near the right edge and blinked out.
+  const [width, setWidth] = useState(300);
   useEffect(() => {
     if (reduced) return;
     const loop = Animated.loop(
@@ -411,11 +414,15 @@ function Shimmer({ seed, strength }: { seed: string; strength: number }): React.
   }, [sweep, seed, reduced]);
   if (reduced) return null;
   return (
-    <View style={styles.shimmerClip} pointerEvents="none">
+    <View style={styles.shimmerClip} pointerEvents="none" onLayout={event => setWidth(event.nativeEvent.layout.width)}>
       <Animated.View
         style={[
           styles.shimmer,
-          { opacity: strength, transform: [{ rotate: '20deg' }, { translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [-160, 260] }) }] },
+          {
+            // In and out softly at the edges, and right off the far side.
+            opacity: sweep.interpolate({ inputRange: [0, 0.15, 0.85, 1], outputRange: [0, strength, strength, 0] }),
+            transform: [{ rotate: '20deg' }, { translateX: sweep.interpolate({ inputRange: [0, 1], outputRange: [-120, width + 80] }) }],
+          },
         ]}
       />
     </View>

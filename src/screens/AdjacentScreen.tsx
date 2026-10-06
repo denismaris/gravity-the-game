@@ -15,14 +15,12 @@ import {
   initialAdjacentState,
   isAdjacentSolved,
   isAdjacentStuck,
-  tileCount,
 } from '../game/adjacent';
 import {
   AdjacentAnimation,
   AdjacentBoard,
   AdjacentPopup,
   DifficultyChip,
-  GeometricRule,
   LevelFailedCard,
   LevelSetComplete,
   MechanicsCarousel,
@@ -39,12 +37,13 @@ import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
-import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
+import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { HintNote } from '../components/HintNote';
 import { HintKind } from '../game/hints';
 import { UNDO_COST } from '../progression/coins';
 import { useStageEntrance } from '../components/useStageEntrance';
+import { HelpHalo } from '../components/HelpHalo';
 
 const TUTORIAL_ID = tutorialIdForGame('adjacent');
 const ICON_SIZE = 14;
@@ -346,6 +345,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
           hitSlop={8}
           containerStyle={styles.headerRightSpacer}
         >
+          <HelpHalo />
           <HelpIcon />
         </PressableScale>
       </View>
@@ -353,7 +353,6 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <GeometricRule variant="stage" style={styles.stageRule} />
           <AdjacentBoard
             puzzle={puzzle}
             state={state}
@@ -378,20 +377,21 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
             accessibilityLabel={`Undo the last clear, ${undosLeft} of ${MAX_UNDOS} left`}
             accessibilityState={{ disabled: !canUndo }}
             onPress={undo}
-            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed, !canUndo && styles.pillDisabled]}
+            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed, !canUndo && styles.pillDisabled]}
           >
             <UndoIcon muted={!canUndo} />
-            <Text style={[styles.pillText, !canUndo && styles.pillTextDisabled]}>Undo {undosLeft}</Text>
-            <CoinCost cost={UNDO_COST} muted={!canUndo} />
+            {/* Undos left, as a small count on the key. */}
+            <View style={[styles.keyBadge, !canUndo && styles.keyBadgeMuted]}>
+              <Text style={[styles.keyBadgeText, !canUndo && styles.keyBadgeTextMuted]}>{undosLeft}</Text>
+            </View>
           </PressableScale>
           <PressableScale
             accessibilityRole="button"
             accessibilityLabel="Restart puzzle"
             onPress={restart}
-            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}
           >
             <RestartIcon />
-            <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
@@ -402,15 +402,14 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
         {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('adjacent')} onGone={clearNote} />}
       </View>
 
-      {showSolvedCard && stars && (
+      {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved
           kind="adjacent"
           stars={stars}
           hintsUsed={undosUsed}
           coinsEarned={coinsEarned}
-          note={`${state.score} points · ${state.cascades} cascade${state.cascades === 1 ? '' : 's'}${
-            tileCount(state.grid) === 0 ? ' · tray cleared' : ''
-          }`}
+          note={state.score.toLocaleString('en-US')}
+          noteLabel="POINTS"
           onReplay={restart}
           onDone={onExit}
           hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
@@ -570,9 +569,6 @@ const styles = themedStyles(() => ({
     alignItems: 'center',
     justifyContent: 'flex-start',
   },
-  stageRule: {
-    marginBottom: theme.spacing.sm,
-  },
   stage: {
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
@@ -614,4 +610,11 @@ const styles = themedStyles(() => ({
   },
   pillTextDisabled: { color: theme.colors.textTertiary },
   quiet: { opacity: 0 },
+  keyBadge: { position: 'absolute', top: -4, right: -4, minWidth: 18, height: 18, borderRadius: 9, paddingHorizontal: 4, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.secondary },
+  keyBadgeMuted: { backgroundColor: theme.colors.borderStrong },
+  keyBadgeTextMuted: { color: theme.colors.textPrimary },
+  keyBadgeText: { fontSize: 11, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
+  // Restart (and Undo, where a game has one) as a round icon key beside
+  // the one labelled button, Insight - the same row on every game.
+  roundKey: { width: 46, height: 46, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
 }));

@@ -202,22 +202,6 @@ function firstBlank(puzzle: BinairoPuzzle, grid: WorkingGrid): BinairoCell | nul
   return null;
 }
 
-function rowKey(row: ReadonlyArray<BinairoValue>): string {
-  return row.join(',');
-}
-
-/** Whether `grid[row]` (now fully decided) repeats any earlier-decided
- * row - the "the moment a row completes" staged check, timed exactly like
- * `solveTowers`' row-clue check. Columns only ever complete once the whole
- * grid does, so they're checked once, at the end, via `isBinairoSolved`. */
-function rowIsUniqueSoFar(grid: WorkingGrid, row: number): boolean {
-  const key = rowKey(grid[row]);
-  for (let r = 0; r < row; r += 1) {
-    if (rowKey(grid[r]) === key) return false;
-  }
-  return true;
-}
-
 /**
  * Searches for up to `limit` valid grids (pass 2 to check for ambiguity,
  * mirroring `solveTowers`/`solveMirrorMaze`'s `limit` parameter). Branches
@@ -246,12 +230,6 @@ export function solveBinairo(puzzle: BinairoPuzzle, limit = 1): ReadonlyArray<Bi
 
     for (const value of [0, 1] as const) {
       grid[next.row][next.col] = value;
-      const rowComplete = grid[next.row].every(v => v !== null);
-      if (rowComplete && !rowIsUniqueSoFar(grid, next.row)) {
-        grid[next.row][next.col] = null;
-        continue;
-      }
-
       dfs(grid);
       grid[next.row][next.col] = null;
       if (solutions.length >= limit) return;

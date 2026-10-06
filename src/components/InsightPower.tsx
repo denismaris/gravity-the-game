@@ -1,5 +1,6 @@
 import React, { useCallback, useState } from 'react';
 import { Modal, Text, View } from 'react-native';
+import Reanimated, { Easing as ReEasing, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { coinVideosLeft, watchRewardedVideo } from '../ads';
 import { triggerFeedback } from '../game/rendering';
@@ -8,6 +9,9 @@ import { HINT_COST, INSIGHTS_PER_VIDEO } from '../progression/coins';
 import { theme, themedStyles } from '../theme';
 import { CoinGlyph, useCoinPurchase } from './Coins';
 import { PressableScale } from './PressableScale';
+
+/** The sheet rises from the foot of the screen as its backdrop fades in. */
+const SHEET_IN = SlideInDown.duration(320).easing(ReEasing.out(ReEasing.cubic));
 
 /**
  * Insight, the superpower every game shares: one charge reveals the next
@@ -22,7 +26,7 @@ import { PressableScale } from './PressableScale';
  *   <InsightCount count={insight.count} />  // on the button
  *   {insight.sheet}                        // anywhere in the tree
  */
-export function useInsightPower(): { count: number; spend: (apply: () => void) => void; sheet: React.JSX.Element | null } {
+export function useInsightPower(): { count: number; spend: (apply: () => void) => void; sheet: React.JSX.Element } {
   const { progress, spendInsightCharge, addInsights } = usePlayerProgress();
   const [pending, setPending] = useState<(() => void) | null>(null);
 
@@ -39,20 +43,23 @@ export function useInsightPower(): { count: number; spend: (apply: () => void) =
   );
 
   const close = useCallback(() => setPending(null), []);
-  const sheet = pending ? (
+  // Always mounted, shown by \`visible\`: removed outright, it vanished on
+  // the spot instead of fading away.
+  const sheet = (
     <InsightSheet
+      visible={pending !== null}
       onClose={close}
       onEarned={() => {
         addInsights(INSIGHTS_PER_VIDEO);
-        if (spendInsightCharge()) pending();
+        if (spendInsightCharge()) pending?.();
         setPending(null);
       }}
       onPaid={() => {
-        pending();
+        pending?.();
         setPending(null);
       }}
     />
-  ) : null;
+  );
 
   return { count: progress.insights, spend, sheet };
 }
@@ -66,15 +73,17 @@ export function InsightCount({ count }: { count: number }): React.JSX.Element {
   );
 }
 
-function InsightSheet({ onClose, onEarned, onPaid }: { onClose: () => void; onEarned: () => void; onPaid: () => void }): React.JSX.Element {
+function InsightSheet({ visible, onClose, onEarned, onPaid }: { visible: boolean; onClose: () => void; onEarned: () => void; onPaid: () => void }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { coins, buy } = useCoinPurchase();
   const [watching, setWatching] = useState(false);
   const [missed, setMissed] = useState(false);
   const [left, setLeft] = useState<number | null>(null);
   React.useEffect(() => {
+    if (!visible) return;
+    setMissed(false);
     coinVideosLeft().then(setLeft);
-  }, []);
+  }, [visible]);
 
   const watch = async () => {
     if (watching || left === 0) return;
@@ -92,12 +101,12 @@ function InsightSheet({ onClose, onEarned, onPaid }: { onClose: () => void; onEa
   const affordable = coins >= HINT_COST;
 
   return (
-    <Modal transparent animationType="slide" onRequestClose={onClose} statusBarTranslucent>
+    <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.layer}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} feedback={false} scaleTo={1} containerStyle={styles.scrim}>
           <View style={styles.scrimFill} />
         </PressableScale>
-        <View style={[styles.sheet, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
+        <Reanimated.View entering={SHEET_IN} style={[styles.sheet, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
           <View style={styles.grabber} />
           <View style={styles.mark}>
             <InsightMark />
@@ -143,7 +152,7 @@ function InsightSheet({ onClose, onEarned, onPaid }: { onClose: () => void; onEa
           <PressableScale accessibilityRole="button" accessibilityLabel="Not now" onPress={onClose} hitSlop={8} containerStyle={styles.notNow}>
             <Text style={styles.notNowText}>Not now</Text>
           </PressableScale>
-        </View>
+        </Reanimated.View>
       </View>
     </Modal>
   );

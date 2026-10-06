@@ -3,6 +3,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { PressableScale } from './PressableScale';
 import { TutorialCopy } from '../game/tutorials';
 import { motion, theme, themedStyles } from '../theme';
+import { ModalLayer } from './ModalLayer';
 
 export interface TutorialOverlayProps {
   copy: TutorialCopy;
@@ -47,21 +48,23 @@ export function TutorialOverlay({
   });
 
   return (
-    <View style={styles.overlay}>
-      <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
-        <Text style={[styles.eyebrow, { color: accentColor }]}>HOW TO PLAY</Text>
-        <Text style={styles.title}>{copy.title}</Text>
-        <Text style={styles.body}>{copy.body}</Text>
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="Got it"
-          onPress={onDismiss}
-          style={({ pressed }) => [styles.button, pressed && styles.pressed]}
-        >
-          <Text style={styles.buttonLabel}>Got it</Text>
-        </PressableScale>
-      </Animated.View>
-    </View>
+    <ModalLayer zIndex={10}>
+      <View style={styles.overlay}>
+        <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
+          <Text style={[styles.eyebrow, { color: accentColor }]}>HOW TO PLAY</Text>
+          <Text style={styles.title}>{copy.title}</Text>
+          <Text style={styles.body}>{copy.body}</Text>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel="Got it"
+            onPress={onDismiss}
+            style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+          >
+            <Text style={styles.buttonLabel}>Got it</Text>
+          </PressableScale>
+        </Animated.View>
+      </View>
+    </ModalLayer>
   );
 }
 

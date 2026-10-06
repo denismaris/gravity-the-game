@@ -21,7 +21,7 @@ import {
   setValue,
 } from '../game/binairo';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
-import { BinairoBoard, DifficultyChip, GeometricRule, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, renderBinairoIllustration, useSolveCelebration } from '../components';
+import { BinairoBoard, DifficultyChip, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, renderBinairoIllustration, useSolveCelebration } from '../components';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
 import { BINAIRO_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
@@ -32,6 +32,7 @@ import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
+import { HelpHalo } from '../components/HelpHalo';
 
 const TUTORIAL_ID = tutorialIdForGame('binairo');
 /** Matches the board's own delay before it shows a mistake. */
@@ -64,7 +65,7 @@ const TRACK_WIDTH = 140;
  * the board's ripple-celebration duration, so the popup doesn't cut the
  * wave off mid-flight. Completion is still recorded and the solve sound
  * still fires immediately on detection - only the popup itself waits. */
-const POPUP_DELAY_MS = 650;
+const POPUP_DELAY_MS = 1100;
 
 /** A circular restart arrow: a 270-degree open ring plus a small
  * arrowhead tangent to its open end, continuing the arc's own rotation -
@@ -330,6 +331,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
           hitSlop={8}
           containerStyle={styles.headerRightSpacer}
         >
+          <HelpHalo />
           <HelpIcon />
         </PressableScale>
       </View>
@@ -337,7 +339,6 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <GeometricRule variant="stage" style={styles.stageRule} />
           <BinairoBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} introKey={introKey} />
         </Animated.View>
 
@@ -365,10 +366,9 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
             accessibilityRole="button"
             accessibilityLabel="Restart puzzle"
             onPress={restart}
-            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}
           >
             <RestartIcon />
-            <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
@@ -380,7 +380,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
       </View>
 
 
-      {showSolvedCard && stars && (
+      {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved
           kind="binairo"
           stars={stars}
@@ -537,25 +537,6 @@ const styles = themedStyles(() => ({
     alignItems: 'center',
     justifyContent: 'flex-start',
   },
-  // The board's own plinth: a snug groove the tray sits inside, not a
-  // second tinted card behind it - the tray (drawn by `BinairoBoardView`'s
-  // own `renderTray`) already carries its own fill, border and shadow, so
-  // a filled plinth here used to stack a second box around the first,
-  // reading as nested frames rather than one confident surface. No fill
-  // now, just the page's own background showing through; the lighter top
-  // edge/deeper bottom edge (light grazing the near lip of a shallow
-  // recess from above) is the one remaining cue that this is a considered
-  // well the board rests in, not arbitrary padding - and that groove has
-  // to actually hug the board to read as one surface, so its own vertical
-  // padding stays modest (not the generous `xxl` this used when it was
-  // filling otherwise-empty centred space). Horizontal padding stays
-  // tight regardless - every point there is a point the board itself
-  // loses, see `STAGE_H_PADDING`.
-  /** The signature rule standing in for the stage's old plain top
-   * hairline - same job, carrying the app's own mark. */
-  stageRule: {
-    marginBottom: theme.spacing.sm,
-  },
   stage: {
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
@@ -626,4 +607,7 @@ const styles = themedStyles(() => ({
     fontWeight: theme.typography.weights.semibold,
   },
   quiet: { opacity: 0 },
+  // Restart (and Undo, where a game has one) as a round icon key beside
+  // the one labelled button, Insight - the same row on every game.
+  roundKey: { width: 46, height: 46, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
 }));

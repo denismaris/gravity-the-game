@@ -33,25 +33,15 @@ interface GridStep<P, S> extends LessonStepCopy {
  */
 function useGridLesson<P, S>(first: { puzzle: P; state: S }, steps: ReadonlyArray<GridStep<P, S>>, apply: (puzzle: P, state: S, row: number, col: number) => S) {
   const [board, setBoard] = useState(first);
-  const [stepIndex, setStepIndex] = useState(0);
-  // The demo: the step's own taps, played from the board as it stands,
-  // until its goal is met. Cheap - a handful of taps on a tiny board.
-  const demo = demoTaps(board, steps[stepIndex], apply);
-  const flow = useLessonFlow(
-    steps.length,
-    i => {
-      setStepIndex(i);
-      const fresh = steps[i].board;
-      if (fresh) setBoard(fresh);
-    },
-    demo.length,
-  );
+  const flow = useLessonFlow(steps.length, i => {
+    const fresh = steps[i].board;
+    if (fresh) setBoard(fresh);
+  });
   const step = steps[flow.index];
   const target = typeof step.target === 'function' ? step.target(board.state) : step.target;
-  // Steady while the player watches and acts: blinking it meant redrawing
+  // Steady while the player is meant to act: blinking it meant redrawing
   // the whole board twice a second.
-  const glow = (flow.phase === 'doing' || flow.phase === 'watch') && target !== null;
-  const shown = flow.demoFrame !== null && demo[flow.demoFrame] ? { ...board, state: demo[flow.demoFrame] } : board;
+  const glow = flow.phase === 'doing' && target !== null;
 
   const tap = useCallback(
     (row: number, col: number) => {
@@ -66,21 +56,7 @@ function useGridLesson<P, S>(first: { puzzle: P; state: S }, steps: ReadonlyArra
     },
     [flow, target, apply, board, step],
   );
-  return { board: shown, flow, tap, flash: glow ? target : null };
-}
-
-/** The boards a step's demo shows, one per tap, ending on its goal - or
- * none, when the step has no single square to show. */
-function demoTaps<P, S>(board: { puzzle: P; state: S }, step: GridStep<P, S>, apply: (puzzle: P, state: S, row: number, col: number) => S): S[] {
-  const frames: S[] = [];
-  let state = board.state;
-  for (let tap = 0; tap < 6 && !step.goal(state); tap += 1) {
-    const cell = typeof step.target === 'function' ? step.target(state) : step.target;
-    if (!cell) return [];
-    state = apply(board.puzzle, state, cell.row, cell.col);
-    frames.push(state);
-  }
-  return step.goal(state) ? frames : [];
+  return { board, flow, tap, flash: glow ? target : null };
 }
 
 // --- Twos ---------------------------------------------------------------------

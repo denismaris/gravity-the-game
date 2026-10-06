@@ -50,7 +50,7 @@ describe('Insight, the superpower', () => {
     expect(h.applied()).toBe(1);
     expect(h.api().progress.insights).toBe(1);
     expect(h.api().coins).toBe(100);
-    expect(h.power().sheet).toBeNull();
+    expect(h.power().sheet.props.visible).toBe(false);
     await act(async () => h.renderer.unmount());
   });
 
@@ -58,11 +58,11 @@ describe('Insight, the superpower', () => {
     const h = await mount({ insights: 0, coins: 100 });
     await h.use();
     expect(h.applied()).toBe(0);
-    expect(h.power().sheet).not.toBeNull();
+    expect(h.power().sheet.props.visible).toBe(true);
     await h.press(`Use ${HINT_COST} coins for one Insight`);
     expect(h.applied()).toBe(1);
     expect(h.api().coins).toBe(100 - HINT_COST);
-    expect(h.power().sheet).toBeNull();
+    expect(h.power().sheet.props.visible).toBe(false);
     await act(async () => h.renderer.unmount());
   });
 
@@ -72,7 +72,7 @@ describe('Insight, the superpower', () => {
     await h.press('Not now');
     expect(h.applied()).toBe(0);
     expect(h.api().coins).toBe(100);
-    expect(h.power().sheet).toBeNull();
+    expect(h.power().sheet.props.visible).toBe(false);
     await act(async () => h.renderer.unmount());
   });
 });

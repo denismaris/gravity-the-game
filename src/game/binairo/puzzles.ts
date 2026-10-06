@@ -14,27 +14,30 @@ type FullGrid = BinairoGrid;
  * themselves off. Sizes stop at 8x8 (10x10 was too much to hold on a phone
  * screen), and difficulty comes from how little is given:
  *
- * - easy: 6x6, ~45% given;
- * - medium: 6x6 at ~30% given (a small board that genuinely asks), and 8x8
- *   at ~42%;
- * - hard: 8x8 at ~30% given, with more \`=\`/\`x\` tiles.
+ * - easy: 6x6, at least half given;
+ * - medium: 6x6 at ~40% given, and 8x8 at ~47%;
+ * - hard: 8x8 at ~37% given, with more \`=\`/\`x\` tiles.
+ *
+ * Raised after play-testing found the sparser boards too hard and some
+ * of them open to two answers once the "no repeated lines" rule was
+ * dropped from play (see \`isBinairoSolved\`).
  *
  * Ids are frozen; the two hand-built mechanic debuts (#013 twin cells,
  * #014 count clues) follow below, unchanged.
  */
 const GENERATED: ReadonlyArray<readonly [string, string, PuzzleDifficulty, BinairoShape]> = [
-  ['binairo-001', 'Even Split', 'easy', { size: 6, givenShare: 0.45, constraints: 2 }],
-  ['binairo-002', 'Twin Ranks', 'easy', { size: 6, givenShare: 0.45, constraints: 2 }],
-  ['binairo-003', 'Mirror Rows', 'easy', { size: 6, givenShare: 0.44, constraints: 2 }],
-  ['binairo-004', 'Balanced Six', 'easy', { size: 6, givenShare: 0.42, constraints: 2 }],
-  ['binairo-005', 'Wide Grid', 'medium', { size: 6, givenShare: 0.3, constraints: 3 }],
-  ['binairo-006', 'Counterpoint', 'medium', { size: 6, givenShare: 0.3, constraints: 3 }],
-  ['binairo-007', 'Reflected Eight', 'medium', { size: 8, givenShare: 0.42, constraints: 4 }],
-  ['binairo-008', 'Grand Grid', 'hard', { size: 8, givenShare: 0.32, constraints: 5 }],
-  ['binairo-009', 'Full Balance', 'hard', { size: 8, givenShare: 0.3, constraints: 5 }],
-  ['binairo-010', 'Final Split', 'hard', { size: 8, givenShare: 0.3, constraints: 5 }],
-  ['binairo-011', 'Crossed Signals', 'hard', { size: 8, givenShare: 0.28, constraints: 6 }],
-  ['binairo-012', 'Final Signal', 'hard', { size: 8, givenShare: 0.28, constraints: 6 }],
+  ['binairo-001', 'Even Split', 'easy', { size: 6, givenShare: 0.54, constraints: 2 }],
+  ['binairo-002', 'Twin Ranks', 'easy', { size: 6, givenShare: 0.52, constraints: 2 }],
+  ['binairo-003', 'Mirror Rows', 'easy', { size: 6, givenShare: 0.5, constraints: 2 }],
+  ['binairo-004', 'Balanced Six', 'easy', { size: 6, givenShare: 0.5, constraints: 2 }],
+  ['binairo-005', 'Wide Grid', 'medium', { size: 6, givenShare: 0.42, constraints: 3 }],
+  ['binairo-006', 'Counterpoint', 'medium', { size: 6, givenShare: 0.4, constraints: 3 }],
+  ['binairo-007', 'Reflected Eight', 'medium', { size: 8, givenShare: 0.47, constraints: 4 }],
+  ['binairo-008', 'Grand Grid', 'hard', { size: 8, givenShare: 0.39, constraints: 5 }],
+  ['binairo-009', 'Full Balance', 'hard', { size: 8, givenShare: 0.38, constraints: 5 }],
+  ['binairo-010', 'Final Split', 'hard', { size: 8, givenShare: 0.37, constraints: 5 }],
+  ['binairo-011', 'Crossed Signals', 'hard', { size: 8, givenShare: 0.36, constraints: 6 }],
+  ['binairo-012', 'Final Signal', 'hard', { size: 8, givenShare: 0.36, constraints: 6 }],
 ];
 
 /** Builds the generated part of the pool, with each board's solution. Run
@@ -146,19 +149,19 @@ export function endlessBinairoShape(id: string, tier: PuzzleDifficulty): Binairo
   const seed = endlessSeed(id);
   const choices: Record<PuzzleDifficulty, ReadonlyArray<BinairoShape>> = {
     easy: [
-      { size: 6, givenShare: 0.46, constraints: 2 },
-      { size: 6, givenShare: 0.43, constraints: 2 },
-      { size: 6, givenShare: 0.4, constraints: 3 },
+      { size: 6, givenShare: 0.54, constraints: 2 },
+      { size: 6, givenShare: 0.52, constraints: 2 },
+      { size: 6, givenShare: 0.5, constraints: 3 },
     ],
     medium: [
-      { size: 6, givenShare: 0.3, constraints: 3 },
-      { size: 6, givenShare: 0.28, constraints: 4 },
-      { size: 8, givenShare: 0.4, constraints: 4 },
+      { size: 6, givenShare: 0.42, constraints: 3 },
+      { size: 6, givenShare: 0.4, constraints: 4 },
+      { size: 8, givenShare: 0.47, constraints: 4 },
     ],
     hard: [
-      { size: 8, givenShare: 0.31, constraints: 5 },
-      { size: 8, givenShare: 0.29, constraints: 6 },
-      { size: 8, givenShare: 0.27, constraints: 6 },
+      { size: 8, givenShare: 0.39, constraints: 5 },
+      { size: 8, givenShare: 0.37, constraints: 6 },
+      { size: 8, givenShare: 0.36, constraints: 6 },
     ],
   };
   return choices[tier][seed % 3];

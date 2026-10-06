@@ -18,7 +18,6 @@ import {
   explainLightsOutHint } from '../game/lightsout';
 import {
   DifficultyChip,
-  GeometricRule,
   LevelSetComplete,
   LightsOutBoard,
   MechanicsCarousel,
@@ -38,6 +37,7 @@ import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
+import { HelpHalo } from '../components/HelpHalo';
 
 const TUTORIAL_ID = tutorialIdForGame('lightsout');
 const ICON_SIZE = 14;
@@ -234,6 +234,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
           hitSlop={8}
           containerStyle={styles.headerRightSpacer}
         >
+          <HelpHalo />
           <HelpIcon />
         </PressableScale>
       </View>
@@ -241,7 +242,6 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <GeometricRule variant="stage" style={styles.stageRule} />
           <LightsOutBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onPressCell={onPressCell} flashCell={flashCell} />
         </Animated.View>
 
@@ -252,10 +252,9 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
             accessibilityRole="button"
             accessibilityLabel="Restart puzzle"
             onPress={restart}
-            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}
           >
             <RestartIcon />
-            <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
@@ -266,7 +265,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('lightsout')} onGone={clearNote} />}
       </View>
 
-      {showSolvedCard && stars && (
+      {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved
           kind="lightsout"
           stars={stars}
@@ -383,9 +382,6 @@ const styles = themedStyles(() => ({
     alignItems: 'center',
     justifyContent: 'flex-start',
   },
-  stageRule: {
-    marginBottom: theme.spacing.sm,
-  },
   stage: {
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
@@ -425,4 +421,7 @@ const styles = themedStyles(() => ({
     fontWeight: theme.typography.weights.semibold,
   },
   quiet: { opacity: 0 },
+  // Restart (and Undo, where a game has one) as a round icon key beside
+  // the one labelled button, Insight - the same row on every game.
+  roundKey: { width: 46, height: 46, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
 }));

@@ -37,6 +37,7 @@ import { ErrorBoundary, IntroWalkthrough, LaunchSequence, ScreenTransition } fro
 import { GameLesson } from './src/components/lessons';
 import { CollectionScreen } from './src/screens/CollectionScreen';
 import { FirstPuzzleCoach } from './src/components/lessons/FirstPuzzleCoach';
+import { FirstPuzzleContext } from './src/components/HelpHalo';
 import { tutorialIdForGame } from './src/game/tutorials';
 import { getLevelById } from './src/game/levels';
 import { getMirrorMazeById } from './src/game/mirror';
@@ -52,7 +53,7 @@ import { getMosaicById } from './src/game/mosaic';
 import { getBridgesById } from './src/game/bridges';
 import { GameKind, NextPuzzleOptions, getDailyEntry } from './src/game/journey';
 import { CalmingInterstitialScreen } from './src/interstitial';
-import { PlayerProgressProvider, gamesPlayed, getLevelPoint, isAdFree, notePuzzleOpened, usePlayerProgress } from './src/progression';
+import { PlayerProgressProvider, gamesPlayed, isAdFree, notePuzzleOpened, usePlayerProgress } from './src/progression';
 import { learnedTutorials } from './src/progression/learnedTutorials';
 import { AD_RULES, betweenSets, startAds } from './src/ads';
 import { AppearanceProvider, SettingsProvider, useAppearance, useHoldAppearance, useSettings } from './src/settings';
@@ -188,22 +189,6 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
     setSelected(target);
   }, []);
   const endHandoff = useCallback(() => setHandoff(null), []);
-
-  // A brand-new player's first minute: the moment the welcome walkthrough
-  // ends, their first puzzle (always an easy one) opens - straight into
-  // play, a first win and a first reward, rather than a Home screen to
-  // work out. Only on the transition, so a returning player is never
-  // pulled into a puzzle on launch.
-  const introSeenBefore = useRef<boolean | null>(null);
-  useEffect(() => {
-    if (!progressReady) return;
-    const wasSeen = introSeenBefore.current;
-    introSeenBefore.current = progress.introSeen;
-    if (wasSeen === false && progress.introSeen && Object.keys(progress.levels).length === 0) {
-      const { entry } = getLevelPoint(progress);
-      openFromHome({ kind: entry.kind, puzzleId: entry.puzzleId });
-    }
-  }, [progressReady, progress, openFromHome]);
 
   // tessera://daily - the home-screen widget's tap - opens today's Daily,
   // whether it launched the app or found it already running.
@@ -464,6 +449,8 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
     routeKey = `lesson:${lessonKind}`;
   }
 
+  const firstPuzzle = selected !== null && !lessonKind && routeKey !== 'home' && !playedKinds.has(selected.kind);
+
   // Home is the root of this app, so "deeper" simply means "not Home".
   // Arriving at Home is therefore always a step back, and everything else
   // a step forward - which is exactly how the two read to a player, and
@@ -476,12 +463,15 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
   return (
     <View style={styles.root}>
       <ScreenTransition routeKey={`${routeKey}@${scheme}`} direction={direction}>
-        <React.Fragment key={scheme}>{screen}</React.Fragment>
+        {/* A game's first real puzzle: its "?" breathes (see \`HelpHalo\`). */}
+        <FirstPuzzleContext.Provider value={firstPuzzle}>
+          <React.Fragment key={scheme}>{screen}</React.Fragment>
+        </FirstPuzzleContext.Provider>
       </ScreenTransition>
       {handoff && selected && <EmblemHandoff kind={handoff} onDone={endHandoff} />}
       {/* A game's first real board: its goal once more, and the free
           Insight its lesson left. */}
-      {selected && !lessonKind && routeKey !== 'home' && !playedKinds.has(selected.kind) && (
+      {firstPuzzle && selected && (
         <FirstPuzzleCoach key={selected.puzzleId} kind={selected.kind} gift={justLearned === selected.kind} />
       )}
       {/* The walkthrough, once, for a new player - after the launch mark,

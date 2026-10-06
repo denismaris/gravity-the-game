@@ -23,7 +23,6 @@ import {
 import {
   BridgesBoard,
   DifficultyChip,
-  GeometricRule,
   LevelSetComplete,
   MechanicsCarousel,
   PressableScale,
@@ -39,11 +38,12 @@ import { BRIDGES_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
-import { CoinBalance, CoinCost, useCoinPurchase } from '../components/Coins';
+import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { UNDO_COST } from '../progression/coins';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { buildDurationMs, buildTimeAt } from '../components/bridgesMotion';
+import { HelpHalo } from '../components/HelpHalo';
 
 const TUTORIAL_ID = tutorialIdForGame('bridges');
 const ICON_SIZE = 14;
@@ -331,6 +331,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
           <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale accessibilityRole="button" accessibilityLabel="How to play" onPress={reopenTutorial} hitSlop={8} containerStyle={styles.headerRightSpacer}>
+          <HelpHalo />
           <HelpIcon />
         </PressableScale>
       </View>
@@ -338,7 +339,6 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <GeometricRule variant="stage" style={styles.stageRule} />
           <BridgesBoard
             puzzle={puzzle}
             state={state}
@@ -357,14 +357,11 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
         <Animated.View style={[styles.controls, controlsIn]}>
           <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
-          <PressableScale accessibilityRole="button" accessibilityLabel="Undo last move" onPress={undo} style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Undo last move" accessibilityState={{ disabled: !canUndo }} onPress={undo} style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed, !canUndo && styles.keyIdle]}>
             <UndoIcon />
-            <Text style={styles.pillText}>Undo</Text>
-            <CoinCost cost={UNDO_COST} muted={!canUndo} />
           </PressableScale>
-          <PressableScale accessibilityRole="button" accessibilityLabel="Restart puzzle" onPress={restart} style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Restart puzzle" onPress={restart} style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}>
             <RestartIcon />
-            <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
@@ -375,7 +372,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
         {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('bridges')} onGone={clearNote} />}
       </View>
 
-      {showSolvedCard && stars && (
+      {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved
           kind="bridges"
           stars={stars}
@@ -488,9 +485,6 @@ const styles = themedStyles(() => ({
     alignItems: 'center',
     justifyContent: 'flex-start',
   },
-  stageRule: {
-    marginBottom: theme.spacing.sm,
-  },
   stage: {
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
@@ -530,4 +524,8 @@ const styles = themedStyles(() => ({
     fontWeight: theme.typography.weights.semibold,
   },
   quiet: { opacity: 0 },
+  // Undo and Restart as round icon keys beside the one labelled button,
+  // Insight - the same row on every game.
+  roundKey: { width: 46, height: 46, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
+  keyIdle: { opacity: 0.45 },
 }));

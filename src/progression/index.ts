@@ -25,7 +25,7 @@ export {
   saveProgress,
 } from './playerProgressStore';
 export type { BatchPuzzleRef, BatchState } from './batches';
-export { gamesPlayed, generateBatch, INTRO_ORDER, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from './batches';
+export { gamesPlayed, generateBatch, INTRO_ORDER, INTRO_SOLVES, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from './batches';
 export type { LevelPoint, LevelPointEntry, WorldLevelSummary, WorldSummary } from './worldProgress';
 export {
   getAllWorldSummaries,

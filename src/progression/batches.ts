@@ -135,13 +135,14 @@ const RECENT_PENALTY = 0.2;
 const FRESH_BONUS = 1.6;
 
 /**
- * Games arrive one at a time. A new player starts with Gravity alone; a
- * new game joins every `INTRO_EVERY` solved puzzles, in this order (from
- * the simplest to pick up to the most involved, alternating kinds of
- * play), until all twelve are in the mix. Each arrival is a small event:
- * it is dealt at once, opens with its lesson, and comes up often until its
- * first easy boards are done. Anyone who has already played a game keeps
- * it, whatever the count says, so no existing player loses a game.
+ * Games arrive one at a time. A new player starts with Gravity alone, and
+ * the next game in this order (from the simplest to pick up to the most
+ * involved, alternating kinds of play) arrives only once the newest one
+ * has `INTRO_SOLVES` puzzles solved - long enough to understand a game
+ * before meeting another. While a game is being learned it takes most of
+ * each set; the games before it keep turning up between its puzzles. Its
+ * arrival is a small event: dealt at once, opening on its lesson. Anyone
+ * who has already played a game keeps it, so no existing player loses one.
  */
 export const INTRO_ORDER: ReadonlyArray<GameKind> = [
   'gravity',
@@ -157,47 +158,46 @@ export const INTRO_ORDER: ReadonlyArray<GameKind> = [
   'towers',
   'arukone',
 ];
-export const INTRO_EVERY = 5;
-/** A new game's weight while it is still in its first easy boards. */
-const NEWCOMER_BOOST = 5;
+/** Puzzles of the newest game to solve before the next one arrives. */
+export const INTRO_SOLVES = 10;
+/** The game being learned's weight in the draw. */
+const NEWCOMER_BOOST = 6;
 
-function totalSolved(progress: PlayerProgress): number {
-  let total = 0;
-  for (const count of solvedPerGame(progress).values()) total += count;
-  return total;
+const NOTHING_PENDING: ReadonlyMap<GameKind, number> = new Map();
+
+/** The schedule, as this player stands on it: each game's solves (plus
+ * any `pending` - dealt into the set being built, not yet solved). */
+function schedule(progress: PlayerProgress, pending: ReadonlyMap<GameKind, number>) {
+  const solved = solvedPerGame(progress);
+  const order = INTRO_ORDER.filter(kind => !progress.retired.includes(kind));
+  const count = (kind: GameKind) => (solved.get(kind) ?? 0) + (pending.get(kind) ?? 0);
+  const played = (kind: GameKind) => (solved.get(kind) ?? 0) > 0;
+  // The frontier: the first game in the order not yet learned.
+  const frontier = order.findIndex(kind => count(kind) < INTRO_SOLVES);
+  return { order, count, played, frontier };
 }
 
 /**
- * The games this player has, in the order they arrived: every game they
- * have played, then the next ones in `INTRO_ORDER` up to the count their
- * solves have earned. `aheadBy` counts puzzles dealt but not yet solved
- * (the earlier slots of a set being built), so a game can arrive mid-set.
- * Retired games are never counted or dealt.
+ * The games this player has: every game up to and including the one being
+ * learned. Retired games are never counted or dealt.
  */
-export function unlockedGames(progress: PlayerProgress, aheadBy = 0): GameKind[] {
-  const solved = solvedPerGame(progress);
-  const order = INTRO_ORDER.filter(kind => !progress.retired.includes(kind));
-  const earned = earnedGames(progress, aheadBy);
-  const unlocked = order.filter(kind => (solved.get(kind) ?? 0) > 0);
-  for (const kind of order) {
-    if (unlocked.length >= earned) break;
-    if (!unlocked.includes(kind)) unlocked.push(kind);
-  }
-  return unlocked;
+export function unlockedGames(progress: PlayerProgress, pending: ReadonlyMap<GameKind, number> = NOTHING_PENDING): GameKind[] {
+  const { order, played, frontier } = schedule(progress, pending);
+  // A player already past the schedule - who has played games beyond the
+  // one it is waiting on (from before it existed) - has every game.
+  if (frontier === -1 || order.slice(frontier + 1).some(played)) return order;
+  return order.slice(0, frontier + 1);
 }
 
-function earnedGames(progress: PlayerProgress, aheadBy: number): number {
-  return 1 + Math.floor((totalSolved(progress) + aheadBy) / INTRO_EVERY);
-}
-
-/** The game that has just arrived on the schedule, while it is still in
- * its first easy boards - the one the dealer puts in the spotlight. None
- * for a player whose games came from playing them before (their roster is
- * ahead of the schedule, so nothing on it is new). */
-function spotlight(progress: PlayerProgress, unlocked: ReadonlyArray<GameKind>, aheadBy: number, played: (kind: GameKind) => number): GameKind | null {
-  if (unlocked.length > earnedGames(progress, aheadBy)) return null;
-  const newest = unlocked[unlocked.length - 1];
-  return newest && played(newest) < GAME_EASY_ONLY ? newest : null;
+/** The game being learned - the newest arrival, until it has its
+ * `INTRO_SOLVES` puzzles - which the dealer puts in the spotlight. None for
+ * a player who has already been further along (their games came from
+ * playing them, not from the schedule). */
+function gameBeingLearned(progress: PlayerProgress, pending: ReadonlyMap<GameKind, number>): GameKind | null {
+  const { order, played, frontier } = schedule(progress, pending);
+  if (frontier === -1) return null;
+  if (order.slice(frontier + 1).some(played)) return null;
+  return order[frontier];
 }
 
 /** The games this player has solved at least one puzzle of - so Home can
@@ -206,14 +206,19 @@ export function gamesPlayed(progress: PlayerProgress): ReadonlySet<GameKind> {
   return new Set(solvedPerGame(progress).keys());
 }
 
-/** The game still to come, and how many more solves bring it - for Home's
- * "next game" line. Null once every game has arrived. */
-export function nextGameToArrive(progress: PlayerProgress): { kind: GameKind; inPuzzles: number } | null {
+/**
+ * The game still to come, for Home's progress bar: which game it is, the
+ * game being learned that gates it, and how far through that one the
+ * player is. Null once every game has arrived.
+ */
+export function nextGameToArrive(progress: PlayerProgress): { kind: GameKind; gate: GameKind; done: number; inPuzzles: number } | null {
+  const { order, count } = schedule(progress, NOTHING_PENDING);
   const unlocked = new Set(unlockedGames(progress));
-  const kind = INTRO_ORDER.find(k => !unlocked.has(k) && !progress.retired.includes(k));
-  if (!kind) return null;
-  const total = totalSolved(progress);
-  return { kind, inPuzzles: INTRO_EVERY - (total % INTRO_EVERY) };
+  const at = order.findIndex(kind => !unlocked.has(kind));
+  if (at <= 0) return null;
+  const gate = order[at - 1];
+  const done = Math.min(INTRO_SOLVES, count(gate));
+  return { kind: order[at], gate, done, inPuzzles: Math.max(1, INTRO_SOLVES - done) };
 }
 
 function tierBandForLevel(levelNumber: number): TierBand {
@@ -422,20 +427,26 @@ export function generateBatch(levelNumber: number, progress: PlayerProgress, pre
   let hadEasy = false;
   let hadExtreme = false;
 
+  const stillArriving = nextGameToArrive(progress) !== null;
+
   for (let slot = 0; slot < band.batchSize; slot += 1) {
     const lastBlock = new Set(recent.slice(-RECENT_BLOCK));
     const lastWindow = new Set(recent.slice(-RECENT_WINDOW));
-    const unlocked = unlockedGames(progress, slot);
+    const unlocked = unlockedGames(progress, dealtHere);
     const playedSoFar = (kind: GameKind) => (solved.get(kind) ?? 0) + (dealtHere.get(kind) ?? 0);
     // A game that has just arrived is dealt at once: its first puzzle,
     // with its lesson, is the moment it is introduced.
     const debut = unlocked.find(kind => playedSoFar(kind) === 0);
-    const newcomer = spotlight(progress, unlocked, slot, playedSoFar);
+    const learning = gameBeingLearned(progress, dealtHere);
+    // The game being learned may come twice running, never three times:
+    // the games before it still get a turn.
+    const learningTwiceRunning = recent.length >= 2 && recent[recent.length - 1] === learning && recent[recent.length - 2] === learning;
     const weighted = ROTATION.map((kind): readonly [GameKind, number] => {
       // A game not yet arrived, or retired (see the shop), is never dealt.
       if (!unlocked.includes(kind)) return [kind, 0] as const;
       let weight = gameWeight(kind, 'easy');
-      if (kind === newcomer && recent[recent.length - 1] !== kind) weight *= NEWCOMER_BOOST;
+      if (kind === learning && learningTwiceRunning && unlocked.length > 1) return [kind, 0] as const;
+      if (kind === learning) weight *= NEWCOMER_BOOST;
       else if (lastBlock.has(kind)) weight *= 0.0001;
       else if (lastWindow.has(kind)) weight *= RECENT_PENALTY;
       else weight *= FRESH_BONUS;
@@ -445,7 +456,10 @@ export function generateBatch(levelNumber: number, progress: PlayerProgress, pre
     const kind = debut ?? weightedPick(weighted, rng);
     const played = (solved.get(kind) ?? 0) + (dealtHere.get(kind) ?? 0);
     const wanted = levelNumber < HARD_TIER_FIRST_LEVEL ? (rampSlot(played) === 'hard' ? 'medium' : rampSlot(played) ?? 'medium') : rampSlot(played);
-    const dealt = calm(wanted, { last, hadEasy, hadExtreme, lastSlot: slot === band.batchSize - 1 }, rng);
+    const calmed = calm(wanted, { last, hadEasy, hadExtreme, lastSlot: slot === band.batchSize - 1 }, rng);
+    // Until every game has arrived nothing is harder than medium: the
+    // first weeks are for learning games, not for being tested on them.
+    const dealt: Slot = stillArriving && (calmed === 'hard' || calmed === 'extreme') ? 'medium' : calmed;
     const extreme = dealt === 'extreme';
     const challenge = extreme || dealt === 'hard';
     const tier: PuzzleDifficulty = challenge ? 'hard' : dealt === 'easy' ? 'easy' : 'medium';

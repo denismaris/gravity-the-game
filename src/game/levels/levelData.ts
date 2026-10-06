@@ -2907,12 +2907,23 @@ export const GRAVITY_DEPTH_BANDS: Readonly<Record<PuzzleDifficulty, readonly [nu
   hard: [8, Infinity],
 };
 
+/**
+ * The tier a curated level is dealt at - and so the word its chip shows.
+ * By depth (\`GRAVITY_DEPTH_BANDS\`), with one exception: a short board
+ * labelled expert is expert for its mechanics, not its length, so it is
+ * never dealt (or shown) as easy - it moves up to medium. Null for the
+ * other one- and two-move warm-ups, which no band deals.
+ */
+export function gravityTierOf(level: LevelDefinition): PuzzleDifficulty | null {
+  const depth = level.metadata?.minMoves;
+  if (depth === undefined) return null;
+  const tier = (['easy', 'medium', 'hard'] as const).find(t => depth >= GRAVITY_DEPTH_BANDS[t][0] && depth <= GRAVITY_DEPTH_BANDS[t][1]) ?? null;
+  if ((tier === 'easy' || tier === null) && level.difficulty === 'expert') return 'medium';
+  return tier;
+}
+
 export function getGravityLevelsForTier(tier: PuzzleDifficulty): ReadonlyArray<LevelDefinition> {
-  const [min, max] = GRAVITY_DEPTH_BANDS[tier];
-  const band = LEVELS.filter(level => {
-    const depth = level.metadata?.minMoves;
-    return depth !== undefined && depth >= min && depth <= max;
-  });
+  const band = LEVELS.filter(level => gravityTierOf(level) === tier);
   return band.length > 0 ? band : getLevelsByDifficulty(tier);
 }
 

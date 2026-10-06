@@ -4,6 +4,7 @@ import { Canvas } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
 import { TutorialSlide } from '../game/tutorials';
 import { motion, theme, themedStyles } from '../theme';
+import { ModalLayer } from './ModalLayer';
 
 /** The card's own fixed width - paging needs an exact known slide width,
  * not a `maxWidth` that could vary per device the way `TutorialOverlay`'s
@@ -87,72 +88,74 @@ export function MechanicsCarousel({
   const scale = progress.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] });
 
   return (
-    <View style={styles.overlay}>
-      <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
-        <Text style={[styles.eyebrow, { color: accentColor }]}>HOW TO PLAY</Text>
+    <ModalLayer zIndex={10}>
+      <View style={styles.overlay}>
+        <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
+          <Text style={[styles.eyebrow, { color: accentColor }]}>HOW TO PLAY</Text>
 
-        <ScrollView
-          ref={scrollRef}
-          horizontal
-          pagingEnabled
-          showsHorizontalScrollIndicator={false}
-          onMomentumScrollEnd={onMomentumScrollEnd}
-          style={{ width: CARD_WIDTH }}
-        >
-          {slides.map((slide, i) => (
-            <View key={i} style={styles.slide}>
-              <Canvas style={{ width: ILLUSTRATION_WIDTH, height: ILLUSTRATION_HEIGHT }}>{renderIllustration(slide.illustration)}</Canvas>
-              <Text style={styles.title}>{slide.title}</Text>
-              <Text style={styles.body}>{slide.body}</Text>
-              {slide.tip ? (
-                <View style={[styles.tip, { borderColor: accentColor }]}>
-                  <Text style={[styles.tipLabel, { color: accentColor }]}>TIP</Text>
-                  <Text style={styles.tipText}>{slide.tip}</Text>
-                </View>
-              ) : null}
-            </View>
-          ))}
-        </ScrollView>
+          <ScrollView
+            ref={scrollRef}
+            horizontal
+            pagingEnabled
+            showsHorizontalScrollIndicator={false}
+            onMomentumScrollEnd={onMomentumScrollEnd}
+            style={{ width: CARD_WIDTH }}
+          >
+            {slides.map((slide, i) => (
+              <View key={i} style={styles.slide}>
+                <Canvas style={{ width: ILLUSTRATION_WIDTH, height: ILLUSTRATION_HEIGHT }}>{renderIllustration(slide.illustration)}</Canvas>
+                <Text style={styles.title}>{slide.title}</Text>
+                <Text style={styles.body}>{slide.body}</Text>
+                {slide.tip ? (
+                  <View style={[styles.tip, { borderColor: accentColor }]}>
+                    <Text style={[styles.tipLabel, { color: accentColor }]}>TIP</Text>
+                    <Text style={styles.tipText}>{slide.tip}</Text>
+                  </View>
+                ) : null}
+              </View>
+            ))}
+          </ScrollView>
 
-        <View style={styles.dots}>
-          {slides.map((_slide, i) => (
-            <View key={i} style={[styles.dot, i === index && [styles.dotActive, { backgroundColor: accentColor }]]} />
-          ))}
-        </View>
+          <View style={styles.dots}>
+            {slides.map((_slide, i) => (
+              <View key={i} style={[styles.dot, i === index && [styles.dotActive, { backgroundColor: accentColor }]]} />
+            ))}
+          </View>
 
-        <View style={styles.actions}>
-          {isLast ? (
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Start playing"
-              onPress={onDone}
-              style={({ pressed }) => [styles.button, styles.primaryButton, pressed && styles.pressed]}
-            >
-              <Text style={styles.primaryButtonLabel}>Start playing</Text>
-            </PressableScale>
-          ) : (
-            <>
+          <View style={styles.actions}>
+            {isLast ? (
               <PressableScale
                 accessibilityRole="button"
-                accessibilityLabel="Skip"
+                accessibilityLabel="Start playing"
                 onPress={onDone}
-                style={({ pressed }) => [styles.button, styles.secondaryButton, pressed && styles.pressed]}
-              >
-                <Text style={styles.secondaryButtonLabel}>Skip</Text>
-              </PressableScale>
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel="Next"
-                onPress={() => goTo(index + 1)}
                 style={({ pressed }) => [styles.button, styles.primaryButton, pressed && styles.pressed]}
               >
-                <Text style={styles.primaryButtonLabel}>Next</Text>
+                <Text style={styles.primaryButtonLabel}>Start playing</Text>
               </PressableScale>
-            </>
-          )}
-        </View>
-      </Animated.View>
-    </View>
+            ) : (
+              <>
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel="Skip"
+                  onPress={onDone}
+                  style={({ pressed }) => [styles.button, styles.secondaryButton, pressed && styles.pressed]}
+                >
+                  <Text style={styles.secondaryButtonLabel}>Skip</Text>
+                </PressableScale>
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel="Next"
+                  onPress={() => goTo(index + 1)}
+                  style={({ pressed }) => [styles.button, styles.primaryButton, pressed && styles.pressed]}
+                >
+                  <Text style={styles.primaryButtonLabel}>Next</Text>
+                </PressableScale>
+              </>
+            )}
+          </View>
+        </Animated.View>
+      </View>
+    </ModalLayer>
   );
 }
 

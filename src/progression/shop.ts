@@ -28,15 +28,14 @@ export function skinSlot(game: GameKind): CosmeticSlot {
   return game === 'bridges' ? 'chart' : `skin-${game}`;
 }
 
-/** Four tiers, priced against what play actually earns. A regular player
- * (ten puzzles, the Daily, three errands, the gift and a couple of
- * optional videos) collects about 450 coins a day; a casual one about 250,
- * a devoted one about 900. A Common
- * piece is about a regular day, Fine two, Rare three, and a Masterwork
- * most of a week - something to save for, not something that falls into
- * your lap. */
+/** Four tiers, priced against what a puzzle actually pays - about 20 to 25
+ * coins with combos, golden puzzles and set bonuses. A Common piece is
+ * about a dozen puzzles (a day of casual play), Fine twenty, Rare a little
+ * over thirty, and a Masterwork about a week - something to save for,
+ * never out of sight. The first prices asked for 40 to 120 puzzles per
+ * skin, which play-testing called far too much for what a game pays. */
 export type Rarity = 'common' | 'fine' | 'rare' | 'masterwork';
-export const RARITY_PRICES: Readonly<Record<Rarity, number>> = { common: 450, fine: 850, rare: 1350, masterwork: 2700 };
+export const RARITY_PRICES: Readonly<Record<Rarity, number>> = { common: 250, fine: 450, rare: 750, masterwork: 1500 };
 export const RARITY_NAMES: Readonly<Record<Rarity, string>> = { common: 'Common', fine: 'Fine', rare: 'Rare', masterwork: 'Masterwork' };
 
 export function rarityOf(item: Cosmetic): Rarity | null {
@@ -405,13 +404,21 @@ export interface CosmeticSet {
   readonly reward: number;
 }
 
+/** A set's bonus: about an eighth of what its pieces cost, to the ten -
+ * worked out from the prices, so re-pricing the shop never leaves a bonus
+ * behind. */
+function withReward(set: Omit<CosmeticSet, 'reward'>): CosmeticSet {
+  const cost = set.items.reduce((sum, id) => sum + (COSMETICS.find(item => item.id === id)?.price ?? 0), 0);
+  return { ...set, reward: Math.round((cost * 0.12) / 10) * 10 };
+}
+
 export const COSMETIC_SETS: ReadonlyArray<CosmeticSet> = [
-  { id: 'set-kiln', name: 'The Kiln', blurb: 'Everything fired, glazed and warm.', items: ['skin-gravity-ember', 'skin-tents-ember', 'skin-fillapix-ember', 'ball-coral', 'skin-arukone-copper'], reward: 430 },
-  { id: 'set-green', name: 'The Green Room', blurb: 'Jade, sage and sea.', items: ['ball-jade', 'skin-gravity-jade', 'skin-mirror-emerald', 'garden-sage', 'chart-tropic'], reward: 500 },
-  { id: 'set-garden', name: 'Garden Party', blurb: 'Petals, lanterns and soft glaze.', items: ['confetti-blossom', 'garden-camellia', 'skin-bloom-lavender', 'skin-lightsout-rose', 'skin-adjacent-pastel'], reward: 500 },
-  { id: 'set-night', name: 'Night Sea', blurb: 'Lamps and stars over dark water.', items: ['chart-night', 'ball-obsidian', 'confetti-starlight', 'skin-towers-midnight', 'skin-lightsout-ice'], reward: 670 },
-  { id: 'set-gilded', name: 'The Gilded Age', blurb: 'Gold, and then more gold.', items: ['confetti-gold', 'ball-gold', 'skin-binairo-gold', 'garden-marigold', 'skin-arukone-gold', 'chime-bell'], reward: 950 },
-  { id: 'set-seasons', name: 'Four Seasons', blurb: "One confetti from each season. A year's work.", items: ['confetti-showers', 'confetti-fireflies', 'confetti-leaves', 'confetti-snowfall'], reward: 1000 },
+  withReward({ id: 'set-kiln', name: 'The Kiln', blurb: 'Everything fired, glazed and warm.', items: ['skin-gravity-ember', 'skin-tents-ember', 'skin-fillapix-ember', 'ball-coral', 'skin-arukone-copper'] }),
+  withReward({ id: 'set-green', name: 'The Green Room', blurb: 'Jade, sage and sea.', items: ['ball-jade', 'skin-gravity-jade', 'skin-mirror-emerald', 'garden-sage', 'chart-tropic'] }),
+  withReward({ id: 'set-garden', name: 'Garden Party', blurb: 'Petals, lanterns and soft glaze.', items: ['confetti-blossom', 'garden-camellia', 'skin-bloom-lavender', 'skin-lightsout-rose', 'skin-adjacent-pastel'] }),
+  withReward({ id: 'set-night', name: 'Night Sea', blurb: 'Lamps and stars over dark water.', items: ['chart-night', 'ball-obsidian', 'confetti-starlight', 'skin-towers-midnight', 'skin-lightsout-ice'] }),
+  withReward({ id: 'set-gilded', name: 'The Gilded Age', blurb: 'Gold, and then more gold.', items: ['confetti-gold', 'ball-gold', 'skin-binairo-gold', 'garden-marigold', 'skin-arukone-gold', 'chime-bell'] }),
+  withReward({ id: 'set-seasons', name: 'Four Seasons', blurb: "One confetti from each season. A year's work.", items: ['confetti-showers', 'confetti-fireflies', 'confetti-leaves', 'confetti-snowfall'] }),
 ];
 
 export function setProgress(progress: PlayerProgress, set: CosmeticSet): { owned: number; total: number; complete: boolean; claimed: boolean } {

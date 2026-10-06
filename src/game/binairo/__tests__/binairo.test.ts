@@ -982,16 +982,13 @@ describe('the shipped Binairo pool', () => {
 
   /** The 6x6 boards were "too easy": a medium 6x6 must give at most about a
    * third of its squares, and every hard board is a sparse 8x8. */
-  test('medium 6x6 boards give at most a third of their squares, and hard boards are sparse 8x8s', () => {
+  test('no board starts too bare: easy gives at least half, medium at least a third, hard 8x8s at least a third', () => {
     const givenShare = (p: BinairoPuzzle) => p.givens.flat().filter(v => v !== null).length / (p.size * p.size);
     for (const puzzle of BINAIRO) {
-      if (puzzle.difficulty === 'medium' && puzzle.size === 6 && !puzzle.twinCells && !puzzle.countClues) {
-        expect(givenShare(puzzle)).toBeLessThanOrEqual(0.34);
-      }
-      if (puzzle.difficulty === 'hard') {
-        expect(puzzle.size).toBe(8);
-        expect(givenShare(puzzle)).toBeLessThanOrEqual(0.34);
-      }
+      if (puzzle.twinCells || puzzle.countClues) continue;
+      if (puzzle.difficulty === 'easy') expect(givenShare(puzzle)).toBeGreaterThanOrEqual(0.49);
+      else expect(givenShare(puzzle)).toBeGreaterThanOrEqual(0.34);
+      if (puzzle.difficulty === 'hard') expect(puzzle.size).toBe(8);
     }
   });
 
@@ -1055,5 +1052,19 @@ describe('cellBreaksARule - one question behind the error sound', () => {
 
   test('nothing wrong on the solution', () => {
     for (let r = 0; r < 4; r += 1) for (let c = 0; c < 4; c += 1) expect(cellBreaksARule(SIMPLE, SIMPLE_SOLUTION, r, c)).toBe(false);
+  });
+});
+
+describe('a board that keeps every rule the player is taught is solved', () => {
+  test('two identical rows no longer block a win', () => {
+    const puzzle: BinairoPuzzle = { id: 'dup', difficulty: 'easy', size: 4, givens: [[null, null, null, null], [null, null, null, null], [null, null, null, null], [null, null, null, null]] };
+    // Rows 0 and 2 are the same; every line is balanced with no three in a row.
+    const values = [
+      [0, 1, 0, 1],
+      [1, 0, 1, 0],
+      [0, 1, 0, 1],
+      [1, 0, 1, 0],
+    ] as BinairoValue[][];
+    expect(isBinairoSolved(puzzle, { values })).toBe(true);
   });
 });

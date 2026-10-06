@@ -1,4 +1,4 @@
-import { getLevelById } from '../levels';
+import { getLevelById, gravityTierOf } from '../levels';
 import { getMirrorMazeById } from '../mirror';
 import { getTentsTreesById } from '../tents';
 import { getTowersById } from '../towers';
@@ -137,7 +137,8 @@ export function puzzleDisplayInfo(kind: GameKind, puzzleId: string): PuzzleDispl
       return {
         name: level.name,
         chapter: getWorldForLevel(level.id)?.name ?? DISPLAY_NAMES.gravity,
-        difficulty: level.difficulty === 'expert' ? 'hard' : level.difficulty,
+        // The tier it is dealt at (see `gravityTierOf`), not its label.
+        difficulty: gravityTierOf(level) ?? 'easy',
       };
     }
     case 'mirror': {

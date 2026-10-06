@@ -1,21 +1,21 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { DailyStanding, reportDaily } from '../backend';
 import { useLastBonus, usePlayerProgress } from '../progression/PlayerProgressProvider';
+import { INTRO_SOLVES, nextGameToArrive } from '../progression/batches';
 import { buildDailyShare } from '../progression/shareMessage';
-import { dailyKeyOf, gameDisplayName } from '../game/journey';
+import { dailyKeyOf, gameDisplayName, gameShortName } from '../game/journey';
 import { cosmeticById } from '../progression/shop';
 import { formatDuration } from '../progression/timing';
 import { CosmeticPreview } from './CosmeticPreview';
 import { Animated, Share, StyleSheet, Text, View } from 'react-native';
-import { ConfettiBurst } from './ConfettiBurst';
 import { PressableScale } from './PressableScale';
 import { GameEmblem } from './GameEmblem';
-import { GeometricRule } from './GeometricRule';
 import { StarRow } from './StarRow';
 import { useCardEntrance } from './useCardEntrance';
-import { accentColorForKind, encouragementTier, GameKind, gameLabelForKind, pickEncouragement } from '../game/journey';
+import { accentColorForKind, encouragementTier, GameKind, pickEncouragement } from '../game/journey';
 import { motion, theme, themedStyles } from '../theme';
-import { CoinsEarned } from './Coins';
+import { CoinGlyph } from './Coins';
+import { ModalLayer } from './ModalLayer';
 
 export interface PuzzleSolvedProps {
   title?: string;
@@ -31,12 +31,14 @@ export interface PuzzleSolvedProps {
    * `hintsUsed` is only used for `mergeLevelResult`-style bookkeeping
    * upstream, never rendered. */
   note?: string;
+  /** The label under `note` in the result strip ("MOVES", "POINTS"). */
+  noteLabel?: string;
   onReplay: () => void;
   onDone: () => void;
   /** Whether another puzzle follows this one in the Journey. When true, the
    * primary action advances there instead of leaving to Home - this is what
    * makes finishing a puzzle roll on to whichever game the Journey deals
-   * next, matching Gravity's own `LevelCompleteCard`. */
+   * next. */
   hasNext?: boolean;
   /** Advance to the next Journey entry (only meaningful when `hasNext`). */
   onNext?: () => void;
@@ -50,7 +52,7 @@ export interface PuzzleSolvedProps {
  * result and two actions. Fades and scales in as an immediate reaction to
  * the finishing move.
  */
-/** Kicker+title, stars, praise, stat line, rule, actions - staggered in
+/** Kicker+title, stars, praise, stat line, actions - staggered in
  * that reading order. The emblem is not in this count: it runs on the
  * entrance's own `hero` spring, ahead of the cascade.
  *
@@ -74,17 +76,22 @@ export function PuzzleSolved({
   hintsUsed,
   kind,
   note,
+  noteLabel = 'RESULT',
   onReplay,
   onDone,
   hasNext = false,
   onNext,
   coinsEarned = 0,
 }: PuzzleSolvedProps): React.JSX.Element {
-  const { backdrop, card, hero, sheen, rowStyle } = useCardEntrance(ROW_COUNT);
+  const { backdrop, card, hero, rowStyle } = useCardEntrance(ROW_COUNT);
   // What multiplied this solve's coins: a golden puzzle, the clean-run
   // combo, the lucky charm (see the shop).
   const bonus = useLastBonus();
-  const { dailyStreak } = usePlayerProgress();
+  const { dailyStreak, progress } = usePlayerProgress();
+  // While a game is being learned, every solve of it moves the next game
+  // closer - shown here, where the solve happens.
+  const arriving = useMemo(() => nextGameToArrive(progress), [progress]);
+  const towardNext = arriving && kind === arriving.gate ? arriving : null;
   // Today's Daily, ready to post: the share sheet, with a no-spoiler card.
   // The world's Daily: post this first solve, then show where it stands
   // among everyone's. Silent offline - the card simply does not say.
@@ -113,9 +120,9 @@ export function PuzzleSolved({
   // Three stars is rare enough to earn its own word - the same card
   // otherwise reads identically whether the player scraped a single star or
   // played it perfectly. An explicit `title` from a caller still wins.
-  const heading = title ?? (stars === 3 ? 'PERFECT' : 'SOLVED');
+  const heading = title ?? (stars === 3 ? 'Perfect' : 'Solved');
   const accent = kind ? accentColorForKind(kind) : theme.colors.accent;
-  const kicker = kind ? gameLabelForKind(kind) : null;
+  const kicker = kind ? gameDisplayName(kind) : null;
 
   // Picked once per mount, not per render - a re-render mid-animation must
   // not swap the sentence out from under the player.
@@ -129,141 +136,135 @@ export function PuzzleSolved({
   const starsRow = rowStyle(1);
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <Animated.View style={[styles.scrim, { opacity: backdrop }]} pointerEvents="none" />
-      <ConfettiBurst />
-      {/* The shadow lives on an outer wrapper because the card itself has
-          to clip (`overflow: 'hidden'`) for the sheen, and a clipped view
-          clips its own shadow away with it. */}
-      <Animated.View
-        style={[
-          styles.cardShadow,
-          {
-            opacity: card,
-            transform: [
-              { scale: card.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
-              { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.card}>
-          <Animated.View
-            pointerEvents="none"
-            style={[
-              styles.sheen,
-              {
-                opacity: sheen.interpolate({ inputRange: [0, 0.15, 0.85, 1], outputRange: [0, 1, 1, 0] }),
-                transform: [
-                  { rotate: '18deg' },
-                  { translateX: sheen.interpolate({ inputRange: [0, 1], outputRange: [-260, 300] }) },
-                ],
-              },
-            ]}
-          />
-
-          {/* A band in the finished game's own accent, so the card is
-              recognisably a Skyscrapers card or a Binairo card at a glance
-              rather than the same anonymous panel five times over. */}
-          <Animated.View
-            style={[styles.accentBand, { backgroundColor: accent, transform: [{ scaleX: card }] }]}
-            pointerEvents="none"
-          />
-
-          {kind && (
-            <Animated.View
-              style={[
-                styles.emblem,
-                {
-                  opacity: hero,
-                  transform: [
-                    { scale: hero },
-                    { translateY: hero.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) },
-                  ],
-                },
-              ]}
-            >
-              <GameEmblem kind={kind} size={72} />
-            </Animated.View>
-          )}
-
-          <Animated.View style={rowStyle(0)}>
-            {kicker && <Text style={[styles.kicker, { color: accent }]}>{kicker}</Text>}
-            <Text style={[styles.title, stars === 3 && styles.titlePerfect]}>{heading}</Text>
-          </Animated.View>
-
-          <Animated.View style={[styles.stars, starsRow]}>
-            <StarRow earned={stars} size={40} animateIn />
-          </Animated.View>
-
-          <Animated.Text style={[styles.praise, rowStyle(2)]}>{praise}</Animated.Text>
-
-          <Animated.Text style={[styles.note, rowStyle(3)]}>
-            {note ?? (hintsUsed === 0 ? 'No hints used' : `${hintsUsed} hint${hintsUsed > 1 ? 's' : ''} used`)}
-          </Animated.Text>
-          <Animated.View style={[rowStyle(3), styles.coinRow]}>
-            <CoinsEarned amount={coinsEarned} style={styles.coins} />
-            {paid && bonus?.golden && <Text style={[styles.charm, styles.golden]}>{'GOLDEN \u00D73'}</Text>}
-            {paid && bonus && bonus.comboMultiplier > 1 && (
-              <Text style={[styles.charm, styles.combo]}>{`CLEAN RUN ${bonus.cleanRun} \u00B7 \u00D7${bonus.comboMultiplier}`}</Text>
+    <ModalLayer>
+      <View style={styles.overlay} pointerEvents="box-none">
+        <Animated.View style={[styles.scrim, { opacity: backdrop }]} pointerEvents="none" />
+        {/* The shadow lives on an outer wrapper because the card itself
+            clips (`overflow: 'hidden'`), and a clipped view clips its own
+            shadow away with it. */}
+        <Animated.View
+          style={[
+            styles.cardShadow,
+            {
+              opacity: card,
+              transform: [
+                { scale: card.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
+                { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.card}>
+            {kind && (
+              <Animated.View
+                style={[
+                  styles.emblem,
+                  {
+                    opacity: hero,
+                    transform: [
+                      { scale: hero },
+                      { translateY: hero.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) },
+                    ],
+                  },
+                ]}
+              >
+                <GameEmblem kind={kind} size={64} />
+              </Animated.View>
             )}
-            {paid && bonus?.charmed && <Text style={styles.charm}>{'LUCKY \u00D72'}</Text>}
-            {bonus?.grand && <Text style={[styles.charm, styles.golden]}>{'WEEKLY GRAND \u2713\uFE0E'}</Text>}
-          </Animated.View>
-          {bonus?.daily && (
-            <Animated.View style={[rowStyle(3), styles.duel]}>
-              <Text style={styles.duelKicker}>DAILY DUEL</Text>
-              <Text style={styles.duelTime}>{formatDuration(bonus.daily.ms)}</Text>
-              <Text style={styles.duelNote}>
-                {bonus.daily.of === 1
-                  ? 'YOUR FIRST TIMED DAILY'
-                  : bonus.daily.place === 1
-                    ? `NEW BEST · FASTEST OF YOUR ${bonus.daily.of}`
-                    : `FASTER THAN ${Math.round(bonus.daily.beat * 100)}% OF YOUR DAILIES · BEST ${formatDuration(bonus.daily.best)}`}
-              </Text>
-              {world && world.players > 1 && (
-                <Text style={styles.worldNote}>{`FASTER THAN ${Math.round(world.fasterThan * 100)}% OF ${world.players.toLocaleString('en-US')} PLAYERS TODAY`}</Text>
+
+            <Animated.View style={rowStyle(0)}>
+              {kicker && <Text style={[styles.kicker, { color: accent }]}>{kicker}</Text>}
+              <Text style={[styles.title, stars === 3 && styles.titlePerfect]}>{heading}</Text>
+            </Animated.View>
+
+            <Animated.View style={[styles.stars, starsRow]}>
+              <StarRow earned={stars} size={46} animateIn />
+            </Animated.View>
+
+            <Animated.Text style={[styles.praise, rowStyle(2)]}>{praise}</Animated.Text>
+
+            {/* What the solve paid, in one quiet line. */}
+            <Animated.View style={[styles.result, rowStyle(3)]}>
+              {paid && (
+                <>
+                  <CoinGlyph size={14} />
+                  <Text style={[styles.resultText, styles.resultGold]}>{`+${coinsEarned}`}</Text>
+                  <Text style={styles.resultDot}>·</Text>
+                </>
               )}
-              <PressableScale accessibilityRole="button" accessibilityLabel="Share today's Daily result" onPress={shareDaily} hitSlop={6} style={({ pressed }) => [styles.share, pressed && styles.pressed]}>
-                <Text style={styles.shareText}>{'Share result  ↗︎'}</Text>
+              <Text style={styles.resultText}>
+                {note ? `${note} ${noteLabel.toLowerCase()}` : hintsUsed === 0 ? 'No Insight used' : `${hintsUsed} Insight used`}
+              </Text>
+            </Animated.View>
+
+            {towardNext && (
+              <Animated.View style={[styles.toward, rowStyle(3)]}>
+                <View style={styles.towardHead}>
+                  <Text style={styles.towardText}>{`Next game: ${gameShortName(towardNext.kind)}`}</Text>
+                  <Text style={styles.towardCount}>{`${towardNext.done}/${INTRO_SOLVES}`}</Text>
+                </View>
+                <View style={styles.towardTrack}>
+                  <View style={[styles.towardFill, { width: `${(towardNext.done / INTRO_SOLVES) * 100}%`, backgroundColor: accent }]} />
+                </View>
+              </Animated.View>
+            )}
+
+            <Animated.View style={[rowStyle(3), styles.coinRow]}>
+              {paid && bonus?.golden && <Text style={[styles.charm, styles.golden]}>{'GOLDEN \u00D73'}</Text>}
+              {paid && bonus && bonus.comboMultiplier > 1 && (
+                <Text style={[styles.charm, styles.combo]}>{`CLEAN RUN ${bonus.cleanRun} \u00B7 \u00D7${bonus.comboMultiplier}`}</Text>
+              )}
+              {paid && bonus?.charmed && <Text style={styles.charm}>{'LUCKY \u00D72'}</Text>}
+              {bonus?.grand && <Text style={[styles.charm, styles.golden]}>{'WEEKLY GRAND \u2713\uFE0E'}</Text>}
+            </Animated.View>
+            {bonus?.daily && (
+              <Animated.View style={[rowStyle(3), styles.duel]}>
+                <Text style={styles.duelKicker}>DAILY DUEL</Text>
+                <Text style={styles.duelTime}>{formatDuration(bonus.daily.ms)}</Text>
+                <Text style={styles.duelNote}>
+                  {bonus.daily.of === 1
+                    ? 'YOUR FIRST TIMED DAILY'
+                    : bonus.daily.place === 1
+                      ? `NEW BEST · FASTEST OF YOUR ${bonus.daily.of}`
+                      : `FASTER THAN ${Math.round(bonus.daily.beat * 100)}% OF YOUR DAILIES · BEST ${formatDuration(bonus.daily.best)}`}
+                </Text>
+                {world && world.players > 1 && (
+                  <Text style={styles.worldNote}>{`FASTER THAN ${Math.round(world.fasterThan * 100)}% OF ${world.players.toLocaleString('en-US')} PLAYERS TODAY`}</Text>
+                )}
+                <PressableScale accessibilityRole="button" accessibilityLabel="Share today's Daily result" onPress={shareDaily} hitSlop={6} style={({ pressed }) => [styles.share, pressed && styles.pressed]}>
+                  <Text style={styles.shareText}>{'Share result  ↗︎'}</Text>
+                </PressableScale>
+              </Animated.View>
+            )}
+            {won && (
+              <Animated.View style={[rowStyle(3), styles.wonRow]}>
+                <View style={styles.wonPreview}>
+                  <CosmeticPreview item={won} size={30} />
+                </View>
+                <Text style={styles.wonText}>{`WON: ${won.name.toUpperCase()} · NOT IN THE SHOP`}</Text>
+              </Animated.View>
+            )}
+
+
+            {/* One clear way on, full width; Replay as a quiet second. */}
+            <Animated.View style={[styles.actions, rowStyle(5)]}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel={hasNext ? 'Next puzzle' : 'Back to home'}
+                onPress={hasNext && onNext ? onNext : onDone}
+                containerStyle={styles.primaryWrap}
+                style={({ pressed }) => [styles.button, styles.primary, pressed && styles.pressed]}
+              >
+                <Text style={styles.primaryLabel}>{hasNext && onNext ? 'Next puzzle ›' : 'Done'}</Text>
+              </PressableScale>
+              <PressableScale accessibilityRole="button" accessibilityLabel="Replay puzzle" onPress={onReplay} hitSlop={8} style={({ pressed }) => [styles.replay, pressed && styles.pressed]}>
+                <Text style={styles.secondaryLabel}>Replay</Text>
               </PressableScale>
             </Animated.View>
-          )}
-          {won && (
-            <Animated.View style={[rowStyle(3), styles.wonRow]}>
-              <View style={styles.wonPreview}>
-                <CosmeticPreview item={won} size={30} />
-              </View>
-              <Text style={styles.wonText}>{`WON: ${won.name.toUpperCase()} · NOT IN THE SHOP`}</Text>
-            </Animated.View>
-          )}
-
-
-          <Animated.View style={[styles.cardRule, rowStyle(4)]}>
-            <GeometricRule variant="quiet" accentColor={accent} />
-          </Animated.View>
-
-          <Animated.View style={[styles.actions, rowStyle(5)]}>
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Replay puzzle"
-              onPress={onReplay}
-              style={({ pressed }) => [styles.button, styles.secondary, pressed && styles.pressed]}
-            >
-              <Text style={styles.secondaryLabel}>Replay</Text>
-            </PressableScale>
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={hasNext ? 'Next puzzle' : 'Back to home'}
-              onPress={hasNext && onNext ? onNext : onDone}
-              style={({ pressed }) => [styles.button, styles.primary, { backgroundColor: accent }, pressed && styles.pressed]}
-            >
-              <Text style={styles.primaryLabel}>{hasNext && onNext ? 'Next ›' : 'Done ›'}</Text>
-            </PressableScale>
-          </Animated.View>
-        </View>
-      </Animated.View>
-    </View>
+          </View>
+        </Animated.View>
+      </View>
+    </ModalLayer>
   );
 }
 
@@ -326,6 +327,8 @@ const styles = themedStyles(() => ({
   /** Carries the elevation only. The card clips, and a clipped view would
    * clip its own shadow away. */
   cardShadow: {
+    width: '86%',
+    maxWidth: 340,
     borderRadius: theme.radii.lg,
     // The one place in this app a card really is lifted off the page
     // rather than ruled onto it - it floats over a dimmed board, so there
@@ -338,57 +341,45 @@ const styles = themedStyles(() => ({
   },
   card: {
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.xl + theme.spacing.sm,
-    paddingVertical: theme.spacing.xl,
-    borderRadius: theme.radii.lg,
+    paddingHorizontal: theme.spacing.xl,
+    paddingTop: theme.spacing.xl + theme.spacing.sm,
+    paddingBottom: theme.spacing.lg,
+    borderRadius: 28,
     backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
     overflow: 'hidden',
     // The set summary can carry five emblems side by side, which would
     // otherwise size this card wider than a narrow phone. Capped here and
     // the emblem row wraps rather than overflowing.
     maxWidth: 340,
   },
-  /** The diagonal light sweep. Deliberately tall and narrow, rotated, and
-   * translated clean across the card - the card's own clipping is what
-   * turns it into a sweep rather than a floating bar. */
-  sheen: {
-    position: 'absolute',
-    top: -120,
-    bottom: -120,
-    width: 70,
-    backgroundColor: theme.colors.sheen,
-  },
-  /** A slim bar of the game's accent across the card's top edge - the
-   * card clips, so it lands flush in the corners with no extra radius
-   * bookkeeping. */
-  accentBand: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 5,
-  },
   emblem: {
     marginBottom: theme.spacing.md,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
+  result: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: theme.spacing.md },
+  resultText: { fontSize: theme.typography.sizes.body, color: theme.colors.textSecondary },
+  resultGold: { color: theme.colors.accentText, fontWeight: theme.typography.weights.semibold },
+  resultDot: { fontSize: theme.typography.sizes.body, color: theme.colors.textTertiary },
+  toward: { alignSelf: 'stretch', marginTop: theme.spacing.sm, gap: 6 },
+  towardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  towardText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  towardCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
+  towardTrack: { height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: theme.colors.border },
+  towardFill: { height: 6, borderRadius: 3 },
   kicker: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.caption,
-    fontWeight: theme.typography.weights.bold,
-    letterSpacing: 2,
+    fontSize: theme.typography.sizes.caption + 1,
+    fontWeight: theme.typography.weights.semibold,
     textAlign: 'center',
-    marginBottom: theme.spacing.xs,
+    marginBottom: 2,
   },
   title: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.body,
+    fontFamily: theme.typography.families.display,
+    fontSize: 38,
     fontWeight: theme.typography.weights.bold,
-    letterSpacing: 5,
     textAlign: 'center',
-    color: theme.colors.textSecondary,
-    marginBottom: theme.spacing.lg,
+    color: theme.colors.textPrimary,
+    marginBottom: theme.spacing.md,
   },
   /** The line that changes every solve - given real weight, since it is
    * the only part of this card the player hasn't already read before. */
@@ -408,13 +399,6 @@ const styles = themedStyles(() => ({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  /** The app's own mark, closing the result off from the actions - the
-   * same phrase the masthead and every board rule carry, so a card reads
-   * as part of the app rather than a floating panel. */
-  cardRule: {
-    alignSelf: 'stretch',
-    marginBottom: theme.spacing.lg,
-  },
   note: {
     fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.caption,
@@ -422,12 +406,15 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.md,
   },
   coins: { marginTop: -theme.spacing.xs, marginBottom: theme.spacing.md },
-  actions: { flexDirection: 'row', gap: theme.spacing.sm },
+  actions: { alignSelf: 'stretch', alignItems: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.xl },
+  primaryWrap: { alignSelf: 'stretch' },
   button: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
+    height: 52,
+    alignItems: 'center',
+    justifyContent: 'center',
     borderRadius: theme.radii.pill,
   },
+  replay: { paddingHorizontal: theme.spacing.md, paddingVertical: 6 },
   primary: { backgroundColor: theme.colors.primary },
   secondary: {
     backgroundColor: theme.colors.surfaceAlt,
@@ -437,11 +424,11 @@ const styles = themedStyles(() => ({
   pressed: { opacity: 0.85 },
   primaryLabel: {
     color: theme.colors.surfaceHi,
-    fontSize: theme.typography.sizes.body,
+    fontSize: theme.typography.sizes.body + 1,
     fontWeight: theme.typography.weights.semibold,
   },
   secondaryLabel: {
-    color: theme.colors.textPrimary,
+    color: theme.colors.textSecondary,
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
   },

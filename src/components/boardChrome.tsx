@@ -16,7 +16,6 @@ export function PaperTray({ width, height, accent }: { width: number; height: nu
       <RoundedRect x={0} y={0} width={width} height={height} r={r} color={theme.colors.surfaceHi}>
         <LinearGradient start={vec(0, 0)} end={vec(width, height)} colors={[theme.colors.trayLight, theme.colors.surfaceHi, theme.colors.trayDeep]} positions={[0, 0.55, 1]} />
       </RoundedRect>
-      <Path path={`M 1.5 ${height - r} L 1.5 ${r} Q 1.5 1.5 ${r} 1.5 L ${width - r} 1.5`} color="rgba(255,255,255,0.9)" style="stroke" strokeWidth={1.5} strokeCap="round" />
       <Path
         path={`M ${width - 1.5} ${r} L ${width - 1.5} ${height - r} Q ${width - 1.5} ${height - 1.5} ${width - r} ${height - 1.5} L ${r} ${height - 1.5}`}
         color={inkWash(0.16)}

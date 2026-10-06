@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, View } from 'react-native';
-import { ArukonePuzzle, ArukoneState, beginDraw, extendDraw, isArukoneSolved, isPathComplete, mirrorPairOf, pairFor } from '../../game/arukone';
+import { ArukonePuzzle, ArukoneState, isArukoneSolved, isPathComplete, mirrorPairOf, pairFor } from '../../game/arukone';
 import { MosaicPuzzle, MosaicState, initialMosaicState, isMosaicSolved, placePiece, placedCells, rotatePiece } from '../../game/mosaic';
 import { Direction, GameState, StaticCellType, applyGravity, isPuzzleSolved } from '../../game/engine';
 import { AdjacentCoord, AdjacentPuzzle, AdjacentState, applyTap, groupAt } from '../../game/adjacent';
@@ -49,7 +49,7 @@ const TOWER_STEPS: ReadonlyArray<TowerStep> = [
   {
     title: 'Every height once',
     say: 'Each row and column holds every height once, like a sudoku. The top row already has a 1 and a 2.',
-    hint: 'Tap the glowing square, then the height it needs.',
+    hint: 'Tap the height the glowing square needs.',
     praise: 'Only the 3 was missing from that row.',
     cell: { row: 0, col: 2 },
     height: 3,
@@ -57,7 +57,7 @@ const TOWER_STEPS: ReadonlyArray<TowerStep> = [
   {
     title: 'A 1 clue sees one tower',
     say: 'Clues count the towers you see from that side, and a tall tower hides the shorter ones behind it. A 1 means the tallest stands right next to the clue.',
-    hint: 'Tap the glowing square beside the 1, then its height.',
+    hint: 'Tap the height for the glowing square beside the 1.',
     praise: 'The tallest tower, hiding the rest of its row.',
     cell: { row: 2, col: 0 },
     height: 3,
@@ -65,7 +65,7 @@ const TOWER_STEPS: ReadonlyArray<TowerStep> = [
   {
     title: 'A 3 clue sees them all',
     say: 'On a board of three, a 3 clue sees every tower, so from that side they climb 1, 2, 3 in order.',
-    hint: 'Tap the glowing square, then its height.',
+    hint: 'Tap the height for the glowing square.',
     praise: 'One, two, three: the clue can see every tower.',
     cell: { row: 1, col: 0 },
     height: 2,
@@ -75,14 +75,11 @@ const TOWER_STEPS: ReadonlyArray<TowerStep> = [
 export function SkyscrapersLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [state, setState] = useState(TOWERS_START);
   const [selected, setSelected] = useState<Cell | null>(null);
-  // The demo: the square chosen, then its height set.
-  const flow = useLessonFlow(TOWER_STEPS.length, () => setSelected(null), 2);
+  const flow = useLessonFlow(TOWER_STEPS.length, () => setSelected(null));
   const step = TOWER_STEPS[flow.index];
-  const shownState = flow.demoFrame === 1 ? setCell(state, step.cell.row, step.cell.col, step.height) : state;
-  const shownSelected = flow.demoFrame === 0 ? step.cell : selected;
-  // Steady while the player watches and acts: blinking it meant redrawing
+  // Steady while the player is meant to act: blinking it meant redrawing
   // the whole board twice a second.
-  const glow = (flow.phase === 'doing' || flow.phase === 'watch') && !shownSelected && flow.demoFrame === null;
+  const glow = flow.phase === 'doing' && !selected;
 
   const select = useCallback(
     (row: number, col: number) => {
@@ -93,9 +90,12 @@ export function SkyscrapersLesson({ onDone }: { onDone: () => void }): React.JSX
     [flow, step],
   );
   const choose = (height: number) => {
-    if (flow.phase !== 'doing' || !selected) return;
+    if (flow.phase !== 'doing') return;
     if (height !== step.height) return flow.wrong();
-    setState(s => setCell(s, selected.row, selected.col, height));
+    // The right height counts even before the square is chosen: the lesson
+    // knows which square it means, and two taps in order was the fiddly part.
+    const cell = selected ?? step.cell;
+    setState(s => setCell(s, cell.row, cell.col, height));
     setSelected(null);
     flow.succeed();
   };
@@ -109,7 +109,7 @@ export function SkyscrapersLesson({ onDone }: { onDone: () => void }): React.JSX
       onDone={onDone}
       renderBoard={size => (
         <View style={styles.towers}>
-          <TowersBoard puzzle={TOWERS} state={shownState} size={size - 64} selected={shownSelected} onSelectCell={select} flashCell={glow ? step.cell : null} solved={flow.phase === 'done'} />
+          <TowersBoard puzzle={TOWERS} state={state} size={size - 64} selected={selected} onSelectCell={select} flashCell={glow ? step.cell : null} solved={flow.phase === 'done'} />
           <View style={styles.pad}>
             {[1, 2, 3].map(h => (
               <PressableScale
@@ -117,7 +117,7 @@ export function SkyscrapersLesson({ onDone }: { onDone: () => void }): React.JSX
                 accessibilityRole="button"
                 accessibilityLabel={`Height ${h}`}
                 onPress={() => choose(h)}
-                style={({ pressed }) => [styles.key, shownSelected && styles.keyLive, flow.demoFrame === 1 && h === step.height && styles.keyPicked, pressed && styles.pressed]}
+                style={({ pressed }) => [styles.key, flow.phase === 'doing' && styles.keyLive, pressed && styles.pressed]}
               >
                 <Text style={styles.keyText}>{h}</Text>
               </PressableScale>
@@ -164,23 +164,11 @@ const ADJ_STEPS: ReadonlyArray<LessonStepCopy & { readonly from: Cell }> = [
 export function AdjacentLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [state, setState] = useState<AdjacentState>({ grid: ADJ.initial, score: 0, cascades: 0 });
   const [animation, setAnimation] = useState<AdjacentAnimation | null>(null);
-  const flow = useLessonFlow(ADJ_STEPS.length, undefined, 1);
+  const flow = useLessonFlow(ADJ_STEPS.length);
   const step = ADJ_STEPS[flow.index];
-  const live = flow.phase === 'doing' || (flow.phase === 'watch' && flow.demoFrame === null);
+  const live = flow.phase === 'doing';
   const group = useMemo<ReadonlyArray<AdjacentCoord>>(() => (live ? groupAt(state.grid, step.from.row, step.from.col) : []), [live, state.grid, step]);
-  // The demo: the run cleared, tiles falling, then the board put back.
-  const demoMove = useMemo(() => applyTap(state, step.from.row, step.from.col), [state, step]);
-  const showingDemo = flow.demoFrame === 0 && demoMove !== null;
-  useEffect(() => {
-    if (flow.demoFrame === 0 && demoMove) {
-      setAnimation({ at: Date.now(), removed: demoMove.removed.map(c => ({ ...c, colour: state.grid[c.row][c.col] as number })), falls: demoMove.falls });
-    } else if (flow.demoFrame === null) {
-      setAnimation(null);
-    }
-    // Only when the demo frame comes up, or goes.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [flow.demoFrame]);
-  // Steady while the player watches and acts: blinking it meant redrawing
+  // Steady while the player is meant to act: blinking it meant redrawing
   // the whole board twice a second.
   const glow = live;
 
@@ -207,7 +195,7 @@ export function AdjacentLesson({ onDone }: { onDone: () => void }): React.JSX.El
       renderBoard={size => (
         <AdjacentBoard
           puzzle={ADJ}
-          state={showingDemo ? demoMove.state : state}
+          state={state}
           maxWidth={size}
           maxHeight={size}
           solved={false}
@@ -264,23 +252,11 @@ const BRIDGE_STEPS: ReadonlyArray<LessonStepCopy & { readonly link: number; read
 
 export function BridgesLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [state, setState] = useState<BridgesState>({ bridges: linksOf.map(() => 0) });
-  const [stepIndex, setStepIndex] = useState(0);
-  // The demo: one tap per bridge, from the board as it stands.
-  const demo = useMemo(() => {
-    const frames: BridgesState[] = [];
-    let s = state;
-    while (s.bridges[BRIDGE_STEPS[stepIndex].link] < BRIDGE_STEPS[stepIndex].count && frames.length < 3) {
-      s = cycleBridge(BRIDGES, s, BRIDGE_STEPS[stepIndex].link);
-      frames.push(s);
-    }
-    return frames;
-  }, [state, stepIndex]);
-  const flow = useLessonFlow(BRIDGE_STEPS.length, setStepIndex, demo.length);
+  const flow = useLessonFlow(BRIDGE_STEPS.length);
   const step = BRIDGE_STEPS[flow.index];
-  const shown = flow.demoFrame !== null && demo[flow.demoFrame] ? demo[flow.demoFrame] : state;
-  // Steady while the player watches and acts: blinking it meant redrawing
+  // Steady while the player is meant to act: blinking it meant redrawing
   // the whole board twice a second.
-  const glow = flow.phase === 'doing' || flow.phase === 'watch';
+  const glow = flow.phase === 'doing';
   const build = useCallback(
     (link: number) => {
       if (flow.phase !== 'doing') return;
@@ -301,9 +277,9 @@ export function BridgesLesson({ onDone }: { onDone: () => void }): React.JSX.Ele
       renderBoard={size => (
         <BridgesBoard
           puzzle={BRIDGES}
-          state={shown}
+          state={state}
           size={size}
-          solved={flow.demoFrame === null && isBridgesSolved(BRIDGES, state)}
+          solved={isBridgesSolved(BRIDGES, state)}
           onLane={link => build(link)}
           onTapLane={link => build(link)}
           flashLink={glow ? step.link : null}
@@ -335,14 +311,13 @@ const TWIN: ArukonePuzzle = {
     3: [C(0, 0), C(1, 0), C(2, 0), C(3, 0), C(3, 1), C(3, 2), C(3, 3), C(2, 3), C(1, 3), C(0, 3)],
   },
 };
-const TWIN_STEPS: ReadonlyArray<LessonStepCopy & { readonly value: number; readonly drag: ReadonlyArray<Cell> }> = [
+const TWIN_STEPS: ReadonlyArray<LessonStepCopy & { readonly value: number }> = [
   {
     title: 'Draw, and it mirrors',
     say: 'Join each pair of matching numbers with a path. The board is folded down the middle, so whatever you draw on one side is drawn on the other for you.',
     hint: 'Drag from the top 1 down to the other 1.',
     praise: 'One path drawn, two on the board. The 2s joined themselves.',
     value: 1,
-    drag: [C(0, 1), C(1, 1), C(2, 1)],
   },
   {
     title: 'Meet in the middle',
@@ -350,33 +325,14 @@ const TWIN_STEPS: ReadonlyArray<LessonStepCopy & { readonly value: number; reado
     hint: 'Drag from the top left 3 down the side and along the bottom.',
     praise: 'Every pair joined and every square filled. Solved.',
     value: 3,
-    drag: [C(0, 0), C(1, 0), C(2, 0), C(3, 0), C(3, 1)],
   },
 ];
 
 export function TwinpathLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [state, setState] = useState<ArukoneState>({ paths: {} });
   const [short, setShort] = useState(false);
-  const [stepIndex, setStepIndex] = useState(0);
-  // The demo: the path drawn square by square, with its mirror following.
-  const demo = useMemo(() => {
-    const cells = TWIN_STEPS[stepIndex].drag;
-    const begun = beginDraw(TWIN, state, cells[0]);
-    if (!begun) return [];
-    const frames = [begun.state];
-    for (const cell of cells.slice(1)) frames.push(extendDraw(TWIN, frames[frames.length - 1], begun.value, cell));
-    return frames;
-  }, [state, stepIndex]);
-  const flow = useLessonFlow(
-    TWIN_STEPS.length,
-    i => {
-      setStepIndex(i);
-      setShort(false);
-    },
-    demo.length,
-  );
+  const flow = useLessonFlow(TWIN_STEPS.length, () => setShort(false));
   const step = TWIN_STEPS[flow.index];
-  const shown = flow.demoFrame !== null && demo[flow.demoFrame] ? demo[flow.demoFrame] : state;
   const steps = useMemo(
     () => TWIN_STEPS.map((s, i) => (i === flow.index && short ? { ...s, hint: 'Joined, but squares are still empty. Drag back and go round the outside.' } : s)),
     [flow.index, short],
@@ -405,7 +361,7 @@ export function TwinpathLesson({ onDone }: { onDone: () => void }): React.JSX.El
       steps={steps}
       {...flow}
       onDone={onDone}
-      renderBoard={size => <ArukoneBoard puzzle={TWIN} state={shown} size={size} solved={flow.demoFrame === null && isArukoneSolved(TWIN, state)} onChange={change} onReject={flow.wrong} />}
+      renderBoard={size => <ArukoneBoard puzzle={TWIN} state={state} size={size} solved={isArukoneSolved(TWIN, state)} onChange={change} onReject={flow.wrong} />}
     />
   );
 }
@@ -470,36 +426,23 @@ const MOSAIC_STEPS: ReadonlyArray<LessonStepCopy & { readonly piece: number }> =
 
 export function MosaicLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [state, setState] = useState<MosaicState>(() => initialMosaicState(MOSAIC_LESSON));
-  const [stepIndex, setStepIndex] = useState(0);
-  // The demo: the piece turned as it needs to be, then set in its place.
-  const demo = useMemo(() => {
-    const piece = MOSAIC_STEPS[stepIndex].piece;
-    const goal = MOSAIC_LESSON.solution[piece];
-    const frames: MosaicState[] = [];
-    let s = state;
-    while (s.pieces[piece].rotation !== goal.rotation && frames.length < 3) {
-      s = rotatePiece(MOSAIC_LESSON, s, piece);
-      frames.push(s);
-    }
-    frames.push(placePiece(MOSAIC_LESSON, s, piece, goal.row, goal.col));
-    return frames;
-  }, [state, stepIndex]);
-  const flow = useLessonFlow(MOSAIC_STEPS.length, setStepIndex, demo.length);
+  const flow = useLessonFlow(MOSAIC_STEPS.length);
   const step = MOSAIC_STEPS[flow.index];
-  const shown = flow.demoFrame !== null && demo[flow.demoFrame] ? demo[flow.demoFrame] : state;
-  // Steady while the player watches and acts: blinking it meant redrawing
+  // Steady while the player is meant to act: blinking it meant redrawing
   // the whole board twice a second.
-  const glow = flow.phase === 'doing' || flow.phase === 'watch';
+  const glow = flow.phase === 'doing';
 
   const place = useCallback(
     (index: number, row: number, col: number) => {
       if (flow.phase !== 'doing') return;
       if (index !== step.piece) return flow.wrong();
-      const next = placePiece(MOSAIC_LESSON, state, index, row, col);
-      const landed = placedCells(MOSAIC_LESSON, index, { ...next.pieces[index], row, col });
-      const goal = goalCells(index);
-      // Only where it belongs: the lesson leaves no room for a wrong turn later.
-      if (next === state || !goal.every(g => landed.some(c => c.row === g.row && c.col === g.col))) return flow.wrong();
+      // Only where it belongs - but a drop within a square of it snaps in:
+      // landing a piece exactly was the fiddly part.
+      const goal = MOSAIC_LESSON.solution[index];
+      const turnedRight = state.pieces[index].rotation % 2 === goal.rotation % 2;
+      if (!turnedRight || Math.abs(row - goal.row) > 1 || Math.abs(col - goal.col) > 1) return flow.wrong();
+      const next = placePiece(MOSAIC_LESSON, { pieces: state.pieces.map((p, i) => (i === index ? { ...p, rotation: goal.rotation } : p)) }, index, goal.row, goal.col);
+      if (next === state) return flow.wrong();
       setState(next);
       flow.succeed();
     },
@@ -523,10 +466,10 @@ export function MosaicLesson({ onDone }: { onDone: () => void }): React.JSX.Elem
       renderBoard={size => (
         <MosaicPlay
           puzzle={MOSAIC_LESSON}
-          state={shown}
+          state={state}
           width={size}
           maxBoardHeight={size * 0.56}
-          solved={flow.demoFrame === null && isMosaicSolved(MOSAIC_LESSON, state)}
+          solved={isMosaicSolved(MOSAIC_LESSON, state)}
           flashCells={glow ? goalCells(step.piece) : null}
           onPlace={place}
           onLift={() => {}}
@@ -581,10 +524,8 @@ export function GravityLesson({ onDone }: { onDone: () => void }): React.JSX.Ele
   const [state, setState] = useState<GameState>(GRAVITY_STEPS[0].board);
   const [arrow, setArrow] = useState(0);
   const [animating, setAnimating] = useState(false);
-  // The demo: the board as it is (with the arrow), then the slide.
-  const flow = useLessonFlow(GRAVITY_STEPS.length, i => setState(GRAVITY_STEPS[i].board), 2);
+  const flow = useLessonFlow(GRAVITY_STEPS.length, i => setState(GRAVITY_STEPS[i].board));
   const step = GRAVITY_STEPS[flow.index];
-  const shown = useMemo(() => (flow.demoFrame === 1 ? applyGravity(state, step.direction) : state), [flow.demoFrame, state, step]);
 
   // The arrow pulses the way to swipe, again every couple of seconds.
   const doing = flow.phase === 'doing';
@@ -606,8 +547,8 @@ export function GravityLesson({ onDone }: { onDone: () => void }): React.JSX.Ele
   );
   const handlers = useSwipeGesture(swipe);
   const onTarget = useMemo(
-    () => new Set(shown.movables.filter(m => shown.staticGrid[m.row][m.col] === StaticCellType.Target).map(m => m.id)),
-    [shown],
+    () => new Set(state.movables.filter(m => state.staticGrid[m.row][m.col] === StaticCellType.Target).map(m => m.id)),
+    [state],
   );
 
   return (
@@ -619,18 +560,17 @@ export function GravityLesson({ onDone }: { onDone: () => void }): React.JSX.Ele
       onDone={onDone}
       renderBoard={size => (
         <View style={{ width: size, height: size }} {...handlers}>
-          {/* Keyed by step and by demo, so the board snaps back after the
-            demo (and between steps) rather than sliding in reverse. */}
+          {/* Keyed by step, so a new board appears rather than sliding in. */}
           <GravityBoard
-            key={`${flow.index}-${flow.demoFrame === null ? 'live' : 'demo'}`}
-            state={shown}
+            key={flow.index}
+            state={state}
             instant={false}
             size={size}
             onTargetIds={onTarget}
-            solved={flow.demoFrame === null && isPuzzleSolved(state) && !animating}
+            solved={isPuzzleSolved(state) && !animating}
             onAnimatingChange={setAnimating}
           />
-          {(doing || flow.demoFrame === 0) && <GravityHintArrow key={`${flow.index}-${arrow}`} size={size} direction={step.direction} onDone={() => {}} />}
+          {doing && <GravityHintArrow key={`${flow.index}-${arrow}`} size={size} direction={step.direction} onDone={() => {}} />}
         </View>
       )}
     />
@@ -641,7 +581,6 @@ const styles = themedStyles(() => ({
   towers: { alignItems: 'center', gap: 14 },
   pad: { flexDirection: 'row', gap: 12 },
   key: { width: 56, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
-  keyPicked: { borderColor: theme.colors.accent, borderWidth: 2 },
   keyLive: { borderColor: theme.colors.goldRim, backgroundColor: theme.colors.surfaceHi },
   keyText: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   pressed: { opacity: 0.8 },

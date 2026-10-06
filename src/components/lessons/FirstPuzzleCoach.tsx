@@ -36,6 +36,7 @@ export function FirstPuzzleCoach({ kind, gift }: { kind: GameKind; gift: boolean
       <PressableScale accessibilityRole="button" accessibilityLabel={`Your goal: ${LESSON_GUIDES[kind].goal} Tap to close.`} onPress={() => setOpen(false)} style={[styles.card, { borderColor: accent }]}>
         <Text style={[styles.label, { color: accent }]}>YOUR GOAL</Text>
         <Text style={styles.goal}>{LESSON_GUIDES[kind].goal}</Text>
+        <Text style={styles.help}>The ? at the top keeps the rules, any time.</Text>
         {gift && <Text style={styles.gift}>{'✦ A free Insight is yours for this one, if you get stuck.'}</Text>}
       </PressableScale>
     </Animated.View>
@@ -58,5 +59,6 @@ const styles = themedStyles(() => ({
   },
   label: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.4 },
   goal: { marginTop: 3, fontSize: theme.typography.sizes.body, lineHeight: 21, color: theme.colors.textPrimary },
+  help: { marginTop: 6, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   gift: { marginTop: 6, fontSize: theme.typography.sizes.caption, color: theme.colors.accentText },
 }));

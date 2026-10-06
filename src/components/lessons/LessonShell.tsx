@@ -6,7 +6,7 @@ import { triggerFeedback } from '../../game/rendering';
 import { theme, themedStyles } from '../../theme';
 import { PressableScale } from '../PressableScale';
 import { GameEmblem } from '../GameEmblem';
-import { GESTURE_VERB, LessonGesture, LessonGuideContext } from './guides';
+import { LessonGesture, LessonGuideContext } from './guides';
 
 /**
  * One step of a hands-on lesson: what the instruction card says, what the
@@ -22,101 +22,53 @@ export interface LessonStepCopy {
   readonly praise: string;
 }
 
-export type LessonPhase = 'watch' | 'doing' | 'success' | 'done';
-
-/** The beat of a demo: a pause to read the step, each move, and a hold on
- * the result before the board goes back for the player to try. */
-const DEMO_LEAD_MS = 700;
-const DEMO_FRAME_MS = 620;
-const DEMO_HOLD_MS = 900;
-/** A second miss on a step plays its demo again. */
-const MISSES_BEFORE_REPLAY = 2;
+export type LessonPhase = 'doing' | 'success' | 'done';
 
 /**
- * The flow of a lesson: which step is live, and its beats. A step opens
- * with a demo ('watch': the lesson plays the move on the real board, then
- * puts it back), then it is the player's turn ('doing'); a success holds
- * for a moment so it lands, then the next step comes in.
- *
- * `demoLength` is how many frames the current step's demo has (0 for
- * none). It is read when the demo starts, after the step has rendered, so
- * a lesson can work it out from the step's own board.
+ * The flow of a lesson: which step is live, and its beats. Each step tells
+ * the player what to do and highlights where; a success holds for a moment
+ * so it lands, then the next step comes in.
  */
 export function useLessonFlow(
   stepCount: number,
   onEnterStep?: (index: number) => void,
-  demoLength = 0,
 ): {
   index: number;
   phase: LessonPhase;
   succeed: () => void;
   wrong: () => void;
   wrongNonce: number;
-  /** The demo frame on show, or null when the board is the player's. */
-  demoFrame: number | null;
   started: boolean;
   start: () => void;
 } {
   const [index, setIndex] = useState(0);
-  const [phase, setPhase] = useState<LessonPhase>('watch');
+  const [phase, setPhase] = useState<LessonPhase>('doing');
   const [wrongNonce, setWrongNonce] = useState(0);
-  const [demoFrame, setDemoFrame] = useState<number | null>(null);
   const [started, setStarted] = useState(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const enter = useRef(onEnterStep);
   enter.current = onEnterStep;
-  const demoLengthRef = useRef(demoLength);
-  demoLengthRef.current = demoLength;
   useEffect(() => () => {
     if (timer.current) clearTimeout(timer.current);
   }, []);
 
-  // Kept in refs as well as state, so each beat is decided once, outside
-  // any state updater (React may run an updater twice).
-  const phaseRef = useRef<LessonPhase>('watch');
+  // Kept in refs as well as state, so the beat between steps is decided
+  // once, outside any state updater (React may run an updater twice).
+  const phaseRef = useRef<LessonPhase>('doing');
   const indexRef = useRef(0);
-  const misses = useRef(0);
-  const later = (ms: number, run: () => void) => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(run, ms);
-  };
   const toPhase = (next: LessonPhase) => {
     phaseRef.current = next;
     setPhase(next);
   };
 
-  const playDemo = useCallback(() => {
-    toPhase('watch');
-    setDemoFrame(null);
-    later(DEMO_LEAD_MS, () => {
-      const frames = demoLengthRef.current;
-      if (frames === 0) return toPhase('doing');
-      const show = (frame: number) => {
-        setDemoFrame(frame);
-        triggerFeedback('tap');
-        // A longer demo (a path drawn square by square) runs a little quicker.
-        if (frame + 1 < frames) later(Math.min(DEMO_FRAME_MS, 2000 / frames), () => show(frame + 1));
-        else
-          later(DEMO_HOLD_MS, () => {
-            setDemoFrame(null);
-            toPhase('doing');
-          });
-      };
-      show(0);
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const start = useCallback(() => {
-    setStarted(true);
-    playDemo();
-  }, [playDemo]);
+  const start = useCallback(() => setStarted(true), []);
 
   const succeed = useCallback(() => {
     if (phaseRef.current !== 'doing') return;
     toPhase('success');
     triggerFeedback('targetReached');
-    later(1300, () => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => {
       const next = indexRef.current + 1;
       if (next >= stepCount) {
         toPhase('done');
@@ -124,25 +76,18 @@ export function useLessonFlow(
         return;
       }
       indexRef.current = next;
-      misses.current = 0;
       enter.current?.(next);
       setIndex(next);
-      playDemo();
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [stepCount, playDemo]);
+      toPhase('doing');
+    }, 1300);
+  }, [stepCount]);
 
   const wrong = useCallback(() => {
     triggerFeedback('tap');
     setWrongNonce(n => n + 1);
-    misses.current += 1;
-    if (misses.current >= MISSES_BEFORE_REPLAY && phaseRef.current === 'doing') {
-      misses.current = 0;
-      playDemo();
-    }
-  }, [playDemo]);
+  }, []);
 
-  return { index, phase, succeed, wrong, wrongNonce, demoFrame, started, start };
+  return { index, phase, succeed, wrong, wrongNonce, started, start };
 }
 
 /** The instruction card, down from the top. */
@@ -214,13 +159,6 @@ export function LessonShell({
     );
   }, [wrongNonce, shake]);
   const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
-  // A miss earns a word as well as a shake, until the step is done.
-  const [missedStep, setMissedStep] = useState<number | null>(null);
-  useEffect(() => {
-    if (wrongNonce > 0) setMissedStep(index);
-    // Only a new miss counts; a new step clears it by not matching.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [wrongNonce]);
   const guide = useContext(LessonGuideContext);
   // The opening card - the game, its goal, and how it is played - comes
   // before the first step asks for anything. Without a guide, straight in.
@@ -230,13 +168,11 @@ export function LessonShell({
 
   const done = phase === 'done';
   const success = phase === 'success';
-  const watching = phase === 'watch';
 
   if (!started && guide) {
     return (
       <View style={[styles.layer, { paddingTop: insets.top + theme.spacing.sm, paddingBottom: insets.bottom + theme.spacing.md }]}>
         <View style={styles.topBar}>
-          <Text style={[styles.eyebrow, { color: accent }]}>{`LEARN ${gameName.toUpperCase()}`}</Text>
           <PressableScale accessibilityRole="button" accessibilityLabel="Skip the lesson" onPress={onDone} hitSlop={10}>
             <Text style={styles.skip}>Skip</Text>
           </PressableScale>
@@ -251,17 +187,10 @@ export function LessonShell({
           <Animated.Text entering={FadeInDown.duration(420).delay(200)} style={styles.introGoal}>
             {guide.goal}
           </Animated.Text>
-          <Animated.View entering={FadeInDown.duration(420).delay(280)} style={styles.chips}>
-            {[`${steps.length} short steps`, `You play by ${GESTURE_VERB[guide.gesture]}`, 'About a minute'].map(chip => (
-              <View key={chip} style={styles.chip}>
-                <Text style={styles.chipText}>{chip}</Text>
-              </View>
-            ))}
-          </Animated.View>
         </View>
         <Animated.View entering={FadeInUp.duration(420).delay(360)} style={styles.footer}>
-          <PressableScale accessibilityRole="button" accessibilityLabel="Show me how" onPress={start} style={({ pressed }) => [styles.start, { backgroundColor: accent }, pressed && styles.pressed]}>
-            <Text style={styles.startText}>Show me how</Text>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Start the lesson" onPress={start} style={({ pressed }) => [styles.start, pressed && styles.pressed]}>
+            <Text style={styles.startText}>Start</Text>
           </PressableScale>
         </Animated.View>
       </View>
@@ -271,7 +200,6 @@ export function LessonShell({
   return (
     <View style={[styles.layer, { paddingTop: insets.top + theme.spacing.sm, paddingBottom: insets.bottom + theme.spacing.md }]}>
       <View style={styles.topBar}>
-        <Text style={[styles.eyebrow, { color: accent }]}>{`LEARN ${gameName.toUpperCase()}`}</Text>
         {!done && (
           <PressableScale accessibilityRole="button" accessibilityLabel="Skip the lesson" onPress={onDone} hitSlop={10}>
             <Text style={styles.skip}>Skip</Text>
@@ -286,18 +214,8 @@ export function LessonShell({
         ))}
       </View>
 
-      {guide && (
-        <Animated.View entering={FadeIn.duration(300)} style={styles.goalRow}>
-          <Text style={[styles.goalLabel, { color: accent }]}>GOAL</Text>
-          <Text style={styles.goalText} numberOfLines={2}>
-            {guide.goal}
-          </Text>
-        </Animated.View>
-      )}
-
       <View style={styles.instruction}>
         <Animated.View key={done ? 'done' : `step-${index}`} entering={CARD_IN}>
-          <Text style={styles.stepLabel}>{done ? 'ALL DONE' : `STEP ${index + 1} OF ${steps.length}`}</Text>
           <Text style={styles.title} accessibilityRole="header">
             {done ? 'You are ready' : step.title}
           </Text>
@@ -336,15 +254,10 @@ export function LessonShell({
           <Animated.View style={shakeStyle}>
             <Animated.View key={`${index}-${phase}`} entering={success ? PRAISE_IN : GUIDE_IN} style={[styles.guide, success && [styles.guideSuccess, { borderColor: accent }]]}>
               <View style={[styles.guideDot, { backgroundColor: success ? accent : theme.colors.surfaceAlt }]}>
-                {success ? <Text style={[styles.guideDotText, styles.guideDotTextOn]}>{'✓︎'}</Text> : <GestureCue gesture={watching ? 'tap' : guide?.gesture ?? 'tap'} color={watching ? theme.colors.textTertiary : accent} />}
+                {success ? <Text style={[styles.guideDotText, styles.guideDotTextOn]}>{'✓︎'}</Text> : <GestureCue gesture={guide?.gesture ?? 'tap'} color={accent} />}
               </View>
               <View style={styles.guideBody}>
-                {phase === 'doing' && missedStep === index && (
-                  <Animated.Text entering={FadeIn.duration(200)} style={[styles.miss, { color: accent }]}>
-                    NOT QUITE
-                  </Animated.Text>
-                )}
-                <Text style={styles.guideText}>{success ? step.praise : watching ? 'Watch the move first.' : step.hint}</Text>
+                <Text style={styles.guideText}>{success ? step.praise : step.hint}</Text>
               </View>
             </Animated.View>
           </Animated.View>
@@ -380,14 +293,12 @@ function GestureCue({ gesture, color }: { gesture: LessonGesture; color: string 
 
 const styles = themedStyles(() => ({
   layer: { ...StyleSheet.absoluteFill, zIndex: 30, backgroundColor: theme.colors.background, paddingHorizontal: theme.spacing.lg },
-  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  eyebrow: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro + 1, letterSpacing: theme.typography.tracking.eyebrow },
+  topBar: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', minHeight: 24 },
   skip: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   bars: { flexDirection: 'row', gap: 5, marginTop: theme.spacing.md },
   bar: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: theme.colors.border },
   barFill: { ...StyleSheet.absoluteFill },
   instruction: { marginTop: theme.spacing.md, minHeight: 150 },
-  stepLabel: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.4, color: theme.colors.textTertiary },
   title: { marginTop: 6, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 4, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   say: { marginTop: 6, fontSize: theme.typography.sizes.body + 1, lineHeight: 24, color: theme.colors.textSecondary },
   boardWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -410,13 +321,6 @@ const styles = themedStyles(() => ({
   introBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
   introName: { marginTop: 10, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 12, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, textAlign: 'center' },
   introGoal: { fontSize: theme.typography.sizes.body + 2, lineHeight: 26, color: theme.colors.textSecondary, textAlign: 'center', paddingHorizontal: theme.spacing.md },
-  chips: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 8, marginTop: 6 },
-  chip: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
-  chipText: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
-  goalRow: { flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: theme.spacing.md },
-  goalLabel: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.4 },
-  goalText: { flex: 1, fontSize: theme.typography.sizes.caption + 1, lineHeight: 19, color: theme.colors.textSecondary },
-  miss: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.2, marginBottom: 2 },
   cue: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   cueRing: { position: 'absolute', width: 22, height: 22, borderRadius: 11, borderWidth: 1.5 },
   cueTip: { width: 9, height: 9, borderRadius: 4.5 },

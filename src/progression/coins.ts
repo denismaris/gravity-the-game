@@ -31,7 +31,7 @@ export const STARTING_INSIGHTS = 3;
 export const INSIGHTS_PER_VIDEO = 2;
 
 /** A first solve, by the stars it earned. */
-export const FIRST_SOLVE_COINS: Readonly<Record<StarRating, number>> = { 1: 4, 2: 7, 3: 10 };
+export const FIRST_SOLVE_COINS: Readonly<Record<StarRating, number>> = { 1: 5, 2: 8, 3: 12 };
 /** Each star a replay earns that the puzzle had not had before. */
 export const STAR_UPGRADE_COINS = 3;
 /** The Daily, on top of its own solve - once per day. */

@@ -464,10 +464,11 @@ export function isBinairoSolved(puzzle: BinairoPuzzle, state: BinairoState): boo
     if (!isBalancedAndFull(col) || hasTripleRun(col)) return false;
   }
 
-  const rowKeys = new Set(rows.map(lineKey));
-  if (rowKeys.size !== n) return false;
-  const colKeys = new Set(Array.from({ length: n }, (_v, c) => lineKey(colValues(state, c))));
-  if (colKeys.size !== n) return false;
+  // Two identical lines are allowed. Puzzles are still generated with
+  // the classic "no repeats" rule (so each has one intended answer for
+  // hints), but a board that keeps every rule the player is taught is
+  // solved: refusing it for a rule nothing on the board pointed to read
+  // as the game being wrong.
 
   for (const constraint of puzzle.constraints ?? []) {
     if (!isConstraintFullyMet(state, constraint)) return false;
@@ -495,8 +496,6 @@ export function cellBreaksARule(puzzle: BinairoPuzzle, state: BinairoState, row:
   if (tripleRunCells(state).has(`${row}:${col}`)) return true;
   const unbalanced = unbalancedLines(puzzle, state);
   if (unbalanced.rows.has(row) || unbalanced.cols.has(col)) return true;
-  const duplicate = duplicateLines(puzzle, state);
-  if (duplicate.rows.has(row) || duplicate.cols.has(col)) return true;
   const touches = (a: { row: number; col: number }, b: { row: number; col: number }) => (a.row === row && a.col === col) || (b.row === row && b.col === col);
   for (const constraint of puzzle.constraints ?? []) {
     if (touches(constraint, constraintPartner(constraint)) && isConstraintViolated(state, constraint)) return true;

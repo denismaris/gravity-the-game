@@ -5,6 +5,7 @@ export {
   GRAVITY_DEPTH_BANDS,
   LEVELS,
   getGravityLevelsForTier,
+  gravityTierOf,
   getLevelById,
   getLevelByOrder,
   getLevelsByDifficulty,

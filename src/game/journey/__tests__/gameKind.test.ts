@@ -1,7 +1,7 @@
 import { ARUKONE } from '../../arukone';
 import { BINAIRO } from '../../binairo';
 import { FILLAPIX } from '../../fillapix';
-import { LEVELS } from '../../levels';
+import { gravityTierOf, LEVELS } from '../../levels';
 import { LIGHTS_OUT } from '../../lightsout';
 import { MIRROR_MAZES } from '../../mirror';
 import { TENTS_TREES } from '../../tents';
@@ -95,12 +95,11 @@ describe('difficulty is reported faithfully for every game', () => {
    * has three. Its `expert` levels have to arrive as *something* - reading
    * back `undefined`, or quietly as `easy`, would put the calmest chip in
    * the app on the app's hardest levels. */
-  test('gravity: every level reports a tier, with expert collapsed to hard', () => {
+  test('gravity: every level reports the tier it is dealt at, and no short expert board reads as easy', () => {
     for (const level of LEVELS) {
       const reported = puzzleDisplayInfo('gravity', level.id)?.difficulty;
-      expect(reported).toBe(level.difficulty === 'expert' ? 'hard' : level.difficulty);
+      expect(reported).toBe(gravityTierOf(level) ?? 'easy');
+      if (level.difficulty === 'expert') expect(reported).not.toBe('easy');
     }
-    // And the collapse is actually exercised - there are expert levels.
-    expect(LEVELS.some(level => level.difficulty === 'expert')).toBe(true);
   });
 });

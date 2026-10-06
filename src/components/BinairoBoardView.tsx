@@ -9,7 +9,6 @@ import {
   BinairoValue,
   constraintKey,
   constraintPartner,
-  duplicateLineGroups,
   isGiven,
   tripleRunGroups,
   twinKey,
@@ -100,9 +99,12 @@ export const TILE_RADIUS = 8;
  * to know how long to keep running for *before* the per-cell timings
  * below are actually evaluated. `BinairoScreen`'s own popup delay is
  * tuned to this same number - see its `POPUP_DELAY_MS`. */
-const WAVE_STAGGER_MS = 40;
-const WAVE_TILE_MS = 220;
-const WAVE_TOTAL_MS = 650;
+// Slowed after play-testing: at 40/220ms the ring was over before it
+// registered. An 8x8 corner-to-corner wave is now 7 * 70 + 480 = 970ms,
+// inside the shared 1.1s finish beat (`SOLVE_CELEBRATION_MS`).
+const WAVE_STAGGER_MS = 70;
+const WAVE_TILE_MS = 480;
+const WAVE_TOTAL_MS = 1050;
 
 /** The board's own opening flourish: every tile - given or not - starts
  * hidden under a solid cream "shutter" (the page's own `background`, not a
@@ -715,7 +717,6 @@ function renderTray(layout: BoardLayout): React.JSX.Element {
       {/* A thin light seam along the top-left edge and a slightly deeper
           one along the bottom-right - the board's own edge catching and
           losing the light, not a uniform outline on all four sides. */}
-      <Path path={`M 1.5 ${boardSize - 10} L 1.5 10 Q 1.5 1.5 10 1.5 L ${boardSize - 10} 1.5`} color="rgba(255,255,255,0.9)" style="stroke" strokeWidth={1.5} strokeCap="round" />
       <Path
         path={`M ${boardSize - 1.5} 10 L ${boardSize - 1.5} ${boardSize - 10} Q ${boardSize - 1.5} ${boardSize - 1.5} ${boardSize - 10} ${boardSize - 1.5} L 10 ${boardSize - 1.5}`}
         color={inkWash(0.16)}
@@ -918,13 +919,10 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
   const errorBoxes = useMemo(() => {
     const map = new Map<string, ErrorZoneBox>();
     const cellSize = layout.cellSize;
-    // Whole lines: an unequal count, or a line that duplicates another.
+    // Whole lines: an unequal count.
     const unbalanced = unbalancedLines(puzzle, state);
-    const duplicate = duplicateLineGroups(puzzle, state);
     const rows = new Set<number>(unbalanced.rows);
     const cols = new Set<number>(unbalanced.cols);
-    for (const group of duplicate.rows) for (const r of group) rows.add(r);
-    for (const group of duplicate.cols) for (const c of group) cols.add(c);
     for (const r of rows) map.set(`line:row:${r}`, { x: 0, y: r * cellSize, w: layout.boardSize, h: cellSize });
     for (const c of cols) map.set(`line:col:${c}`, { x: c * cellSize, y: 0, w: cellSize, h: layout.boardSize });
     // Triple runs: just the run's own cells - unless its whole line is

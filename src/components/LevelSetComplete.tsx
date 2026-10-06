@@ -4,11 +4,11 @@ import { toRoman } from '../progression/rank';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 import { ConfettiBurst } from './ConfettiBurst';
 import { GameEmblem } from './GameEmblem';
-import { GeometricRule } from './GeometricRule';
 import { PressableScale } from './PressableScale';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, GameKind, gameLabelForKind } from '../game/journey';
 import { motion, theme, themedStyles } from '../theme';
+import { MODAL_EXIT_MS, ModalLayer } from './ModalLayer';
 
 export interface LevelSetCompleteProps {
   /** The level number that was just finished. */
@@ -44,7 +44,8 @@ const PLACE_DELAY_MS = 420;
  * it, counted out rather than presented all at once.
  */
 export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCompleteProps): React.JSX.Element {
-  const { backdrop, card, hero, rowStyle } = useCardEntrance(ROW_COUNT);
+  // It follows a puzzle's own card: arrives once that one has left.
+  const { backdrop, card, hero, rowStyle } = useCardEntrance(ROW_COUNT, { delay: MODAL_EXIT_MS });
   const places = useRef(kinds.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
@@ -60,89 +61,90 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
   }, []);
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <Animated.View style={[styles.scrim, { opacity: backdrop }]} pointerEvents="none" />
-      <ConfettiBurst />
-      <Animated.View
-        style={[
-          styles.cardShadow,
-          {
-            opacity: card,
-            transform: [
-              { scale: card.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
-              { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) },
-            ],
-          },
-        ]}
-      >
-        <View style={styles.card}>
-          <Animated.View
-            style={[
-              styles.crest,
-              {
-                opacity: hero,
-                transform: [{ scale: hero }],
-              },
-            ]}
-          >
-            <Text style={styles.crestNumber}>{levelNumber}</Text>
-          </Animated.View>
-
-          <Animated.View style={rowStyle(0)}>
-            <Text style={styles.eyebrow}>LEVEL COMPLETE</Text>
-            <Text style={styles.headline}>{kinds.length} games, all finished</Text>
-          </Animated.View>
-
-          <View style={styles.tally}>
-            {kinds.map((kind, i) => (
-              <Animated.View
-                key={`${kind}-${i}`}
-                style={[
-                  styles.tallyRow,
-                  {
-                    opacity: places[i],
-                    transform: [
-                      { scale: places[i].interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) },
-                      { translateX: places[i].interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) },
-                    ],
-                  },
-                ]}
-              >
-                <GameEmblem kind={kind} size={40} />
-                <Text style={[styles.tallyLabel, { color: accentColorForKind(kind) }]}>{gameLabelForKind(kind)}</Text>
-              </Animated.View>
-            ))}
-          </View>
-
-          <Animated.View style={[styles.cardRule, rowStyle(2)]}>
-            <GeometricRule variant="quiet" />
-          </Animated.View>
-
-          {levelNumber % LEVELS_PER_CHAPTER === 0 ? (
-            <Animated.View style={[styles.chapter, rowStyle(2)]}>
-              <Text style={styles.chapterKicker}>CHAPTER {toRoman(levelNumber / LEVELS_PER_CHAPTER)} COMPLETE</Text>
-              <Text style={styles.chapterName}>{chapterAt(levelNumber / LEVELS_PER_CHAPTER).name}</Text>
-              <Text style={styles.chapterNote}>Its reward is waiting in your Almanac.</Text>
-            </Animated.View>
-          ) : (
-            <Animated.Text style={[styles.closing, rowStyle(2)]}>
-              That is the whole set. Take a breather; the next one is ready when you are.
-            </Animated.Text>
-          )}
-
-          <Animated.View style={rowStyle(3)}>
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Continue"
-              onPress={onContinue}
-              style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+    <ModalLayer>
+      <View style={styles.overlay} pointerEvents="box-none">
+        <Animated.View style={[styles.scrim, { opacity: backdrop }]} pointerEvents="none" />
+        <ConfettiBurst />
+        <Animated.View
+          style={[
+            styles.cardShadow,
+            {
+              opacity: card,
+              transform: [
+                { scale: card.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
+                { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.card}>
+            <Animated.View
+              style={[
+                styles.crest,
+                {
+                  opacity: hero,
+                  transform: [{ scale: hero }],
+                },
+              ]}
             >
-              <Text style={styles.buttonLabel}>Continue ›</Text>
-            </PressableScale>
-          </Animated.View>
-        </View>
-      </Animated.View>
-    </View>
+              <Text style={styles.crestNumber}>{levelNumber}</Text>
+            </Animated.View>
+
+            <Animated.View style={rowStyle(0)}>
+              <Text style={styles.eyebrow}>LEVEL COMPLETE</Text>
+              <Text style={styles.headline}>{kinds.length} games, all finished</Text>
+            </Animated.View>
+
+            <View style={styles.tally}>
+              {kinds.map((kind, i) => (
+                <Animated.View
+                  key={`${kind}-${i}`}
+                  style={[
+                    styles.tallyRow,
+                    {
+                      opacity: places[i],
+                      transform: [
+                        { scale: places[i].interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) },
+                        { translateX: places[i].interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) },
+                      ],
+                    },
+                  ]}
+                >
+                  <GameEmblem kind={kind} size={40} />
+                  <Text style={[styles.tallyLabel, { color: accentColorForKind(kind) }]}>{gameLabelForKind(kind)}</Text>
+                </Animated.View>
+              ))}
+            </View>
+
+            <Animated.View style={[styles.cardRule, rowStyle(2)]}>
+            </Animated.View>
+
+            {levelNumber % LEVELS_PER_CHAPTER === 0 ? (
+              <Animated.View style={[styles.chapter, rowStyle(2)]}>
+                <Text style={styles.chapterKicker}>CHAPTER {toRoman(levelNumber / LEVELS_PER_CHAPTER)} COMPLETE</Text>
+                <Text style={styles.chapterName}>{chapterAt(levelNumber / LEVELS_PER_CHAPTER).name}</Text>
+                <Text style={styles.chapterNote}>Its reward is waiting in your Almanac.</Text>
+              </Animated.View>
+            ) : (
+              <Animated.Text style={[styles.closing, rowStyle(2)]}>
+                That is the whole set. Take a breather; the next one is ready when you are.
+              </Animated.Text>
+            )}
+
+            <Animated.View style={rowStyle(3)}>
+              <PressableScale
+                accessibilityRole="button"
+                accessibilityLabel="Continue"
+                onPress={onContinue}
+                style={({ pressed }) => [styles.button, pressed && styles.pressed]}
+              >
+                <Text style={styles.buttonLabel}>Continue ›</Text>
+              </PressableScale>
+            </Animated.View>
+          </View>
+        </Animated.View>
+      </View>
+    </ModalLayer>
   );
 }
 

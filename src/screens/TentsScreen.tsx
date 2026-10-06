@@ -19,7 +19,7 @@ import {
   TentsTreesPuzzle,
   totalTentsNeeded,
   touchingTentCells, explainTentsHint } from '../game/tents';
-import { DifficultyChip, GeometricRule, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, TentsBoard, renderTentsIllustration, useSolveCelebration } from '../components';
+import { DifficultyChip, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, TentsBoard, renderTentsIllustration, useSolveCelebration } from '../components';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
@@ -31,6 +31,7 @@ import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
+import { HelpHalo } from '../components/HelpHalo';
 
 const TUTORIAL_ID = tutorialIdForGame('tents');
 const ICON_SIZE = 14;
@@ -265,6 +266,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
           hitSlop={8}
           containerStyle={styles.headerRightSpacer}
         >
+          <HelpHalo />
           <HelpIcon />
         </PressableScale>
       </View>
@@ -272,7 +274,6 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <GeometricRule variant="stage" style={styles.stageRule} />
           <TentsBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} />
         </Animated.View>
 
@@ -283,10 +284,9 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
             accessibilityRole="button"
             accessibilityLabel="Restart puzzle"
             onPress={restart}
-            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}
           >
             <RestartIcon />
-            <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
@@ -298,7 +298,7 @@ export function TentsScreen({ puzzle, onExit, onNextPuzzle }: TentsScreenProps):
       </View>
 
 
-      {showSolvedCard && stars && (
+      {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved
           kind="tents"
           stars={stars}
@@ -436,14 +436,6 @@ const styles = themedStyles(() => ({
     alignItems: 'center',
     justifyContent: 'flex-start',
   },
-  // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`. No
-  // fill of its own now - just the page's background plus a snug
-  // top/bottom rule hugging the board, not a second boxed card behind it.
-  /** The signature rule standing in for the stage's old plain top
-   * hairline - same job, carrying the app's own mark. */
-  stageRule: {
-    marginBottom: theme.spacing.sm,
-  },
   stage: {
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
@@ -487,4 +479,7 @@ const styles = themedStyles(() => ({
     fontWeight: theme.typography.weights.semibold,
   },
   quiet: { opacity: 0 },
+  // Restart (and Undo, where a game has one) as a round icon key beside
+  // the one labelled button, Insight - the same row on every game.
+  roundKey: { width: 46, height: 46, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
 }));

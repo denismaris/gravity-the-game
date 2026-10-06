@@ -20,7 +20,9 @@ function buildInitialGrid(puzzle: TentsTreesPuzzle): WorkingGrid {
   return Array.from({ length: puzzle.rows }, (_row, r) =>
     Array.from({ length: puzzle.cols }, (_col, c): Decided => {
       if (isTreeCell(puzzle, r, c)) return 'empty';
-      if (adjacentTreeCount(puzzle, r, c) !== 1) return 'empty'; // 0 or 2+ adjacent trees: never a valid tent
+      // No tree beside it: never a tent. A square beside two trees can be
+      // one - the final check pairs every tree with its own tent.
+      if (adjacentTreeCount(puzzle, r, c) === 0) return 'empty';
       return undefined;
     }),
   );

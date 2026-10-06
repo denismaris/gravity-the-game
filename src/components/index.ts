@@ -1,7 +1,5 @@
 export { SessionControls } from './SessionControls';
 export type { SessionControlsProps } from './SessionControls';
-export { LevelCompleteCard } from './LevelCompleteCard';
-export type { LevelCompleteCardProps } from './LevelCompleteCard';
 export { LevelFailedCard } from './LevelFailedCard';
 export type { LevelFailedCardProps } from './LevelFailedCard';
 export { StarRow } from './StarRow';

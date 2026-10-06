@@ -54,10 +54,10 @@ describe('the shop', () => {
   test('a purchase takes two taps - the price, then the confirm - and is worn at once', async () => {
     const { api, press, renderer } = await mount(<ShopScreen onExit={() => {}} />, { coins: 500 });
     await press('Style');
-    await press('Buy Gold Leaf for 450 coins');
+    await press('Buy Gold Leaf for 250 coins');
     expect(api().coins).toBe(500);
-    await press('Confirm buying Gold Leaf for 450 coins');
-    expect(api().coins).toBe(50);
+    await press('Confirm buying Gold Leaf for 250 coins');
+    expect(api().coins).toBe(250);
     expect(api().progress.equipped.confetti).toBe('confetti-gold');
     expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'Gold Leaf, worn').length).toBeGreaterThan(0);
     await act(async () => renderer.unmount());
@@ -66,8 +66,8 @@ describe('the shop', () => {
   test('too few coins: no confirm, no charge', async () => {
     const { api, press, renderer } = await mount(<ShopScreen onExit={() => {}} />, { coins: 20 });
     await press('Style');
-    await press('Buy Gold Leaf for 450 coins');
-    await press('Buy Gold Leaf for 450 coins');
+    await press('Buy Gold Leaf for 250 coins');
+    await press('Buy Gold Leaf for 250 coins');
     expect(api().coins).toBe(20);
     expect(api().progress.owned).toEqual([]);
     await act(async () => renderer.unmount());
@@ -206,7 +206,7 @@ describe('the first-launch walkthrough', () => {
     const done = jest.fn();
     const { press, renderer } = await mount(<IntroWalkthrough onDone={done} />, {});
     for (let i = 0; i < 3; i += 1) await press('Next page');
-    await press('Start playing');
+    await press('Close the introduction');
     await act(async () => {
       jest.advanceTimersByTime(600);
     });

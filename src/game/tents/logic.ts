@@ -155,13 +155,38 @@ export function isTentsTreesSolved(puzzle: TentsTreesPuzzle, state: TentsTreesSt
   for (let c = 0; c < puzzle.cols; c += 1) {
     if (colTentCount(state, c) !== puzzle.colCounts[c]) return false;
   }
+  const tents: TentsTreesCell[] = [];
   for (let r = 0; r < puzzle.rows; r += 1) {
     for (let c = 0; c < puzzle.cols; c += 1) {
       if (state.marks[r][c] !== 'tent') continue;
-      if (adjacentTreeCount(puzzle, r, c) !== 1) return false;
+      if (adjacentTreeCount(puzzle, r, c) === 0) return false;
       const touchesAnotherTent = allNeighbors(puzzle, r, c).some(n => state.marks[n.row][n.col] === 'tent');
       if (touchesAnotherTent) return false;
+      tents.push({ row: r, col: c });
     }
   }
-  return true;
+  // The rule is a pairing, not "one tree per tent": a tent may stand
+  // between two trees as long as every tree still gets a tent of its own.
+  // (The generator is stricter, so each puzzle has one intended layout for
+  // hints; a different layout that keeps the real rule is just as solved.)
+  return tents.length === puzzle.trees.length && everyTreeHasItsOwnTent(puzzle, tents);
+}
+
+/** Whether trees and tents pair up one to one, each pair side by side - a
+ * bipartite matching, found by augmenting paths (boards are tiny). */
+function everyTreeHasItsOwnTent(puzzle: TentsTreesPuzzle, tents: ReadonlyArray<TentsTreesCell>): boolean {
+  const besideTree = puzzle.trees.map(tree => tents.flatMap((tent, i) => (Math.abs(tent.row - tree.row) + Math.abs(tent.col - tree.col) === 1 ? [i] : [])));
+  const treeOfTent = new Array<number>(tents.length).fill(-1);
+  const claim = (tree: number, seen: boolean[]): boolean => {
+    for (const tent of besideTree[tree]) {
+      if (seen[tent]) continue;
+      seen[tent] = true;
+      if (treeOfTent[tent] === -1 || claim(treeOfTent[tent], seen)) {
+        treeOfTent[tent] = tree;
+        return true;
+      }
+    }
+    return false;
+  };
+  return puzzle.trees.every((_tree, i) => claim(i, new Array<boolean>(tents.length).fill(false)));
 }

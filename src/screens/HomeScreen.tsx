@@ -51,6 +51,7 @@ import {
   unclaimedSets,
   gamesPlayed,
   INTRO_ORDER,
+  INTRO_SOLVES,
   nextGameToArrive,
   unlockedGames,
 } from '../progression';
@@ -180,6 +181,9 @@ const MAX_CARD_HEIGHT = 400;
 /** The page each carousel slot is, in order - the order they are laid out
  * in below, and the order the dots read. */
 const PAGES = ['continue', 'today', 'grand', 'you'] as const;
+
+/** The tab Home was last on, kept across its unmounts (see `page`). */
+let rememberedPage = 0;
 /** What each carousel page is called on its tab. */
 /** A small shopping bag, in the ink of the label beside it. */
 function ShopBag(): React.JSX.Element {
@@ -388,12 +392,19 @@ export function HomeScreen({
     }).start();
   }, [pct, trackFill]);
 
-  const [page, setPage] = useState(0);
+  // Opens on the tab the player left from: Home unmounts behind every other
+  // screen, so a trip to Your games from the You tab used to land on Play.
+  const [page, setPage] = useState(rememberedPage);
+  useEffect(() => {
+    rememberedPage = page;
+  }, [page]);
   const carouselRef = useRef<React.ElementRef<typeof ScrollView>>(null);
+  // Only where it opens: driven from `page`, a tab tap would jump, not slide.
+  const initialOffset = useRef({ x: rememberedPage * width, y: 0 }).current;
   // The carousel's offset, driven natively: the tab highlight slides with
   // the finger frame for frame, with no JavaScript in the loop (the first
   // version set React state from every scroll event and stuttered).
-  const scrollX = useRef(new Animated.Value(0)).current;
+  const scrollX = useRef(new Animated.Value(rememberedPage * width)).current;
   const onCarouselNativeScroll = useMemo(() => Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true }), [scrollX]);
   const goToPage = useCallback(
     (index: number) => {
@@ -613,6 +624,7 @@ export function HomeScreen({
             ref={carouselRef as never}
             style={{ height: cardHeight }}
             horizontal
+            contentOffset={initialOffset}
             contentContainerStyle={styles.carouselContent}
             pagingEnabled
             showsHorizontalScrollIndicator={false}
@@ -793,17 +805,26 @@ export function HomeScreen({
                         <PressableScale
                           accessibilityRole="button"
                           onPress={onOpenCollection}
-                          hitSlop={8}
-                          style={styles.arriving}
-                          accessibilityLabel={`${roster.length} of ${INTRO_ORDER.length} games. The next arrives in ${arriving.inPuzzles} ${arriving.inPuzzles === 1 ? 'puzzle' : 'puzzles'}. Open your games`}
+                          hitSlop={6}
+                          containerStyle={styles.nextWrap}
+                          style={styles.next}
+                          accessibilityLabel={`Next game: ${gameShortName(arriving.kind)}, after ${arriving.inPuzzles} more ${gameShortName(arriving.gate)} ${arriving.inPuzzles === 1 ? 'puzzle' : 'puzzles'}. ${roster.length} of ${INTRO_ORDER.length} games so far. Open your games`}
                         >
-                          {/* The collection, one dot a game, filling in as they arrive. */}
-                          <View style={styles.rosterDots}>
-                            {INTRO_ORDER.map(kind => (
-                              <View key={kind} style={[styles.rosterDot, roster.includes(kind) ? { backgroundColor: accentColorForKind(kind) } : styles.rosterDotLocked]} />
-                            ))}
+                          {/* The next game, waiting: its emblem, faded, and
+                            a bar that fills with every puzzle of the game
+                            being learned. Ten of those, and it arrives. */}
+                          <View style={styles.nextEmblem}>
+                            <GameEmblem kind={arriving.kind} size={26} />
                           </View>
-                          <Text style={styles.arrivingText}>{`Next game in ${arriving.inPuzzles}`}</Text>
+                          <View style={styles.nextBody}>
+                            <View style={styles.nextHead}>
+                              <Text style={styles.nextTitle} numberOfLines={1}>{`Next: ${gameShortName(arriving.kind)}`}</Text>
+                              <Text style={styles.nextCount}>{`${arriving.done}/${INTRO_SOLVES}`}</Text>
+                            </View>
+                            <View style={styles.nextTrack}>
+                              <View style={[styles.nextFill, { width: `${(arriving.done / INTRO_SOLVES) * 100}%`, backgroundColor: accentColorForKind(arriving.gate) }]} />
+                            </View>
+                          </View>
                         </PressableScale>
                       )}
                       {/* Stuck? Swap the next puzzle for another game's - paid
@@ -1017,8 +1038,8 @@ export function HomeScreen({
 
                 <View style={styles.heroFoot}>
                   <Text style={styles.verb}>{grandDone ? 'Replay' : 'Play'}</Text>
-                  <View style={[styles.play, styles.playGrand]}>
-                    <View style={[styles.playTri, styles.playTriGrand]} />
+                  <View style={styles.play}>
+                    <View style={styles.playTri} />
                   </View>
                 </View>
               </PressableScale>
@@ -1474,8 +1495,6 @@ const styles = themedStyles(() => ({
   grandTickText: { color: theme.colors.surfaceHi, fontSize: 9, fontWeight: theme.typography.weights.bold },
   grandPrizeAt: { fontSize: theme.typography.sizes.micro, color: theme.colors.textTertiary },
   grandPrizeWon: { color: theme.colors.success },
-  playGrand: { backgroundColor: theme.colors.goldFill },
-  playTriGrand: { borderLeftColor: theme.colors.onGold },
   sectionLabel: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary, marginBottom: 6 },
 
   eyebrowRow: {
@@ -1573,13 +1592,17 @@ const styles = themedStyles(() => ({
   },
   setNewText: { fontSize: 7, fontWeight: theme.typography.weights.bold, letterSpacing: 0.8, color: theme.colors.surfaceHi },
   cardFoot: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', columnGap: 12, rowGap: 6, marginTop: theme.spacing.sm },
-  arriving: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  rosterDots: { flexDirection: 'row', gap: 3 },
-  rosterDot: { width: 6, height: 6, borderRadius: 3 },
-  rosterDotLocked: { borderWidth: 1, borderColor: theme.colors.borderStrong },
+  nextWrap: { alignSelf: 'stretch', flexBasis: '100%' },
+  next: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: theme.colors.background },
+  nextEmblem: { opacity: 0.55 },
+  nextBody: { flex: 1, gap: 4 },
+  nextHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  nextTitle: { flex: 1, fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
+  nextCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
+  nextTrack: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: theme.colors.border },
+  nextFill: { height: 4, borderRadius: 2 },
   newChip: { marginLeft: 8, paddingHorizontal: 7, paddingVertical: 2, borderRadius: theme.radii.pill },
   newChipText: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 0.4, color: theme.colors.surfaceHi },
-  arrivingText: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   setGolden: {
     position: 'absolute',
     top: -4,

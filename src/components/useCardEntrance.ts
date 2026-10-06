@@ -25,6 +25,9 @@ export interface CardEntranceOptions {
    * entirely. For a card reporting a failure rather than a win - the
    * choreography is the same, the physics and the gleam are not. */
   readonly subdued?: boolean;
+  /** Wait this long before arriving - for a card that follows another, so
+   * the first has left (see `MODAL_EXIT_MS`). */
+  readonly delay?: number;
 }
 
 export interface CardEntrance {
@@ -70,8 +73,10 @@ export function useCardEntrance(rowCount: number, options: CardEntranceOptions =
   // mid-entrance would mean two different physics in one arrival.
   const subdued = useRef(options.subdued ?? false).current;
 
+  const delay = useRef(options.delay ?? 0).current;
+
   useEffect(() => {
-    Animated.parallel([
+    const entrance = Animated.parallel([
       Animated.timing(backdrop, {
         toValue: 1,
         duration: 220,
@@ -108,7 +113,8 @@ export function useCardEntrance(rowCount: number, options: CardEntranceOptions =
               }),
             ]),
           ]),
-    ]).start();
+    ]);
+    (delay > 0 ? Animated.sequence([Animated.delay(delay), entrance]) : entrance).start();
     // Mount-only choreography: these cards are mounted exactly when a
     // puzzle is finished, so "on mount" already means "the moment worth
     // celebrating". All three are stable refs.

@@ -23,10 +23,11 @@ import { useEffect, useRef, useState } from 'react';
  * inside it - which is also what makes the whole app feel like one app
  * at the moment it matters most.
  *
- * ~620ms is long enough for a staggered wave to read as a wave and short
- * enough that nobody waits on it.
+ * ~1.1s: long enough for a finish to land and be enjoyed - at 620ms the
+ * waves were over before they registered, and play-testing called them
+ * too fast - and still short of anyone waiting on it.
  */
-export const SOLVE_CELEBRATION_MS = 620;
+export const SOLVE_CELEBRATION_MS = 1100;
 
 /**
  * `true` once `solved` has been set for a full celebration beat.

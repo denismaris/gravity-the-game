@@ -3,6 +3,7 @@ import { Animated, StyleSheet, Text, View } from 'react-native';
 import { PressableScale } from './PressableScale';
 import { useCardEntrance } from './useCardEntrance';
 import { motion, theme, themedStyles } from '../theme';
+import { ModalLayer } from './ModalLayer';
 
 export interface LevelFailedCardProps {
   /** Restart the level from its beginning. */
@@ -43,46 +44,48 @@ export function LevelFailedCard({
   const { backdrop, card, rowStyle } = useCardEntrance(ROW_COUNT, { subdued: true });
 
   return (
-    <View style={styles.overlay} pointerEvents="box-none">
-      <Animated.View style={[styles.scrim, { opacity: backdrop }]} pointerEvents="none" />
-      <Animated.View
-        style={[
-          styles.card,
-          {
-            opacity: card,
-            transform: [
-              { scale: card.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
-              { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },
-            ],
-          },
-        ]}
-      >
-        <Animated.Text style={[styles.title, rowStyle(0)]}>{title}</Animated.Text>
-        <Animated.Text style={[styles.message, rowStyle(1)]}>{message}</Animated.Text>
+    <ModalLayer>
+      <View style={styles.overlay} pointerEvents="box-none">
+        <Animated.View style={[styles.scrim, { opacity: backdrop }]} pointerEvents="none" />
+        <Animated.View
+          style={[
+            styles.card,
+            {
+              opacity: card,
+              transform: [
+                { scale: card.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
+                { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },
+              ],
+            },
+          ]}
+        >
+          <Animated.Text style={[styles.title, rowStyle(0)]}>{title}</Animated.Text>
+          <Animated.Text style={[styles.message, rowStyle(1)]}>{message}</Animated.Text>
 
-        <Animated.View style={[styles.actions, rowStyle(2)]}>
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel="Back to home"
-            onPress={onExit}
-            hitSlop={8}
-            style={({ pressed }) => [styles.button, styles.buttonSecondary, pressed && styles.pressed]}
-          >
-            <Text style={styles.buttonSecondaryLabel}>Home</Text>
-          </PressableScale>
+          <Animated.View style={[styles.actions, rowStyle(2)]}>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Back to home"
+              onPress={onExit}
+              hitSlop={8}
+              style={({ pressed }) => [styles.button, styles.buttonSecondary, pressed && styles.pressed]}
+            >
+              <Text style={styles.buttonSecondaryLabel}>Home</Text>
+            </PressableScale>
 
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel="Retry level"
-            onPress={onRetry}
-            hitSlop={8}
-            style={({ pressed }) => [styles.button, styles.buttonPrimary, pressed && styles.pressed]}
-          >
-            <Text style={styles.buttonPrimaryLabel}>Retry</Text>
-          </PressableScale>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel="Retry level"
+              onPress={onRetry}
+              hitSlop={8}
+              style={({ pressed }) => [styles.button, styles.buttonPrimary, pressed && styles.pressed]}
+            >
+              <Text style={styles.buttonPrimaryLabel}>Retry</Text>
+            </PressableScale>
+          </Animated.View>
         </Animated.View>
-      </Animated.View>
-    </View>
+      </View>
+    </ModalLayer>
   );
 }
 

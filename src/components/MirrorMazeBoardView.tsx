@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Circle, Group, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import {
   Direction,
@@ -181,7 +181,10 @@ function useMirrorFlourish(mirrors: MirrorMazeState['mirrors']): Flourish | null
   const [flourish, setFlourish] = useState<Flourish | null>(null);
   const previousRef = useRef(mirrors);
 
-  useEffect(() => {
+  // Before paint: noticed after it, the turned mirror showed for a frame
+  // at rest, then jumped back a quarter turn to spin - a snap, then the
+  // spin, which read as the tap lagging.
+  useLayoutEffect(() => {
     const previous = previousRef.current;
     previousRef.current = mirrors;
     if (previous === mirrors) return;

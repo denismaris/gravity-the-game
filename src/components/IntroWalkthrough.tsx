@@ -102,18 +102,18 @@ interface IntroPage {
 const PAGES: ReadonlyArray<IntroPage> = [
   {
     kicker: 'WELCOME TO TESSELLATUM',
-    title: 'Twelve games, one almanac',
-    body: 'Logic puzzles from twelve different games, dealt to you one after another. No level select, no menus to wade through. Just the next good puzzle.',
+    title: 'Twelve games, one at a time',
+    body: 'You start with one game. Ten puzzles in, the next one arrives, and so on until all twelve are yours. Every new game opens with a short lesson.',
     points: [
       ['▦︎', 'A new board every time. They never run out'],
-      ['✓︎', 'Every puzzle has one solution, reachable by logic'],
+      ['✓︎', 'Every puzzle can be solved by logic alone'],
     ],
     art: width => <GamesArt width={width} />,
   },
   {
     kicker: 'HOW LEVELS WORK',
-    title: 'Sets of four',
-    body: 'Each level is a set of puzzles from mixed games. Finish the set to move on. Difficulty climbs gently, and a hard challenge turns up now and then.',
+    title: 'Short sets',
+    body: 'Each level is a short set of puzzles. Finish the set to move on. Everything starts easy, and nothing gets hard until you know every game.',
     points: [
       ['▁', 'The underlined puzzle is the challenge'],
       ['◉', 'A golden puzzle pays triple coins'],
@@ -121,12 +121,12 @@ const PAGES: ReadonlyArray<IntroPage> = [
     art: width => <SetArt width={width} />,
   },
   {
-    kicker: 'COINS & HINTS',
-    title: 'Earn, then spend',
-    body: 'Every first solve pays coins, more for three stars. Spend them on a hint when you are stuck, or on new looks for your almanac in the shop.',
+    kicker: 'INSIGHT & COINS',
+    title: 'Stuck? Ask for Insight',
+    body: 'Insight shows your next move and tells you why. You start with three; a short video or a few coins brings more. Coins also buy new looks in the shop.',
     points: [
-      ['★︎', 'Stars fall with each hint you take'],
-      ['×', 'Solve without hints in a row for a clean-run bonus'],
+      ['★︎', 'Each Insight used costs a star on that puzzle'],
+      ['×', 'Solve a few in a row without help for a bonus'],
     ],
     art: width => <CoinsArt width={width} />,
   },
@@ -239,11 +239,11 @@ export function IntroWalkthrough({ onDone }: IntroWalkthroughProps): React.JSX.E
             </View>
             <PressableScale
               accessibilityRole="button"
-              accessibilityLabel={last ? 'Start playing' : 'Next page'}
+              accessibilityLabel={last ? 'Close the introduction' : 'Next page'}
               onPress={last ? finish : () => goTo(page + 1)}
               style={({ pressed }) => [styles.next, pressed && styles.pressed]}
             >
-              <Text style={styles.nextText}>{last ? 'Start playing ›' : 'Next ›'}</Text>
+              <Text style={styles.nextText}>{last ? 'Got it' : 'Next ›'}</Text>
             </PressableScale>
           </View>
         </View>

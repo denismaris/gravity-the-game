@@ -545,6 +545,47 @@ SOUNDS.update(SOFTER)
 
 
 
+# --- No bells (2026-10-06) ----------------------------------------------------
+# Even as a music box, the finishes ended on a high, ringing note, and the
+# target ping, Bridges' island bell and Mirror Maze's gem all rang: players
+# heard "a bell" and found it annoying. Everything that rang is now the
+# same soft wooden mallet as the coin, in a lower register, filtered warm.
+
+def soft_finish(notes, gap=0.11, peak=0.36, ring=0.22, cutoff=2200):
+    """A finish: a short, warm rise of mallet notes, the last held longest."""
+    tail = 0.55
+    total = int(SR * (gap * (len(notes) - 1) + tail))
+    t = timeline(tail)
+    out = np.zeros(total)
+    for i, f in enumerate(notes):
+        last = i == len(notes) - 1
+        out += at(wood(t, f, 1.0 if last else 0.8, ring * (1.6 if last else 1.0)), i * gap, total)
+    return finish(lowpass(room(out, 0.14), cutoff), peak)
+
+
+G3, A3, B3, C4, D4, E4, F4_, G4 = 196.0, 220.0, 246.94, 261.63, 293.66, 329.63, 349.23, 392.0
+NO_BELLS = {
+    'sfx_solve': lambda: soft_finish([C4, E4, G4, C4 * 2]),
+    'sfx_binairo_solve': lambda: soft_finish([E4, G4, B3 * 2, E4 * 2]),
+    'sfx_towers_solve': lambda: soft_finish([G3, B3, D4, G4]),
+    'sfx_tents_solve': lambda: soft_finish([F4_ / 2 * 1.0, A3, C4, F4_]),
+    'sfx_arukone_solve': lambda: soft_finish([D4, F4_ * 1.059, A3 * 2, D4 * 2]),
+    'sfx_fillapix_solve': lambda: soft_finish([C4, D4, G4, C4 * 2]),
+    'sfx_lightsout_solve': lambda: soft_finish([A3, C4, E4, A3 * 2], gap=0.13),
+    'sfx_mirror_solve': lambda: soft_finish([E4, A3 * 2, B3 * 2, E4 * 2]),
+    'sfx_bloom_solve': lambda: soft_finish([G4, A3 * 2, D4 * 2, E4 * 2], peak=0.34),
+    'sfx_mosaic_solve': lambda: soft_finish([C4, G4, E4 * 2, G4 * 2], gap=0.12, peak=0.34),
+    'sfx_bridges_solve': lambda: soft_finish([D4, F4_ * 1.059, A3 * 2, D4 * 2]),
+    'sfx_adjacent_solve': lambda: soft_finish([F4_, A3 * 2, C4 * 2, F4_ * 2], peak=0.34),
+    'sfx_ink_trail_solve': lambda: soft_finish([C4, E4, G4, C4 * 2]),
+    # A piece home, a gem lit, an island met: one or two muted notes.
+    'sfx_target': lambda: soft_reward([G4], 0.0, 0.24, ring=0.14),
+    'sfx_mirror_gem': lambda: soft_reward([E4, B3 * 2], 0.05, 0.22, ring=0.14),
+    'sfx_bridges_island': lambda: soft_reward([A3 * 2, D4 * 2], 0.05, 0.22, ring=0.14),
+}
+SOUNDS.update(NO_BELLS)
+
+
 def write(path, signal):
     data = (np.clip(signal, -1, 1) * 32767).astype('<i2').tobytes()
     with wave.open(path, 'wb') as out:

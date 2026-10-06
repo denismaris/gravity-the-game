@@ -16,13 +16,12 @@ import {
   isPuzzleSolved,
   StaticCellType,
 } from '../game/engine';
-import { createGameStateFromLevel, getStarThresholds, LevelDefinition } from '../game/levels';
+import { createGameStateFromLevel, getStarThresholds, gravityTierOf, LevelDefinition } from '../game/levels';
 import {
   DifficultyChip,
   directionForAccessibilityAction,
-  GeometricRule,
   GravityBoard,
-  LevelCompleteCard,
+  PuzzleSolved,
   LevelFailedCard,
   LevelSetComplete,
   MechanicsCarousel,
@@ -44,6 +43,7 @@ import { UNDO_COST } from '../progression/coins';
 import { GravityHintArrow } from '../components/GravityHintArrow';
 import { findShortestSolution } from '../game/engine';
 import { useStageEntrance } from '../components/useStageEntrance';
+import { HelpHalo } from '../components/HelpHalo';
 
 const GAME_TUTORIAL_ID = tutorialIdForGame('gravity');
 const ICON_SIZE = 14;
@@ -501,11 +501,9 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
             {level.name}
           </Text>
           <View style={styles.levelStats}>
-            <DifficultyChip
-              difficulty={level.difficulty === 'expert' ? 'hard' : level.difficulty}
-              expert={level.difficulty === 'expert'}
-              style={styles.difficultyChip}
-            />
+            {/* The tier it is dealt at, not its authored label: a short
+              board labelled "expert" is dealt (and shown) as medium. */}
+            <DifficultyChip difficulty={gravityTierOf(level) ?? 'easy'} style={styles.difficultyChip} />
             <Text style={styles.levelPar}>MOVES </Text>
             <AnimatedMoveCount moves={moveCount} />
             <Text style={styles.levelPar} numberOfLines={1}>
@@ -522,6 +520,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           hitSlop={8}
           containerStyle={styles.backButtonSpacer}
         >
+          <HelpHalo />
           <HelpIcon />
         </PressableScale>
       </View>
@@ -530,10 +529,6 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           swipe that starts a finger's width outside the board is still
           plainly a swipe, and ignoring it read as the game not listening. */}
       <Animated.View style={[styles.stage, { marginTop: stageTop }, stageIn]} {...swipeHandlers}>
-        {/* The same ruled ornament every other game's stage opens with -
-            Gravity was the one board without it, so moving between games
-            in a batch made this screen look like it belonged elsewhere. */}
-        <GeometricRule variant="stage" style={styles.stageRule} />
         <Animated.View
           style={[
             styles.board,
@@ -593,17 +588,18 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           board container that only ever covered the *board* - and worse,
           that container carries the board's own shake transform, so a card
           rendered in it shook along with the board it was reporting on. */}
-      {solved && !isAnimating && outcome && (
-        <LevelCompleteCard
-          coinsEarned={outcome.coinsEarned}
+      {solved && !isAnimating && outcome && !showSetComplete && (
+        <PuzzleSolved
+          kind="gravity"
           stars={outcome.best.stars}
-          runStars={outcome.runStars}
-          moves={outcome.runMoves}
-          bestMoves={outcome.best.bestMoves}
-          hasNextLevel={nextEntry !== null && !isTodaysDaily(level.id)}
+          hintsUsed={hintsUsed}
+          note={String(outcome.runMoves)}
+          noteLabel="MOVES"
+          coinsEarned={outcome.coinsEarned}
+          hasNext={nextEntry !== null && !isTodaysDaily(level.id)}
           onReplay={handleRestart}
           onNext={outcome.batchCompleted && finishedSetRef.current ? () => setShowSetComplete(true) : handleNext}
-          onExit={onExit}
+          onDone={onExit}
         />
       )}
 
@@ -712,9 +708,6 @@ const styles = themedStyles(() => ({
     borderTopColor: theme.colors.border,
     borderBottomWidth: 1,
     borderBottomColor: theme.colors.borderStrong,
-  },
-  stageRule: {
-    marginBottom: theme.spacing.md,
   },
   board: {
     borderRadius: theme.radii.md,

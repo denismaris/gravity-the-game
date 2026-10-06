@@ -50,7 +50,7 @@ export function CollectionScreen({ onExit, onReplayLesson }: CollectionScreenPro
             {roster.length}
             <Text style={styles.countOf}>{` of ${INTRO_ORDER.length}`}</Text>
           </Text>
-          <Text style={styles.countLabel}>{roster.length === INTRO_ORDER.length ? 'Every game is yours.' : 'games collected. A new one arrives every few puzzles.'}</Text>
+          <Text style={styles.countLabel}>{roster.length === INTRO_ORDER.length ? 'Every game is yours.' : 'games so far. Ten puzzles of the newest one bring the next.'}</Text>
           <View style={styles.track}>
             {INTRO_ORDER.map(kind => (
               <View key={kind} style={[styles.trackCell, roster.includes(kind) && { backgroundColor: accentColorForKind(kind) }]} />
@@ -92,7 +92,7 @@ export function CollectionScreen({ onExit, onReplayLesson }: CollectionScreenPro
                     </PressableScale>
                   </>
                 ) : (
-                  <Text style={[styles.stat, next && styles.next]}>{next && arriving ? `Arrives in ${arriving.inPuzzles} ${arriving.inPuzzles === 1 ? 'puzzle' : 'puzzles'}` : 'Still to come'}</Text>
+                  <Text style={[styles.stat, next && styles.next]}>{next && arriving ? `After ${arriving.inPuzzles} more ${gameDisplayName(arriving.gate)} ${arriving.inPuzzles === 1 ? 'puzzle' : 'puzzles'}` : 'Still to come'}</Text>
                 )}
               </Animated.View>
             );

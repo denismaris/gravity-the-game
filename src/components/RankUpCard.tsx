@@ -8,6 +8,7 @@ import { CoinsEarned } from './Coins';
 import { ConfettiBurst } from './ConfettiBurst';
 import { PressableScale } from './PressableScale';
 import { medalMetal, RankMedal } from './RankMedal';
+import { ModalLayer } from './ModalLayer';
 
 const RAYS = 18;
 /** The sunburst's size - inside the card, never spilling onto the scrim. */
@@ -50,39 +51,41 @@ export function RankUpCard({ rank, ranksGained, coins, onDone }: { rank: number;
   }, [enter, medal, spin, reduced]);
 
   return (
-    <View style={styles.overlay}>
-      <Animated.View style={[styles.scrim, { opacity: enter }]} />
-      <ConfettiBurst />
-      <Animated.View
-        style={[
-          styles.card,
-          { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }, { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) }] },
-        ]}
-      >
-        <Text style={styles.kicker}>{ranksGained > 1 ? `${ranksGained} RANKS GAINED` : 'NEW RANK'}</Text>
-        <View style={styles.stage}>
-          <Animated.View style={[styles.burst, { transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] }]}>
-            <Canvas style={styles.burstCanvas}>
-              <Path path={burst} color={metal.star} opacity={0.42} />
-            </Canvas>
-          </Animated.View>
-          <Animated.View
-            style={{
-              opacity: medal.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 1, 1] }),
-              transform: [{ scale: medal.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }, { rotate: medal.interpolate({ inputRange: [0, 1], outputRange: ['-35deg', '0deg'] }) }],
-            }}
-          >
-            <RankMedal rank={rank} size={128} />
-          </Animated.View>
-        </View>
-        <Text style={styles.title}>{rankTitle(rank)}</Text>
-        <Text style={styles.body}>Every star, puzzle and errand moves you further along the road.</Text>
-        <CoinsEarned amount={coins} style={styles.coins} />
-        <PressableScale accessibilityRole="button" accessibilityLabel="Collect" onPress={onDone} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
-          <Text style={styles.buttonText}>Collect</Text>
-        </PressableScale>
-      </Animated.View>
-    </View>
+    <ModalLayer zIndex={50}>
+      <View style={styles.overlay}>
+        <Animated.View style={[styles.scrim, { opacity: enter }]} />
+        <ConfettiBurst />
+        <Animated.View
+          style={[
+            styles.card,
+            { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [30, 0] }) }, { scale: enter.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) }] },
+          ]}
+        >
+          <Text style={styles.kicker}>{ranksGained > 1 ? `${ranksGained} RANKS GAINED` : 'NEW RANK'}</Text>
+          <View style={styles.stage}>
+            <Animated.View style={[styles.burst, { transform: [{ rotate: spin.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '360deg'] }) }] }]}>
+              <Canvas style={styles.burstCanvas}>
+                <Path path={burst} color={metal.star} opacity={0.42} />
+              </Canvas>
+            </Animated.View>
+            <Animated.View
+              style={{
+                opacity: medal.interpolate({ inputRange: [0, 0.3, 1], outputRange: [0, 1, 1] }),
+                transform: [{ scale: medal.interpolate({ inputRange: [0, 1], outputRange: [0.3, 1] }) }, { rotate: medal.interpolate({ inputRange: [0, 1], outputRange: ['-35deg', '0deg'] }) }],
+              }}
+            >
+              <RankMedal rank={rank} size={128} />
+            </Animated.View>
+          </View>
+          <Text style={styles.title}>{rankTitle(rank)}</Text>
+          <Text style={styles.body}>Every star, puzzle and errand moves you further along the road.</Text>
+          <CoinsEarned amount={coins} style={styles.coins} />
+          <PressableScale accessibilityRole="button" accessibilityLabel="Collect" onPress={onDone} style={({ pressed }) => [styles.button, pressed && styles.pressed]}>
+            <Text style={styles.buttonText}>Collect</Text>
+          </PressableScale>
+        </Animated.View>
+      </View>
+    </ModalLayer>
   );
 }
 

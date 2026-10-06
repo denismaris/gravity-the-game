@@ -11,7 +11,7 @@ import { getMirrorMazesByDifficulty } from '../../game/mirror';
 import { GameKind, ROTATION } from '../../game/journey';
 import { getTentsTreesByDifficulty } from '../../game/tents';
 import { getTowersByDifficulty } from '../../game/towers';
-import { generateBatch, HARD_TIER_FIRST_LEVEL, INTRO_EVERY, INTRO_ORDER, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from '../batches';
+import { generateBatch, HARD_TIER_FIRST_LEVEL, INTRO_ORDER, INTRO_SOLVES, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from '../batches';
 import { emptyProgress, PlayerProgress, recordCompletion } from '../playerProgress';
 import { endlessId } from '../../game/endlessId';
 
@@ -436,31 +436,64 @@ describe('isBatchComplete / nextInBatch / markPuzzleCompleted', () => {
 });
 
 describe('games arrive one at a time', () => {
+  const solveGravity = (count: number) => {
+    let progress = emptyProgress();
+    for (let i = 0; i < count; i += 1) progress = complete(progress, endlessId('gravity', 'easy', 900 + i));
+    return progress;
+  };
+
   test('a new player starts with Gravity alone', () => {
     for (let seed = 0; seed < 10; seed += 1) {
       expect(generateBatch(1, emptyProgress(), null, seededRng(seed)).puzzles.every(ref => ref.kind === 'gravity')).toBe(true);
     }
   });
 
-  test('the next game arrives after every few solves, and is dealt at once', () => {
-    let progress = emptyProgress();
-    for (const id of poolIdsFor('gravity', 'easy').slice(0, INTRO_EVERY - 1)) progress = complete(progress, id);
+  test('the next game waits for ten solves of the newest, then is dealt at once', () => {
+    let progress = solveGravity(INTRO_SOLVES - 1);
     expect(unlockedGames(progress)).toEqual(['gravity']);
-    expect(nextGameToArrive(progress)).toEqual({ kind: INTRO_ORDER[1], inPuzzles: 1 });
-    progress = complete(progress, poolIdsFor('gravity', 'easy')[INTRO_EVERY - 1]);
+    expect(nextGameToArrive(progress)).toEqual({ kind: INTRO_ORDER[1], gate: 'gravity', done: INTRO_SOLVES - 1, inPuzzles: 1 });
+    progress = complete(progress, endlessId('gravity', 'easy', 999));
     expect(unlockedGames(progress)).toEqual(['gravity', INTRO_ORDER[1]]);
-    const first = generateBatch(3, progress, null, seededRng(1)).puzzles[0];
+    const first = generateBatch(4, progress, null, seededRng(1)).puzzles[0];
     expect(first.kind).toBe(INTRO_ORDER[1]);
     expect(first.puzzleId).toBe(poolIdsFor(INTRO_ORDER[1], 'easy')[0]);
   });
 
-  test('every game is in by the end of the schedule, and nothing is left to come', () => {
-    expect(INTRO_ORDER).toHaveLength(ROTATION.length);
-    expect(new Set(INTRO_ORDER).size).toBe(ROTATION.length);
+  test('the game being learned takes most of each set, but never three in a row', () => {
+    let progress = solveGravity(INTRO_SOLVES);
+    progress = complete(progress, poolIdsFor('lightsout', 'easy')[0]);
+    let learning = 0;
+    let total = 0;
+    for (let seed = 0; seed < 40; seed += 1) {
+      const kinds = generateBatch(5, progress, null, seededRng(seed)).puzzles.map(ref => ref.kind);
+      learning += kinds.filter(kind => kind === 'lightsout').length;
+      total += kinds.length;
+      for (let i = 2; i < kinds.length; i += 1) expect(kinds[i] === 'lightsout' && kinds[i - 1] === 'lightsout' && kinds[i - 2] === 'lightsout').toBe(false);
+    }
+    expect(learning / total).toBeGreaterThan(0.5);
+  });
+
+  test('every game is in once each has had its ten, and nothing is left to come', () => {
     let progress = emptyProgress();
-    for (let i = 0; i < INTRO_EVERY * (INTRO_ORDER.length - 1); i += 1) progress = complete(progress, endlessId('gravity', 'medium', 900 + i));
+    for (const kind of INTRO_ORDER) for (let i = 0; i < INTRO_SOLVES; i += 1) progress = complete(progress, endlessId(kind, 'medium', 900 + i));
     expect(unlockedGames(progress)).toHaveLength(ROTATION.length);
     expect(nextGameToArrive(progress)).toBeNull();
+  });
+
+  test('nothing harder than medium is dealt until every game has arrived', () => {
+    for (const seed of [3, 11, 29]) {
+      let progress = emptyProgress();
+      let previous: ReturnType<typeof generateBatch> | null = null;
+      const rng = seededRng(seed);
+      for (let level = 1; level <= 60 && nextGameToArrive(progress) !== null; level += 1) {
+        const batch = generateBatch(level, progress, previous, rng);
+        for (const ref of batch.puzzles) {
+          expect(ref.challenge).toBeUndefined();
+          progress = complete(progress, ref.puzzleId);
+        }
+        previous = batch;
+      }
+    }
   });
 
   test('a game the player has played stays theirs, whatever the count', () => {
@@ -469,13 +502,11 @@ describe('games arrive one at a time', () => {
   });
 
   test('a swap only reaches games that have arrived', () => {
-    let progress = emptyProgress();
-    for (const id of poolIdsFor('gravity', 'easy').slice(0, INTRO_EVERY)) progress = complete(progress, id);
-    const batch = generateBatch(3, progress, null, seededRng(4));
+    const progress = solveGravity(INTRO_SOLVES);
+    const batch = generateBatch(4, progress, null, seededRng(4));
     for (let seed = 0; seed < 20; seed += 1) {
       const swapped = replaceInBatch(batch, [batch.puzzles[1].puzzleId], progress, seededRng(seed));
       expect(unlockedGames(progress)).toContain(swapped.puzzles[1].kind);
     }
   });
 });
-

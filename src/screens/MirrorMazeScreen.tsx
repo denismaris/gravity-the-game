@@ -16,7 +16,7 @@ import {
   remainingGems,
   setMirror,
   traceBeam, explainMirrorHint } from '../game/mirror';
-import { DifficultyChip, GeometricRule, LevelSetComplete, MechanicsCarousel, MirrorMazeBoard, PressableScale, PuzzleSolved, renderMirrorMazeIllustration, useSolveCelebration } from '../components';
+import { DifficultyChip, LevelSetComplete, MechanicsCarousel, MirrorMazeBoard, PressableScale, PuzzleSolved, renderMirrorMazeIllustration, useSolveCelebration } from '../components';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback, useAnimatedBeamReveal } from '../game/rendering';
@@ -28,6 +28,7 @@ import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
+import { HelpHalo } from '../components/HelpHalo';
 
 const TUTORIAL_ID = tutorialIdForGame('mirror');
 
@@ -103,6 +104,9 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
   const [state, setState] = useState(() => emptyMirrorMazeState(puzzle));
+  // The live board, for a tap to read without waiting on a render.
+  const stateRef = useRef(state);
+  stateRef.current = state;
   const { coins, shortBy } = useCoinPurchase();
   // Insight, the superpower: charges first, then a video or coins.
   const insight = useInsightPower();
@@ -173,23 +177,24 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
 
   const cycleCell = useCallback(
     (row: number, col: number) => {
-      setState(s => {
-        if (isMirrorMazeSolved(puzzle, s)) return s;
-        const next = setMirror(s, puzzle, row, col, nextMirror(s.mirrors[row][col]));
-        if (next === s) return next;
+      // Worked out from the live board, not inside a state updater: the
+      // click and haptic then land on the tap itself, not a render later.
+      const s = stateRef.current;
+      if (isMirrorMazeSolved(puzzle, s)) return;
+      const next = setMirror(s, puzzle, row, col, nextMirror(s.mirrors[row][col]));
+      if (next === s) return;
+      stateRef.current = next;
+      setState(next);
 
-        // The gem chime the instant this placement makes the beam newly
-        // reach a gem it wasn't touching before; otherwise the glassy click
-        // of a mirror turning.
-        const litBefore = new Set(traceBeam(puzzle, s).map(gemKey));
-        const litAfter = traceBeam(puzzle, next);
-        const gainedGem = puzzle.gems.some(
-          g => !litBefore.has(gemKey(g)) && litAfter.some(c => c.row === g.row && c.col === g.col),
-        );
-        triggerFeedback(gainedGem ? 'mirrorGem' : 'mirrorPlace');
-
-        return next;
-      });
+      // The gem chime the instant this placement makes the beam newly
+      // reach a gem it wasn't touching before; otherwise the glassy click
+      // of a mirror turning.
+      const litBefore = new Set(traceBeam(puzzle, s).map(gemKey));
+      const litAfter = traceBeam(puzzle, next);
+      const gainedGem = puzzle.gems.some(
+        g => !litBefore.has(gemKey(g)) && litAfter.some(c => c.row === g.row && c.col === g.col),
+      );
+      triggerFeedback(gainedGem ? 'mirrorGem' : 'mirrorPlace');
     },
     [puzzle],
   );
@@ -266,6 +271,7 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
           hitSlop={8}
           containerStyle={styles.headerRightSpacer}
         >
+          <HelpHalo />
           <HelpIcon />
         </PressableScale>
       </View>
@@ -273,7 +279,6 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <GeometricRule variant="stage" style={styles.stageRule} />
           <MirrorMazeBoard
             puzzle={puzzle}
             state={state}
@@ -293,10 +298,9 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
             accessibilityRole="button"
             accessibilityLabel="Restart puzzle"
             onPress={restart}
-            style={({ pressed }) => [styles.pill, pressed && styles.pillPressed]}
+            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}
           >
             <RestartIcon />
-            <Text style={styles.pillText}>Restart</Text>
           </PressableScale>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
@@ -308,7 +312,7 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
       </View>
 
 
-      {showSolvedCard && stars && (
+      {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved
           kind="mirror"
           stars={stars}
@@ -454,16 +458,6 @@ const styles = themedStyles(() => ({
     alignItems: 'center',
     justifyContent: 'flex-start',
   },
-  // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage` for
-  // the full rationale: no fill of its own now (the board's own panel
-  // already carries its own fill/border/shadow, so a filled plinth here
-  // stacked a second box around the first), just the page's own
-  // background plus a snug top/bottom rule hugging the board closely.
-  /** The signature rule standing in for the stage's old plain top
-   * hairline - same job, carrying the app's own mark. */
-  stageRule: {
-    marginBottom: theme.spacing.sm,
-  },
   stage: {
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
@@ -510,4 +504,7 @@ const styles = themedStyles(() => ({
     fontWeight: theme.typography.weights.semibold,
   },
   quiet: { opacity: 0 },
+  // Restart (and Undo, where a game has one) as a round icon key beside
+  // the one labelled button, Insight - the same row on every game.
+  roundKey: { width: 46, height: 46, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
 }));
