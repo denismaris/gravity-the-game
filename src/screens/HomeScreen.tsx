@@ -49,6 +49,7 @@ import {
   buildDailyShare,
   giftFor,
   unclaimedSets,
+  canBuild,
   gamesPlayed,
   INTRO_ORDER,
   INTRO_SOLVES,
@@ -82,6 +83,8 @@ import { RankUpCard } from '../components/RankUpCard';
 import { XpBar } from '../components/XpBar';
 import { CosmeticPreview } from '../components/CosmeticPreview';
 import { useSettings } from '../settings';
+import { TileGlyph } from '../components/TileGlyph';
+import { VillaBanner } from '../components/VillaBanner';
 import { tutorialIdForGame } from '../game/tutorials';
 
 /** A fade/rise that finishes at `endsAt` (a fraction of the shared `mount`
@@ -168,6 +171,8 @@ export interface HomeScreenProps {
   onOpenLeaderboard: () => void;
   /** Your games: the twelve, collected one by one. */
   onOpenCollection?: () => void;
+  /** The Villa: what the puzzles build. */
+  onOpenVilla?: () => void;
 }
 
 /** How tall a card gets on a phone with room to spare. Tuned to what the
@@ -177,6 +182,11 @@ export interface HomeScreenProps {
  * carried the bloom artwork: the card had been padding itself out to fill
  * a screen that now has its own picture to show around it. */
 const MAX_CARD_HEIGHT = 400;
+
+/** The Villa's window above the card: shown only with room for it. */
+const VILLA_BANNER_MAX = 124;
+const VILLA_BANNER_MIN = 72;
+const VILLA_BANNER_GAP = 12;
 
 /** The page each carousel slot is, in order - the order they are laid out
  * in below, and the order the dots read. */
@@ -219,6 +229,7 @@ export function HomeScreen({
   onOpenShop,
   onOpenLedger,
   onOpenCollection,
+  onOpenVilla,
   onOpenLeaderboard,
 }: HomeScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
@@ -299,6 +310,7 @@ export function HomeScreen({
   const played = useMemo(() => gamesPlayed(progress), [progress]);
   const arriving = useMemo(() => nextGameToArrive(progress), [progress]);
   const roster = useMemo(() => unlockedGames(progress), [progress]);
+  const villaReady = canBuild(progress);
   const canSwap = roster.length > 1;
   const debut = !levelPoint.allDone && !played.has(entry.kind);
   const { hasSeenTutorial } = useSettings();
@@ -455,10 +467,15 @@ export function HomeScreen({
   // child of \`stage\`, so the two offsets add.
   const [stageY, setStageY] = useState<number | null>(null);
   const [carouselY, setCarouselY] = useState<number | null>(null);
-  const onStageLayout = useCallback(
-    (e: LayoutChangeEvent) => setStageY(e.nativeEvent.layout.y),
-    [],
-  );
+  const [stageHeight, setStageHeight] = useState(0);
+  const onStageLayout = useCallback((e: LayoutChangeEvent) => {
+    setStageY(e.nativeEvent.layout.y);
+    setStageHeight(e.nativeEvent.layout.height);
+  }, []);
+  // The Villa's window above the card, in whatever room the page has left
+  // (none on a short phone - the header's tile chip still leads there).
+  const villaHeight = Math.min(VILLA_BANNER_MAX, Math.floor(stageHeight - cardHeight - DOTS_BLOCK - VILLA_BANNER_GAP * 2));
+  const showVilla = villaHeight >= VILLA_BANNER_MIN;
   const onCarouselLayout = useCallback(
     (e: LayoutChangeEvent) => setCarouselY(e.nativeEvent.layout.y),
     [],
@@ -504,7 +521,7 @@ export function HomeScreen({
           style={[StyleSheet.absoluteFill, { opacity: mount }]}
           pointerEvents="none"
         >
-          <AlmanacBackdrop width={width} height={height} card={cardRect} />
+          <AlmanacBackdrop width={width} height={height} card={cardRect} clearTop={showVilla} />
         </Animated.View>
       )}
       <PressableScale
@@ -593,6 +610,17 @@ export function HomeScreen({
             <Text style={styles.insightGlyph}>{'\u2726'}</Text>
             <Text style={styles.insightChipText}>{progress.insights}</Text>
           </View>
+          {/* The Villa: tiles in hand, and a dot when there is something to
+            build - only where the page has no room for its window below. */}
+          {!showVilla && (
+            <PressableScale accessibilityRole="button" accessibilityLabel={`The Villa. ${progress.tesserae} tiles${villaReady ? ', ready to build' : ''}.`} onPress={onOpenVilla} hitSlop={8}>
+              <View style={styles.insightChip}>
+                <TileGlyph size={12} />
+                <Text style={styles.insightChipText}>{progress.tesserae}</Text>
+                {villaReady && <View style={styles.purseDot} />}
+              </View>
+            </PressableScale>
+          )}
           {dailyStreak > 0 && (
             <PressableScale
               accessibilityRole="button"
@@ -602,7 +630,7 @@ export function HomeScreen({
               containerStyle={[styles.streakNudge, dailyCompletedToday && styles.streakNudgeDone]}
             >
               <Text style={[styles.streakNudgeText, dailyCompletedToday && styles.streakNudgeTextDone]}>
-                {dailyCompletedToday ? `\u2600\uFE0E ${dailyStreak}-day streak` : `${dailyStreak}-day streak · play today`}
+                {dailyCompletedToday ? `\u2600\uFE0E ${dailyStreak}` : `\u2600\uFE0E ${dailyStreak} · play`}
               </Text>
             </PressableScale>
           )}
@@ -619,6 +647,11 @@ export function HomeScreen({
         {/* A plain wrapper to measure: a ScrollView's own \`onLayout\` did not
             report its offset inside the centring stage, which put the whole
             backdrop one centring-gap too high. */}
+        {showVilla && (
+          <View style={[styles.villaBanner, { marginBottom: VILLA_BANNER_GAP }]}>
+            <VillaBanner width={width - theme.spacing.lg * 2} height={villaHeight} onOpen={onOpenVilla} />
+          </View>
+        )}
         <View onLayout={onCarouselLayout}>
           <Animated.ScrollView
             ref={carouselRef as never}
@@ -1723,6 +1756,7 @@ const styles = themedStyles(() => ({
     flex: 1,
     justifyContent: 'center',
   },
+  villaBanner: { alignItems: 'center' },
   dots: {
     flexDirection: 'row',
     alignItems: 'center',

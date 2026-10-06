@@ -36,6 +36,7 @@ import { EmblemHandoff } from './src/components/EmblemHandoff';
 import { ErrorBoundary, IntroWalkthrough, LaunchSequence, ScreenTransition } from './src/components';
 import { GameLesson } from './src/components/lessons';
 import { CollectionScreen } from './src/screens/CollectionScreen';
+import { VillaScreen } from './src/screens/VillaScreen';
 import { FirstPuzzleCoach } from './src/components/lessons/FirstPuzzleCoach';
 import { FirstPuzzleContext } from './src/components/HelpHalo';
 import { tutorialIdForGame } from './src/game/tutorials';
@@ -71,7 +72,7 @@ interface Selected {
  * `src/progression/batches.ts`) replaces the need for a manual
  * level-select/browse screen entirely; there is deliberately no way to
  * pick a specific puzzle by hand. */
-type OverlayRoute = 'settings' | 'achievements' | 'journey' | 'shop' | 'ledger' | 'leaderboard' | 'account' | 'collection' | null;
+type OverlayRoute = 'settings' | 'achievements' | 'journey' | 'shop' | 'ledger' | 'leaderboard' | 'account' | 'collection' | 'villa' | null;
 
 /**
  * App wires up the global providers and renders `AppRoutes` inside them -
@@ -256,6 +257,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       onOpenShop={() => openShop(null)}
       onOpenLedger={() => setOverlayRoute('ledger')}
       onOpenCollection={() => setOverlayRoute('collection')}
+      onOpenVilla={() => setOverlayRoute('villa')}
       onOpenLeaderboard={() => setOverlayRoute('leaderboard')}
     />
   );
@@ -276,6 +278,9 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
   } else if (!selected && overlayRoute === 'journey') {
     screen = <JourneyScreen onExit={() => setOverlayRoute(null)} onOpenShop={() => openShop('journey')} />;
     routeKey = 'journey';
+  } else if (!selected && overlayRoute === 'villa') {
+    screen = <VillaScreen onExit={() => setOverlayRoute(null)} />;
+    routeKey = 'villa';
   } else if (!selected && overlayRoute === 'collection' && replaying) {
     // A lesson played again from Your games, back there when it is done.
     screen = <GameLesson kind={replaying} onDone={() => setReplaying(null)} />;

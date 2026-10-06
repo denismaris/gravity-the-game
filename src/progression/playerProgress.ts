@@ -131,6 +131,11 @@ export interface PlayerProgress {
   readonly patron: boolean;
   /** When bought ad-free time runs out (epoch ms), or null. See `shop.ts`. */
   readonly adFreeUntil: number | null;
+  /** Tiles held for the Villa (see `villa.ts`) - earned by solving, spent
+   * only on building. */
+  readonly tesserae: number;
+  /** Villa pieces built, in the order they were built. */
+  readonly villa: ReadonlyArray<string>;
 }
 
 export const PLAYER_PROGRESS_VERSION = 5 as const;
@@ -156,6 +161,8 @@ export function emptyProgress(): PlayerProgress {
     retired: [],
     luckyCharges: 0,
     insights: STARTING_INSIGHTS,
+    tesserae: 0,
+    villa: [],
     cleanRun: 0,
     grandsSolved: [],
     stampsClaimed: [],

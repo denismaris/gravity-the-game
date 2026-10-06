@@ -16,6 +16,7 @@ import { accentColorForKind, encouragementTier, GameKind, pickEncouragement } fr
 import { motion, theme, themedStyles } from '../theme';
 import { CoinGlyph } from './Coins';
 import { ModalLayer } from './ModalLayer';
+import { TileGlyph } from './TileGlyph';
 
 export interface PuzzleSolvedProps {
   title?: string;
@@ -192,6 +193,14 @@ export function PuzzleSolved({
                   <Text style={styles.resultDot}>·</Text>
                 </>
               )}
+              {/* Tiles laid for the Villa. */}
+              {(bonus?.tesserae ?? 0) > 0 && (
+                <>
+                  <TileGlyph size={13} />
+                  <Text style={[styles.resultText, styles.resultTiles]}>{`+${bonus!.tesserae}`}</Text>
+                  <Text style={styles.resultDot}>·</Text>
+                </>
+              )}
               <Text style={styles.resultText}>
                 {note ? `${note} ${noteLabel.toLowerCase()}` : hintsUsed === 0 ? 'No Insight used' : `${hintsUsed} Insight used`}
               </Text>
@@ -360,6 +369,7 @@ const styles = themedStyles(() => ({
   result: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: theme.spacing.md },
   resultText: { fontSize: theme.typography.sizes.body, color: theme.colors.textSecondary },
   resultGold: { color: theme.colors.accentText, fontWeight: theme.typography.weights.semibold },
+  resultTiles: { color: theme.colors.secondary, fontWeight: theme.typography.weights.semibold },
   resultDot: { fontSize: theme.typography.sizes.body, color: theme.colors.textTertiary },
   toward: { alignSelf: 'stretch', marginTop: theme.spacing.sm, gap: 6 },
   towardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },

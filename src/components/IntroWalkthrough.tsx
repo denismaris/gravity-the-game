@@ -7,6 +7,10 @@ import { triggerFeedback } from '../game/rendering';
 import { theme, themedStyles } from '../theme';
 import { GameEmblemGlyph } from './GameEmblem';
 import { PressableScale } from './PressableScale';
+import { useAppearance } from '../settings';
+import { villaAt } from '../progression/villa';
+import { VillaIsland } from './villa/VillaIsland';
+import { VillaSky } from './villa/VillaSky';
 
 /** The coin, as Skia content - the same strike as `CoinGlyph`. */
 function CoinMark({ x, y, size }: { x: number; y: number; size: number }): React.JSX.Element {
@@ -22,6 +26,21 @@ function CoinMark({ x, y, size }: { x: number; y: number; size: number }): React
 }
 
 /** Page one: all twelve games, as the almanac's own contents page. */
+/** The first villa, most of the way built: enough to show what building
+ * looks like, with something still to come. */
+function VillaArt({ width }: { width: number }): React.JSX.Element {
+  const night = useAppearance() === 'dark';
+  const height = Math.round(width * 0.62);
+  return (
+    <View style={{ borderRadius: 18, overflow: 'hidden' }}>
+      <VillaSky width={width} height={height} night={night} />
+      <View style={{ position: 'absolute', top: 0, left: 0 }}>
+        <VillaIsland plan={villaAt(0)} built={6} width={width} height={height} night={night} />
+      </View>
+    </View>
+  );
+}
+
 function GamesArt({ width }: { width: number }): React.JSX.Element {
   const cols = 4;
   const gap = 12;
@@ -129,6 +148,16 @@ const PAGES: ReadonlyArray<IntroPage> = [
       ['×', 'Solve a few in a row without help for a bonus'],
     ],
     art: width => <CoinsArt width={width} />,
+  },
+  {
+    kicker: 'THE VILLA',
+    title: 'Build something of your own',
+    body: 'Every puzzle you solve lays tiles. Spend them restoring an old Roman villa, piece by piece: the floor, the pool, the columns, the frescoes.',
+    points: [
+      ['▪︎', 'One tile for each solve, and one for each star'],
+      ['☀︎', "Today's Daily lays five more"],
+    ],
+    art: width => <VillaArt width={width} />,
   },
   {
     kicker: 'EVERY DAY',

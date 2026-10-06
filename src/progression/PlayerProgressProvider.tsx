@@ -1,3 +1,4 @@
+import { buildPiece, tesseraeForSolve } from './villa';
 import React, {
   createContext,
   useCallback,
@@ -112,6 +113,8 @@ export interface CompletionOutcome {
   /** The chapter this solve finished (its last level set), if any - its
    * reward is waiting in the Almanac. */
   readonly chapterFinished: number | null;
+  /** Villa tiles this solve paid (see `villa.ts`). */
+  readonly tesseraeEarned: number;
   /** The lucky charm doubled this solve's coins. */
   readonly charmed: boolean;
   /** This was a golden puzzle, solved for the first time. */
@@ -137,6 +140,8 @@ export interface SolveBonus {
   readonly grand: boolean;
   readonly grandCosmetic: string | null;
   readonly daily: CompletionOutcome['daily'];
+  /** Villa tiles the solve laid. */
+  readonly tesserae: number;
 }
 
 interface PlayerProgressContextValue {
@@ -200,6 +205,8 @@ interface PlayerProgressContextValue {
   claimGift(): Gift | null;
   /** Pays a completed shop set's bonus; returns whether it did. */
   claimSet(id: string): boolean;
+  /** Builds the Villa's next piece; returns whether it was built. */
+  buildVillaPiece(id: string): boolean;
   /** Applies a paid store purchase (see `store.ts`); returns whether it gave anything. */
   completePurchase(id: ProductId): boolean;
   /** Swaps the current set's next puzzle for another game's; returns the
@@ -342,6 +349,7 @@ export function PlayerProgressProvider({
     // to, so a solve recorded before the save has loaded (and replayed onto
     // it) is still paid against the real save, not the placeholder.
     let coinsEarned = 0;
+    let tesseraeEarned = 0;
     let charmed = false;
     let golden = false;
     let cleanRun = 0;
@@ -424,6 +432,10 @@ export function PlayerProgressProvider({
         result = grandPaid.progress;
       }
 
+      // Tiles for the Villa: their own purse, never multiplied.
+      tesseraeEarned = tesseraeForSolve({ previousStars, bestStars: getLevelStars(result, levelId) || 1, firstDailyToday });
+      if (tesseraeEarned > 0) result = { ...result, tesserae: result.tesserae + tesseraeEarned };
+
       // Today's solves, for Home's blossom.
       result = { ...result, today: result.today.dayKey === todayKey ? { dayKey: todayKey, solves: result.today.solves + 1 } : { dayKey: todayKey, solves: 1 } };
 
@@ -457,6 +469,7 @@ export function PlayerProgressProvider({
       best: getLevelResult(next, levelId)!,
       batchCompleted,
       coinsEarned,
+      tesseraeEarned,
       chapterFinished,
       charmed,
       golden,
@@ -482,6 +495,7 @@ export function PlayerProgressProvider({
         grand: outcome.grand,
         grandCosmetic: outcome.grandCosmetic,
         daily: outcome.daily,
+        tesserae: outcome.tesseraeEarned,
       });
       return outcome;
     },
@@ -545,6 +559,15 @@ export function PlayerProgressProvider({
       return next ?? current;
     });
     return done;
+  }, [applyMutation]);
+  const buildVillaPiece = useCallback((id: string): boolean => {
+    let built = false;
+    applyMutation(current => {
+      const next = buildPiece(current, id);
+      built = next !== null;
+      return next ?? current;
+    });
+    return built;
   }, [applyMutation]);
   const spendInsightCharge = useCallback((): boolean => {
     let used = false;
@@ -750,6 +773,7 @@ export function PlayerProgressProvider({
       addInsights,
       claimGift,
       claimSet,
+      buildVillaPiece,
       completePurchase,
       swapPuzzle,
       lastCharmed,
@@ -761,7 +785,7 @@ export function PlayerProgressProvider({
       dailyStreak: getDisplayDailyStreak(progress, dailyKeyOf(new Date())),
       dailyCompletedToday: isDailyCompleted(progress, dailyKeyOf(new Date())),
     }),
-    [progress, ready, recordAndMark, markLevelOpened, resetProgress, adoptProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, setShopGoal, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, buyAdFree, rewardVideo, spendInsightCharge, addInsights, claimGift, claimSet, completePurchase, swapPuzzle, lastCharmed, lastBonus],
+    [progress, ready, recordAndMark, markLevelOpened, resetProgress, adoptProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, setShopGoal, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, buyAdFree, rewardVideo, spendInsightCharge, addInsights, claimGift, claimSet, buildVillaPiece, completePurchase, swapPuzzle, lastCharmed, lastBonus],
   );
 
   return (

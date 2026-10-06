@@ -19,6 +19,9 @@ export interface AlmanacBackdropProps {
    * the blossoms grow from *behind* the card, so the card is part of the
    * picture rather than a panel dropped on top of one. */
   readonly card: CardRect;
+  /** The space above the card holds Home's villa: the art there is set
+   * round it, with the big blossom behind the island. */
+  readonly clearTop?: boolean;
 }
 
 /**
@@ -49,8 +52,8 @@ export interface AlmanacBackdropProps {
  * absolute coordinates, and nothing is drawn into the masthead band or the
  * page-tally row between the card and the bottom.
  */
-export function AlmanacBackdrop({ width, height, card }: AlmanacBackdropProps): React.JSX.Element | null {
-  const art = useMemo(() => composeBloom(width, height, card), [width, height, card]);
+export function AlmanacBackdrop({ width, height, card, clearTop = false }: AlmanacBackdropProps): React.JSX.Element | null {
+  const art = useMemo(() => composeBloom(width, height, card, clearTop), [width, height, card, clearTop]);
   const reducedMotion = useReducedMotion();
   // The blossom's colour is the player's page art (see the shop).
   const garden = useEquipped('garden');
@@ -261,7 +264,7 @@ interface BloomArt {
 }
 
 /** Lays the composition out around `card`. Exported for its tests. */
-export function composeBloom(width: number, height: number, card: CardRect): BloomArt | null {
+export function composeBloom(width: number, height: number, card: CardRect, clearTop = false): BloomArt | null {
   if (width <= 0 || height <= 0 || card.width <= 0 || card.height <= 0) return null;
 
   const left = card.x;
@@ -279,10 +282,12 @@ export function composeBloom(width: number, height: number, card: CardRect): Blo
     r,
   });
   const blossoms = [
-    // The big one, rising over the card's top-right corner.
-    blossom(right - 40 * u, top - 26 * u, 74 * u, 7, 11, -0.3),
-    // A smaller one on the left, only its crown showing.
-    blossom(left + 44 * u, top - 4 * u, 46 * u, 6, 23, 0.4),
+    // The big one, rising over the card's top-right corner - with the villa
+    // above the card, the island floats in front of it, like a sun.
+    clearTop ? blossom(right - 52 * u, top - 64 * u, 82 * u, 7, 11, -0.3) : blossom(right - 40 * u, top - 26 * u, 74 * u, 7, 11, -0.3),
+    // A smaller one on the left, only its crown showing - pushed to the
+    // page's edge when the villa's words sit above it.
+    clearTop ? blossom(left - 14 * u, top + 2 * u, 42 * u, 6, 23, 0.4) : blossom(left + 44 * u, top - 4 * u, 46 * u, 6, 23, 0.4),
     // Spilling out from under the card's foot, cut by the left edge.
     blossom(left + 6 * u, foot + 92 * u, 60 * u, 7, 37, 0.1),
   ];
@@ -307,7 +312,7 @@ export function composeBloom(width: number, height: number, card: CardRect): Blo
     // short so it never reaches the page tally further down.
     leaf(left + 92 * u, foot + 34 * u, left + 150 * u, foot + 18 * u, 13 * u),
     // Between the two top blossoms, rising from behind the card.
-    leaf(left + 132 * u, top + 8, left + 104 * u, top - 84 * u, 15 * u),
+    ...(clearTop ? [] : [leaf(left + 132 * u, top + 8, left + 104 * u, top - 84 * u, 15 * u)]),
   ];
 
   const domeR = 40 * u;
@@ -325,7 +330,7 @@ export function composeBloom(width: number, height: number, card: CardRect): Blo
     { cx: domeCx - domeR - 26 * u, cy: domeBase - 20 * u, r: 10 * u },
     // The poster's lone disc in the upper field, in the open ground
     // between the leaf and the big blossom.
-    { cx: left + 196 * u, cy: top - 46 * u, r: 9 * u },
+    ...(clearTop ? [] : [{ cx: left + 196 * u, cy: top - 46 * u, r: 9 * u }]),
   ];
 
   return { blossoms, stems, leaves, stemWidth: Math.max(4, 6 * u), dome, rules, discs };

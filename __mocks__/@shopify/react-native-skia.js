@@ -23,6 +23,9 @@ module.exports = {
   Rect: makeStub('SkiaRectMock'),
   RoundedRect: makeStub('SkiaRoundedRectMock'),
   Path: makeStub('SkiaPathMock'),
+  // The Villa's scene (VillaScene) is the first to draw ovals and lines.
+  Oval: makeStub('SkiaOvalMock'),
+  Line: makeStub('SkiaLineMock'),
   // Paint-effect children (a gradient/dash pattern nested inside a shape,
   // never rendered on their own) - added for Binairo's board, the first
   // board view whose smoke test needed them. Same plain stand-in as

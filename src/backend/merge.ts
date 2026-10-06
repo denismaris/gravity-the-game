@@ -45,6 +45,8 @@ export function mergeProgress(local: PlayerProgress, remote: PlayerProgress): Pl
     stampsClaimed: union(primary.stampsClaimed, other.stampsClaimed),
     chaptersClaimed: union(primary.chaptersClaimed, other.chaptersClaimed),
     setsClaimed: union(primary.setsClaimed, other.setsClaimed),
+    // Built pieces stay built; the tiles in hand are running state.
+    villa: union(primary.villa, other.villa),
     rankRewarded: Math.max(primary.rankRewarded, other.rankRewarded),
     errandsClaimed: Math.max(primary.errandsClaimed, other.errandsClaimed),
     introSeen: primary.introSeen || other.introSeen,

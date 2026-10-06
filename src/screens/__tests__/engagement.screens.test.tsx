@@ -129,6 +129,17 @@ describe('passes', () => {
     await act(async () => renderer.unmount());
   });
 
+  test('a first solve lays tiles for the Villa: one for the puzzle, one a star', async () => {
+    const { api, renderer } = await mount(<ErrandList />, { tesserae: 0 });
+    let outcome!: ReturnType<Api['recordCompletion']>;
+    await act(async () => {
+      outcome = api().recordCompletion('bridges-easy-01', 0);
+    });
+    expect(outcome.tesseraeEarned).toBeGreaterThanOrEqual(4);
+    expect(api().progress.tesserae).toBe(outcome.tesseraeEarned);
+    await act(async () => renderer.unmount());
+  });
+
   test('a lucky charm doubles the coins of the next paying solves', async () => {
     const { api, press, renderer } = await mount(<ShopScreen onExit={() => {}} />, { coins: 1000 });
     await press('Boosts');
@@ -205,7 +216,7 @@ describe('the first-launch walkthrough', () => {
   test('pages through to the end and reports done', async () => {
     const done = jest.fn();
     const { press, renderer } = await mount(<IntroWalkthrough onDone={done} />, {});
-    for (let i = 0; i < 3; i += 1) await press('Next page');
+    for (let i = 0; i < 4; i += 1) await press('Next page');
     await press('Close the introduction');
     await act(async () => {
       jest.advanceTimersByTime(600);
