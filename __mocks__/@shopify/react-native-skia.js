@@ -26,6 +26,8 @@ module.exports = {
   // The Villa's scene (VillaScene) is the first to draw ovals and lines.
   Oval: makeStub('SkiaOvalMock'),
   Line: makeStub('SkiaLineMock'),
+  // A layer's paint (the Villa's ghost of what is still to build).
+  Paint: makeStub('SkiaPaintMock'),
   // Paint-effect children (a gradient/dash pattern nested inside a shape,
   // never rendered on their own) - added for Binairo's board, the first
   // board view whose smoke test needed them. Same plain stand-in as
@@ -34,11 +36,13 @@ module.exports = {
   LinearGradient: makeStub('SkiaLinearGradientMock'),
   RadialGradient: makeStub('SkiaRadialGradientMock'),
   DashPathEffect: makeStub('SkiaDashPathEffectMock'),
+  // A canvas ref, for the villa keepsake's picture.
+  useCanvasRef: () => ({ current: null }),
   vec: (x, y) => ({ x, y }),
   rect: (x, y, width, height) => ({ x, y, width, height }),
   rrect: (r, rx, ry) => ({ rect: r, rx, ry }),
   // Pre-built path objects (Bloom's board parses each path once per move
   // rather than per frame). The mock hands the SVG string back, which is
   // all a test renderer needs to compare.
-  Skia: { Path: { MakeFromSVGString: svg => ({ svg }) } },
+  Skia: { Path: { MakeFromSVGString: svg => ({ svg }), Make: () => ({ addPath() {} }) } },
 };

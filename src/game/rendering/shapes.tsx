@@ -1,5 +1,7 @@
-import React from 'react';
-import { Circle, Group, Path, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
+import React, { useEffect } from 'react';
+import { Circle, DashPathEffect, Group, Path, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Easing, useDerivedValue, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import { useReducedMotion } from './useReducedMotion';
 import type { Direction } from '../engine';
 import { inkWash } from '../../theme';
 import { shade } from './color';
@@ -147,10 +149,17 @@ export interface TargetMarkerProps {
   strokeWidth: number;
 }
 
-/** The goal cell: a hollow ring (○) so it never gets confused with the piece. */
+/** The goal cell: a small cup sunk into the board, with a ring round its
+ * lip (○), so it reads as a place the ball drops into and never as a
+ * piece. The depth is geometry: the cup, and a darker upper wall inside it
+ * where the light from the top left cannot reach. */
 export function TargetMarker({ cx, cy, radius, color, strokeWidth }: TargetMarkerProps) {
   return (
-    <Circle cx={cx} cy={cy} r={radius} color={color} style="stroke" strokeWidth={strokeWidth} />
+    <>
+      <Circle cx={cx} cy={cy} r={radius} color={inkWash(0.06)} />
+      <Circle cx={cx - radius * 0.06} cy={cy - radius * 0.1} r={radius * 0.86} color={inkWash(0.07)} />
+      <Circle cx={cx} cy={cy} r={radius} color={color} style="stroke" strokeWidth={strokeWidth} />
+    </>
   );
 }
 
@@ -170,10 +179,13 @@ export interface ObstacleBlockProps {
  */
 export function ObstacleBlock({ x, y, size, color, cornerRadius = 0 }: ObstacleBlockProps) {
   const depth = Math.max(2, size * 0.1);
+  const lip = Math.max(1.5, size * 0.08);
   return (
     <>
       <RoundedRect x={x} y={y + depth} width={size} height={size} r={cornerRadius} color={shade(color, 0.62)} />
       <RoundedRect x={x} y={y} width={size} height={size} r={cornerRadius} color={color} />
+      {/* The lit top edge of the block. */}
+      <RoundedRect x={x + lip} y={y + lip * 0.6} width={size - lip * 2} height={lip} r={lip / 2} color={shade(color, 1.35)} opacity={0.7} />
     </>
   );
 }
@@ -272,10 +284,26 @@ export function PortalMark({
   strokeWidth,
   color,
 }: PortalMarkProps) {
+  // The outer ring is dashed and turns slowly, on the UI thread - a portal
+  // is the one live thing on the board, and should look it.
+  const reduced = useReducedMotion();
+  const turn = useSharedValue(0);
+  useEffect(() => {
+    if (reduced) return;
+    turn.value = withRepeat(withTiming(1, { duration: 9000, easing: Easing.linear }), -1, false);
+  }, [turn, reduced]);
+  const spin = useDerivedValue(() => [{ rotate: turn.value * Math.PI * 2 }]);
+  const dash = (2 * Math.PI * outerRadius) / 12;
   return (
     <>
-      <Circle cx={cx} cy={cy} r={outerRadius} color={color} style="stroke" strokeWidth={strokeWidth} />
+      <Circle cx={cx} cy={cy} r={outerRadius * 0.92} color={color} opacity={0.12} />
+      <Group transform={spin} origin={vec(cx, cy)}>
+        <Circle cx={cx} cy={cy} r={outerRadius} color={color} style="stroke" strokeWidth={strokeWidth} strokeCap="round">
+          <DashPathEffect intervals={[dash * 0.62, dash * 0.38]} />
+        </Circle>
+      </Group>
       <Circle cx={cx} cy={cy} r={innerRadius} color={color} style="stroke" strokeWidth={strokeWidth} />
+      <Circle cx={cx} cy={cy} r={innerRadius * 0.38} color={color} opacity={0.55} />
     </>
   );
 }

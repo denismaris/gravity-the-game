@@ -81,6 +81,14 @@ export function endlessSeed(id: string): number {
  */
 export const GRAND_INDEX_BASE = 50000;
 
+/**
+ * Endless indices from here (below the Grand's) are a newcomer's own Daily
+ * boards (see `journey/daily.ts`): index `DAILY_INDEX_BASE + day`. Out of
+ * the dealer's reach too, so a Daily can never also be a puzzle dealt into
+ * a set - which once made a set's next puzzle quietly count as the Daily.
+ */
+export const DAILY_INDEX_BASE = 40000;
+
 export function endlessName(index: number, kind?: string): string {
   const words = kind ? ENDLESS_WORDS[kind] : undefined;
   if (!words) return `No. ${index + 1}`;
@@ -115,13 +123,13 @@ const ENDLESS_WORDS: Readonly<Record<string, readonly [ReadonlyArray<string>, Re
     ['Bright', 'Glass', 'Polished', 'Silver', 'Crossed', 'Clear', 'Burning', 'Pale', 'Prism', 'Mirrored', 'Hidden', 'Gilded'],
     ['Beam', 'Lantern', 'Gallery', 'Signal', 'Halo', 'Corridor', 'Flare', 'Glint', 'Periscope', 'Lens', 'Beacon', 'Window', 'Facet', 'Ray'],
   ],
-  tents: [
-    ['Mossy', 'Pine', 'Quiet', 'Birch', 'Amber', 'Misty', 'Hidden', 'Sunlit', 'Hazel', 'Wild', 'Ferny', 'Old'],
-    ['Grove', 'Clearing', 'Hollow', 'Copse', 'Glade', 'Thicket', 'Camp', 'Ridge', 'Brook', 'Meadow', 'Pinewood', 'Heath', 'Dell', 'Spinney'],
+  lilypads: [
+    ['Quiet', 'Reedy', 'Mossy', 'Summer', 'Misty', 'Willow', 'Still', 'Lotus', 'Morning', 'Hidden', 'Silver', 'Shady'],
+    ['Pond', 'Pool', 'Mere', 'Fen', 'Brook', 'Moat', 'Marsh', 'Backwater', 'Millpond', 'Lagoon', 'Bend', 'Shallows', 'Cove', 'Tarn'],
   ],
-  towers: [
-    ['High', 'Tall', 'Old', 'Stone', 'Glass', 'Northern', 'Evening', 'Golden', 'Crowded', 'Quiet', 'Twin', 'Iron'],
-    ['Skyline', 'Quarter', 'Spire', 'Terrace', 'Belfry', 'Rooftops', 'Citadel', 'Avenue', 'Market', 'Harbourfront', 'Bastion', 'Arcade', 'Crescent', 'Square'],
+  vanes: [
+    ['North', 'Westerly', 'Gusty', 'Salt', 'Turning', 'Copper', 'Iron', 'Autumn', 'Squally', 'Brisk', 'Easterly', 'Gilded'],
+    ['Roof', 'Spire', 'Gable', 'Belfry', 'Rooftops', 'Weathercock', 'Ridge', 'Chimneys', 'Loft', 'Turret', 'Steeple', 'Cupola', 'Eaves', 'Tower'],
   ],
   binairo: [
     ['Even', 'Balanced', 'Twin', 'Paired', 'Mirror', 'Level', 'Exact', 'Measured', 'Steady', 'True', 'Split', 'Double'],
@@ -131,9 +139,9 @@ const ENDLESS_WORDS: Readonly<Record<string, readonly [ReadonlyArray<string>, Re
     ['Winding', 'Silken', 'Knotted', 'Paired', 'Crossing', 'Folded', 'Hidden', 'Gentle', 'Long', 'Twisting', 'Scarlet', 'Braided'],
     ['Thread', 'Path', 'Ribbon', 'Cord', 'Trail', 'Stitch', 'Lane', 'Loop', 'Tether', 'Weft', 'Route', 'Seam', 'Skein', 'Line'],
   ],
-  fillapix: [
-    ['Hidden', 'Secret', 'Faint', 'Painted', 'Stippled', 'Inked', 'Quiet', 'Tiny', 'Folded', 'Pressed', 'Printed', 'Woven'],
-    ['Emblem', 'Crest', 'Sampler', 'Motif', 'Badge', 'Charm', 'Glyph', 'Seal', 'Token', 'Sigil', 'Pattern', 'Stamp', 'Tile', 'Mark'],
+  glass: [
+    ['Leaded', 'Ruby', 'Cobalt', 'Amber', 'Chapel', 'Evening', 'Painted', 'Sunlit', 'Old', 'Quiet', 'Harbour', 'Abbey'],
+    ['Window', 'Pane', 'Lancet', 'Oriel', 'Transom', 'Rose', 'Light', 'Tracery', 'Casement', 'Fanlight', 'Clerestory', 'Quatrefoil', 'Roundel', 'Lattice'],
   ],
   lightsout: [
     ['Last', 'Late', 'Quiet', 'Dim', 'Midnight', 'Winter', 'Sleeping', 'Starlit', 'Harbour', 'Candle', 'Lantern', 'Fading'],

@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { BackLabel } from '../components/Icon';
 import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
@@ -123,8 +124,8 @@ const PATRON_PERKS: ReadonlyArray<string> = [
 /** About how much play a pack is worth, against what a day earns. */
 function playDays(coins: number): string {
   const days = coins / 450;
-  if (days < 1.75) return 'ABOUT 1½ DAYS OF PLAY';
-  return `ABOUT ${Math.round(days)} DAYS OF PLAY`;
+  if (days < 1.75) return 'About 1½ days of play';
+  return `About ${Math.round(days)} days of play`;
 }
 
 const CONFIRM_PURCHASE_MS = 3500;
@@ -193,7 +194,7 @@ function CoinsTab({ onNotice, onPaid }: { onNotice: (title: string, text: string
     <View>
       {STORE_SIMULATED && (
         <View style={styles.previewNote}>
-          <Text style={styles.previewNoteText}>TEST STORE · NO REAL MONEY IS CHARGED</Text>
+          <Text style={styles.previewNoteText}>Test store · no real money is charged</Text>
         </View>
       )}
 
@@ -204,7 +205,7 @@ function CoinsTab({ onNotice, onPaid }: { onNotice: (title: string, text: string
             <TesseraMark size={50} />
           </View>
           <View style={styles.freezeBody}>
-            <Text style={styles.patronKicker}>{progress.patron ? 'PATRON · THANK YOU' : 'ONE TIME · YOURS FOR GOOD'}</Text>
+            <Text style={styles.patronKicker}>{progress.patron ? 'Patron · thank you' : 'One time · yours for good'}</Text>
             <Text style={styles.patronTitle}>Tessellatum Patron</Text>
             <Text style={styles.passText}>{progress.patron ? 'You keep the almanac going. Everything below is yours.' : 'For players who want to keep the almanac going.'}</Text>
           </View>
@@ -219,7 +220,7 @@ function CoinsTab({ onNotice, onPaid }: { onNotice: (title: string, text: string
         </View>
         {progress.patron ? (
           <View style={styles.patronOwned}>
-            <Text style={styles.actionWornText}>{'YOU ARE A PATRON ✓︎'}</Text>
+            <Text style={styles.actionWornText}>{'You are a Patron'}</Text>
           </View>
         ) : (
           <PressableScale
@@ -234,7 +235,7 @@ function CoinsTab({ onNotice, onPaid }: { onNotice: (title: string, text: string
         )}
       </View>
 
-      <SectionHeader kicker="450 COINS ≈ A DAY OF PLAY" title="Coin packs" blurb="For a piece you would rather not wait for. Everything in the shop can also be earned by playing." />
+      <SectionHeader kicker="450 coins is about a day of play" title="Coin packs" blurb="For a piece you would rather not wait for. Everything in the shop can also be earned by playing." />
       <View style={styles.grid}>
         {COIN_PACKS.map((pack, i) => (
           <View key={pack.id} style={[styles.item, pack.tag && styles.itemFeatured]}>
@@ -615,7 +616,7 @@ function RetireCard({ onRetired }: { onRetired: () => void }): React.JSX.Element
               </View>
               {retired && (
                 <View style={styles.stamp}>
-                  <Text style={styles.stampText}>RETIRED</Text>
+                  <Text style={styles.stampText}>Retired</Text>
                 </View>
               )}
               <Text style={[styles.gameName, retired && styles.gameNameRetired]} numberOfLines={1}>
@@ -646,7 +647,7 @@ function RetireCard({ onRetired }: { onRetired: () => void }): React.JSX.Element
           </View>
         </PressableScale>
       </Animated.View>
-      <Text style={styles.passFoot}>{full ? `${MAX_RETIRED} OF ${MAX_RETIRED} RETIRED · BRING ONE BACK TO SWAP` : `${progress.retired.length} OF ${MAX_RETIRED} RETIRED · NEXT COSTS ${price}`}</Text>
+      <Text style={styles.passFoot}>{full ? `${MAX_RETIRED} of ${MAX_RETIRED} retired · bring one back to swap` : `${progress.retired.length} of ${MAX_RETIRED} retired · next costs ${price}`}</Text>
     </View>
   );
 }
@@ -680,16 +681,16 @@ function ItemCard({ item, onBought, featured = false, wide = false, style }: { i
   const chapterDone = chapter !== null && chapter <= chaptersFinished(progress);
 
   const lockedNote = item.patron
-    ? 'COMES WITH PATRON'
+    ? 'Comes with Patron'
     : item.streak !== undefined
-      ? `WIN: ${item.streak}-DAY STREAK · ${Math.min(progress.bestDailyStreak, item.streak)}/${item.streak}`
+      ? `Win it: a ${item.streak}-day streak · ${Math.min(progress.bestDailyStreak, item.streak)}/${item.streak}`
       : grandAt !== null
         ? grandAt === 1
-          ? 'WIN: SOLVE A GRAND'
-          : `WIN: ${grandAt} GRANDS SOLVED`
+          ? 'Win it: solve a Grand'
+          : `Win it: ${grandAt} Grands solved`
         : item.season
-          ? `BACK IN ${SEASON_NAMES[item.season].toUpperCase()}`
-          : 'NOT SOLD';
+          ? `Back in ${SEASON_NAMES[item.season].toLowerCase()}`
+          : 'Not sold';
 
   const lockedSpoken = item.patron
     ? 'comes with the Patron pass'
@@ -764,7 +765,7 @@ function ItemCard({ item, onBought, featured = false, wide = false, style }: { i
   );
   const ribbon = rarity ? (
     <View style={[styles.ribbon, wide && styles.ribbonInline, { borderColor: rarityColor(rarity) }]}>
-      <Text style={[styles.ribbonText, { color: rarityColor(rarity) }]}>{RARITY_NAMES[rarity].toUpperCase()}</Text>
+      <Text style={[styles.ribbonText, { color: rarityColor(rarity) }]}>{RARITY_NAMES[rarity]}</Text>
     </View>
   ) : null;
   const action = (
@@ -780,7 +781,7 @@ function ItemCard({ item, onBought, featured = false, wide = false, style }: { i
       ) : own ? (
         <Text style={styles.actionConfirmText}>Wear</Text>
       ) : locked ? (
-        <Text style={styles.actionLockedText}>{outOfSeason && !item.exclusive ? 'OUT OF SEASON' : 'NOT SOLD'}</Text>
+        <Text style={styles.actionLockedText}>{outOfSeason && !item.exclusive ? 'Out of season' : 'Not sold'}</Text>
       ) : confirming ? (
         <Text style={styles.actionConfirmText}>{`Buy for ${price}?`}</Text>
       ) : (
@@ -795,20 +796,20 @@ function ItemCard({ item, onBought, featured = false, wide = false, style }: { i
   const hint = locked ? (
     <Text style={[styles.hint, styles.hintReady]}>{lockedNote}</Text>
   ) : short ? (
-    <Text style={styles.hint}>{`${price - coins} MORE · HOLD THE PICTURE TO SAVE UP`}</Text>
+    <Text style={styles.hint}>{`${price - coins} more · hold the picture to save up`}</Text>
   ) : chapter ? (
-    <Text style={[styles.hint, chapterDone && styles.hintReady]}>{chapterDone ? `FREE IN YOUR ALMANAC` : `OR FINISH CHAPTER ${chapter}`}</Text>
+    <Text style={[styles.hint, chapterDone && styles.hintReady]}>{chapterDone ? 'Free in your Almanac' : `Or finish chapter ${chapter}`}</Text>
   ) : item.season && !own ? (
-    <Text style={[styles.hint, styles.hintSeason]} accessibilityLabel={`${SEASON_NAMES[item.season]} only, ${seasonDaysLeft()} days left`}>{`ONLY ${seasonDaysLeft()} DAYS LEFT`}</Text>
+    <Text style={[styles.hint, styles.hintSeason]} accessibilityLabel={`${SEASON_NAMES[item.season]} only, ${seasonDaysLeft()} days left`}>{`Only ${seasonDaysLeft()} days left`}</Text>
   ) : set ? (
-    <Text style={styles.hint} numberOfLines={1}>{`PART OF ${set.name.toUpperCase()}`}</Text>
+    <Text style={styles.hint} numberOfLines={1}>{`Part of ${set.name}`}</Text>
   ) : wide ? null : (
     <View style={styles.hintSpacer} />
   );
   const shine = <Shimmer seed={item.id} strength={rarity === 'masterwork' ? 0.95 : rarity === 'rare' ? 0.75 : 0.55} />;
   const goal = pinned && (
     <View style={styles.pinned}>
-      <Text style={styles.pinnedText}>GOAL</Text>
+      <Text style={styles.pinnedText}>Goal</Text>
     </View>
   );
   const motionStyle = { transform: [{ scale: pop }, { translateX: nudge.interpolate({ inputRange: [-1, 1], outputRange: [-6, 6] }) }] };
@@ -822,7 +823,7 @@ function ItemCard({ item, onBought, featured = false, wide = false, style }: { i
           <View style={styles.wideTop}>
             {ribbon}
             <Text style={styles.wideKind} numberOfLines={1}>
-              {kindOfItem(item).toUpperCase()}
+              {kindOfItem(item)}
             </Text>
           </View>
           <Text style={styles.wideName}>{item.name}</Text>
@@ -899,7 +900,7 @@ function SetCard({ set, onClaimed }: { set: CosmeticSet; onClaimed: () => void }
       </View>
       <View style={styles.freezeFoot}>
         <Text style={[styles.charmCount, !ready && !p.claimed && styles.setFootQuiet]}>
-          {p.claimed ? 'COMPLETE · BONUS PAID' : ready ? 'COMPLETE · YOUR BONUS IS READY' : `${p.total - p.owned} TO GO FOR THE BONUS`}
+          {p.claimed ? 'Complete · bonus paid' : ready ? 'Complete · your bonus is ready' : `${p.total - p.owned} to go for the bonus`}
         </Text>
         {ready ? (
           <PressableScale accessibilityRole="button" accessibilityLabel={`Claim ${set.reward} coins for completing ${set.name}`} onPress={claim} style={({ pressed }) => [styles.action, styles.actionConfirm, pressed && styles.pressed]}>
@@ -1025,7 +1026,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
       }}
       style={[styles.filter, ownedOnly && styles.filterOn]}
     >
-      <Text style={[styles.filterText, ownedOnly && styles.filterTextOn]}>{ownedOnly ? 'OWNED ✓︎' : 'OWNED'}</Text>
+      <Text style={[styles.filterText, ownedOnly && styles.filterTextOn]}>{ownedOnly ? 'Owned ✓︎' : 'Owned'}</Text>
     </PressableScale>
   );
 
@@ -1034,7 +1035,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
       <PageBloom />
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back" onPress={onExit} hitSlop={8} containerStyle={styles.headerSide}>
-          <Text style={styles.back}>‹ Back</Text>
+          <BackLabel label="Back" style={styles.back} />
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.title}>The Shop</Text>
@@ -1093,14 +1094,14 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
               <View style={styles.featured}>
                 <Shimmer seed="featured" strength={0.6} />
                 <View style={styles.featuredHead}>
-                  <Text style={styles.featuredKicker}>{`TODAY'S PIECE · ${Math.round(FEATURED_DISCOUNT * 100)}% OFF`}</Text>
-                  <Text style={styles.featuredClock}>{`ENDS IN ${untilMidnight}`}</Text>
+                  <Text style={styles.featuredKicker}>{`Today's piece · ${Math.round(FEATURED_DISCOUNT * 100)}% off`}</Text>
+                  <Text style={styles.featuredClock}>{`Ends in ${untilMidnight.toLowerCase()}`}</Text>
                 </View>
                 <ItemCard item={featured} onBought={onBought} wide />
               </View>
 
               <SectionHeader
-                kicker={`LEAVES IN ${seasonDaysLeft()} DAYS`}
+                kicker={`Leaves in ${seasonDaysLeft()} days`}
                 title={`${SEASON_NAMES[season]} Collection`}
                 blurb="Sold only this season, then gone until next year. Yours for good once bought."
               />
@@ -1118,7 +1119,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
               {/* How much of the shop is yours - and the one promise it keeps. */}
               <View style={styles.ledgerFoot}>
                 <View style={styles.ledgerRow}>
-                  <Text style={styles.ledgerKicker}>YOUR COLLECTION</Text>
+                  <Text style={styles.ledgerKicker}>Your collection</Text>
                   <Text style={styles.ledgerCount}>
                     {owned}
                     <Text style={styles.ledgerOf}>{` / ${COLLECTIBLE.length}`}</Text>
@@ -1160,7 +1161,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
                 })}
               </ScrollView>
               <SectionHeader
-                kicker={`${ownedIn(skinSlot(game))} OF ${forSaleIn(skinSlot(game))} OWNED`}
+                kicker={`${ownedIn(skinSlot(game))} of ${forSaleIn(skinSlot(game))} owned`}
                 title={gameDisplayName(game)}
                 aside={ownedToggle}
                 blurb={game === 'bridges' ? 'The sea your islands sit in.' : 'Worn on every board of this game, from the next one you open.'}
@@ -1181,7 +1182,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
               </View>
               {ALMANAC_SECTIONS.map(section => (
                 <View key={section.slot} style={styles.section}>
-                  <SectionHeader kicker={`${ownedIn(section.slot)} OF ${forSaleIn(section.slot)} OWNED`} title={section.title} blurb={section.blurb} />
+                  <SectionHeader kicker={`${ownedIn(section.slot)} of ${forSaleIn(section.slot)} owned`} title={section.title} blurb={section.blurb} />
                   <View style={styles.grid}>
                     {shown(onShelf(section.slot)).map(item => (
                       <ItemCard key={item.id} item={item} onBought={onBought} />
@@ -1227,7 +1228,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
                       style={({ pressed }) => [styles.action, freezesFull ? styles.actionWorn : coins >= STREAK_FREEZE_PRICE ? styles.actionBuy : styles.actionShort, pressed && styles.pressed]}
                     >
                       {freezesFull ? (
-                        <Text style={styles.actionWornText}>FULL</Text>
+                        <Text style={styles.actionWornText}>Full</Text>
                       ) : (
                         <View style={styles.priceRow}>
                           <CoinGlyph size={13} />
@@ -1250,7 +1251,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
                   </View>
                 </View>
                 <View style={styles.freezeFoot}>
-                  <Text style={styles.charmCount}>{progress.luckyCharges > 0 ? `\u00D72 ACTIVE · ${progress.luckyCharges} SOLVE${progress.luckyCharges === 1 ? '' : 'S'} LEFT` : 'NOT ACTIVE'}</Text>
+                  <Text style={styles.charmCount}>{progress.luckyCharges > 0 ? `\u00D72 active · ${progress.luckyCharges} solve${progress.luckyCharges === 1 ? '' : 's'} left` : 'Not active'}</Text>
                   <PressableScale
                     accessibilityRole="button"
                     accessibilityLabel={`Buy a lucky charm for ${LUCKY_CHARM_PRICE} coins`}
@@ -1312,7 +1313,7 @@ const styles = themedStyles(() => ({
   sh: { marginTop: theme.spacing.lg, marginBottom: theme.spacing.md },
   shRow: { flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', gap: theme.spacing.sm },
   shText: { flex: 1 },
-  shKicker: { fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 1.3, color: theme.colors.secondary, marginBottom: 2 },
+  shKicker: { fontSize: 11.5, color: theme.colors.secondary, marginBottom: 2, fontWeight: theme.typography.weights.semibold },
   shTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   shBlurb: { marginTop: 4, fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textSecondary },
   styleLede: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: theme.spacing.sm },
@@ -1322,7 +1323,7 @@ const styles = themedStyles(() => ({
   wideBody: { flex: 1, alignItems: 'flex-start' },
   wideTop: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   ribbonInline: { position: 'relative', top: 0, left: 0 },
-  wideKind: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 1, color: theme.colors.textTertiary, flexShrink: 1 },
+  wideKind: { fontSize: 11.5, color: theme.colors.textTertiary, flexShrink: 1, fontWeight: theme.typography.weights.semibold },
   wideName: { marginTop: 6, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   wideBlurb: { marginTop: 2, fontSize: theme.typography.sizes.caption, lineHeight: 17, color: theme.colors.textSecondary },
   actionWideWrap: { alignSelf: 'stretch' },
@@ -1330,12 +1331,12 @@ const styles = themedStyles(() => ({
   actionTextWide: { fontSize: theme.typography.sizes.body },
   ledgerFoot: { marginTop: theme.spacing.lg, padding: theme.spacing.md, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border, borderStyle: 'dashed' },
   ledgerRow: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  ledgerKicker: { fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 1.3, color: theme.colors.textTertiary },
+  ledgerKicker: { fontSize: 11.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   ledgerCount: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   ledgerOf: { fontSize: theme.typography.sizes.body, color: theme.colors.textTertiary },
   ledgerNote: { marginTop: theme.spacing.sm, fontSize: theme.typography.sizes.micro + 1, lineHeight: 15, color: theme.colors.textTertiary },
   previewNote: { alignSelf: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: theme.colors.borderStrong, marginBottom: theme.spacing.md },
-  previewNoteText: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 1, color: theme.colors.textTertiary },
+  previewNoteText: { fontSize: 11.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   patron: {
     padding: theme.spacing.lg,
     borderRadius: 24,
@@ -1347,7 +1348,7 @@ const styles = themedStyles(() => ({
   },
   patronTop: { flexDirection: 'row', gap: theme.spacing.md, alignItems: 'center' },
   patronCrest: { width: 72, height: 72, borderRadius: 20, backgroundColor: theme.colors.surfaceHi, borderWidth: 1, borderColor: theme.colors.goldRim, alignItems: 'center', justifyContent: 'center' },
-  patronKicker: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 1.2, fontWeight: theme.typography.weights.bold, color: theme.colors.gold },
+  patronKicker: { fontSize: 11.5, fontWeight: theme.typography.weights.bold, color: theme.colors.gold },
   patronTitle: { marginTop: 2, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   perks: { marginTop: theme.spacing.md, gap: 8 },
   perk: { flexDirection: 'row', alignItems: 'center', gap: 10 },
@@ -1359,13 +1360,13 @@ const styles = themedStyles(() => ({
   patronButton: { marginTop: theme.spacing.lg, alignItems: 'center', paddingVertical: theme.spacing.md, borderRadius: theme.radii.pill, backgroundColor: theme.colors.primary },
   patronButtonText: { color: theme.colors.surfaceHi, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold },
   packTag: { position: 'absolute', top: 10, alignSelf: 'center', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, backgroundColor: theme.colors.goldFill, zIndex: 1 },
-  packTagText: { fontFamily: theme.typography.families.mono, fontSize: 8, letterSpacing: 1, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold },
-  packName: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.4, color: theme.colors.secondary, textTransform: 'uppercase' },
+  packTagText: { fontSize: 8, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold },
+  packName: { fontSize: theme.typography.sizes.caption, color: theme.colors.secondary, fontWeight: theme.typography.weights.semibold },
   packCoins: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  packBonus: { marginTop: 2, fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.8, fontWeight: theme.typography.weights.bold, color: theme.colors.success },
+  packBonus: { marginTop: 2, fontSize: 11.5, fontWeight: theme.typography.weights.bold, color: theme.colors.success },
   packPlain: { marginTop: 2, fontSize: 9.5 },
   packBuy: { backgroundColor: theme.colors.primary, minWidth: 110 },
-  packDays: { marginTop: 6, fontFamily: theme.typography.families.mono, fontSize: 8.5, letterSpacing: 0.6, color: theme.colors.textTertiary, textAlign: 'center' },
+  packDays: { marginTop: 6, fontSize: 8.5, color: theme.colors.textTertiary, textAlign: 'center', fontWeight: theme.typography.weights.semibold },
   restoreWrap: { alignSelf: 'center', marginTop: theme.spacing.xl },
   restore: { paddingHorizontal: theme.spacing.lg, paddingVertical: 10, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong },
   restoreText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
@@ -1399,17 +1400,17 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.md,
   },
   featuredHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: theme.spacing.sm },
-  featuredKicker: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.2, fontWeight: theme.typography.weights.bold, color: theme.colors.gold },
-  featuredClock: { fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.8, color: theme.colors.textTertiary },
+  featuredKicker: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, color: theme.colors.gold },
+  featuredClock: { fontSize: 11.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   itemFeatured: { borderColor: theme.colors.goldRim, borderWidth: 1.5 },
   wasPrice: { fontSize: theme.typography.sizes.micro, color: theme.colors.textTertiary, textDecorationLine: 'line-through', marginRight: 2 },
   pinned: { position: 'absolute', top: 10, right: 10, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: theme.colors.goldFill },
-  pinnedText: { fontFamily: theme.typography.families.mono, fontSize: 8, letterSpacing: 1, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold },
+  pinnedText: { fontSize: 8, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold },
   shimmerClip: { ...StyleSheet.absoluteFill, borderRadius: 20, overflow: 'hidden' },
   shimmer: { position: 'absolute', top: -40, bottom: -40, width: 46, backgroundColor: theme.colors.sheen },
   filter: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.border },
   filterOn: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
-  filterText: { fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.8, color: theme.colors.textSecondary },
+  filterText: { fontSize: 11.5, color: theme.colors.textSecondary, fontWeight: theme.typography.weights.semibold },
   filterTextOn: { color: theme.colors.surfaceHi, fontWeight: theme.typography.weights.bold },
   toast: {
     position: 'absolute',
@@ -1470,7 +1471,7 @@ const styles = themedStyles(() => ({
     borderWidth: 1,
     backgroundColor: theme.colors.surfaceHi,
   },
-  ribbonText: { fontFamily: theme.typography.families.mono, fontSize: 8, letterSpacing: 1, fontWeight: theme.typography.weights.bold },
+  ribbonText: { fontSize: 8, fontWeight: theme.typography.weights.bold },
   container: { flex: 1, backgroundColor: theme.colors.background },
   header: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: theme.spacing.md, paddingBottom: theme.spacing.sm },
   headerSide: { width: 92 },
@@ -1516,7 +1517,7 @@ const styles = themedStyles(() => ({
   itemWorn: { borderColor: theme.colors.success, borderWidth: 1.5 },
   itemExclusive: { borderColor: theme.colors.goldRim, borderWidth: 1.5 },
   actionLocked: { backgroundColor: theme.colors.surfaceAlt },
-  actionLockedText: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1, color: theme.colors.textTertiary },
+  actionLockedText: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   preview: { width: 96, height: 96, borderRadius: 18, backgroundColor: theme.colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.sm },
   itemName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   itemBlurb: { marginTop: 2, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textSecondary, textAlign: 'center', minHeight: 30 },
@@ -1529,10 +1530,10 @@ const styles = themedStyles(() => ({
   actionText: { fontWeight: theme.typography.weights.semibold, fontSize: theme.typography.sizes.caption, color: theme.colors.textPrimary },
   actionShortText: { color: theme.colors.textSecondary },
   actionConfirmText: { fontWeight: theme.typography.weights.semibold, fontSize: theme.typography.sizes.caption, color: theme.colors.surfaceHi },
-  actionWornText: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1, color: theme.colors.success },
+  actionWornText: { fontSize: theme.typography.sizes.caption, color: theme.colors.success, fontWeight: theme.typography.weights.semibold },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   pressed: { opacity: 0.85 },
-  hint: { marginTop: 6, fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.8, color: theme.colors.textTertiary },
+  hint: { marginTop: 6, fontSize: 11.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   hintReady: { color: theme.colors.accentText },
   pass: {
     padding: theme.spacing.md,
@@ -1544,10 +1545,10 @@ const styles = themedStyles(() => ({
   },
   passTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   passText: { marginTop: 2, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary, lineHeight: 17 },
-  passFoot: { marginTop: theme.spacing.sm, fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.8, color: theme.colors.textTertiary, textAlign: 'center' },
+  passFoot: { marginTop: theme.spacing.sm, fontSize: 11.5, color: theme.colors.textTertiary, textAlign: 'center', fontWeight: theme.typography.weights.semibold },
   charmRow: { flexDirection: 'row', gap: theme.spacing.md },
   charmPlate: { width: 64, height: 64, borderRadius: 18, backgroundColor: theme.colors.creamPlate, alignItems: 'center', justifyContent: 'center' },
-  charmCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1, color: theme.colors.accentText },
+  charmCount: { fontSize: theme.typography.sizes.caption, color: theme.colors.accentText, fontWeight: theme.typography.weights.semibold },
   games: { flexDirection: 'row', flexWrap: 'wrap', marginTop: theme.spacing.md },
   gameCell: { width: '25%', padding: 3 },
   game: { alignItems: 'center', paddingVertical: 8, borderRadius: 14, borderWidth: 1.5, borderColor: 'transparent' },
@@ -1556,7 +1557,7 @@ const styles = themedStyles(() => ({
   gameName: { marginTop: 4, fontSize: 10.5, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   gameNameRetired: { color: theme.colors.textTertiary, textDecorationLine: 'line-through' },
   stamp: { position: 'absolute', top: 20, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, borderWidth: 1.5, borderColor: theme.colors.danger, transform: [{ rotate: '-14deg' }], backgroundColor: 'rgba(255,253,248,0.9)' },
-  stampText: { fontFamily: theme.typography.families.mono, fontSize: 8, fontWeight: theme.typography.weights.bold, letterSpacing: 1, color: theme.colors.danger },
+  stampText: { fontSize: 8, fontWeight: theme.typography.weights.bold, color: theme.colors.danger },
   retirePrompt: { position: 'absolute', left: theme.spacing.md, right: theme.spacing.md, bottom: 36, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: theme.colors.borderStrong },
   retirePromptText: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary, fontStyle: 'italic' },
   retireBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: theme.spacing.sm, paddingLeft: theme.spacing.sm },

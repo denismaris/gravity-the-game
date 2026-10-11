@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { BackLabel } from '../components/Icon';
 import { ActivityIndicator, Animated, Easing, Platform, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Group, Path } from '@shopify/react-native-skia';
@@ -197,7 +198,7 @@ export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element
       <PageBloom />
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back to settings" onPress={onExit} hitSlop={8} containerStyle={styles.headerSide}>
-          <Text style={styles.back}>‹ Settings</Text>
+          <BackLabel label="Settings" style={styles.back} />
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.title}>Account</Text>

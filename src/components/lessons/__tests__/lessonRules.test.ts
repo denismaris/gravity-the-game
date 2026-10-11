@@ -5,7 +5,7 @@ import { nextValue, setValue, explainBinairoHint } from '../../../game/binairo';
 import { isBloomSolved } from '../../../game/bloom';
 import { press } from '../../../game/lightsout';
 import { isMirrorMazeSolved, nextMirror, setMirror } from '../../../game/mirror';
-import { clueValue } from '../../../game/fillapix';
+import { clashes, GLASS_LESSON_WINDOW, initialGlassState, isGlassSolved, paint, solveGlass } from '../../../game/glass';
 
 /** The rules the lessons teach, checked against the games' own logic -
  * a lesson that says "a / mirror sends it up" must be true. */
@@ -39,28 +39,23 @@ describe('the lessons tell the truth', () => {
     expect(isBloomSolved(bloom, { rotations: [[1, 1], [3, 3]] })).toBe(false);
   });
 
-  test('Pixel Clues: the corner reads 4 and the far corner 0', () => {
-    const pixel = { id: 'p', difficulty: 'easy' as const, size: 4, solution: [[true, true, false, false], [true, true, false, false], [false, false, false, false], [false, false, false, false]], clues: [{ row: 0, col: 0 }, { row: 3, col: 3 }] };
-    expect(clueValue(pixel, 0, 0)).toBe(4);
-    expect(clueValue(pixel, 3, 3)).toBe(0);
+  test('Stained Glass: the lesson window has one answer, and its three steps finish it', () => {
+    const w = GLASS_LESSON_WINDOW;
+    expect(solveGlass(w.touching, w.given, 2)).toEqual([w.solution]);
+    let state = initialGlassState(w);
+    for (const [pane, color] of [[4, 2], [2, 1], [3, 0]] as const) {
+      state = paint(w, state, pane, color);
+      expect(clashes(w, state)).toEqual([]);
+    }
+    expect(isGlassSolved(w, state)).toBe(true);
   });
 });
 
 import { applyTap, groupAt } from '../../../game/adjacent';
 import { bridgeLinks, cycleBridge, isBridgesSolved } from '../../../game/bridges';
-import { isTowersSolved, setCell, TowersState } from '../../../game/towers';
 import { BridgesState } from '../../../game/bridges';
 
 describe('the second set of lessons tell the truth too', () => {
-  test('Skyscrapers: the three steps finish a correct board', () => {
-    const puzzle = { id: 't', difficulty: 'easy' as const, size: 3, topClues: [3, 2, 1], bottomClues: [1, 2, 2], leftClues: [3, 2, 1], rightClues: [1, 2, 2] };
-    let state: TowersState = { values: [[1, 2, 0], [0, 3, 1], [0, 1, 2]] };
-    state = setCell(state, 0, 2, 3);
-    state = setCell(state, 2, 0, 3);
-    state = setCell(state, 1, 0, 2);
-    expect(isTowersSolved(puzzle, state)).toBe(true);
-  });
-
   test('Adjacent: clearing the bottom-left pair drops a run of four into the bottom row', () => {
     const grid = [[2, 1, 0, 0], [1, 2, 1, 1], [0, 0, 2, 2], [1, 1, 0, 0]];
     const first = applyTap({ grid, score: 0, cascades: 0 }, 3, 0)!;

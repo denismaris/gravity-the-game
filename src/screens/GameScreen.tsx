@@ -1,4 +1,5 @@
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
+import { BackLabel } from '../components/Icon';
 import { isTodaysDaily } from '../game/journey/daily';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { AccessibilityActionEvent, AccessibilityInfo, Animated, Text, View, useWindowDimensions } from 'react-native';
@@ -33,7 +34,7 @@ import {
 } from '../components';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { copyForTutorial, GRAVITY_MECHANICS_SLIDES, mechanicsOf, pickTutorial, tutorialIdForGame, tutorialIdForMechanic } from '../game/tutorials';
-import { BatchState, CompletionOutcome, getLevelResult, nextInBatch, usePlayerProgress } from '../progression';
+import { BatchState, CompletionOutcome, gamesPlayed, getLevelResult, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
@@ -194,10 +195,16 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     [level],
   );
   const [tutorialToShow, setTutorialToShow] = useState<ReturnType<typeof pickTutorial>>(null);
+  // A player's very first Gravity puzzle already opens on its goal card
+  // (`FirstPuzzleCoach`); a "new on the board" card on top of it was one
+  // popup too many. A mechanic's card waits for the next board that has it.
+  const firstGravity = useMemo(() => !gamesPlayed(progress).has('gravity'), [progress]);
   useEffect(() => {
     if (!settingsReady) return;
     const picked = pickTutorial(settings.seenTutorials, tutorialCandidates);
-    setTutorialToShow(picked);
+    setTutorialToShow(firstGravity && picked !== GAME_TUTORIAL_ID ? null : picked);
+    // Decided once per board: solving it must not bring the card up after.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settingsReady, settings.seenTutorials, tutorialCandidates]);
   const dismissTutorial = useCallback(() => {
     if (tutorialToShow) markTutorialSeen(tutorialToShow);
@@ -494,7 +501,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           hitSlop={8}
           style={styles.backButton}
         >
-          <Text style={styles.backButtonLabel}>{'‹ Home'}</Text>
+          <BackLabel label="Home" style={styles.backButtonLabel} />
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.levelName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
@@ -504,11 +511,11 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
             {/* The tier it is dealt at, not its authored label: a short
               board labelled "expert" is dealt (and shown) as medium. */}
             <DifficultyChip difficulty={gravityTierOf(level) ?? 'easy'} style={styles.difficultyChip} />
-            <Text style={styles.levelPar}>MOVES </Text>
+            <Text style={styles.levelPar}>Moves </Text>
             <AnimatedMoveCount moves={moveCount} />
             <Text style={styles.levelPar} numberOfLines={1}>
-              {' · '}PAR {par}
-              {priorBest !== null ? ` · BEST ${priorBest}` : ''}
+              {' · '}par {par}
+              {priorBest !== null ? ` · best ${priorBest}` : ''}
             </Text>
           </View>
           <PuzzleProgressMark batch={progress.currentBatch} puzzleId={level.id} style={styles.batchDots} />
@@ -594,10 +601,9 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           stars={outcome.best.stars}
           hintsUsed={hintsUsed}
           note={String(outcome.runMoves)}
-          noteLabel="MOVES"
+          noteLabel="moves"
           coinsEarned={outcome.coinsEarned}
           hasNext={nextEntry !== null && !isTodaysDaily(level.id)}
-          onReplay={handleRestart}
           onNext={outcome.batchCompleted && finishedSetRef.current ? () => setShowSetComplete(true) : handleNext}
           onDone={onExit}
         />
@@ -676,22 +682,19 @@ const styles = themedStyles(() => ({
     marginTop: 2,
   },
   levelPar: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1,
+    fontSize: theme.typography.sizes.caption,
     color: theme.colors.secondary,
     // The chip is fixed-width and the back/help buttons are immovable, so
     // PAR/BEST is the one thing on this row that may give ground.
     flexShrink: 1,
+    fontWeight: theme.typography.weights.semibold,
   },
   difficultyChip: { marginRight: 6 },
   /** The one number that changes during an attempt, so it carries a touch
    * more weight than the fixed PAR/BEST either side of it. */
   levelMoves: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
+    fontSize: theme.typography.sizes.caption,
     fontWeight: theme.typography.weights.bold,
-    letterSpacing: 1,
     color: theme.colors.secondary,
   },
   batchDots: {
@@ -702,8 +705,9 @@ const styles = themedStyles(() => ({
     backgroundColor: theme.colors.surfaceAlt,
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
-    paddingTop: theme.spacing.md,
-    paddingBottom: theme.spacing.xxl,
+    // Even all round, like every other game's stage: the board used to sit
+    // high in its tray with an empty strip under the last row.
+    paddingVertical: theme.spacing.md,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
     borderBottomWidth: 1,

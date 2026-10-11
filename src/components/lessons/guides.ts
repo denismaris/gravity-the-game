@@ -1,4 +1,4 @@
-import { createContext } from 'react';
+import { createContext, ReactNode } from 'react';
 import { GameKind } from '../../game/journey';
 
 /** How a game is played with a finger - what the guide card's little cue
@@ -6,7 +6,11 @@ import { GameKind } from '../../game/journey';
 export type LessonGesture = 'tap' | 'swipe' | 'drag';
 
 export interface LessonGuide {
-  readonly kind: GameKind;
+  /** The game, for its emblem; absent for a game being tried out. */
+  readonly kind?: GameKind;
+  /** The intro card's picture, for a game with no emblem of its own yet
+   * (one being tried out); otherwise the game's emblem. */
+  readonly emblem?: ReactNode;
   /** What wins the game, in one sentence: the first thing a lesson says. */
   readonly goal: string;
   readonly gesture: LessonGesture;
@@ -56,14 +60,14 @@ export const LESSON_GUIDES: Record<GameKind, LessonGuide> = {
       'Every row and column holds as many circles as squares.',
     ],
   },
-  tents: {
-    kind: 'tents',
-    goal: 'Pitch one tent beside every tree.',
+  lilypads: {
+    kind: 'lilypads',
+    goal: 'Hop the frog to every pad on the pond. Each pad sinks once the frog leaves it.',
     gesture: 'tap',
     recap: [
-      'Every tree has its own tent right beside it, never diagonally.',
-      'Tents never touch, not even at the corners.',
-      'The edge numbers count the tents in each row and column.',
+      'Tap a pad in line with the frog, or swipe toward it.',
+      'The frog lands on the nearest pad that way, over open water.',
+      'A pad alone in its row and column is ringed red: it can no longer be reached.',
     ],
   },
   mosaic: {
@@ -106,24 +110,24 @@ export const LESSON_GUIDES: Record<GameKind, LessonGuide> = {
       'Every line has to meet another until the loops close.',
     ],
   },
-  fillapix: {
-    kind: 'fillapix',
-    goal: 'Use the number clues to fill in a hidden picture.',
+  glass: {
+    kind: 'glass',
+    goal: 'Glaze every pane so no two touching panes share a colour.',
     gesture: 'tap',
     recap: [
-      'Each number counts the filled squares around it, its own included.',
-      'A 0 keeps its whole block empty, and a full count fills it.',
-      'What one number proves helps you read the next.',
+      'Pick a glass below, then tap a pane or draw across several.',
+      'Panes that share lead must differ. Panes that only meet at a corner may match.',
+      'Start where a pane touches two colours already: it has only one left.',
     ],
   },
-  towers: {
-    kind: 'towers',
-    goal: 'Place towers so each clue sees the right number of them.',
+  vanes: {
+    kind: 'vanes',
+    goal: 'Turn the vanes so the wind runs round the roof in closed loops.',
     gesture: 'tap',
     recap: [
-      'Each row and column holds every height once.',
-      'A clue counts the towers seen from its side. Tall ones hide short ones.',
-      'Start from the 1s and the highest clues: they tell you the most.',
+      'A tap turns a vane a quarter. It points at the nearest vane that way.',
+      'Every vane points at another, and is reached by exactly one wind.',
+      'Never into open air or a chimney, and never two vanes pointing at each other.',
     ],
   },
   arukone: {

@@ -1,6 +1,6 @@
 import React from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
-import { PressableScale } from './PressableScale';
+import { Animated, View } from 'react-native';
+import { DialogActions, dialogStyles } from './dialog';
 import { useCardEntrance } from './useCardEntrance';
 import { motion, theme, themedStyles } from '../theme';
 import { ModalLayer } from './ModalLayer';
@@ -35,8 +35,8 @@ const ROW_COUNT = 3;
 export function LevelFailedCard({
   onRetry,
   onExit,
-  title = 'DESTROYED',
-  message = 'A piece hit a hazard. This attempt is over.',
+  title = 'A piece was lost',
+  message = 'It touched a hazard. Start the board again and steer round it.',
 }: LevelFailedCardProps): React.JSX.Element {
   // `subdued`: the same staged arrival every other card uses, but landing
   // without overshoot and with no light sweep. A loss should feel like it
@@ -45,11 +45,11 @@ export function LevelFailedCard({
 
   return (
     <ModalLayer>
-      <View style={styles.overlay} pointerEvents="box-none">
-        <Animated.View style={[styles.scrim, { opacity: backdrop }]} pointerEvents="none" />
+      <View style={dialogStyles.overlay} pointerEvents="box-none">
+        <Animated.View style={[dialogStyles.scrim, { opacity: backdrop }]} pointerEvents="none" />
         <Animated.View
           style={[
-            styles.card,
+            dialogStyles.card,
             {
               opacity: card,
               transform: [
@@ -59,29 +59,11 @@ export function LevelFailedCard({
             },
           ]}
         >
-          <Animated.Text style={[styles.title, rowStyle(0)]}>{title}</Animated.Text>
-          <Animated.Text style={[styles.message, rowStyle(1)]}>{message}</Animated.Text>
-
+          <Animated.Text style={[dialogStyles.kicker, styles.kicker, rowStyle(0)]}>Not this time</Animated.Text>
+          <Animated.Text style={[dialogStyles.title, styles.title, rowStyle(0)]}>{title}</Animated.Text>
+          <Animated.Text style={[dialogStyles.body, rowStyle(1)]}>{message}</Animated.Text>
           <Animated.View style={[styles.actions, rowStyle(2)]}>
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Back to home"
-              onPress={onExit}
-              hitSlop={8}
-              style={({ pressed }) => [styles.button, styles.buttonSecondary, pressed && styles.pressed]}
-            >
-              <Text style={styles.buttonSecondaryLabel}>Home</Text>
-            </PressableScale>
-
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel="Retry level"
-              onPress={onRetry}
-              hitSlop={8}
-              style={({ pressed }) => [styles.button, styles.buttonPrimary, pressed && styles.pressed]}
-            >
-              <Text style={styles.buttonPrimaryLabel}>Retry</Text>
-            </PressableScale>
+            <DialogActions primary={{ label: 'Try again', onPress: onRetry, accessibilityLabel: 'Retry level' }} secondary={{ label: 'Home', onPress: onExit, accessibilityLabel: 'Back to home' }} />
           </Animated.View>
         </Animated.View>
       </View>
@@ -90,69 +72,7 @@ export function LevelFailedCard({
 }
 
 const styles = themedStyles(() => ({
-  overlay: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /** Separated so the dim fades on its own clock, matching the other
-   * outcome cards. */
-  scrim: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: theme.colors.overlay,
-  },
-  card: {
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.xl,
-    paddingVertical: theme.spacing.lg,
-    borderRadius: theme.radii.lg,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.danger,
-  },
-  title: {
-    color: theme.colors.danger,
-    fontSize: theme.typography.sizes.caption,
-    fontWeight: theme.typography.weights.bold,
-    letterSpacing: 2,
-    marginBottom: theme.spacing.md,
-  },
-  message: {
-    color: theme.colors.textSecondary,
-    fontSize: theme.typography.sizes.body,
-    lineHeight: theme.typography.lineHeights.body,
-    textAlign: 'center',
-    marginBottom: theme.spacing.lg,
-    maxWidth: 220,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  button: {
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-  },
-  buttonPrimary: {
-    backgroundColor: theme.colors.danger,
-  },
-  buttonSecondary: {
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  pressed: {
-    opacity: 0.85,
-  },
-  buttonPrimaryLabel: {
-    color: theme.colors.surfaceHi,
-    fontSize: theme.typography.sizes.body,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  buttonSecondaryLabel: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.sizes.body,
-    fontWeight: theme.typography.weights.semibold,
-  },
+  kicker: { color: theme.colors.danger },
+  title: { fontSize: theme.typography.sizes.title + 4 },
+  actions: { alignSelf: 'stretch' },
 }));

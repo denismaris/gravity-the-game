@@ -1,6 +1,6 @@
 import { ARUKONE } from '../game/arukone';
 import { BINAIRO } from '../game/binairo';
-import { FILLAPIX } from '../game/fillapix';
+import { GLASS_WINDOWS } from '../game/glass';
 import { GameKind, ROTATION } from '../game/journey';
 import { LEVELS } from '../game/levels';
 import { LIGHTS_OUT } from '../game/lightsout';
@@ -9,8 +9,8 @@ import { MOSAIC } from '../game/mosaic';
 import { BRIDGES } from '../game/bridges';
 import { ADJACENT } from '../game/adjacent';
 import { MIRROR_MAZES } from '../game/mirror';
-import { TENTS_TREES } from '../game/tents';
-import { TOWERS } from '../game/towers';
+import { LILY_PONDS } from '../game/lilypads';
+import { VANE_ROOFS } from '../game/vanes';
 import { getLevelStars, isLevelCompleted, PlayerProgress } from './playerProgress';
 
 /**
@@ -47,11 +47,11 @@ interface PoolEntry {
 const POOLS: Readonly<Record<GameKind, ReadonlyArray<PoolEntry>>> = {
   gravity: LEVELS.map(level => ({ id: level.id, difficulty: level.difficulty })),
   mirror: MIRROR_MAZES.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
-  tents: TENTS_TREES.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
-  towers: TOWERS.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
+  lilypads: LILY_PONDS.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
+  vanes: VANE_ROOFS.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
   binairo: BINAIRO.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
   arukone: ARUKONE.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
-  fillapix: FILLAPIX.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
+  glass: GLASS_WINDOWS.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
   lightsout: LIGHTS_OUT.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
   adjacent: ADJACENT.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
   bloom: BLOOM.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),

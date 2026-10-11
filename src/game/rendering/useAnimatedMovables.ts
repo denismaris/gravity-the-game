@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MovableObject } from '../engine';
+import { MovableObject, PortalPair } from '../engine';
 
 /**
  * How long a slide takes, by how far the furthest piece travels.
@@ -18,8 +18,11 @@ import { MovableObject } from '../engine';
 // phone: a one-square move lasted ~154ms, about nine frames, so a single
 // dropped frame was a visible hitch. A touch longer, and the landing below
 // has room to read.
-const BASE_SLIDE_MS = 130;
-const PER_ROOT_CELL_MS = 75;
+// Shortened again, with the fall below now leaving at speed: the time a
+// slide takes is less of what made it feel slow than how long it took to
+// get going.
+const BASE_SLIDE_MS = 105;
+const PER_ROOT_CELL_MS = 68;
 
 export function slideDurationFor(cellsTravelled: number): number {
   return BASE_SLIDE_MS + PER_ROOT_CELL_MS * Math.sqrt(cellsTravelled);
@@ -43,13 +46,17 @@ export function slideDurationFor(cellsTravelled: number): number {
  * A worklet, and defined before `landingCurve`, which captures it: the
  * slide runs on the UI thread.
  */
+/** The share of a slide's average speed a piece already has as it leaves.
+ * Declared before the worklet that captures it. */
+const LAUNCH = 0.45;
+
 function easeInFall(t: number): number {
   'worklet';
-  const accelerated = t * t;
-  // The last sliver blends toward linear, which takes the hard edge off
-  // the final frame without flattening the acceleration that precedes it.
-  const softening = t * t * t * (1 - t);
-  return accelerated + softening * 0.45;
+  // Thrown, not dropped: the piece leaves with a real speed (`LAUNCH`)
+  // and still gathers pace into the wall. Starting from rest (plain t^2)
+  // meant the first fifth of every slide barely moved, which on a phone
+  // read as the game hesitating after the swipe.
+  return LAUNCH * t + (1 - LAUNCH) * t * t;
 }
 
 /** Share of the slide spent falling; the rest is the landing. */
@@ -75,6 +82,73 @@ export function landingCurve(t: number, squares: number): number {
 }
 
 
+type Cell = { readonly row: number; readonly col: number };
+
+/** A slide that went through a portal: the endpoint it sank into and the
+ * one it rose from. */
+export interface PortalRoute {
+  readonly enter: Cell;
+  readonly exit: Cell;
+}
+
+/** The parts of a teleport, in milliseconds: the run to the portal, the
+ * sink into it, a beat of absence, the rise out of the other end, and the
+ * run on from there. Slow enough to see the ball leave and arrive - a
+ * straight slide across the board read as the ball skidding, not jumping. */
+export const TELEPORT = { sink: 230, gone: 150, rise: 260 } as const;
+
+export interface TeleportTiming {
+  readonly approach: number;
+  readonly sink: number;
+  readonly gone: number;
+  readonly rise: number;
+  readonly onward: number;
+  readonly total: number;
+}
+
+export function teleportTiming(route: PortalRoute, start: Cell, end: Cell): TeleportTiming {
+  const before = Math.abs(route.enter.row - start.row) + Math.abs(route.enter.col - start.col);
+  const after = Math.abs(end.row - route.exit.row) + Math.abs(end.col - route.exit.col);
+  // The run in has no landing (it ends in the portal), so it is a little
+  // quicker than a slide of the same length.
+  const approach = Math.round(slideDurationFor(before) * 0.85);
+  const onward = after > 0 ? Math.round(slideDurationFor(after)) : 0;
+  return { approach, ...TELEPORT, onward, total: approach + TELEPORT.sink + TELEPORT.gone + TELEPORT.rise + onward };
+}
+
+/**
+ * Which portal a piece went through between `start` and `end`, worked out
+ * from the cells alone (the engine records only where a piece ends up). A
+ * portal is entered by sliding straight at it and left in the same
+ * direction, so the piece's path is `start` -> in line with `enter`, then
+ * `exit` -> in line with `end`, the same way. Null for a plain slide (or a
+ * path a gravity zone bent, which slides as before).
+ */
+export function portalRoute(start: Cell, end: Cell, portals: ReadonlyArray<PortalPair>): PortalRoute | null {
+  for (const [a, b] of portals) {
+    for (const [enter, exit] of [
+      [a, b],
+      [b, a],
+    ]) {
+      const dRow = Math.sign(enter.row - start.row);
+      const dCol = Math.sign(enter.col - start.col);
+      // In line along one axis, and not already on the portal.
+      if ((dRow !== 0) === (dCol !== 0)) continue;
+      if (dRow === 0 ? enter.row !== start.row : enter.col !== start.col) continue;
+      // Stopped short of the portal on its own line: a plain slide.
+      const shortOfIt = dRow === 0 ? end.row === start.row && (end.col - start.col) * dCol < (enter.col - start.col) * dCol : end.col === start.col && (end.row - start.row) * dRow < (enter.row - start.row) * dRow;
+      if (shortOfIt) continue;
+      // Leaves the exit the same way: `end` is `exit` plus k steps, k >= 0.
+      const offRow = end.row - exit.row;
+      const offCol = end.col - exit.col;
+      const k = dRow !== 0 ? offRow / dRow : offCol / dCol;
+      const inLine = dRow !== 0 ? offCol === 0 : offRow === 0;
+      if (inLine && Number.isInteger(k) && k >= 0) return { enter, exit };
+    }
+  }
+  return null;
+}
+
 /**
  * One gravity move, as the board animates it: where each moving piece
  * starts from, how long the slide lasts, and a key that changes with
@@ -87,39 +161,65 @@ export interface SlidePlan {
   /** Start cell of each piece that moves in this slide, by id. */
   readonly from: ReadonlyMap<string, { readonly row: number; readonly col: number }>;
   readonly key: number;
+  /** How long a plain slide takes in this move. */
   readonly duration: number;
+  /** Pieces that went through a portal, by id, with their own timing. */
+  readonly teleports: ReadonlyMap<string, { readonly route: PortalRoute; readonly timing: TeleportTiming }>;
   readonly isAnimating: boolean;
 }
 
-const STILL: SlidePlan = { from: new Map(), key: 0, duration: 0, isAnimating: false };
+const NO_TELEPORTS: SlidePlan['teleports'] = new Map();
+const STILL: SlidePlan = { from: new Map(), key: 0, duration: 0, teleports: NO_TELEPORTS, isAnimating: false };
 
-export function useSlidePlan(target: ReadonlyArray<MovableObject>, instant: boolean): SlidePlan {
-  const [plan, setPlan] = useState<SlidePlan>(STILL);
+export function useSlidePlan(target: ReadonlyArray<MovableObject>, instant: boolean, portals: ReadonlyArray<PortalPair> = []): SlidePlan {
+  // Planned during the render that brings the move, not in an effect after
+  // it: an effect runs once that render has painted, so for one frame every
+  // moving piece stood at its destination before jumping back to slide -
+  // the "teleport" seen on a busy phone. Now the first frame of a move
+  // already starts each piece where it was.
   const fromRef = useRef(target);
-
-  useEffect(() => {
-    const previous = new Map(fromRef.current.map(movable => [movable.id, movable]));
+  const planRef = useRef<SlidePlan>(STILL);
+  if (fromRef.current !== target) {
+    planRef.current = planMove(fromRef.current, target, instant, portals, planRef.current.key + 1);
     fromRef.current = target;
-    // Only a piece already on the board can slide; one new to it (a
-    // different board swapped in) simply appears where it is.
-    const moved = target.filter(movable => {
-      const start = previous.get(movable.id);
-      return start !== undefined && (start.row !== movable.row || start.col !== movable.col);
-    });
-    if (instant || moved.length === 0) {
-      setPlan(current => ({ from: new Map(), key: current.key + 1, duration: 0, isAnimating: false }));
-      return;
-    }
-    const from = new Map(moved.map(movable => [movable.id, previous.get(movable.id)!]));
-    const travelled = moved.reduce((max, movable) => {
-      const start = from.get(movable.id)!;
-      return Math.max(max, Math.abs(movable.row - start.row) + Math.abs(movable.col - start.col));
-    }, 0);
-    const duration = slideDurationFor(travelled);
-    setPlan(current => ({ from, key: current.key + 1, duration, isAnimating: true }));
-    const settle = setTimeout(() => setPlan(current => ({ ...current, isAnimating: false })), duration);
-    return () => clearTimeout(settle);
-  }, [target, instant]);
+  }
+  const plan = planRef.current;
 
-  return plan;
+  // When the longest piece has landed.
+  const [settledKey, setSettledKey] = useState(plan.key);
+  useEffect(() => {
+    if (!plan.isAnimating) return;
+    const longest = Math.max(plan.duration, ...[...plan.teleports.values()].map(t => t.timing.total));
+    const settle = setTimeout(() => setSettledKey(plan.key), longest);
+    return () => clearTimeout(settle);
+  }, [plan]);
+
+  return plan.isAnimating && settledKey === plan.key ? { ...plan, isAnimating: false } : plan;
+}
+
+/** The slide from `before` to `after`: which pieces move, from where, and
+ * for how long. */
+function planMove(before: ReadonlyArray<MovableObject>, after: ReadonlyArray<MovableObject>, instant: boolean, portals: ReadonlyArray<PortalPair>, key: number): SlidePlan {
+  const previous = new Map(before.map(movable => [movable.id, movable]));
+  // Only a piece already on the board can slide; one new to it (a
+  // different board swapped in) simply appears where it is.
+  const moved = after.filter(movable => {
+    const start = previous.get(movable.id);
+    return start !== undefined && (start.row !== movable.row || start.col !== movable.col);
+  });
+  if (instant || moved.length === 0) return { from: new Map(), key, duration: 0, teleports: NO_TELEPORTS, isAnimating: false };
+  const from = new Map(moved.map(movable => [movable.id, previous.get(movable.id)!]));
+  const travelled = moved.reduce((max, movable) => {
+    const start = from.get(movable.id)!;
+    return Math.max(max, Math.abs(movable.row - start.row) + Math.abs(movable.col - start.col));
+  }, 0);
+  const teleports = new Map<string, { route: PortalRoute; timing: TeleportTiming }>();
+  if (portals.length > 0) {
+    for (const movable of moved) {
+      const start = from.get(movable.id)!;
+      const route = portalRoute(start, movable, portals);
+      if (route) teleports.set(movable.id, { route, timing: teleportTiming(route, start, movable) });
+    }
+  }
+  return { from, key, duration: slideDurationFor(travelled), teleports: teleports.size > 0 ? teleports : NO_TELEPORTS, isAnimating: true };
 }

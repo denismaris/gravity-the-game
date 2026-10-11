@@ -14,7 +14,7 @@ import { PATRON_SEASON_DISCOUNT } from './store';
 
 /** A game's own look: its pieces, lamps, beams or glazes. */
 export type SkinGame = Exclude<GameKind, 'bridges'>;
-export const SKIN_GAMES: ReadonlyArray<SkinGame> = ['gravity', 'mirror', 'tents', 'towers', 'binairo', 'arukone', 'fillapix', 'lightsout', 'adjacent', 'bloom', 'mosaic'];
+export const SKIN_GAMES: ReadonlyArray<SkinGame> = ['gravity', 'mirror', 'lilypads', 'vanes', 'binairo', 'arukone', 'glass', 'lightsout', 'adjacent', 'bloom', 'mosaic'];
 /** Bridges' look is its chart (the `chart` slot) - it had one first. */
 export type CosmeticSlot = 'confetti' | 'ball' | 'chart' | 'garden' | 'chime' | `skin-${SkinGame}`;
 export const COSMETIC_SLOTS: ReadonlyArray<CosmeticSlot> = ['confetti', 'ball', 'chart', 'garden', 'chime', ...SKIN_GAMES.map(g => `skin-${g}` as const)];
@@ -167,13 +167,15 @@ export const COSMETICS: ReadonlyArray<Cosmetic> = [
     { id: 'skin-mirror-rose', name: 'Rose Beam', blurb: 'Light through a pink pane.', price: fine, colors: ['#E98AA8', '#FFF0F4'], tokens: { mirrorBeamGlow: '#E98AA8', mirrorBeamCore: '#FFF0F4' } },
     { id: 'skin-mirror-emerald', name: 'Emerald Beam', blurb: 'A lighthouse at sea.', price: rare, colors: ['#63CF97', '#F0FFF6'], tokens: { mirrorBeamGlow: '#63CF97', mirrorBeamCore: '#F0FFF6' } },
   ]),
-  ...skins('tents', 'Green canvas.', [
-    { id: 'skin-tents-ochre', name: 'Ochre Canvas', blurb: 'Tents the colour of wheat.', price: common, colors: ['#D9A441', '#A8761F'], tokens: { tentLight: '#D9A441', tentDark: '#A8761F' } },
-    { id: 'skin-tents-ember', name: 'Ember Canvas', blurb: 'Red tents in the pines.', price: fine, colors: ['#D0664F', '#9A3F2E'], tokens: { tentLight: '#D0664F', tentDark: '#9A3F2E' } },
+  // The ids still say tents and towers: Lily Pads and Weathervanes took
+  // those games' places, and their skins, so anyone who bought one keeps it.
+  ...skins('lilypads', 'Green pads on a still pond.', [
+    { id: 'skin-tents-ochre', name: 'Autumn Pond', blurb: 'Pads turning gold.', price: common, colors: ['#A8923C', '#6E5E22'], tokens: { lilyPad: '#A8923C', lilyPadEdge: '#6E5E22', lilyVein: '#CDB862' }, darkTokens: { lilyPad: '#9A8636', lilyPadEdge: '#5A4C1C', lilyVein: '#BFA955' } },
+    { id: 'skin-tents-ember', name: 'Sunset Pond', blurb: 'Warm water, coral lilies.', price: fine, colors: ['#F0D2C0', '#F28C6B'], tokens: { pondWater: '#F0D2C0', pondRipple: '#F7E3D6', lilyBloom: '#F28C6B' }, darkTokens: { pondWater: '#3A2A2E', pondRipple: '#4A3638', lilyBloom: '#F28C6B' } },
   ]),
-  ...skins('towers', 'Violet towers, golden windows.', [
-    { id: 'skin-towers-neon', name: 'Neon Windows', blurb: 'A city that never sleeps.', price: fine, colors: ['#452963', '#6FE3D4'], tokens: { towersWindow: '#6FE3D4' } },
-    { id: 'skin-towers-midnight', name: 'Midnight Blue', blurb: 'Steel towers, warm lamps.', price: rare, colors: ['#23385E', '#F5C95E'], tokens: { towersBuilding: '#23385E', towersBuildingRoof: '#3C5A8C' } },
+  ...skins('vanes', 'Iron vanes, copper tails.', [
+    { id: 'skin-towers-neon', name: 'Verdigris', blurb: 'Old copper, gone green.', price: fine, colors: ['#3E7D6E', '#C77D3A'], tokens: { vaneMetal: '#3E7D6E', vaneMetalLight: '#6FA595' }, darkTokens: { vaneMetal: '#8FD1BF', vaneMetalLight: '#5E9A8A' } },
+    { id: 'skin-towers-midnight', name: 'Gilded Vanes', blurb: 'Gold leaf on every arrow.', price: rare, colors: ['#B08A2E', '#7A2E2E'], tokens: { vaneMetal: '#B08A2E', vaneMetalLight: '#D2B060', vaneAccent: '#7A2E2E' }, darkTokens: { vaneMetal: '#E3C46A', vaneMetalLight: '#B9993F', vaneAccent: '#C2554F' } },
   ]),
   ...skins('binairo', 'Terracotta and teal.', [
     { id: 'skin-binairo-gold', name: 'Gold & Ink', blurb: 'A ledger in gilt and violet.', price: fine, colors: ['#C99422', '#5B3B8C'], tokens: { binairoMarkFilled: '#C99422', binairoMarkFilledLight: '#E8C66E', binairoMarkFilledDark: '#8A6414', binairoMarkOutline: '#5B3B8C', binairoMarkOutlineLight: '#8D6FC0', binairoMarkOutlineDark: '#34205A' } },
@@ -183,9 +185,11 @@ export const COSMETICS: ReadonlyArray<Cosmetic> = [
     { id: 'skin-arukone-indigo', name: 'Indigo Cords', blurb: 'Dyed in deep blue.', price: common, colors: ['#3E5CB0'], tokens: { arukoneAccent: '#3E5CB0' }, darkTokens: { arukoneAccent: '#7B93E0' } },
     { id: 'skin-arukone-copper', name: 'Copper Wire', blurb: 'Bright, bent metal.', price: fine, colors: ['#B8683A'], tokens: { arukoneAccent: '#B8683A' }, darkTokens: { arukoneAccent: '#E0955F' } },
   ]),
-  ...skins('fillapix', 'Deep teal ink.', [
-    { id: 'skin-fillapix-violet', name: 'Violet Ink', blurb: 'Pictures in the house colour.', price: common, colors: ['#5B3B8C'], tokens: { fillapixAccent: '#5B3B8C' }, darkTokens: { fillapixAccent: '#9C82D4' } },
-    { id: 'skin-fillapix-ember', name: 'Ember Ink', blurb: 'Warm as a woodcut.', price: fine, colors: ['#C4602F'], tokens: { fillapixAccent: '#C4602F' }, darkTokens: { fillapixAccent: '#E08A52' } },
+  // The ids still say fillapix: Stained Glass took Pixel Clues' place, and
+  // its skins, so anyone who bought one keeps it.
+  ...skins('glass', 'Ruby, cobalt and amber.', [
+    { id: 'skin-fillapix-violet', name: 'Twilight Glass', blurb: 'Rose, violet and sea green.', price: common, colors: ['#B04A7A', '#5B3B8C', '#2E8A80'], tokens: { glassRuby: '#B04A7A', glassCobalt: '#5B3B8C', glassAmber: '#2E8A80' }, darkTokens: { glassRuby: '#D06A98', glassCobalt: '#8A6CC4', glassAmber: '#4FB0A4' } },
+    { id: 'skin-fillapix-ember', name: 'Harvest Glass', blurb: 'Copper, olive and honey.', price: fine, colors: ['#B8562E', '#5E7A34', '#E0B040'], tokens: { glassRuby: '#B8562E', glassCobalt: '#5E7A34', glassAmber: '#E0B040' }, darkTokens: { glassRuby: '#D8744A', glassCobalt: '#86A452', glassAmber: '#EEC45E' } },
   ]),
   ...skins('lightsout', 'Warm golden lamps.', [
     { id: 'skin-lightsout-ice', name: 'Ice Lamps', blurb: 'Cold blue light.', price: fine, colors: ['#9FD8FF', '#EAF7FF'], tokens: { lightsOutLit: '#9FD8FF', lightsOutLitCore: '#EAF7FF' } },
@@ -208,11 +212,11 @@ export const COSMETICS: ReadonlyArray<Cosmetic> = [
   ...masterworks([
     { game: 'gravity', id: 'skin-gravity-amethyst', name: 'Amethyst', blurb: 'Cut from a geode.', colors: ['#7A4FB8'], tokens: { pieceBlue: '#7A4FB8' }, darkTokens: { pieceBlue: '#A783E0' } },
     { game: 'mirror', id: 'skin-mirror-sunbeam', name: 'Sunbeam', blurb: 'Noon light, caught and bent.', colors: ['#F5C24E', '#FFF8E1'], tokens: { mirrorBeamGlow: '#F5C24E', mirrorBeamCore: '#FFF8E1' } },
-    { game: 'tents', id: 'skin-tents-pavilion', name: 'Royal Pavilion', blurb: 'Tents fit for a tournament.', colors: ['#3F5FB5', '#273E80'], tokens: { tentLight: '#3F5FB5', tentDark: '#273E80' }, darkTokens: { tentLight: '#6F8FE0', tentDark: '#3F5FB5' } },
-    { game: 'towers', id: 'skin-towers-rose', name: 'Rose Quartz', blurb: 'A pink city at dawn.', colors: ['#8E4A62', '#FFE9B8'], tokens: { towersBuilding: '#8E4A62', towersBuildingRoof: '#B56A84', towersWindow: '#FFE9B8' } },
+    { game: 'lilypads', id: 'skin-tents-pavilion', name: 'Moonlit Pond', blurb: 'Night water and pale lilies.', colors: ['#2B3A5E', '#F4F0FF'], tokens: { pondWater: '#2B3A5E', pondRipple: '#3B4C74', lilyBloom: '#F4F0FF', lilyPad: '#4F8C6B', lilyPadEdge: '#2F5A43', lilyVein: '#78B394' }, darkTokens: { pondWater: '#1C2744', pondRipple: '#2B3A5E', lilyBloom: '#F4F0FF' } },
+    { game: 'vanes', id: 'skin-towers-rose', name: 'Rose Wind', blurb: 'A pink breeze over the roofs.', colors: ['#E79AB4', '#B2456E'], tokens: { vaneWind: '#E79AB4', vaneAccent: '#B2456E' }, darkTokens: { vaneWind: '#F0AFC5', vaneAccent: '#E07A9E' } },
     { game: 'binairo', id: 'skin-binairo-sapphire', name: 'Sapphire & Coral', blurb: 'Deep sea and its reef.', colors: ['#2F5DAF', '#E07A5F'], tokens: { binairoMarkFilled: '#2F5DAF', binairoMarkFilledLight: '#6F93D6', binairoMarkFilledDark: '#1B3A73', binairoMarkOutline: '#E07A5F', binairoMarkOutlineLight: '#F2A88F', binairoMarkOutlineDark: '#A84A33' } },
     { game: 'arukone', id: 'skin-arukone-gold', name: 'Gold Thread', blurb: 'Embroidery in real gilt.', colors: ['#B7892F'], tokens: { arukoneAccent: '#B7892F' }, darkTokens: { arukoneAccent: '#E3B341' } },
-    { game: 'fillapix', id: 'skin-fillapix-midnight', name: 'Midnight Ink', blurb: 'Blue-black, like a fountain pen.', colors: ['#1F2A44'], tokens: { fillapixAccent: '#1F2A44' }, darkTokens: { fillapixAccent: '#B9C6E6' } },
+    { game: 'glass', id: 'skin-fillapix-midnight', name: 'Cathedral', blurb: 'The deep reds and blues of old abbey glass.', colors: ['#8E1B2E', '#1E3F8C', '#C99422'], tokens: { glassRuby: '#8E1B2E', glassCobalt: '#1E3F8C', glassAmber: '#C99422' }, darkTokens: { glassRuby: '#C23A50', glassCobalt: '#456BC4', glassAmber: '#E3B341' } },
     { game: 'lightsout', id: 'skin-lightsout-firefly', name: 'Firefly', blurb: 'Green-gold lamps in the dusk.', colors: ['#C9F26B', '#F7FFE0'], tokens: { lightsOutLit: '#C9F26B', lightsOutLitCore: '#F7FFE0' } },
     { game: 'adjacent', id: 'skin-adjacent-ember', name: 'Ember Kiln', blurb: 'Five glazes from the hottest fire.', colors: ['#9E3B2B', '#C7682B', '#D9A032', '#6E7B3A', '#4A3B57'], tokens: { adjacentTile0: '#9E3B2B', adjacentTile1: '#C7682B', adjacentTile2: '#D9A032', adjacentTile3: '#6E7B3A', adjacentTile4: '#4A3B57' } },
     { game: 'bloom', id: 'skin-bloom-iris', name: 'Midnight Iris', blurb: 'Flowers that open after dark.', colors: ['#4B4FB5'], tokens: { bloomAccent: '#4B4FB5' }, darkTokens: { bloomAccent: '#8C90E8' } },

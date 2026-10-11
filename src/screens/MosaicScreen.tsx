@@ -1,4 +1,5 @@
 import { HintNote } from '../components/HintNote';
+import { BackLabel } from '../components/Icon';
 import { HintKind } from '../game/hints';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isTodaysDaily } from '../game/journey/daily';
@@ -199,7 +200,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
       <PageBloom />
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
-          <Text style={styles.back}>‹ Home</Text>
+          <BackLabel label="Home" style={styles.back} />
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
@@ -263,7 +264,6 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
           stars={stars}
           hintsUsed={hints}
           coinsEarned={coinsEarned}
-          onReplay={restart}
           onDone={onExit}
           hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
           onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
@@ -310,7 +310,7 @@ function AnimatedKicker({ left, solved, difficulty }: { left: number; solved: bo
     <View style={styles.kickerRow}>
       <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
       <Animated.Text numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
-        {solved ? 'MOSAIC · COMPLETE' : `MOSAIC · ${left} ${left === 1 ? 'PIECE' : 'PIECES'} LEFT`}
+        {solved ? 'Mosaic · complete' : `Mosaic · ${left} ${left === 1 ? 'piece' : 'pieces'} left`}
       </Animated.Text>
       {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
     </View>
@@ -351,11 +351,10 @@ const styles = themedStyles(() => ({
     marginTop: 2,
   },
   kicker: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1,
+    fontSize: theme.typography.sizes.caption,
     color: gameAccent(),
     flexShrink: 1,
+    fontWeight: theme.typography.weights.semibold,
   },
   kickerChip: { marginRight: 6 },
   solvedBadge: {

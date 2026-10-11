@@ -1,16 +1,17 @@
-import { getGravityLevelsForTier } from '../game/levels';
+import { getGravityLevelsForTier, getLevelById } from '../game/levels';
+import { mechanicsOf } from '../game/tutorials';
 import { getMirrorMazesByDifficulty } from '../game/mirror';
-import { getTentsTreesByDifficulty } from '../game/tents';
-import { getTowersByDifficulty } from '../game/towers';
+import { lilyIdsFor } from '../game/lilypads';
+import { vaneIdsFor } from '../game/vanes';
 import { getBinairoByDifficulty } from '../game/binairo';
 import { getArukoneByDifficulty } from '../game/arukone';
-import { getFillaPixByDifficulty } from '../game/fillapix';
+import { glassIdsFor } from '../game/glass';
 import { getLightsOutByDifficulty } from '../game/lightsout';
 import { getBloomByDifficulty } from '../game/bloom';
 import { getMosaicByDifficulty } from '../game/mosaic';
 import { getBridgesByDifficulty } from '../game/bridges';
 import { getAdjacentByDifficulty } from '../game/adjacent';
-import { GameKind, ROTATION, puzzleKindOf } from '../game/journey';
+import { GameKind, getDailyEntry, ROTATION, puzzleKindOf } from '../game/journey';
 import { endlessId, parseEndlessId } from '../game/endlessId';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { PlayerProgress } from './playerProgress';
@@ -96,8 +97,8 @@ const TIER_CURVE: ReadonlyArray<TierBand> = [
  * of *that game's* puzzles the player has solved, so a game met for the
  * first time late on still starts gently.
  *  1. its first 3 puzzles: easy (its easiest boards, in order);
- *  2. the next 3: easy and medium, alternating;
- *  3. the next 6: easy, medium, then a signposted hard challenge;
+ *  2. the next 6: easy and medium, alternating;
+ *  3. the next 9: easy, medium, then a signposted hard challenge;
  *  4. after that: random, extreme challenges included - within guard
  *     rails that hold across everything the player plays, so it never
  *     turns stressful: every level has an easy puzzle, two challenges never
@@ -106,8 +107,8 @@ const TIER_CURVE: ReadonlyArray<TierBand> = [
  * Hard and extreme puzzles only ever come as signposted challenges.
  */
 export const GAME_EASY_ONLY = 3;
-export const GAME_EASY_MEDIUM = 6;
-export const GAME_RHYTHM = 12;
+export const GAME_EASY_MEDIUM = 9;
+export const GAME_RHYTHM = 18;
 /** No hard puzzle before this level for anyone: a game needs nine solved
  * boards before it can deal one, so this is a floor, not the rule. */
 export const HARD_TIER_FIRST_LEVEL = 8;
@@ -135,31 +136,33 @@ const RECENT_PENALTY = 0.2;
 const FRESH_BONUS = 1.6;
 
 /**
- * Games arrive one at a time. A new player starts with Gravity alone, and
+ * Games arrive one at a time. A new player starts with Lanterns alone (the
+ * gentlest to pick up, and the prettiest first impression), and
  * the next game in this order (from the simplest to pick up to the most
  * involved, alternating kinds of play) arrives only once the newest one
  * has `INTRO_SOLVES` puzzles solved - long enough to understand a game
  * before meeting another. While a game is being learned it takes most of
  * each set; the games before it keep turning up between its puzzles. Its
- * arrival is a small event: dealt at once, opening on its lesson. Anyone
- * who has already played a game keeps it, so no existing player loses one.
+ * arrival is a small event: dealt at once, opening on its lesson. A
+ * Daily or Weekly Grand never brings a game early: both are dealt from the
+ * games the player already has until every game has arrived.
  */
 export const INTRO_ORDER: ReadonlyArray<GameKind> = [
-  'gravity',
   'lightsout',
+  'glass',
   'adjacent',
+  'gravity',
   'binairo',
-  'tents',
+  'lilypads',
   'mosaic',
   'bridges',
   'mirror',
   'bloom',
-  'fillapix',
-  'towers',
+  'vanes',
   'arukone',
 ];
 /** Puzzles of the newest game to solve before the next one arrives. */
-export const INTRO_SOLVES = 10;
+export const INTRO_SOLVES = 15;
 /** The game being learned's weight in the draw. */
 const NEWCOMER_BOOST = 6;
 
@@ -171,10 +174,9 @@ function schedule(progress: PlayerProgress, pending: ReadonlyMap<GameKind, numbe
   const solved = solvedPerGame(progress);
   const order = INTRO_ORDER.filter(kind => !progress.retired.includes(kind));
   const count = (kind: GameKind) => (solved.get(kind) ?? 0) + (pending.get(kind) ?? 0);
-  const played = (kind: GameKind) => (solved.get(kind) ?? 0) > 0;
   // The frontier: the first game in the order not yet learned.
   const frontier = order.findIndex(kind => count(kind) < INTRO_SOLVES);
-  return { order, count, played, frontier };
+  return { order, count, frontier };
 }
 
 /**
@@ -182,22 +184,16 @@ function schedule(progress: PlayerProgress, pending: ReadonlyMap<GameKind, numbe
  * learned. Retired games are never counted or dealt.
  */
 export function unlockedGames(progress: PlayerProgress, pending: ReadonlyMap<GameKind, number> = NOTHING_PENDING): GameKind[] {
-  const { order, played, frontier } = schedule(progress, pending);
-  // A player already past the schedule - who has played games beyond the
-  // one it is waiting on (from before it existed) - has every game.
-  if (frontier === -1 || order.slice(frontier + 1).some(played)) return order;
+  const { order, frontier } = schedule(progress, pending);
+  if (frontier === -1) return order;
   return order.slice(0, frontier + 1);
 }
 
 /** The game being learned - the newest arrival, until it has its
- * `INTRO_SOLVES` puzzles - which the dealer puts in the spotlight. None for
- * a player who has already been further along (their games came from
- * playing them, not from the schedule). */
+ * `INTRO_SOLVES` puzzles - which the dealer puts in the spotlight. */
 function gameBeingLearned(progress: PlayerProgress, pending: ReadonlyMap<GameKind, number>): GameKind | null {
-  const { order, played, frontier } = schedule(progress, pending);
-  if (frontier === -1) return null;
-  if (order.slice(frontier + 1).some(played)) return null;
-  return order[frontier];
+  const { order, frontier } = schedule(progress, pending);
+  return frontier === -1 ? null : order[frontier];
 }
 
 /** The games this player has solved at least one puzzle of - so Home can
@@ -307,16 +303,16 @@ function poolForKindAndTier(kind: GameKind, tier: PuzzleDifficulty): ReadonlyArr
       return getGravityLevelsForTier(tier).map(level => level.id);
     case 'mirror':
       return getMirrorMazesByDifficulty(tier).map(puzzle => puzzle.id);
-    case 'tents':
-      return getTentsTreesByDifficulty(tier).map(puzzle => puzzle.id);
-    case 'towers':
-      return getTowersByDifficulty(tier).map(puzzle => puzzle.id);
+    case 'lilypads':
+      return lilyIdsFor(tier);
+    case 'vanes':
+      return vaneIdsFor(tier);
     case 'binairo':
       return getBinairoByDifficulty(tier).map(puzzle => puzzle.id);
     case 'arukone':
       return getArukoneByDifficulty(tier).map(puzzle => puzzle.id);
-    case 'fillapix':
-      return getFillaPixByDifficulty(tier).map(puzzle => puzzle.id);
+    case 'glass':
+      return glassIdsFor(tier);
     case 'lightsout':
       return getLightsOutByDifficulty(tier).map(puzzle => puzzle.id);
     case 'adjacent':
@@ -376,8 +372,29 @@ const ENDLESS_KINDS: ReadonlySet<GameKind> = new Set<GameKind>(ROTATION);
 function nextEndlessId(kind: GameKind, tier: PuzzleDifficulty, progress: PlayerProgress, usedInBatch: ReadonlySet<string>): string {
   for (let index = 0; ; index += 1) {
     const id = endlessId(kind, tier, index);
-    if (progress.levels[id] === undefined && !usedInBatch.has(id)) return id;
+    if (progress.levels[id] === undefined && !usedInBatch.has(id) && id !== getDailyEntry().puzzleId) return id;
   }
+}
+
+/**
+ * Gravity's mechanics arrive one at a time, like the games do: a level is
+ * dealt only once every mechanic on it has been reached, counted in
+ * Gravity puzzles solved. Walls are there from the start; anchors, then
+ * portals, then hazards, then gravity zones join as the player settles in -
+ * so a newcomer never meets a portal, an anchor and a zone in one set.
+ */
+export const GRAVITY_MECHANIC_AT: Readonly<Record<string, number>> = {
+  obstacles: 0,
+  anchored: 3,
+  portals: 6,
+  hazard: 9,
+  'gravity-zone': 12,
+};
+
+function gravityMechanicsReady(id: string, played: number): boolean {
+  const level = getLevelById(id);
+  if (!level) return true;
+  return mechanicsOf(level).every(m => played >= (GRAVITY_MECHANIC_AT[m] ?? 0));
 }
 
 /**
@@ -394,7 +411,11 @@ function nextEndlessId(kind: GameKind, tier: PuzzleDifficulty, progress: PlayerP
  * out of new ones.
  */
 function availablePuzzleIds(kind: GameKind, tier: PuzzleDifficulty, progress: PlayerProgress, usedInBatch: ReadonlySet<string>): ReadonlyArray<string> {
-  const pool = poolForKindAndTier(kind, tier);
+  // Today's Daily is never dealt into a set: it is played on its own, and
+  // a set puzzle that was secretly the Daily ended the set at Home.
+  const daily = getDailyEntry().puzzleId;
+  const gravityPlayed = kind === 'gravity' ? solvedPerGame(progress).get('gravity') ?? 0 : 0;
+  const pool = poolForKindAndTier(kind, tier).filter(id => id !== daily && (kind !== 'gravity' || gravityMechanicsReady(id, gravityPlayed)));
   const notCompleted = pool.filter(id => progress.levels[id] === undefined);
   const notUsed = notCompleted.filter(id => !usedInBatch.has(id));
   if (notUsed.length > 0) return notUsed;
@@ -464,11 +485,13 @@ export function generateBatch(levelNumber: number, progress: PlayerProgress, pre
     const challenge = extreme || dealt === 'hard';
     const tier: PuzzleDifficulty = challenge ? 'hard' : dealt === 'easy' ? 'easy' : 'medium';
     const ids = availablePuzzleIds(kind, tier, progress, usedIds);
-    // A game's first boards are its easiest, in order. An extreme draws
+    // A game's first boards are its easiest, in order - and while it is the
+    // game being learned, every board it deals comes in order, so its
+    // introduction climbs steadily instead of jumping about. An extreme draws
     // from the toughest third of what is left at hard - each game's hard
     // collection runs from its gentler boards to its fiercest.
     const pool = extreme && ids.length > 2 ? ids.slice(Math.floor((ids.length * 2) / 3)) : ids;
-    const puzzleId = played < GAME_EASY_ONLY ? ids[0] : pool[Math.floor(rng() * pool.length)];
+    const puzzleId = played < GAME_EASY_ONLY || (kind === learning && !challenge) ? ids[0] : pool[Math.floor(rng() * pool.length)];
     last = dealt;
     hadEasy = hadEasy || dealt === 'easy';
     hadExtreme = hadExtreme || extreme;

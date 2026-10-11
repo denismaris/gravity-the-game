@@ -99,7 +99,7 @@ describe('a thousand levels', () => {
 
 
   test('a retired game stays out for the whole run', () => {
-    const retired: GameKind[] = ['mosaic', 'gravity', 'towers'];
+    const retired: GameKind[] = ['mosaic', 'gravity', 'vanes'];
     const run = playThrough(200, { ...emptyProgress(), retired });
     expect(run.some(d => retired.includes(d.kind))).toBe(false);
     expect(new Set(run.map(d => d.id)).size).toBe(run.length);

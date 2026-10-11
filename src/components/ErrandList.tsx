@@ -41,7 +41,7 @@ function ErrandMark({ errand, done, compact }: { errand: Errand; done: boolean; 
 
 /** One errand: what to do, how far along, what it pays - and, once done,
  * a Claim pill that pays it out with the coins floating up to the purse. */
-function ErrandRow({ errand, done, progress, claimed, onClaim, compact }: { errand: Errand; done: boolean; progress: number; claimed: boolean; onClaim: () => void; compact: boolean }): React.JSX.Element {
+function ErrandRow({ errand, done, progress, claimed, onClaim, compact, dense }: { errand: Errand; done: boolean; progress: number; claimed: boolean; onClaim: () => void; compact: boolean; dense: boolean }): React.JSX.Element {
   const float = useRef(new Animated.Value(1)).current;
   const ready = done && !claimed;
   const glow = useRef(new Animated.Value(ready ? 1 : 0)).current;
@@ -61,6 +61,7 @@ function ErrandRow({ errand, done, progress, claimed, onClaim, compact }: { erra
       style={[
         styles.row,
         compact && styles.rowCompact,
+        dense && styles.rowDense,
         claimed && styles.rowClaimed,
         { borderColor: glow.interpolate({ inputRange: [0, 1], outputRange: [theme.colors.border, theme.colors.accent] }) },
       ]}
@@ -71,13 +72,17 @@ function ErrandRow({ errand, done, progress, claimed, onClaim, compact }: { erra
       <View style={[styles.rowBody, compact && styles.rowBodyCompact]}>
         <Text style={[styles.title, compact && styles.titleCompact, claimed && styles.titleClaimed]} numberOfLines={1}>
           {errand.title}
+          {/* Dense: the count rides on the title line, no bar. */}
+          {dense && <Text style={styles.countInline}>{`  ${Math.min(progress, errand.target)}/${errand.target}`}</Text>}
         </Text>
+        {!dense && (
         <View style={styles.progressRow}>
           <XpBar share={errand.target > 0 ? progress / errand.target : 0} ticks={errand.target > 1 && errand.target <= 10 ? errand.target : 1} height={compact ? 4 : 6} color={done ? theme.colors.success : theme.colors.accent} style={styles.bar} />
           <Text style={styles.count}>
             {Math.min(progress, errand.target)}/{errand.target}
           </Text>
         </View>
+        )}
       </View>
       {ready ? (
         <PressableScale accessibilityRole="button" accessibilityLabel={`Claim ${errand.coins} coins`} onPress={claim} style={({ pressed }) => [styles.claim, compact && styles.claimCompact, pressed && styles.claimPressed]}>
@@ -116,7 +121,9 @@ function ErrandRow({ errand, done, progress, claimed, onClaim, compact }: { erra
  * Today's three errands, for Home. Reads and claims through the progress
  * provider; the day's errands come from the date alone.
  */
-export function ErrandList({ compact = false }: { compact?: boolean }): React.JSX.Element {
+/** `dense`: for a short screen - each errand one slim line, its count on
+ * the title, no progress bar. */
+export function ErrandList({ compact = false, dense = false }: { compact?: boolean; dense?: boolean }): React.JSX.Element {
   const { progress, claimErrand } = usePlayerProgress();
   const dayKey = dailyKeyOf(new Date());
   const errands = errandsFor(dayKey, progress.retired);
@@ -129,7 +136,7 @@ export function ErrandList({ compact = false }: { compact?: boolean }): React.JS
   const doneCount = errands.filter((e, i) => isErrandDone(e, log, i)).length;
 
   return (
-    <View style={[styles.list, compact && styles.listCompact]}>
+    <View style={[styles.list, compact && styles.listCompact, dense && styles.listDense]}>
       {/* Compact (on Home's Today page): the count and the reset clock
           head the list instead of trailing it, so the list ends on its
           last errand and fits the card. */}
@@ -147,6 +154,7 @@ export function ErrandList({ compact = false }: { compact?: boolean }): React.JS
           done={isErrandDone(errand, log, i)}
           claimed={log.claimed[i]}
           compact={compact}
+          dense={dense}
           onClaim={() => {
             claimErrand(i);
           }}
@@ -154,7 +162,7 @@ export function ErrandList({ compact = false }: { compact?: boolean }): React.JS
       ))}
       {!compact && (
         <Text style={styles.foot}>
-          {doneCount}/{errands.length} DONE · FRESH ERRANDS IN {clock}
+          {doneCount} of {errands.length} done · new errands in {clock.toLowerCase()}
         </Text>
       )}
     </View>
@@ -178,6 +186,9 @@ const styles = themedStyles(() => ({
   headLabel: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
   headClock: { fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
   rowCompact: { paddingVertical: 6, borderRadius: 13 },
+  rowDense: { paddingVertical: 3 },
+  listDense: { gap: 4 },
+  countInline: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
   rowBodyCompact: { gap: 4 },
   titleCompact: { fontSize: theme.typography.sizes.caption },
   markCompact: { width: 28, height: 28, borderRadius: 9 },
@@ -237,10 +248,9 @@ const styles = themedStyles(() => ({
   floatText: { fontFamily: theme.typography.families.mono, fontWeight: theme.typography.weights.bold, color: theme.colors.accentText, fontSize: theme.typography.sizes.body },
   foot: {
     marginTop: 2,
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1,
+    fontSize: theme.typography.sizes.caption,
     color: theme.colors.textTertiary,
     textAlign: 'center',
+    fontWeight: theme.typography.weights.semibold,
   },
 }));

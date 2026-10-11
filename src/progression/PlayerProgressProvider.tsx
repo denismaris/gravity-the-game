@@ -1,3 +1,4 @@
+import { collectTownGift as collectTownGiftPure } from './town';
 import { buildPiece, tesseraeForSolve } from './villa';
 import React, {
   createContext,
@@ -10,11 +11,11 @@ import React, {
 } from 'react';
 import { getLevelById, getStarThresholds } from '../game/levels';
 import { StarThresholds } from '../game/levels/level';
-import { dailyKeyOf, getDailyEntry, puzzleKindOf } from '../game/journey';
+import { dailyKeyOf, getDailyEntry, puzzleKindOf, setDailyRoster } from '../game/journey';
 import { computeStars, LevelResult, StarRating } from '../game/scoring';
 import { getWorldForLevel } from '../game/worlds';
 import { createDefaultBackend, StorageBackend } from '../storage';
-import { BatchPuzzleRef, generateBatch, isBatchComplete, markPuzzleCompleted, nextInBatch, replaceInBatch } from './batches';
+import { BatchPuzzleRef, generateBatch, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from './batches';
 import { GameKind } from '../game/journey';
 import {
   emptyProgress,
@@ -40,7 +41,7 @@ import { syncWidget } from '../widget';
 import { advanceErrands, claimErrand as claimErrandPure } from './errands';
 import { chaptersFinished, claimChapter as claimChapterPure } from './chapters';
 import { recordGrand } from './grand';
-import { elapsedFor, standing } from './timing';
+import { clearPuzzleTimer, elapsedFor, standing } from './timing';
 import { claimStamp as claimStampPure } from './ledger';
 import { collectRanks as collectRanksPure } from './rank';
 import {
@@ -129,6 +130,8 @@ export interface CompletionOutcome {
   /** Today's Daily, timed on its first solve: the time, and where it
    * stands among every Daily the player has timed. */
   readonly daily: { readonly ms: number; readonly place: number; readonly of: number; readonly beat: number; readonly best: number } | null;
+  /** Today's Daily solved again: how long this replay took (not ranked). */
+  readonly dailyReplayMs: number | null;
 }
 
 /** The bonuses on the latest solve, for the solved card to show. */
@@ -140,6 +143,7 @@ export interface SolveBonus {
   readonly grand: boolean;
   readonly grandCosmetic: string | null;
   readonly daily: CompletionOutcome['daily'];
+  readonly dailyReplayMs: number | null;
   /** Villa tiles the solve laid. */
   readonly tesserae: number;
 }
@@ -207,6 +211,8 @@ interface PlayerProgressContextValue {
   claimSet(id: string): boolean;
   /** Builds the Villa's next piece; returns whether it was built. */
   buildVillaPiece(id: string): boolean;
+  /** Collects today's gift from the town's residents; the tiles, or 0. */
+  collectTownGift(): number;
   /** Applies a paid store purchase (see `store.ts`); returns whether it gave anything. */
   completePurchase(id: ProductId): boolean;
   /** Swaps the current set's next puzzle for another game's; returns the
@@ -258,6 +264,10 @@ export function PlayerProgressProvider({
 }: PlayerProgressProviderProps): React.JSX.Element {
   const backendRef = useRef<StorageBackend>(backend ?? createDefaultBackend());
   const [progress, setProgress] = useState<PlayerProgress>(() => ensureBatch(emptyProgress()));
+  // While games are still arriving, the Daily comes from the ones this
+  // player already has (see `getDailyEntry`). Set during render, before any
+  // screen below asks which puzzle is today's.
+  useMemo(() => setDailyRoster(nextGameToArrive(progress) ? unlockedGames(progress) : null), [progress]);
   const [ready, setReady] = useState(false);
   const [lastCharmed, setLastCharmed] = useState(false);
   const [lastBonus, setLastBonus] = useState<SolveBonus | null>(null);
@@ -358,6 +368,11 @@ export function PlayerProgressProvider({
     let grandCosmetic: string | null = null;
     let streakPrize: string | null = null;
     let dailyResult: CompletionOutcome['daily'] = null;
+    let dailyReplayMs: number | null = null;
+    // Read the Daily's clock now and stop it, so a later replay is timed
+    // from its own opening.
+    const dailyElapsed = isDaily ? elapsedFor(levelId) : null;
+    if (isDaily) clearPuzzleTimer(levelId);
     const next = applyMutation(current => {
       const previousStars = getLevelStars(current, levelId);
       const firstDailyToday = isDaily && !isDailyCompleted(current, todayKey);
@@ -368,13 +383,13 @@ export function PlayerProgressProvider({
       // completion already funnels through here by puzzle id.
       if (isDaily) {
         // The Daily Duel: time the first solve of today's Daily.
-        const ms = elapsedFor(levelId);
+        const ms = dailyElapsed;
         if (firstDailyToday && ms !== null && ms > 0) {
           const dailyTimes = Object.fromEntries(Object.entries({ ...result.dailyTimes, [todayKey]: ms }).sort(([a], [b]) => (a < b ? 1 : -1)).slice(0, 120));
           result = { ...result, dailyTimes };
           const times = Object.values(dailyTimes);
           dailyResult = { ms, ...standing(ms, times), best: Math.min(...times) };
-        }
+        } else if (!firstDailyToday && ms !== null && ms > 0) dailyReplayMs = ms;
         result = recordDaily(result, todayKey);
         // A streak prize reached by this very solve, for the solved card.
         const prize = COSMETICS.find(item => item.streak !== undefined && current.bestDailyStreak < item.streak && result.bestDailyStreak >= item.streak);
@@ -479,6 +494,7 @@ export function PlayerProgressProvider({
       // A Grand exclusive or a streak prize: either is "won, not sold".
       grandCosmetic: grandCosmetic ?? streakPrize,
       daily: dailyResult,
+      dailyReplayMs,
     };
   }, [applyMutation]);
 
@@ -495,6 +511,7 @@ export function PlayerProgressProvider({
         grand: outcome.grand,
         grandCosmetic: outcome.grandCosmetic,
         daily: outcome.daily,
+        dailyReplayMs: outcome.dailyReplayMs,
         tesserae: outcome.tesseraeEarned,
       });
       return outcome;
@@ -568,6 +585,16 @@ export function PlayerProgressProvider({
       return next ?? current;
     });
     return built;
+  }, [applyMutation]);
+  const collectTownGift = useCallback((): number => {
+    let tiles = 0;
+    applyMutation(current => {
+      const before = current.tesserae;
+      const next = collectTownGiftPure(current, dailyKeyOf(new Date()));
+      tiles = next ? next.tesserae - before : 0;
+      return next ?? current;
+    });
+    return tiles;
   }, [applyMutation]);
   const spendInsightCharge = useCallback((): boolean => {
     let used = false;
@@ -774,6 +801,7 @@ export function PlayerProgressProvider({
       claimGift,
       claimSet,
       buildVillaPiece,
+      collectTownGift,
       completePurchase,
       swapPuzzle,
       lastCharmed,
@@ -785,7 +813,7 @@ export function PlayerProgressProvider({
       dailyStreak: getDisplayDailyStreak(progress, dailyKeyOf(new Date())),
       dailyCompletedToday: isDailyCompleted(progress, dailyKeyOf(new Date())),
     }),
-    [progress, ready, recordAndMark, markLevelOpened, resetProgress, adoptProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, setShopGoal, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, buyAdFree, rewardVideo, spendInsightCharge, addInsights, claimGift, claimSet, buildVillaPiece, completePurchase, swapPuzzle, lastCharmed, lastBonus],
+    [progress, ready, recordAndMark, markLevelOpened, resetProgress, adoptProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, setShopGoal, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, buyAdFree, rewardVideo, spendInsightCharge, addInsights, claimGift, claimSet, buildVillaPiece, collectTownGift, completePurchase, swapPuzzle, lastCharmed, lastBonus],
   );
 
   return (

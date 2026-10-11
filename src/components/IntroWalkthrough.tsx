@@ -59,7 +59,7 @@ function GamesArt({ width }: { width: number }): React.JSX.Element {
 /** Page two: a level's set of four - the challenge ruled under, one
  * golden puzzle wearing its coin. */
 function SetArt({ width }: { width: number }): React.JSX.Element {
-  const set: GameKind[] = ['tents', 'bridges', 'binairo', 'mirror'];
+  const set: GameKind[] = ['lilypads', 'bridges', 'binairo', 'mirror'];
   const size = Math.min(62, (width - 3 * 16) / 4);
   const gap = (width - size * 4) / 3;
   return (
@@ -120,9 +120,9 @@ interface IntroPage {
 
 const PAGES: ReadonlyArray<IntroPage> = [
   {
-    kicker: 'WELCOME TO TESSELLATUM',
+    kicker: 'Welcome to Tessellatum',
     title: 'Twelve games, one at a time',
-    body: 'You start with one game. Ten puzzles in, the next one arrives, and so on until all twelve are yours. Every new game opens with a short lesson.',
+    body: 'You start with one game. Fifteen puzzles in, the next one arrives, and so on until all twelve are yours. Every new game opens with a short lesson.',
     points: [
       ['▦︎', 'A new board every time. They never run out'],
       ['✓︎', 'Every puzzle can be solved by logic alone'],
@@ -130,7 +130,7 @@ const PAGES: ReadonlyArray<IntroPage> = [
     art: width => <GamesArt width={width} />,
   },
   {
-    kicker: 'HOW LEVELS WORK',
+    kicker: 'How levels work',
     title: 'Short sets',
     body: 'Each level is a short set of puzzles. Finish the set to move on. Everything starts easy, and nothing gets hard until you know every game.',
     points: [
@@ -140,7 +140,7 @@ const PAGES: ReadonlyArray<IntroPage> = [
     art: width => <SetArt width={width} />,
   },
   {
-    kicker: 'INSIGHT & COINS',
+    kicker: 'Insight and coins',
     title: 'Stuck? Ask for Insight',
     body: 'Insight shows your next move and tells you why. You start with three; a short video or a few coins brings more. Coins also buy new looks in the shop.',
     points: [
@@ -150,7 +150,7 @@ const PAGES: ReadonlyArray<IntroPage> = [
     art: width => <CoinsArt width={width} />,
   },
   {
-    kicker: 'THE VILLA',
+    kicker: 'The Villa',
     title: 'Build something of your own',
     body: 'Every puzzle you solve lays tiles. Spend them restoring an old Roman villa, piece by piece: the floor, the pool, the columns, the frescoes.',
     points: [
@@ -160,7 +160,7 @@ const PAGES: ReadonlyArray<IntroPage> = [
     art: width => <VillaArt width={width} />,
   },
   {
-    kicker: 'EVERY DAY',
+    kicker: 'Every day',
     title: 'Something to come back for',
     body: 'A Daily puzzle to keep your streak, three errands for bonus coins, and a Weekly Grand with rewards the shop never sells.',
     points: [
@@ -294,11 +294,11 @@ const styles = themedStyles(() => ({
   },
   band: { height: 5 },
   top: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md },
-  count: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.2, color: theme.colors.textTertiary },
+  count: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   skip: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   page: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md },
   art: { alignItems: 'center', justifyContent: 'center', minHeight: 150, marginBottom: theme.spacing.md },
-  kicker: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.secondary },
+  kicker: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary },
   title: {
     marginTop: 4,
     fontFamily: theme.typography.families.display,

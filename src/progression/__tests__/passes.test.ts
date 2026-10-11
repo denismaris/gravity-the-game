@@ -1,6 +1,6 @@
 import { emptyProgress, PlayerProgress, recordCompletion } from '../playerProgress';
 import { endlessId } from '../../game/endlessId';
-import { dealtTierOf, generateBatch, replaceInBatch } from '../batches';
+import { dealtTierOf, generateBatch, INTRO_SOLVES, replaceInBatch } from '../batches';
 import { errandsFor } from '../errands';
 import { LUCKY_CHARM_CHARGES, LUCKY_CHARM_PRICE, MAX_LUCKY_CHARGES, RETIRE_PRICES, buyLuckyCharm, reinstateGame, retireGame, retirePrice } from '../shop';
 import { GameKind, ROTATION } from '../../game/journey';
@@ -14,14 +14,17 @@ function seeded(seed: number): () => number {
 }
 
 /** A player every game has already reached, one generated board each. */
+/** A player every game has arrived for: each one's introduction solved. */
 function everyGame(): PlayerProgress {
-  return ROTATION.reduce((p, kind) => recordCompletion(p, endlessId(kind, 'medium', 900), 1, { two: 4, three: 2 }), emptyProgress());
+  let p = emptyProgress();
+  for (const kind of ROTATION) for (let i = 0; i < INTRO_SOLVES; i += 1) p = recordCompletion(p, endlessId(kind, 'medium', 900 + i), 1, { two: 4, three: 2 });
+  return p;
 }
 
 describe('retiring a game', () => {
   test('costs more each time, stops at three, and bringing one back is free', () => {
     let p: PlayerProgress = { ...emptyProgress(), coins: 5000 };
-    const kinds: GameKind[] = ['mosaic', 'towers', 'adjacent'];
+    const kinds: GameKind[] = ['mosaic', 'vanes', 'adjacent'];
     kinds.forEach((kind, i) => {
       expect(retirePrice(p)).toBe(RETIRE_PRICES[i]);
       p = retireGame(p, kind)!;
@@ -29,13 +32,13 @@ describe('retiring a game', () => {
     expect(p.coins).toBe(5000 - RETIRE_PRICES.reduce((a, b) => a + b, 0));
     expect(retirePrice(p)).toBeNull();
     expect(retireGame(p, 'bloom')).toBeNull();
-    const back = reinstateGame(p, 'towers');
+    const back = reinstateGame(p, 'vanes');
     expect(back.retired).toEqual(['mosaic', 'adjacent']);
     expect(back.coins).toBe(p.coins);
   });
 
   test('a retired game is never dealt into a level set', () => {
-    const retired: GameKind[] = ['mosaic', 'towers', 'gravity'];
+    const retired: GameKind[] = ['mosaic', 'vanes', 'gravity'];
     const p = { ...emptyProgress(), retired };
     for (let seed = 1; seed < 120; seed += 1) {
       const batch = generateBatch(20 + (seed % 30), p, null, seeded(seed));

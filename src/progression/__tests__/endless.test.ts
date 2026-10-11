@@ -3,7 +3,7 @@ import { emptyProgress, PlayerProgress } from '../playerProgress';
 import { getLightsOutById } from '../../game/lightsout';
 import { getArukoneById } from '../../game/arukone';
 import { getAdjacentById } from '../../game/adjacent';
-import { assertValidTowers, getTowersById } from '../../game/towers';
+import { getVanesById, readable, solveVanes } from '../../game/vanes';
 import { isEndlessId, parseEndlessId } from '../../game/endlessId';
 import { puzzleDisplayInfo } from '../../game/journey';
 
@@ -135,17 +135,15 @@ describe('an endless id rebuilds the same puzzle, forever', () => {
     expect(a!.difficulty).toBe('easy');
   });
 
-  test('Skyscrapers - and the board is genuinely uniquely solvable', () => {
-    const id = 'towers-e-hard-5';
-    const a = getTowersById(id);
-    const b = getTowersById(id);
+  test('Weathervanes - and the roof genuinely has one answer, read without a guess', () => {
+    const id = 'vanes-e-hard-5';
+    const a = getVanesById(id, { name: 'A', tier: 'hard' });
+    const b = getVanesById(id, { name: 'A', tier: 'hard' });
     expect(a).toBeDefined();
-    expect(a!.topClues).toEqual(b!.topClues);
+    expect(a!.vanes).toEqual(b!.vanes);
     expect(a!.difficulty).toBe('hard');
-    // Not merely "a board was produced": the generator proves uniqueness
-    // with the real solver before returning, and this re-checks it from
-    // the outside.
-    expect(() => assertValidTowers(a!)).not.toThrow();
+    expect(solveVanes(a!, a!.vanes, a!.fixed, 2)).toHaveLength(1);
+    expect(readable(a!, a!.vanes, a!.fixed)).toBe(true);
   });
 
   test('different indices are overwhelmingly different boards', () => {
@@ -194,8 +192,8 @@ describe('naming an endless puzzle never builds it', () => {
   });
 
   test('the id round-trips through its own parser', () => {
-    const ref = parseEndlessId('towers-e-medium-17');
-    expect(ref).toEqual({ kind: 'towers', tier: 'medium', index: 17 });
+    const ref = parseEndlessId('vanes-e-medium-17');
+    expect(ref).toEqual({ kind: 'vanes', tier: 'medium', index: 17 });
     expect(parseEndlessId('lightsout-easy-01')).toBeNull();
   });
 });

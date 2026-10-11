@@ -1,6 +1,6 @@
 import { getArukoneById } from '../../arukone';
 import { getBinairoById } from '../../binairo';
-import { getFillaPixById } from '../../fillapix';
+import { glassCuratedInfo } from '../../glass';
 import { getLightsOutById } from '../../lightsout';
 import { getAdjacentById } from '../../adjacent';
 import { getBloomById } from '../../bloom';
@@ -8,8 +8,8 @@ import { getMosaicById } from '../../mosaic';
 import { getBridgesById } from '../../bridges';
 import { getLevelById } from '../../levels';
 import { getMirrorMazeById } from '../../mirror';
-import { getTentsTreesById } from '../../tents';
-import { getTowersById } from '../../towers';
+import { lilyCuratedInfo } from '../../lilypads';
+import { vaneCuratedInfo } from '../../vanes';
 import { dailyKeyOf, getDailyEntry } from '../daily';
 
 describe('dailyKeyOf', () => {
@@ -30,16 +30,16 @@ function realPuzzleExists(entry: ReturnType<typeof getDailyEntry>): boolean {
       return getLevelById(entry.puzzleId) !== undefined;
     case 'mirror':
       return getMirrorMazeById(entry.puzzleId) !== undefined;
-    case 'tents':
-      return getTentsTreesById(entry.puzzleId) !== undefined;
-    case 'towers':
-      return getTowersById(entry.puzzleId) !== undefined;
+    case 'lilypads':
+      return lilyCuratedInfo(entry.puzzleId) !== null;
+    case 'vanes':
+      return vaneCuratedInfo(entry.puzzleId) !== null;
     case 'binairo':
       return getBinairoById(entry.puzzleId) !== undefined;
     case 'arukone':
       return getArukoneById(entry.puzzleId) !== undefined;
-    case 'fillapix':
-      return getFillaPixById(entry.puzzleId) !== undefined;
+    case 'glass':
+      return glassCuratedInfo(entry.puzzleId) !== null;
     case 'lightsout':
       return getLightsOutById(entry.puzzleId) !== undefined;
     case 'adjacent':

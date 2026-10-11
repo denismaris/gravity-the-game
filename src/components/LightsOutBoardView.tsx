@@ -1,161 +1,161 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useRef } from 'react';
 import { Circle, Group, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Easing, useDerivedValue, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { LightsOutCell, LightsOutPuzzle, LightsOutState } from '../game/lightsout';
-import { BoardLayout, computeBoardLayout, getCellCenter, getCellOrigin, useAnimationClock, useReducedMotion } from '../game/rendering';
+import { BoardLayout, computeBoardLayout, getCellOrigin, useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
 
 const TILE_GAP = 6;
-/** How long a light takes to cross between on and off - the spec's own
- * ~150ms, and the same beat every other board in this app uses for a
- * placement (`BinairoBoardView`'s `STAMP_IN_MS`, `TentsBoardView`'s
- * `PITCH_IN_MS`). */
-const TOGGLE_MS = 150;
-/** The bloom that swells and settles on a light the moment it changes -
- * a touch longer than the colour crossfade, so the glow is still
- * resolving after the colour has arrived. */
-const PULSE_MS = 260;
-/** The solve wave: every light fades out in reading order. Tuned so the
- * last light is out inside `SOLVE_CELEBRATION_MS`, the beat the
- * completion card waits before covering the board - at the old 45ms
- * stagger a 6x6 took very nearly two seconds, all of it behind a scrim. */
-const CLEAR_STAGGER_MS = 8;
-const CLEAR_MS = 320;
-
-function clamp01(t: number): number {
-  return t < 0 ? 0 : t > 1 ? 1 : t;
-}
-
-function easeOutCubic(t: number): number {
-  return 1 - (1 - t) ** 3;
-}
+/** The light spreads from the lamp that was pressed to its neighbours,
+ * this much later per square. */
+const SPREAD_MS = 55;
+/** The solve: a warm ripple out from the middle of the board, one ring of
+ * lamps this much after the last - over well inside `SOLVE_CELEBRATION_MS`. */
+const RIPPLE_STEP_MS = 70;
 
 function cellKey(row: number, col: number): string {
   return `${row}:${col}`;
 }
 
-/** Diffs the light grid against the previous render to find which cells
- * just changed and when - the same during-render-diff idiom
- * `BinairoBoardView`'s `useToggleEvents` and `TentsBoardView`'s
- * `useMarkChangeTimestamps` already use, so a freshly flipped light knows
- * how long it has been flipping. */
-function useToggleTimestamps(lights: LightsOutState['lights']): Map<string, number> {
+/**
+ * When each lamp that just changed should start: the pressed lamp first,
+ * the rest a beat later the further they are from it, so the light visibly
+ * travels. Worked out during the render that brings the change, from the
+ * grid before it.
+ */
+function useChangeDelays(lights: LightsOutState['lights']): ReadonlyMap<string, number> {
   const previousRef = useRef<LightsOutState['lights'] | null>(null);
-  const eventsRef = useRef(new Map<string, number>());
-
+  const delaysRef = useRef<ReadonlyMap<string, number>>(new Map());
   if (previousRef.current !== lights) {
     const previous = previousRef.current;
-    const now = Date.now();
+    const delays = new Map<string, number>();
     if (previous) {
+      const changed: LightsOutCell[] = [];
       for (let r = 0; r < lights.length; r += 1) {
         for (let c = 0; c < lights[r].length; c += 1) {
-          if (previous[r][c] !== lights[r][c]) eventsRef.current.set(cellKey(r, c), now);
+          if (previous[r][c] !== lights[r][c]) changed.push({ row: r, col: c });
         }
+      }
+      // The pressed lamp: the changed one with the most changed neighbours.
+      const isChanged = new Set(changed.map(cell => cellKey(cell.row, cell.col)));
+      const neighbours = (cell: LightsOutCell) =>
+        [cellKey(cell.row - 1, cell.col), cellKey(cell.row + 1, cell.col), cellKey(cell.row, cell.col - 1), cellKey(cell.row, cell.col + 1)].filter(key => isChanged.has(key)).length;
+      const origin = changed.reduce<LightsOutCell | null>((best, cell) => (best === null || neighbours(cell) > neighbours(best) ? cell : best), null);
+      for (const cell of changed) {
+        const distance = origin ? Math.abs(cell.row - origin.row) + Math.abs(cell.col - origin.col) : 0;
+        delays.set(cellKey(cell.row, cell.col), Math.min(distance, 4) * SPREAD_MS);
       }
     }
     previousRef.current = lights;
+    delaysRef.current = delays;
   }
-  return eventsRef.current;
+  return delaysRef.current;
+}
+
+interface LampProps {
+  lit: boolean;
+  /** When this lamp's change starts, after the press (see `useChangeDelays`). */
+  delay: number;
+  /** Set once the board is solved: when this lamp's part of the ripple starts. */
+  rippleDelay: number | null;
+  /** The tile the lamp sits in. */
+  x: number;
+  y: number;
+  size: number;
+  reducedMotion: boolean;
 }
 
 /**
- * One lamp, at a given brightness (0 = fully out, 1 = fully lit), with an
- * optional extra bloom while it is mid-flip: a soft halo, the lamp face,
- * then a small bright core - the same "halo, body, core" layering the
- * Mirror Maze beam uses, which is the register this app's dark boards
- * already speak in (a cast shadow would be invisible against a night
- * panel).
+ * One lantern, animating itself on the UI thread - so a press costs the
+ * board one render, and the light moves on every frame however busy the
+ * phone is (it used to be redrawn from the JS clock, which stuttered).
  *
- * The halo is a real radial falloff rather than a flat translucent disc.
- * A disc was the first attempt and it read as a muddy brown ring, not a
- * glow: amber at low alpha over indigo desaturates into dirt, and a hard
- * circular edge reads as a plate sitting on the board. This app's
- * standing rule is depth through geometry rather than shading, with one
- * stated exception - "a single radial gradient on genuinely spherical
- * objects" - and a glowing lamp is exactly that exception.
+ * Three values drive it: `level`, how lit the glass is; `ember`, the flame
+ * at its heart, which catches a moment before the glass and lingers after
+ * it as the lamp goes out; and `bloom`, a swell of the halo past its
+ * resting size as a lamp catches. Lit, the lamp also warms its own tile.
  */
-function renderLamp(key: string, cx: number, cy: number, radius: number, brightness: number, bloom: number): React.JSX.Element {
-  const lit = brightness > 0.001;
-  const haloRadius = radius * (1.9 + bloom * 0.6);
-  const haloAlpha = 0.5 * brightness + bloom * 0.3;
+const Lamp = React.memo(function LampImpl({ lit, delay, rippleDelay, x, y, size, reducedMotion }: LampProps) {
+  const level = useSharedValue(lit ? 1 : 0);
+  const ember = useSharedValue(lit ? 1 : 0);
+  const bloom = useSharedValue(0);
+  const first = useRef(true);
+
+  useEffect(() => {
+    if (first.current) {
+      first.current = false;
+      return;
+    }
+    if (reducedMotion) {
+      level.value = lit ? 1 : 0;
+      ember.value = lit ? 1 : 0;
+      bloom.value = 0;
+      return;
+    }
+    if (lit) {
+      // Catching: the flame first, the glass after it with one small dip,
+      // and the halo swelling over and settling back.
+      ember.value = withDelay(delay, withTiming(1, { duration: 160, easing: Easing.out(Easing.quad) }));
+      level.value = withDelay(
+        delay,
+        withSequence(
+          withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) }),
+          withTiming(0.8, { duration: 70, easing: Easing.inOut(Easing.quad) }),
+          withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) }),
+        ),
+      );
+      bloom.value = withDelay(delay, withSequence(withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }), withTiming(0, { duration: 520, easing: Easing.inOut(Easing.cubic) })));
+    } else {
+      // Going out: a small puff, the glass dims, and the ember fades last.
+      bloom.value = withDelay(delay, withSequence(withTiming(0.35, { duration: 110 }), withTiming(0, { duration: 260 })));
+      level.value = withDelay(delay, withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) }));
+      ember.value = withDelay(delay + 40, withTiming(0, { duration: 340, easing: Easing.in(Easing.quad) }));
+    }
+    // A lamp's own change is the only thing that restarts it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lit]);
+
+  // The solve: one warm flare passing over every lamp, out from the middle.
+  useEffect(() => {
+    if (rippleDelay === null || reducedMotion) return;
+    const rest = lit ? 1 : 0;
+    level.value = withDelay(rippleDelay, withSequence(withTiming(0.75, { duration: 180, easing: Easing.out(Easing.quad) }), withTiming(rest, { duration: 520, easing: Easing.inOut(Easing.cubic) })));
+    ember.value = withDelay(rippleDelay, withSequence(withTiming(0.9, { duration: 160 }), withTiming(rest, { duration: 620, easing: Easing.in(Easing.quad) })));
+    bloom.value = withDelay(rippleDelay, withSequence(withTiming(0.8, { duration: 200 }), withTiming(0, { duration: 560 })));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rippleDelay]);
+
+  const cx = x + size / 2;
+  const cy = y + size / 2;
+  const r = size * 0.33;
+  const haloMax = r * 3.1;
+
+  const tileWash = useDerivedValue(() => level.value * 0.2);
+  const haloOpacity = useDerivedValue(() => Math.min(1, level.value * 0.75 + bloom.value * 0.45));
+  const haloR = useDerivedValue(() => r * (2.0 + bloom.value * 1.1));
+  const coreR = useDerivedValue(() => r * (0.2 + 0.28 * ember.value + 0.06 * bloom.value));
+  // The flame dims with the glass around it, so a lamp going out leaves a
+  // fading warm ember, not a bright pinpoint on dark glass.
+  const coreOpacity = useDerivedValue(() => ember.value * (0.35 + 0.65 * level.value));
+  const glint = useDerivedValue(() => 0.18 + 0.4 * level.value);
+
   return (
-    <Group key={key}>
-      {lit && (
-        <Circle cx={cx} cy={cy} r={haloRadius}>
-          <RadialGradient
-            c={vec(cx, cy)}
-            r={haloRadius}
-            colors={[`rgba(245, 201, 94, ${haloAlpha})`, 'rgba(245, 201, 94, 0)']}
-          />
-        </Circle>
-      )}
-      <Circle
-        cx={cx}
-        cy={cy}
-        r={radius}
-        color={lit ? theme.colors.lightsOutLit : theme.colors.lightsOutDim}
-        opacity={lit ? 0.35 + 0.65 * brightness : 1}
-      />
-      {lit && <Circle cx={cx} cy={cy} r={radius * 0.42} color={theme.colors.lightsOutLitCore} opacity={brightness} />}
+    <Group>
+      {/* The tile, warmed by its own lamp. */}
+      <RoundedRect x={x} y={y} width={size} height={size} r={size * 0.22} color={theme.colors.lightsOutLit} opacity={tileWash} />
+      {/* The halo: the one radial falloff, on a genuinely round light. */}
+      <Circle cx={cx} cy={cy} r={haloR} opacity={haloOpacity}>
+        <RadialGradient c={vec(cx, cy)} r={haloMax} colors={['rgba(255, 214, 120, 0.85)', 'rgba(245, 201, 94, 0.32)', 'rgba(245, 201, 94, 0)']} positions={[0, 0.45, 1]} />
+      </Circle>
+      {/* The glass, unlit, and the same glass lit over it. */}
+      <Circle cx={cx} cy={cy} r={r} color={theme.colors.lightsOutDim} />
+      <Circle cx={cx} cy={cy} r={r} color={theme.colors.lightsOutLit} opacity={level} />
+      {/* The flame. */}
+      <Circle cx={cx} cy={cy} r={coreR} color={theme.colors.lightsOutLitCore} opacity={coreOpacity} />
+      {/* A glint on the glass, upper left. */}
+      <Circle cx={cx - r * 0.38} cy={cy - r * 0.4} r={r * 0.16} color="#FFFFFF" opacity={glint} />
     </Group>
   );
-}
-
-interface StaticLightsProps {
-  puzzle: LightsOutPuzzle;
-  lights: LightsOutState['lights'];
-  layout: BoardLayout;
-  /** Comma-joined keys of lights currently mid-flip or mid-clear, which
-   * the thin animated layer owns instead - the same
-   * primitive-string-prop idiom `StaticBinairoTiles` uses so
-   * `React.memo`'s shallow comparison can actually bail out between
-   * clock ticks. */
-  activeKeys: string;
-}
-
-/**
- * Every settled light, plus the board's own chrome. Memoized away from
- * the animation clock from the outset: a press only ever changes five
- * cells, so rebuilding all twenty-five (or thirty-six) on every frame of
- * a 150ms crossfade is exactly the waste that had to be retrofitted out
- * of Tents and Mirror Maze after the fact.
- */
-const StaticLights = React.memo(function StaticLightsImpl({ puzzle, lights, layout, activeKeys }: StaticLightsProps) {
-  const skip = useMemo(() => new Set(activeKeys ? activeKeys.split(',') : []), [activeKeys]);
-  const tileSize = Math.max(0, layout.cellSize - TILE_GAP * 2);
-  const radius = tileSize * 0.3;
-
-  const tiles: React.JSX.Element[] = [];
-  for (let r = 0; r < puzzle.size; r += 1) {
-    for (let c = 0; c < puzzle.size; c += 1) {
-      const origin = getCellOrigin(layout, r, c);
-      const centre = getCellCenter(layout, r, c);
-      tiles.push(
-        <Group key={`cell-${r}-${c}`}>
-          <RoundedRect
-            x={origin.x + TILE_GAP}
-            y={origin.y + TILE_GAP}
-            width={tileSize}
-            height={tileSize}
-            r={tileSize * 0.22}
-            color={theme.colors.lightsOutPanelCell}
-          />
-          <RoundedRect
-            x={origin.x + TILE_GAP}
-            y={origin.y + TILE_GAP}
-            width={tileSize}
-            height={tileSize}
-            r={tileSize * 0.22}
-            color={theme.colors.lightsOutPanelEdge}
-            style="stroke"
-            strokeWidth={1}
-          />
-          {!skip.has(cellKey(r, c)) && renderLamp(`lamp-${r}-${c}`, centre.x, centre.y, radius, lights[r][c] ? 1 : 0, 0)}
-        </Group>,
-      );
-    }
-  }
-
-  return <Group>{tiles}</Group>;
 });
 
 export interface LightsOutBoardViewProps {
@@ -171,81 +171,34 @@ export interface LightsOutBoardViewProps {
 export function LightsOutBoardView({ puzzle, state, size, solved, flashCell }: LightsOutBoardViewProps): React.JSX.Element {
   const layout = useMemo(() => computeBoardLayout(puzzle.size, size), [puzzle.size, size]);
   const reducedMotion = useReducedMotion();
-  const toggledAt = useToggleTimestamps(state.lights);
-
-  const solvedAtRef = useRef<number | null>(null);
-  if (solved && solvedAtRef.current === null) solvedAtRef.current = Date.now();
-  if (!solved && solvedAtRef.current !== null) solvedAtRef.current = null;
-  const solvedAt = solvedAtRef.current;
-
-  // The clock runs only while something is genuinely in flight - a
-  // crossfade, a bloom, or the solve wave - and stops dead the rest of
-  // the time. This board has no idle ambience by design: a still night
-  // should be still.
-  const clearWindow = solvedAt !== null ? CLEAR_MS + puzzle.size * puzzle.size * CLEAR_STAGGER_MS : 0;
-  const now = Date.now();
-  const animating =
-    !reducedMotion &&
-    ((solvedAt !== null && now - solvedAt < clearWindow) ||
-      [...toggledAt.values()].some(at => now - at < PULSE_MS));
-  useAnimationClock(animating, 60);
-
+  const delays = useChangeDelays(state.lights);
   const tileSize = Math.max(0, layout.cellSize - TILE_GAP * 2);
-  const radius = tileSize * 0.3;
-  const frame = Date.now();
-
-  /** Cells the animated layer owns this frame: mid-crossfade, still
-   * blooming, or being swept out by the solve wave. */
-  const activeCells = useMemo(() => {
-    const active: Array<{ cell: LightsOutCell; brightness: number; bloom: number }> = [];
-    for (let r = 0; r < puzzle.size; r += 1) {
-      for (let c = 0; c < puzzle.size; c += 1) {
-        const lit = state.lights[r][c];
-        const changedAt = toggledAt.get(cellKey(r, c));
-        const sinceToggle = changedAt === undefined ? Infinity : frame - changedAt;
-
-        let brightness = lit ? 1 : 0;
-        let bloom = 0;
-
-        if (!reducedMotion && sinceToggle < PULSE_MS) {
-          const fade = clamp01(sinceToggle / TOGGLE_MS);
-          brightness = lit ? easeOutCubic(fade) : 1 - easeOutCubic(fade);
-          bloom = Math.sin(clamp01(sinceToggle / PULSE_MS) * Math.PI) * 0.6;
-        }
-
-        if (!reducedMotion && solvedAt !== null) {
-          const sinceClear = frame - solvedAt - (r * puzzle.size + c) * CLEAR_STAGGER_MS;
-          if (sinceClear >= 0 && sinceClear < CLEAR_MS) {
-            // One last flare as each light is put out, in reading order.
-            const t = clamp01(sinceClear / CLEAR_MS);
-            brightness = Math.max(brightness, 1 - easeOutCubic(t));
-            bloom = Math.max(bloom, Math.sin(t * Math.PI) * 0.8);
-          }
-        }
-
-        const settled = brightness === (lit ? 1 : 0) && bloom === 0;
-        if (!settled) active.push({ cell: { row: r, col: c }, brightness, bloom });
-      }
-    }
-    return active;
-  }, [puzzle.size, state.lights, toggledAt, frame, reducedMotion, solvedAt]);
-
-  const activeKeys = useMemo(
-    () => activeCells.map(({ cell }) => cellKey(cell.row, cell.col)).join(','),
-    [activeCells],
-  );
+  const middle = (puzzle.size - 1) / 2;
 
   return (
     <Group>
       {/* The night the lamps burn against. */}
       <RoundedRect x={0} y={0} width={layout.boardSize} height={layout.boardSize} r={layout.cellSize * 0.16} color={theme.colors.lightsOutPanel} />
+      <BoardTiles size={puzzle.size} layout={layout} tileSize={tileSize} />
 
-      <StaticLights puzzle={puzzle} lights={state.lights} layout={layout} activeKeys={activeKeys} />
-
-      {activeCells.map(({ cell, brightness, bloom }) => {
-        const centre = getCellCenter(layout, cell.row, cell.col);
-        return renderLamp(`active-${cell.row}-${cell.col}`, centre.x, centre.y, radius, brightness, bloom);
-      })}
+      {state.lights.map((line, r) =>
+        line.map((lit, c) => {
+          const origin = getCellOrigin(layout, r, c);
+          const ring = Math.round(Math.max(Math.abs(r - middle), Math.abs(c - middle)));
+          return (
+            <Lamp
+              key={cellKey(r, c)}
+              lit={lit}
+              delay={delays.get(cellKey(r, c)) ?? 0}
+              rippleDelay={solved ? ring * RIPPLE_STEP_MS : null}
+              x={origin.x + TILE_GAP}
+              y={origin.y + TILE_GAP}
+              size={tileSize}
+              reducedMotion={reducedMotion}
+            />
+          );
+        }),
+      )}
 
       {flashCell && (
         <RoundedRect
@@ -260,9 +213,7 @@ export function LightsOutBoardView({ puzzle, state, size, solved, flashCell }: L
         />
       )}
 
-      {/* The panel's own identity-colour rim - the same move every other
-          board here makes, at the higher opacity `mirrorPanel`'s frame
-          already established for a dark ground. */}
+      {/* The panel's own identity-colour rim. */}
       <RoundedRect
         x={1}
         y={1}
@@ -277,3 +228,20 @@ export function LightsOutBoardView({ puzzle, state, size, solved, flashCell }: L
     </Group>
   );
 }
+
+/** The empty tiles, drawn once: they never change. */
+const BoardTiles = React.memo(function BoardTilesImpl({ size, layout, tileSize }: { size: number; layout: BoardLayout; tileSize: number }) {
+  const tiles: React.JSX.Element[] = [];
+  for (let r = 0; r < size; r += 1) {
+    for (let c = 0; c < size; c += 1) {
+      const origin = getCellOrigin(layout, r, c);
+      tiles.push(
+        <Group key={`cell-${r}-${c}`}>
+          <RoundedRect x={origin.x + TILE_GAP} y={origin.y + TILE_GAP} width={tileSize} height={tileSize} r={tileSize * 0.22} color={theme.colors.lightsOutPanelCell} />
+          <RoundedRect x={origin.x + TILE_GAP} y={origin.y + TILE_GAP} width={tileSize} height={tileSize} r={tileSize * 0.22} color={theme.colors.lightsOutPanelEdge} style="stroke" strokeWidth={1} />
+        </Group>,
+      );
+    }
+  }
+  return <Group>{tiles}</Group>;
+});

@@ -1,9 +1,11 @@
 import React, { useEffect, useMemo } from 'react';
-import { Canvas, Circle, Group, Oval, Path, vec } from '@shopify/react-native-skia';
+import { Canvas, CanvasRef, Circle, Group, Oval, Paint, Path, vec } from '@shopify/react-native-skia';
 import { Easing, useDerivedValue, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
-import { VillaPieceKind, VillaPlan } from '../../progression/villa';
+import { PIECES_PER_VILLA, VillaPieceKind, VillaPlan } from '../../progression/villa';
 import { useReducedMotion } from '../../game/rendering';
 import { SkiaEntrance } from '../SkiaEntrance';
+import { SkyShapes } from './VillaSky';
+import { Season, seasonOf } from './season';
 
 /**
  * A villa on its own floating island, drawn in isometric: every solid is
@@ -11,6 +13,10 @@ import { SkiaEntrance } from '../SkiaEntrance';
  * face, a deeper right face - so the depth is all geometry, never a
  * gradient. Buildings cast soft shadows on the stone, windows are arched
  * and shuttered, roofs are tiled in rows; by night the windows glow.
+ *
+ * What is still to build stands as a ghost: a pale model of the finished
+ * villa, so the island reads as a villa going up from the very first day,
+ * not an empty slab.
  *
  * `built` pieces of `plan` are standing; the piece at `fresh` (its index)
  * settles into place. The island fits itself to `width` x `height`.
@@ -22,6 +28,9 @@ export function VillaIsland({
   height,
   night = false,
   fresh = null,
+  sky = false,
+  canvasRef,
+  season = seasonOf(new Date()),
 }: {
   plan: VillaPlan;
   built: number;
@@ -29,6 +38,12 @@ export function VillaIsland({
   height: number;
   night?: boolean;
   fresh?: number | null;
+  /** Draw the sky behind the island, in the same canvas. */
+  sky?: boolean;
+  /** For taking a picture of it (see `VillaFinished`). */
+  canvasRef?: React.RefObject<CanvasRef | null>;
+  /** Defaults to today's. */
+  season?: Season;
 }): React.JSX.Element {
   const reduced = useReducedMotion();
   const t = useSharedValue(0);
@@ -39,10 +54,12 @@ export function VillaIsland({
   const shimmer = useDerivedValue(() => 0.35 + 0.45 * t.value);
   const glow = useDerivedValue(() => (night ? 0.4 : 0.18) + 0.15 * t.value);
 
-  const scene = useMemo(() => drawVilla(plan, built, width, height, night), [plan, built, width, height, night]);
+  const scene = useMemo(() => drawVilla(plan, built, width, height, night, season), [plan, built, width, height, night, season]);
+  const ghost = useMemo(() => (built < PIECES_PER_VILLA ? ghostOf(drawVilla(plan, PIECES_PER_VILLA, width, height, night, season), plan, built, night) : []), [plan, built, width, height, night, season]);
 
   return (
-    <Canvas style={{ width, height }}>
+    <Canvas ref={canvasRef} style={{ width, height }}>
+      {sky && <SkyShapes width={width} height={height} night={night} season={season} />}
       {scene.map(item => {
         const body = (
           <Group key={item.key}>
@@ -64,8 +81,50 @@ export function VillaIsland({
           </SkiaEntrance>
         );
       })}
+      {ghost.length > 0 && (
+        // One layer, so where ghost shapes overlap they do not darken.
+        <Group layer={<Paint opacity={night ? 0.26 : 0.42} />}>
+          {ghost.map(item => (
+            <Group key={`ghost-${item.key}`}>
+              {item.paths.map((p, i) => (
+                <Path key={i} path={p.d} color={p.color} style={p.stroke ? 'stroke' : 'fill'} strokeWidth={p.stroke} strokeCap="round" />
+              ))}
+              {item.ovals?.map((o, i) => <Oval key={`o${i}`} x={o.x} y={o.y} width={o.w} height={o.h} color={o.color} />)}
+              {item.circles?.map((c, i) => <Circle key={`c${i}`} cx={c.cx} cy={c.cy} r={c.r} color={c.color} />)}
+            </Group>
+          ))}
+        </Group>
+      )}
     </Canvas>
   );
+}
+
+/**
+ * The pieces from `built` on, as a pale architect's model: every colour
+ * turned to one warm white at its own lightness, so the faces keep their
+ * light and shade, and shadows and glows (anything already see-through)
+ * left out. Trees and small things are not sketched (see `GHOSTED`).
+ */
+/** Only the architecture is sketched in: trees, pots and lamps at ghost
+ * strength were just clutter. */
+const GHOSTED: ReadonlyArray<VillaPieceKind> = ['terrace', 'house', 'tower', 'colonnade', 'pool'];
+
+function ghostOf(full: SceneItem[], plan: VillaPlan, built: number, night: boolean): SceneItem[] {
+  const base = night ? '#D9D2E6' : '#FFFDF7';
+  const tone = (hex: string) => {
+    const n = parseInt(hex.slice(1, 7), 16);
+    const lum = (0.299 * ((n >> 16) & 255) + 0.587 * ((n >> 8) & 255) + 0.114 * (n & 255)) / 255;
+    return shade(base, 0.62 + 0.38 * lum);
+  };
+  const solid = (opacity?: number) => opacity === undefined || opacity >= 0.9;
+  return full
+    .filter(item => item.piece >= built && GHOSTED.includes(plan.pieces[item.piece].kind))
+    .map(item => ({
+      ...item,
+      paths: item.paths.filter(p => solid(p.opacity) && p.color.startsWith('#')).map(p => ({ ...p, color: tone(p.color) })),
+      ovals: item.ovals?.filter(o => !o.live && solid(o.opacity) && o.color.startsWith('#')).map(o => ({ ...o, color: tone(o.color) })),
+      circles: item.circles?.filter(c => !c.live && solid(c.opacity) && c.color.startsWith('#')).map(c => ({ ...c, color: tone(c.color) })),
+    }));
 }
 
 // ---------------------------------------------------------------------------
@@ -119,7 +178,7 @@ const LAYOUTS: Record<string, Layout> = {
 
 const GROUND: Record<string, string> = { classic: '#E9DCC3', courtyard: '#E6D2B0', lighthouse: '#EBDFC4', vineyard: '#9CB977', temple: '#F1EDE4', domed: '#D9A27A' };
 
-export function drawVilla(plan: VillaPlan, built: number, W: number, H: number, night: boolean): SceneItem[] {
+export function drawVilla(plan: VillaPlan, built: number, W: number, H: number, night: boolean, season: Season = 'summer'): SceneItem[] {
   // Fit: the island's diamond spans 7 tiles across; its height is half that
   // plus whatever stands on it and hangs below it.
   const zu = 0.6;
@@ -132,7 +191,7 @@ export function drawVilla(plan: VillaPlan, built: number, W: number, H: number, 
   const poly = (...pts: Pt[]) => `M ${pts.map(p => `${p[0].toFixed(1)} ${p[1].toFixed(1)}`).join(' L ')} Z`;
   const line = (a: Pt, b: Pt) => `M ${a[0].toFixed(1)} ${a[1].toFixed(1)} L ${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
 
-  const C = palette(night);
+  const C = seasonal(palette(night), season, night);
   const dim = (c: string, f: number) => (night ? shade(c, f) : c);
   // By night the house dims with everything else; its windows light up.
   const look = { ...plan.look, wall: dim(plan.look.wall, 0.62), roof: dim(plan.look.roof, 0.6), shutter: dim(plan.look.shutter, 0.6) };
@@ -322,7 +381,24 @@ export function drawVilla(plan: VillaPlan, built: number, W: number, H: number, 
       islandPaths.push({ d: poly(P(x, y, 0), P(x + 0.55, y + 0.1, 0), P(x + 0.45, y + 0.5, 0), P(x - 0.05, y + 0.4, 0)), color: C.stone });
     }
   }
-  items.push({ key: 'island', piece: -1, origin: { x: ox, y: oy }, paths: islandPaths });
+  // The season, scattered on the grass: petals, fallen leaves or snow. On a
+  // paved island only the grass border keeps it.
+  const scatter = SEASON_SCATTER[season];
+  const islandCircles: NonNullable<SceneItem['circles']> = [];
+  if (scatter) {
+    for (let i = 0; i < 46; i += 1) {
+      // A fixed spread (golden-ratio steps), so it never shimmers between renders.
+      let x = ((i * 0.618034) % 1) * N;
+      let y = ((i * 0.381966 + 0.13) % 1) * N;
+      if (paved && style !== 'vineyard') {
+        if (i % 2 === 0) x = 0.05 + (x / N) * 0.22;
+        else y = 0.05 + (y / N) * 0.22;
+      }
+      const [cx, cy] = P(x, y, 0.004);
+      islandCircles.push({ cx, cy, r: tw * (0.035 + (i % 3) * 0.012), color: night ? shade(scatter[i % scatter.length], 0.7) : scatter[i % scatter.length], opacity: 0.95 });
+    }
+  }
+  items.push({ key: 'island', piece: -1, origin: { x: ox, y: oy }, paths: islandPaths, circles: islandCircles });
 
   // ---- Water -----------------------------------------------------------------
   if (has('pool')) {
@@ -697,6 +773,30 @@ export function drawVilla(plan: VillaPlan, built: number, W: number, H: number, 
   solids.sort((a, b) => a.depth - b.depth);
   items.push(...solids.map(s => s.item));
   return items;
+}
+
+/** What lies on the grass each season (none in summer). */
+const SEASON_SCATTER: Record<Season, ReadonlyArray<string> | null> = {
+  spring: ['#F4C6D3', '#FFFFFF', '#F7D98A'],
+  summer: null,
+  autumn: ['#D9873A', '#C25E2E', '#E6B04E'],
+  winter: ['#FFFFFF', '#F2F6F7'],
+};
+
+/** The palette, turned to the season: blossom on the fruit trees in
+ * spring, warm leaves in autumn, frost in winter. Evergreens (cypress,
+ * pine, palm) keep their green all year. */
+function seasonal(base: ReturnType<typeof palette>, season: Season, night: boolean): ReturnType<typeof palette> {
+  const by: Record<Season, Partial<ReturnType<typeof palette>>> = {
+    summer: {},
+    spring: { grass: '#A6C77C', olive: '#E7B3C3', oliveDark: '#D898AE', oliveLight: '#F6D9E2', shrub: '#8DB86A', leaf: '#7BA85C' },
+    autumn: { grass: '#AFA66C', olive: '#D08A3C', oliveDark: '#B5662E', oliveLight: '#E4B062', shrub: '#C17B3A', laurel: '#8F5A2A', leaf: '#B9773A', vine: '#B07A35', vineDark: '#8A4E2A' },
+    winter: { grass: '#DCE4E2', olive: '#8E9C8A', oliveDark: '#77866F', oliveLight: '#F3F6F5', shrub: '#93A38E', leaf: '#82937C', vine: '#8E8A6E', vineDark: '#706C55', laurel: '#5E7559' },
+  };
+  const overrides = by[season];
+  const out = { ...base };
+  for (const [key, color] of Object.entries(overrides) as Array<[keyof typeof out, string]>) out[key] = night ? shade(color, 0.6) : color;
+  return out;
 }
 
 function palette(night: boolean) {

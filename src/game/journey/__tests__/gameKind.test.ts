@@ -1,17 +1,17 @@
 import { ARUKONE } from '../../arukone';
 import { BINAIRO } from '../../binairo';
-import { FILLAPIX } from '../../fillapix';
+import { GLASS_WINDOWS } from '../../glass';
 import { gravityTierOf, LEVELS } from '../../levels';
 import { LIGHTS_OUT } from '../../lightsout';
 import { MIRROR_MAZES } from '../../mirror';
-import { TENTS_TREES } from '../../tents';
-import { TOWERS } from '../../towers';
+import { LILY_PONDS } from '../../lilypads';
+import { VANE_ROOFS } from '../../vanes';
 import { getWorldForLevel } from '../../worlds';
 import { puzzleDisplayInfo, ROTATION } from '../gameKind';
 
 describe('ROTATION', () => {
   test('lists every game kind exactly once', () => {
-    expect(ROTATION).toEqual(['gravity', 'mirror', 'tents', 'towers', 'binairo', 'arukone', 'fillapix', 'lightsout', 'adjacent', 'bloom', 'mosaic', 'bridges']);
+    expect(ROTATION).toEqual(['gravity', 'mirror', 'lilypads', 'vanes', 'binairo', 'arukone', 'glass', 'lightsout', 'adjacent', 'bloom', 'mosaic', 'bridges']);
   });
 });
 
@@ -35,20 +35,20 @@ describe('puzzleDisplayInfo', () => {
     });
   });
 
-  test('resolves a Tents and Trees puzzle to the game display name', () => {
-    const puzzle = TENTS_TREES[0];
-    expect(puzzleDisplayInfo('tents', puzzle.id)).toEqual({
-      name: puzzle.name ?? puzzle.id,
-      chapter: 'Tents and Trees',
+  test('resolves a Lily Pads pond to the game display name', () => {
+    const puzzle = LILY_PONDS[0];
+    expect(puzzleDisplayInfo('lilypads', puzzle.id)).toEqual({
+      name: puzzle.name,
+      chapter: 'Lily Pads',
       difficulty: puzzle.difficulty,
     });
   });
 
-  test('resolves a Towers puzzle to the game display name', () => {
-    const puzzle = TOWERS[0];
-    expect(puzzleDisplayInfo('towers', puzzle.id)).toEqual({
-      name: puzzle.name ?? puzzle.id,
-      chapter: 'Skyscrapers',
+  test('resolves a Weathervanes roof to the game display name', () => {
+    const puzzle = VANE_ROOFS[0];
+    expect(puzzleDisplayInfo('vanes', puzzle.id)).toEqual({
+      name: puzzle.name,
+      chapter: 'Weathervanes',
       difficulty: puzzle.difficulty,
     });
   });
@@ -77,11 +77,11 @@ describe('puzzleDisplayInfo', () => {
 describe('difficulty is reported faithfully for every game', () => {
   const POOLS = [
     ['mirror', MIRROR_MAZES],
-    ['tents', TENTS_TREES],
-    ['towers', TOWERS],
+    ['lilypads', LILY_PONDS],
+    ['vanes', VANE_ROOFS],
     ['binairo', BINAIRO],
     ['arukone', ARUKONE],
-    ['fillapix', FILLAPIX],
+    ['glass', GLASS_WINDOWS],
     ['lightsout', LIGHTS_OUT],
   ] as const;
 

@@ -179,7 +179,7 @@ export function LessonShell({
         </View>
         <View style={styles.introBody}>
           <Animated.View entering={EMBLEM_IN}>
-            <GameEmblem kind={guide.kind} size={96} />
+            {guide.emblem ?? (guide.kind ? <GameEmblem kind={guide.kind} size={96} /> : null)}
           </Animated.View>
           <Animated.Text entering={FadeInDown.duration(420).delay(120)} style={styles.introName} accessibilityRole="header">
             {gameName}
@@ -226,7 +226,7 @@ export function LessonShell({
       {done && guide ? (
         <View style={styles.boardWrap}>
           <Animated.View entering={CARD_IN} style={[styles.recap, { borderColor: accent }]}>
-            <Text style={[styles.recapLabel, { color: accent }]}>THE RULES IN SHORT</Text>
+            <Text style={[styles.recapLabel, { color: accent }]}>The rules in short</Text>
             {guide.recap.map((line, i) => (
               <Animated.View key={i} entering={FadeInDown.duration(380).delay(140 + i * 110)} style={styles.recapRow}>
                 <View style={[styles.recapNum, { backgroundColor: accent }]}>
@@ -325,7 +325,7 @@ const styles = themedStyles(() => ({
   cueRing: { position: 'absolute', width: 22, height: 22, borderRadius: 11, borderWidth: 1.5 },
   cueTip: { width: 9, height: 9, borderRadius: 4.5 },
   recap: { alignSelf: 'stretch', padding: 18, borderRadius: 20, borderWidth: 1, backgroundColor: theme.colors.surface, gap: 14 },
-  recapLabel: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.4 },
+  recapLabel: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold },
   recapRow: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
   recapNum: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 1 },
   recapNumText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },

@@ -5,6 +5,9 @@
  * @format
  */
 
+import { GlassScreen } from './src/screens/GlassScreen';
+import { LilyPadsScreen, LilyPadsTrialScreen } from './src/screens/LilyPadsScreen';
+import { VanesScreen, VanesTrialScreen } from './src/screens/VanesScreen';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Linking, StatusBar, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -20,15 +23,12 @@ import {
   MosaicScreen,
   BridgesScreen,
   ArukoneScreen,
-  FillaPixScreen,
   LightsOutScreen,
   BinairoScreen,
   GameScreen,
   HomeScreen,
   MirrorMazeScreen,
   SettingsScreen,
-  TentsScreen,
-  TowersScreen,
 } from './src/screens';
 import { useReminderSync } from './src/notifications';
 import { useCloudSync } from './src/backend';
@@ -42,11 +42,12 @@ import { FirstPuzzleContext } from './src/components/HelpHalo';
 import { tutorialIdForGame } from './src/game/tutorials';
 import { getLevelById } from './src/game/levels';
 import { getMirrorMazeById } from './src/game/mirror';
-import { getTentsTreesById } from './src/game/tents';
-import { getTowersById } from './src/game/towers';
+import { getLilyById } from './src/game/lilypads';
+import { getVanesById } from './src/game/vanes';
 import { getBinairoById } from './src/game/binairo';
 import { getArukoneById } from './src/game/arukone';
-import { getFillaPixById } from './src/game/fillapix';
+import { getGlassWindow } from './src/game/glass';
+import { endlessName, parseEndlessId } from './src/game/endlessId';
 import { getLightsOutById } from './src/game/lightsout';
 import { getAdjacentById } from './src/game/adjacent';
 import { getBloomById } from './src/game/bloom';
@@ -72,7 +73,7 @@ interface Selected {
  * `src/progression/batches.ts`) replaces the need for a manual
  * level-select/browse screen entirely; there is deliberately no way to
  * pick a specific puzzle by hand. */
-type OverlayRoute = 'settings' | 'achievements' | 'journey' | 'shop' | 'ledger' | 'leaderboard' | 'account' | 'collection' | 'villa' | null;
+type OverlayRoute = 'settings' | 'achievements' | 'journey' | 'shop' | 'ledger' | 'leaderboard' | 'account' | 'collection' | 'villa' | 'lilypads' | 'vanes' | null;
 
 /**
  * App wires up the global providers and renders `AppRoutes` inside them -
@@ -258,6 +259,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       onOpenLedger={() => setOverlayRoute('ledger')}
       onOpenCollection={() => setOverlayRoute('collection')}
       onOpenVilla={() => setOverlayRoute('villa')}
+      onOpenTrial={game => setOverlayRoute(game)}
       onOpenLeaderboard={() => setOverlayRoute('leaderboard')}
     />
   );
@@ -278,6 +280,12 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
   } else if (!selected && overlayRoute === 'journey') {
     screen = <JourneyScreen onExit={() => setOverlayRoute(null)} onOpenShop={() => openShop('journey')} />;
     routeKey = 'journey';
+  } else if (!selected && overlayRoute === 'lilypads') {
+    screen = <LilyPadsTrialScreen onExit={() => setOverlayRoute(null)} />;
+    routeKey = 'lilypads';
+  } else if (!selected && overlayRoute === 'vanes') {
+    screen = <VanesTrialScreen onExit={() => setOverlayRoute(null)} />;
+    routeKey = 'vanes';
   } else if (!selected && overlayRoute === 'villa') {
     screen = <VillaScreen onExit={() => setOverlayRoute(null)} />;
     routeKey = 'villa';
@@ -321,24 +329,18 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
         routeKey = puzzle ? `mirror:${puzzle.id}` : 'home';
         break;
       }
-      case 'tents': {
-        const puzzle = getTentsTreesById(selected.puzzleId);
-        screen = puzzle ? (
-          <TentsScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
-        ) : (
-          homeScreen
-        );
-        routeKey = puzzle ? `tents:${puzzle.id}` : 'home';
+      case 'lilypads': {
+        const endless = parseEndlessId(selected.puzzleId);
+        const puzzle = getLilyById(selected.puzzleId, endless?.kind === 'lilypads' ? { name: endlessName(endless.index, 'lilypads'), tier: endless.tier } : undefined);
+        screen = puzzle ? <LilyPadsScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} /> : homeScreen;
+        routeKey = puzzle ? `lilypads:${puzzle.id}` : 'home';
         break;
       }
-      case 'towers': {
-        const puzzle = getTowersById(selected.puzzleId);
-        screen = puzzle ? (
-          <TowersScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
-        ) : (
-          homeScreen
-        );
-        routeKey = puzzle ? `towers:${puzzle.id}` : 'home';
+      case 'vanes': {
+        const endless = parseEndlessId(selected.puzzleId);
+        const puzzle = getVanesById(selected.puzzleId, endless?.kind === 'vanes' ? { name: endlessName(endless.index, 'vanes'), tier: endless.tier } : undefined);
+        screen = puzzle ? <VanesScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} /> : homeScreen;
+        routeKey = puzzle ? `vanes:${puzzle.id}` : 'home';
         break;
       }
       case 'binairo': {
@@ -361,14 +363,15 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
         routeKey = puzzle ? `arukone:${puzzle.id}` : 'home';
         break;
       }
-      case 'fillapix': {
-        const puzzle = getFillaPixById(selected.puzzleId);
+      case 'glass': {
+        const endless = parseEndlessId(selected.puzzleId);
+        const puzzle = getGlassWindow(selected.puzzleId, endless?.kind === 'glass' ? { name: endlessName(endless.index, 'glass'), tier: endless.tier } : undefined);
         screen = puzzle ? (
-          <FillaPixScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+          <GlassScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
         ) : (
           homeScreen
         );
-        routeKey = puzzle ? `fillapix:${puzzle.id}` : 'home';
+        routeKey = puzzle ? `glass:${puzzle.id}` : 'home';
         break;
       }
       case 'lightsout': {

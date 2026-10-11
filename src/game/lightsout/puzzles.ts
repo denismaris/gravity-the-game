@@ -1,6 +1,7 @@
 import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { endlessName, endlessSeed, parseEndlessId } from '../endlessId';
 import { generateLightsOut, shapeForDifficulty } from './generator';
+import { parFor } from './solver';
 import { LightsOutPuzzle } from './types';
 
 /**
@@ -50,10 +51,72 @@ const BOARDS: Record<PuzzleDifficulty, ReadonlyArray<readonly [name: string, par
   ],
 };
 
+/**
+ * Picture boards: the lamps start lit in the shape of something - a paper
+ * lantern, a bell, a hot-air balloon - and the board's name is what it
+ * shows. Random scatters were the whole pool before, and a random scatter
+ * gives the eye nothing to hold; a picture is a puzzle you can *see*, and
+ * putting it out lamp by lamp is its own small satisfaction.
+ *
+ * Every one was chosen by its real par (the shortest answer, `parFor`),
+ * so it sits in its tier's band like any generated board; most pictures a
+ * person would think of need ten presses or more on a 5x5, which is why
+ * these are the ones that are here. Their ids carry on from the generated
+ * boards' (`lightsout-easy-08` onward), so no existing id changes.
+ */
+const PICTURES: Record<'easy' | 'medium', ReadonlyArray<readonly [name: string, rows: ReadonlyArray<string>]>> = {
+  easy: [
+    ['Paper Lantern', ['..#..', '.#.#.', '.###.', '.#.#.', '..#..']],
+    ['Candlestick', ['.....', '..#..', '..#..', '#####', '.#.#.']],
+    ['Little Fir', ['.....', '..#..', '.###.', '.###.', '##.##']],
+    ['Little Rocket', ['..#..', '.###.', '.###.', '##.##', '.#.#.']],
+    ['Scarecrow', ['..#..', '.###.', '..#..', '.#.#.', '##.##']],
+    ['Tea Bowl', ['.....', '#...#', '#####', '#####', '..#..']],
+    ['Evening Bell', ['..#..', '.###.', '.###.', '#####', '..#..']],
+    ['Lamp Post', ['.###.', '..#..', '..#..', '..#..', '#####']],
+    ['Lamplighter', ['.###.', '..#..', '..#..', '.#.#.', '.#.#.']],
+    ['Rooftop', ['.....', '..#..', '.#.#.', '##.##', '#####']],
+    ['Owl', ['.###.', '.#.#.', '#.#.#', '.###.', '.....']],
+    ['Four Lamps', ['##.##', '#...#', '.....', '#...#', '##.##']],
+  ],
+  medium: [
+    ['Evening Star', ['..#..', '#####', '.###.', '.#.#.', '#...#']],
+    ['Goblet', ['#...#', '.###.', '..#..', '..#..', '.....']],
+    ['Tripod Lamp', ['..#..', '..#..', '.###.', '#...#', '#...#']],
+    ['Archway', ['..#..', '.###.', '#...#', '#...#', '.....']],
+    ['Full Moon', ['.###.', '##.##', '##.##', '.###.', '.....']],
+    ['Hot-Air Balloon', ['.###.', '##.##', '.###.', '..#..', '.....']],
+    ['Birdcage', ['.###.', '#...#', '#...#', '#####', '.#.#.']],
+    ['Pitched Tent', ['..#..', '.#.#.', '.#.#.', '#####', '.....']],
+    ['Three Streets', ['#####', '.....', '#####', '.....', '#####']],
+  ],
+};
+
+function pictureBoard(id: string, name: string, difficulty: PuzzleDifficulty, rows: ReadonlyArray<string>): LightsOutPuzzle {
+  const initial = rows.map(row => [...row].map(ch => ch === '#'));
+  const board: LightsOutPuzzle = { id, name, difficulty, size: rows.length, initial, par: 0 };
+  return { ...board, par: parFor(board) };
+}
+
 function poolFor(difficulty: PuzzleDifficulty): LightsOutPuzzle[] {
-  return BOARDS[difficulty].map(([name, par], index) =>
+  const generated = BOARDS[difficulty].map(([name, par], index) =>
     generateLightsOut(`lightsout-${difficulty}-${String(index + 1).padStart(2, '0')}`, name, difficulty, par),
   );
+  const pictures = difficulty === 'hard' ? [] : PICTURES[difficulty].map(([name, rows], index) =>
+    pictureBoard(`lightsout-${difficulty}-${String(generated.length + index + 1).padStart(2, '0')}`, name, difficulty, rows),
+  );
+  // Dealt by par, so the pool still climbs; at each par the pictures and
+  // the scatters take turns, so neither comes in a long run.
+  const turn = new Map<string, number>();
+  [generated, pictures].forEach(list => {
+    const seen = new Map<number, number>();
+    for (const puzzle of list) {
+      const k = seen.get(puzzle.par) ?? 0;
+      seen.set(puzzle.par, k + 1);
+      turn.set(puzzle.id, k * 2 + (list === pictures ? 0 : 1));
+    }
+  });
+  return [...generated, ...pictures].sort((a, b) => a.par - b.par || turn.get(a.id)! - turn.get(b.id)!);
 }
 
 export const LIGHTS_OUT: ReadonlyArray<LightsOutPuzzle> = [

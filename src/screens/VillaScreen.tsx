@@ -1,4 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { BackLabel } from '../components/Icon';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, FadeOut } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,8 +8,11 @@ import { PageBloom } from '../components/PageBloom';
 import { TileGlyph } from '../components/TileGlyph';
 import { VillaIsland } from '../components/villa/VillaIsland';
 import { VillaSky } from '../components/villa/VillaSky';
+import { VillaFinished } from '../components/villa/VillaFinished';
 import { triggerFeedback } from '../game/rendering';
-import { currentVilla, DAILY_TESSERAE, PIECES_PER_VILLA, usePlayerProgress, villaAt } from '../progression';
+import { currentVilla, DAILY_TESSERAE, PIECES_PER_VILLA, TILES_PER_RESIDENT, TOWN_GIFT_MAX, townGift, usePlayerProgress, VillaPlan } from '../progression';
+import { dailyKeyOf } from '../game/journey';
+import { TownScene } from '../components/villa/TownScene';
 import { useAppearance } from '../settings';
 import { theme, themedStyles } from '../theme';
 
@@ -29,12 +33,20 @@ export interface VillaScreenProps {
 export function VillaScreen({ onExit }: VillaScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width } = useWindowDimensions();
-  const { progress, buildVillaPiece, adoptProgress } = usePlayerProgress();
+  const { progress, buildVillaPiece, adoptProgress, collectTownGift } = usePlayerProgress();
+  const gift = townGift(progress, dailyKeyOf(new Date()));
+  const collect = () => {
+    const tiles = collectTownGift();
+    triggerFeedback('coin');
+    if (tiles > 0) setToast({ text: `+${tiles} tiles from the town`, at: Date.now() });
+  };
   const night = useAppearance() === 'dark';
   const { plan, built, finished } = currentVilla(progress);
   const next = plan.pieces[built];
   const [fresh, setFresh] = useState<number | null>(null);
   const [toast, setToast] = useState<{ text: string; at: number } | null>(null);
+  // The villa the last build just finished, for its own moment.
+  const [justFinished, setJustFinished] = useState<VillaPlan | null>(null);
   useEffect(() => {
     if (!toast) return;
     const id = setTimeout(() => setToast(null), 2600);
@@ -42,16 +54,20 @@ export function VillaScreen({ onExit }: VillaScreenProps): React.JSX.Element {
   }, [toast]);
   const sceneWidth = width - theme.spacing.lg * 2;
   const short = Math.max(0, next.cost - progress.tesserae);
-  const done = useMemo(() => Array.from({ length: finished }, (_v, i) => villaAt(finished - 1 - i)), [finished]);
 
   const build = () => {
     const last = built === PIECES_PER_VILLA - 1;
     if (!buildVillaPiece(next.id)) return;
+    // The last piece finishes this villa: it gets its own moment (see
+    // `VillaFinished`), joins the row below, and the next island rises.
+    if (last) {
+      setFresh(null);
+      setJustFinished(plan);
+      return;
+    }
     triggerFeedback('coin');
-    // The last piece finishes this villa: it joins the row below and the
-    // next island rises, so there is nothing to settle in place.
-    setFresh(last ? null : built);
-    setToast({ text: last ? `${plan.name} is finished` : `Built: ${next.name}`, at: Date.now() });
+    setFresh(built);
+    setToast({ text: `Built: ${next.name}`, at: Date.now() });
   };
 
   return (
@@ -59,7 +75,7 @@ export function VillaScreen({ onExit }: VillaScreenProps): React.JSX.Element {
       <PageBloom />
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8} containerStyle={styles.headerSide}>
-          <Text style={styles.back}>‹ Home</Text>
+          <BackLabel label="Home" style={styles.back} />
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.title}>Villas</Text>
@@ -119,21 +135,37 @@ export function VillaScreen({ onExit }: VillaScreenProps): React.JSX.Element {
           )}
         </Animated.View>
 
-        {done.length > 0 && (
-          <View>
-            <Text style={styles.sectionLabel}>{`Your villas · ${done.length}`}</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.doneRow}>
-              {done.map(v => (
-                <View key={v.index} style={styles.doneCard}>
-                  <VillaIsland plan={v} built={PIECES_PER_VILLA} width={132} height={120} night={night} />
-                  <Text style={styles.doneName} numberOfLines={1}>
-                    {v.name}
-                  </Text>
-                </View>
-              ))}
-            </ScrollView>
+        {/* Tessellatum Bay: every finished villa is a home in the town,
+            with someone living in it - and the residents leave a gift each
+            day, which is what the next villa gets built with. */}
+        <View style={styles.town}>
+          <View style={styles.townHead}>
+            <View style={styles.townTitles}>
+              <Text style={styles.townKicker}>Tessellatum Bay</Text>
+              <Text style={styles.townTitle}>{finished === 0 ? 'A town, waiting' : `${finished} ${finished === 1 ? 'home' : 'homes'} by the sea`}</Text>
+            </View>
           </View>
-        )}
+          {finished === 0 ? (
+            <Text style={styles.townEmpty}>Finish this villa and someone moves in. Every resident leaves you tiles each day, and the town grows from there.</Text>
+          ) : (
+            <>
+              <View style={styles.townGift}>
+                <TileGlyph size={16} />
+                <Text style={styles.townGiftText} numberOfLines={2}>
+                  {gift > 0 ? `Your residents left you ${gift} tiles today.` : `Collected today. Your residents leave ${Math.min(TOWN_GIFT_MAX, finished * TILES_PER_RESIDENT)} tiles a day.`}
+                </Text>
+                {gift > 0 && (
+                  <PressableScale accessibilityRole="button" accessibilityLabel={`Collect ${gift} tiles`} onPress={collect} style={({ pressed }) => [styles.townCollect, pressed && styles.pressed]}>
+                    <Text style={styles.townCollectText}>Collect</Text>
+                  </PressableScale>
+                )}
+              </View>
+              <View style={styles.townScene}>
+                <TownScene count={finished} width={sceneWidth} night={night} />
+              </View>
+            </>
+          )}
+        </View>
 
         {VILLA_TEST_TILES && (
           <PressableScale accessibilityRole="button" accessibilityLabel="Add 100 test tiles" onPress={() => adoptProgress({ ...progress, tesserae: progress.tesserae + 100 })} style={({ pressed }) => [styles.testButton, pressed && styles.pressed]}>
@@ -141,8 +173,9 @@ export function VillaScreen({ onExit }: VillaScreenProps): React.JSX.Element {
           </PressableScale>
         )}
 
-        <Text style={styles.howTo}>{`Every puzzle lays tiles: one for the solve and one for each star. The Daily adds ${DAILY_TESSERAE} more. Finish a villa and the next island rises.`}</Text>
+        <Text style={styles.howTo}>{`Every puzzle lays tiles, the Daily ${DAILY_TESSERAE} more, and your residents leave some each day. Finish a villa and someone moves in.`}</Text>
       </ScrollView>
+      {justFinished && <VillaFinished plan={justFinished} night={night} onClose={() => setJustFinished(null)} />}
     </View>
   );
 }
@@ -185,6 +218,17 @@ const styles = themedStyles(() => ({
   doneName: { marginTop: 2, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   testButton: { alignSelf: 'center', paddingHorizontal: 16, paddingVertical: 8, borderRadius: theme.radii.pill, borderWidth: 1, borderStyle: 'dashed', borderColor: theme.colors.borderStrong },
   testText: { fontSize: theme.typography.sizes.caption + 1, color: theme.colors.textSecondary },
+  town: { gap: theme.spacing.sm },
+  townHead: { flexDirection: 'row', alignItems: 'flex-end' },
+  townTitles: { flex: 1 },
+  townKicker: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary },
+  townTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  townEmpty: { fontSize: theme.typography.sizes.body, lineHeight: 21, color: theme.colors.textSecondary },
+  townGift: { flexDirection: 'row', alignItems: 'center', gap: 10, padding: 12, borderRadius: 16, backgroundColor: theme.colors.surface },
+  townGiftText: { flex: 1, fontSize: theme.typography.sizes.caption + 1, color: theme.colors.textPrimary },
+  townCollect: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radii.pill, backgroundColor: theme.colors.primary },
+  townCollectText: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.surfaceHi },
+  townScene: { borderRadius: 24, overflow: 'hidden' },
   howTo: { fontSize: theme.typography.sizes.caption + 1, lineHeight: 19, color: theme.colors.textTertiary, textAlign: 'center' },
   pressed: { opacity: 0.85 },
 }));

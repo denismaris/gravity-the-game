@@ -26,16 +26,16 @@ export function accentColorForKind(kind: GameKind): string {
       return theme.colors.secondary;
     case 'mirror':
       return theme.colors.mirrorAccent;
-    case 'tents':
-      return theme.colors.tentsAccent;
-    case 'towers':
-      return theme.colors.towersAccent;
+    case 'lilypads':
+      return theme.colors.lilyAccent;
+    case 'vanes':
+      return theme.colors.vaneAccent;
     case 'binairo':
       return theme.colors.binairoAccent;
     case 'arukone':
       return theme.colors.arukoneAccent;
-    case 'fillapix':
-      return theme.colors.fillapixAccent;
+    case 'glass':
+      return theme.colors.glassAccent;
     case 'lightsout':
       return theme.colors.lightsOutAccent;
     case 'adjacent':

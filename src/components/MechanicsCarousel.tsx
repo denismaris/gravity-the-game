@@ -91,7 +91,7 @@ export function MechanicsCarousel({
     <ModalLayer zIndex={10}>
       <View style={styles.overlay}>
         <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
-          <Text style={[styles.eyebrow, { color: accentColor }]}>HOW TO PLAY</Text>
+          <Text style={[styles.eyebrow, { color: accentColor }]}>How to play</Text>
 
           <ScrollView
             ref={scrollRef}
@@ -179,9 +179,8 @@ const styles = themedStyles(() => ({
     overflow: 'hidden',
   },
   eyebrow: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: theme.typography.tracking.eyebrow,
+    fontSize: theme.typography.sizes.caption + 1,
+    fontWeight: theme.typography.weights.semibold,
     color: theme.colors.secondary,
     marginBottom: theme.spacing.sm,
   },

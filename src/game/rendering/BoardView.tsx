@@ -1,6 +1,6 @@
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { Circle, Group } from '@shopify/react-native-skia';
-import { Easing, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Easing, runOnUI, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { GameState, StaticCellType } from '../engine';
 import { BoardLayout, computeBoardLayout, getCellCenter, getCellOrigin } from './layout';
 import {
@@ -16,7 +16,7 @@ import {
 } from './shapes';
 import { useAnimationClock } from './useAnimationClock';
 import { useReducedMotion } from './useReducedMotion';
-import { landingCurve, SlidePlan } from './useAnimatedMovables';
+import { landingCurve, SlidePlan, TeleportTiming } from './useAnimatedMovables';
 import { theme } from '../../theme';
 
 export interface BoardViewProps {
@@ -187,7 +187,7 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
               outerRadius={portalOuterRadius}
               innerRadius={portalInnerRadius}
               strokeWidth={portalStrokeWidth}
-              color={theme.colors.secondary}
+              color={PORTAL_COLORS[pairIndex % PORTAL_COLORS.length]()}
             />
           );
         }),
@@ -205,35 +205,193 @@ interface SlidingPieceProps {
   slideKey: number;
   duration: number;
   radius: number;
-  color: string;
+  /** Lands on a target: turns from blue to green as it lands, with a ring. */
+  landsOnTarget: boolean;
+  ringColor: string;
 }
+
+/** Share of a slide spent falling, before the landing (see `landingCurve`). */
+const FALL_SHARE = 0.84;
 
 /**
  * A piece that runs its own slide: the progress is a shared value timed on
  * the UI thread and the landing curve a worklet, so the board's React tree
  * renders once when the move starts, not on every frame of it.
+ *
+ * `started` holds the slide the progress belongs to. Until the new slide
+ * has reached the UI thread, the piece is drawn where it starts - without
+ * that, the first frame of every move showed the piece at its destination
+ * (the previous slide's progress, finished) and then jumped back: the
+ * "teleport" players saw.
+ *
+ * Landing, it squashes a little and settles. A piece landing on a target
+ * turns green as it lands and sends a ring out.
  */
-function SlidingPiece({ fromX, fromY, toX, toY, squares, slideKey, duration, radius, color }: SlidingPieceProps) {
-  const progress = useSharedValue(1);
-  // Before paint, so the piece never shows a frame at its destination.
+function SlidingPiece({ fromX, fromY, toX, toY, squares, slideKey, duration, radius, landsOnTarget, ringColor }: SlidingPieceProps) {
+  const moving = duration > 0 && (fromX !== toX || fromY !== toY);
+  const geometry = { fx: fromX, fy: fromY, tx: toX, ty: toY, squares, moving, horizontal: Math.abs(toX - fromX) > Math.abs(toY - fromY), lands: landsOnTarget };
+  // The slide lives entirely on the UI thread: where it runs from and to,
+  // and how far along it is, are shared values written together, in one
+  // step. Drawing from React's props instead let a frame pair a new move's
+  // end point with the last move's finished progress - the ball flashed at
+  // its destination, then jumped back to slide (worst when a swipe came
+  // in while the last slide was still landing).
+  const move = useSharedValue(geometry);
+  // Mounted mid-move (after a teleport the piece is a new component), it
+  // starts at the beginning.
+  const progress = useSharedValue(moving ? 0 : 1);
   useLayoutEffect(() => {
-    if (duration <= 0 || (fromX === toX && fromY === toY)) {
-      progress.value = 1;
-      return;
-    }
-    progress.value = 0;
-    progress.value = withTiming(1, { duration, easing: Easing.linear });
+    runOnUI((next: typeof geometry, ms: number) => {
+      'worklet';
+      move.value = next;
+      if (!next.moving) {
+        progress.value = 1;
+        return;
+      }
+      progress.value = 0;
+      progress.value = withTiming(1, { duration: ms, easing: Easing.linear });
+    })(geometry, duration);
     // A new slide is a new key; positions alone can repeat.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slideKey]);
+
   const transform = useDerivedValue(() => {
-    const along = landingCurve(progress.value, squares);
-    return [{ translateX: fromX + (toX - fromX) * along }, { translateY: fromY + (toY - fromY) * along }];
+    const m = move.value;
+    const t = progress.value;
+    const along = landingCurve(t, m.squares);
+    // Landing: a small squash against the wall, then round again. No
+    // stretch in flight - on a phone it read as the ball wobbling.
+    let k = 0;
+    if (m.moving && t > FALL_SHARE && t < 1) k = Math.sin(((t - FALL_SHARE) / (1 - FALL_SHARE)) * Math.PI);
+    const flat = 1 - 0.12 * k;
+    const wide = 1 + 0.07 * k;
+    return [
+      { translateX: m.fx + (m.tx - m.fx) * along },
+      { translateY: m.fy + (m.ty - m.fy) * along },
+      { scaleX: m.horizontal ? flat : wide },
+      { scaleY: m.horizontal ? wide : flat },
+    ];
   });
+  // Blue until it lands; green from then if it found its target.
+  const greenOpacity = useDerivedValue(() => (move.value.lands ? (!move.value.moving || progress.value >= FALL_SHARE ? 1 : 0) : 0));
+  const blueOpacity = useDerivedValue(() => 1 - greenOpacity.value);
+  const ringT = useDerivedValue(() => (move.value.lands && move.value.moving && progress.value >= FALL_SHARE ? (progress.value - FALL_SHARE) / (1 - FALL_SHARE) : 0));
+  const ringX = useDerivedValue(() => move.value.tx);
+  const ringY = useDerivedValue(() => move.value.ty);
+  const ringR = useDerivedValue(() => radius * (1.05 + 0.55 * ringT.value));
+  const ringOpacity = useDerivedValue(() => (ringT.value > 0 && ringT.value < 1 ? 0.7 * (1 - ringT.value) : 0));
+
   return (
-    <Group transform={transform}>
-      <MovablePiece cx={0} cy={0} radius={radius} color={color} />
-    </Group>
+    <>
+      <Circle cx={ringX} cy={ringY} r={ringR} color={ringColor} style="stroke" strokeWidth={2} opacity={ringOpacity} />
+      <Group transform={transform}>
+        <Group opacity={blueOpacity}>
+          <MovablePiece cx={0} cy={0} radius={radius} color={theme.colors.pieceBlue} />
+        </Group>
+        <Group opacity={greenOpacity}>
+          <MovablePiece cx={0} cy={0} radius={radius} color={theme.colors.success} />
+        </Group>
+      </Group>
+    </>
+  );
+}
+
+type Point = { x: number; y: number };
+
+/** Each linked pair of portals in its own colour, so which two belong
+ * together is plain at a glance. Read from the theme when drawn. */
+const PORTAL_COLORS: ReadonlyArray<() => string> = [() => theme.colors.secondary, () => theme.colors.accent, () => theme.colors.success];
+
+interface TeleportingPieceProps {
+  from: Point;
+  enter: Point;
+  exit: Point;
+  to: Point;
+  squaresAfter: number;
+  timing: TeleportTiming;
+  slideKey: number;
+  radius: number;
+  ringRadius: number;
+  color: string;
+  ringColor: string;
+}
+
+/**
+ * A piece going through a portal, so it reads as a jump and not a skid:
+ * it runs into the portal and sinks into it (shrinking to nothing as a
+ * ring opens out of the portal), is gone for a beat, then rises out of the
+ * other end (with a ring of its own, and a small overshoot as it arrives)
+ * and runs on to where it stops. One shared value on the UI thread drives
+ * every part, timed in milliseconds.
+ */
+function TeleportingPiece({ from, enter, exit, to, squaresAfter, timing, slideKey, radius, ringRadius, color, ringColor }: TeleportingPieceProps) {
+  // Starts at 0, not finished: a piece mounted for its teleport must be
+  // drawn where it starts from its very first frame.
+  const clock = useSharedValue(0);
+  useLayoutEffect(() => {
+    clock.value = 0;
+    clock.value = withTiming(timing.total, { duration: timing.total, easing: Easing.linear });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [slideKey]);
+  const sinkAt = timing.approach;
+  const goneAt = sinkAt + timing.sink;
+  const riseAt = goneAt + timing.gone;
+  const onwardAt = riseAt + timing.rise;
+
+  const transform = useDerivedValue(() => {
+    const t = clock.value;
+    let x = to.x;
+    let y = to.y;
+    let scale = 1;
+    if (t < sinkAt) {
+      const u = sinkAt > 0 ? t / sinkAt : 1;
+      // Leaves at speed, like every slide (see `easeInFall`).
+      const along = 0.45 * u + 0.55 * u * u;
+      x = from.x + (enter.x - from.x) * along;
+      y = from.y + (enter.y - from.y) * along;
+    } else if (t < goneAt) {
+      const u = (t - sinkAt) / timing.sink;
+      x = enter.x;
+      y = enter.y;
+      scale = 1 - u * u * (3 - 2 * u);
+    } else if (t < riseAt) {
+      x = exit.x;
+      y = exit.y;
+      scale = 0;
+    } else if (t < onwardAt) {
+      const u = (t - riseAt) / timing.rise;
+      x = exit.x;
+      y = exit.y;
+      // Out with a small overshoot, then settle.
+      const c = 1.6;
+      const v = u - 1;
+      scale = 1 + (c + 1) * v * v * v + c * v * v;
+    } else {
+      const u = timing.onward > 0 ? Math.min(1, (t - onwardAt) / timing.onward) : 1;
+      const along = landingCurve(u, squaresAfter);
+      x = exit.x + (to.x - exit.x) * along;
+      y = exit.y + (to.y - exit.y) * along;
+    }
+    return [{ translateX: x }, { translateY: y }, { scale: Math.max(0.001, scale) }];
+  });
+
+  // A ring opening out of each portal: as the piece sinks in, and as it
+  // rises out.
+  const ringIn = useDerivedValue(() => Math.min(1, Math.max(0, (clock.value - sinkAt) / (timing.sink + timing.gone))));
+  const ringOut = useDerivedValue(() => Math.min(1, Math.max(0, (clock.value - goneAt) / (timing.gone + timing.rise))));
+  const ringInR = useDerivedValue(() => ringRadius * (0.6 + 0.9 * ringIn.value));
+  const ringInOpacity = useDerivedValue(() => (ringIn.value > 0 && ringIn.value < 1 ? 0.75 * (1 - ringIn.value) : 0));
+  const ringOutR = useDerivedValue(() => ringRadius * (0.6 + 0.9 * ringOut.value));
+  const ringOutOpacity = useDerivedValue(() => (ringOut.value > 0 && ringOut.value < 1 ? 0.75 * (1 - ringOut.value) : 0));
+
+  return (
+    <>
+      <Circle cx={enter.x} cy={enter.y} r={ringInR} color={ringColor} style="stroke" strokeWidth={2} opacity={ringInOpacity} />
+      <Circle cx={exit.x} cy={exit.y} r={ringOutR} color={ringColor} style="stroke" strokeWidth={2} opacity={ringOutOpacity} />
+      <Group transform={transform}>
+        <MovablePiece cx={0} cy={0} radius={radius} color={color} />
+      </Group>
+    </>
   );
 }
 
@@ -283,11 +441,11 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
 
   const cellInset = layout.cellSize * 0.05;
   const cellCornerRadius = layout.cellSize * 0.14;
-  const obstacleInset = layout.cellSize * 0.2;
-  const obstacleCornerRadius = layout.cellSize * 0.06;
+  const obstacleInset = layout.cellSize * 0.12;
+  const obstacleCornerRadius = layout.cellSize * 0.12;
   const movableRadius = layout.cellSize * 0.32;
-  const targetRadius = layout.cellSize * 0.28;
-  const targetStrokeWidth = Math.max(2, layout.cellSize * 0.06);
+  const targetRadius = layout.cellSize * 0.34;
+  const targetStrokeWidth = Math.max(1.5, layout.cellSize * 0.04);
   const pulseRadius = movableRadius * 1.1;
   const anchoredRadius = layout.cellSize * 0.24;
   const anchoredRingRadius = layout.cellSize * 0.36;
@@ -352,6 +510,29 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
         if (slide) {
           const start = slide.from.get(movable.id);
           const from = start ? getCellCenter(layout, start.row, start.col) : center;
+          const teleport = slide.teleports.get(movable.id);
+          if (teleport && start) {
+            const enter = getCellCenter(layout, teleport.route.enter.row, teleport.route.enter.col);
+            const exit = getCellCenter(layout, teleport.route.exit.row, teleport.route.exit.col);
+            return (
+              // A fresh one per teleport, so it always starts where the piece
+              // is - never from the last teleport's finished clock.
+              <TeleportingPiece
+                key={`${movable.id}@${slide.key}`}
+                from={from}
+                enter={enter}
+                exit={exit}
+                to={center}
+                squaresAfter={Math.abs(movable.row - teleport.route.exit.row) + Math.abs(movable.col - teleport.route.exit.col)}
+                timing={teleport.timing}
+                slideKey={slide.key}
+                radius={movableRadius}
+                ringRadius={layout.cellSize * 0.34}
+                color={onTarget ? theme.colors.success : theme.colors.pieceBlue}
+                ringColor={PORTAL_COLORS[Math.max(0, state.portals.findIndex(([a, b]) => [a, b].some(e => e.row === teleport.route.enter.row && e.col === teleport.route.enter.col))) % PORTAL_COLORS.length]()}
+              />
+            );
+          }
           return (
             <SlidingPiece
               key={movable.id}
@@ -363,7 +544,8 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
               slideKey={slide.key}
               duration={slide.duration}
               radius={movableRadius}
-              color={onTarget ? theme.colors.success : theme.colors.pieceBlue}
+              landsOnTarget={onTarget}
+              ringColor={theme.colors.success}
             />
           );
         }

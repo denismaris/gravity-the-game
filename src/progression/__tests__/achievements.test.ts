@@ -1,6 +1,6 @@
 import { ARUKONE } from '../../game/arukone';
 import { BINAIRO } from '../../game/binairo';
-import { FILLAPIX } from '../../game/fillapix';
+import { GLASS_WINDOWS } from '../../game/glass';
 import { LIGHTS_OUT } from '../../game/lightsout';
 import { ADJACENT } from '../../game/adjacent';
 import { BLOOM } from '../../game/bloom';
@@ -9,8 +9,8 @@ import { BRIDGES } from '../../game/bridges';
 import { LEVELS } from '../../game/levels';
 import { MIRROR_MAZES } from '../../game/mirror';
 import { GameKind, ROTATION } from '../../game/journey';
-import { TENTS_TREES } from '../../game/tents';
-import { TOWERS } from '../../game/towers';
+import { LILY_PONDS } from '../../game/lilypads';
+import { VANE_ROOFS } from '../../game/vanes';
 import { FIRST_WORLD, WORLDS } from '../../game/worlds';
 import { ACHIEVEMENTS, getEarnedAchievements, TOTAL_PUZZLE_COUNT } from '../achievements';
 import { emptyProgress, PlayerProgress, recordCompletion, recordDaily } from '../playerProgress';
@@ -25,11 +25,11 @@ const T3 = { three: 1, two: 2 }; // hint-style thresholds: moves=1 -> 3 stars
 const ALL_ENTRIES: ReadonlyArray<{ kind: GameKind; puzzleId: string }> = [
   ...LEVELS.map(level => ({ kind: 'gravity' as const, puzzleId: level.id })),
   ...MIRROR_MAZES.map(puzzle => ({ kind: 'mirror' as const, puzzleId: puzzle.id })),
-  ...TENTS_TREES.map(puzzle => ({ kind: 'tents' as const, puzzleId: puzzle.id })),
-  ...TOWERS.map(puzzle => ({ kind: 'towers' as const, puzzleId: puzzle.id })),
+  ...LILY_PONDS.map(puzzle => ({ kind: 'lilypads' as const, puzzleId: puzzle.id })),
+  ...VANE_ROOFS.map(puzzle => ({ kind: 'vanes' as const, puzzleId: puzzle.id })),
   ...BINAIRO.map(puzzle => ({ kind: 'binairo' as const, puzzleId: puzzle.id })),
   ...ARUKONE.map(puzzle => ({ kind: 'arukone' as const, puzzleId: puzzle.id })),
-  ...FILLAPIX.map(puzzle => ({ kind: 'fillapix' as const, puzzleId: puzzle.id })),
+  ...GLASS_WINDOWS.map(puzzle => ({ kind: 'glass' as const, puzzleId: puzzle.id })),
   ...LIGHTS_OUT.map(puzzle => ({ kind: 'lightsout' as const, puzzleId: puzzle.id })),
   ...ADJACENT.map(puzzle => ({ kind: 'adjacent' as const, puzzleId: puzzle.id })),
   ...BLOOM.map(puzzle => ({ kind: 'bloom' as const, puzzleId: puzzle.id })),

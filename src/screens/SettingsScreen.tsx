@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { BackLabel } from '../components/Icon';
 import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { version } from '../../package.json';
@@ -87,7 +88,7 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
       <PageBloom />
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
-          <Text style={styles.back}>‹ Home</Text>
+          <BackLabel label="Home" style={styles.back} />
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.title}>Settings</Text>
@@ -108,12 +109,12 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
           <Text style={styles.accountChevron}>›</Text>
         </PressableScale>
 
-        <Text style={styles.sectionLabel}>APPEARANCE</Text>
+        <Text style={styles.sectionLabel}>Appearance</Text>
         <View style={styles.card}>
           <AppearancePicker value={settings.appearance} onChange={setAppearance} />
         </View>
 
-        <Text style={styles.sectionLabel}>SOUND & HAPTICS</Text>
+        <Text style={styles.sectionLabel}>Sound and haptics</Text>
         <View style={styles.card}>
           <Row
             label="Sound Effects"
@@ -137,7 +138,7 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
           />
         </View>
 
-        <Text style={styles.sectionLabel}>GAMEPLAY</Text>
+        <Text style={styles.sectionLabel}>Gameplay</Text>
         <View style={styles.card}>
           <Row
             label="Calming Break Between Levels"
@@ -147,7 +148,7 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
           />
         </View>
 
-        <Text style={styles.sectionLabel}>REMINDERS</Text>
+        <Text style={styles.sectionLabel}>Reminders</Text>
         <View style={styles.card}>
           <Row
             label="Daily Puzzle Reminder"
@@ -185,7 +186,7 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
           </Text>
         </View>
 
-        <Text style={styles.sectionLabel}>PROGRESS</Text>
+        <Text style={styles.sectionLabel}>Progress</Text>
         <View style={styles.card}>
           <PressableScale
             accessibilityRole="button"
@@ -197,7 +198,7 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
           </PressableScale>
         </View>
 
-        <Text style={styles.sectionLabel}>LEGAL</Text>
+        <Text style={styles.sectionLabel}>Legal</Text>
         <View style={styles.card}>
           {LEGAL_ROWS.map(([doc, label], i) => (
             <React.Fragment key={doc}>
@@ -297,12 +298,11 @@ const styles = themedStyles(() => ({
     paddingBottom: theme.spacing.xxl,
   },
   sectionLabel: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: theme.typography.tracking.eyebrow,
+    fontSize: theme.typography.sizes.caption,
     color: theme.colors.textTertiary,
     marginBottom: theme.spacing.sm,
     marginTop: theme.spacing.lg,
+    fontWeight: theme.typography.weights.semibold,
   },
   accountWrap: { marginTop: theme.spacing.sm },
   account: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, padding: theme.spacing.md, borderRadius: theme.radii.lg, backgroundColor: theme.colors.surfaceHi, borderWidth: 1, borderColor: theme.colors.border },
@@ -400,10 +400,9 @@ const styles = themedStyles(() => ({
     marginTop: theme.spacing.md,
   },
   footerTagline: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1.5,
+    fontSize: theme.typography.sizes.caption,
     color: theme.colors.textTertiary,
     marginTop: theme.spacing.xs,
+    fontWeight: theme.typography.weights.semibold,
   },
 }));

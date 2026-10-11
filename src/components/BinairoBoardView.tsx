@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Circle, DashPathEffect, Group, LinearGradient, Path, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
-import { Easing, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Easing, SharedValue, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import {
   BinairoCell,
   BinairoConstraint,
@@ -542,6 +542,105 @@ function StampTransition({
   );
 }
 
+/** A row or column just filled in correctly: a light runs along it, tile
+ * by tile, and a soft outline around the whole line breathes in and out.
+ * On the UI thread, like the stamp - it costs the board no frames. */
+const LINE_SWEEP_STAGGER_MS = 55;
+const LINE_SWEEP_TILE_MS = 420;
+const LINE_SWEEP_OUTLINE_MS = 760;
+
+interface LineSweepEvent {
+  readonly key: string;
+  readonly orientation: 'row' | 'col';
+  readonly index: number;
+  readonly startedAt: number;
+}
+
+function lineSweepTotal(length: number): number {
+  return Math.max(LINE_SWEEP_OUTLINE_MS, (length - 1) * LINE_SWEEP_STAGGER_MS + LINE_SWEEP_TILE_MS);
+}
+
+function SweepTile({ elapsed, delay, x, y, size }: { elapsed: SharedValue<number>; delay: number; x: number; y: number; size: number }): React.JSX.Element {
+  const opacity = useDerivedValue(() => {
+    const t = clamp01((elapsed.value - delay) / LINE_SWEEP_TILE_MS);
+    // Up quickly, down slowly.
+    return t <= 0 || t >= 1 ? 0 : t < 0.25 ? (t / 0.25) * 0.42 : 0.42 * (1 - easeOutCubic((t - 0.25) / 0.75));
+  });
+  return <RoundedRect x={x} y={y} width={size} height={size} r={TILE_RADIUS} color="#FFFFFF" opacity={opacity} />;
+}
+
+function LineSweep({ event, layout, tileSize, length }: { event: LineSweepEvent; layout: BoardLayout; tileSize: number; length: number }): React.JSX.Element {
+  const elapsed = useSharedValue(0);
+  useEffect(() => {
+    const total = lineSweepTotal(length);
+    elapsed.value = withTiming(total, { duration: total, easing: Easing.linear });
+  }, [elapsed, length]);
+  const outline = useDerivedValue(() => {
+    const t = clamp01(elapsed.value / LINE_SWEEP_OUTLINE_MS);
+    return t >= 1 ? 0 : Math.sin(t * Math.PI) * 0.9;
+  });
+  const cellSize = layout.cellSize;
+  const inset = TILE_GAP * 0.45;
+  const box =
+    event.orientation === 'row'
+      ? { x: inset, y: event.index * cellSize + inset, w: layout.boardSize - inset * 2, h: cellSize - inset * 2 }
+      : { x: event.index * cellSize + inset, y: inset, w: cellSize - inset * 2, h: layout.boardSize - inset * 2 };
+  return (
+    <Group>
+      {Array.from({ length }, (_v, i) => {
+        const origin = event.orientation === 'row' ? getCellOrigin(layout, event.index, i) : getCellOrigin(layout, i, event.index);
+        return <SweepTile key={i} elapsed={elapsed} delay={i * LINE_SWEEP_STAGGER_MS} x={origin.x + TILE_GAP} y={origin.y + TILE_GAP} size={tileSize} />;
+      })}
+      <RoundedRect x={box.x} y={box.y} width={box.w} height={box.h} r={TILE_RADIUS + 4} color={theme.colors.success} style="stroke" strokeWidth={2.5} opacity={outline} />
+    </Group>
+  );
+}
+
+/** The lines (rows and columns) that are full and break no rule of their
+ * own - no three in a row, and as many of each symbol. */
+function goodLines(puzzle: BinairoPuzzle, state: BinairoState): Set<string> {
+  const out = new Set<string>();
+  const n = puzzle.size;
+  const unbalanced = unbalancedLines(puzzle, state);
+  const badRows = new Set<number>(unbalanced.rows);
+  const badCols = new Set<number>(unbalanced.cols);
+  for (const run of tripleRunGroups(state)) (run.orientation === 'row' ? badRows : badCols).add(run.index);
+  for (let i = 0; i < n; i += 1) {
+    let rowFull = true;
+    let colFull = true;
+    for (let j = 0; j < n; j += 1) {
+      if (state.values[i][j] === null) rowFull = false;
+      if (state.values[j][i] === null) colFull = false;
+    }
+    if (rowFull && !badRows.has(i)) out.add(`row:${i}`);
+    if (colFull && !badCols.has(i)) out.add(`col:${i}`);
+  }
+  return out;
+}
+
+/** Sweeps for lines that have just become good - not for ones that were
+ * good when the board appeared, and never on a solved board (it has its
+ * own wave). Each sweep is kept until it has played out. */
+function useLineSweeps(puzzle: BinairoPuzzle, state: BinairoState, solved: boolean, now: number): LineSweepEvent[] {
+  const good = useMemo(() => goodLines(puzzle, state), [puzzle, state]);
+  const previous = useRef<{ puzzleId: string; good: Set<string> } | null>(null);
+  const events = useRef<LineSweepEvent[]>([]);
+  const last = previous.current;
+  if (last === null || last.puzzleId !== puzzle.id) {
+    events.current = [];
+  } else if (last.good !== good && !solved) {
+    const started = Date.now();
+    for (const key of good) {
+      if (last.good.has(key)) continue;
+      const [orientation, index] = key.split(':');
+      events.current.push({ key, orientation: orientation as 'row' | 'col', index: Number(index), startedAt: started });
+    }
+  }
+  previous.current = { puzzleId: puzzle.id, good };
+  events.current = events.current.filter(event => now - event.startedAt < lineSweepTotal(puzzle.size));
+  return events.current;
+}
+
 /**
  * The press feedback under a finger - a tint, and a ripple echoing out -
  * on the UI thread, like the stamp: mounted on the press, faded out on the
@@ -910,6 +1009,7 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
   const introElapsed = now - introStartedAt;
   const introActive = !reducedMotion && introElapsed < INTRO_TOTAL_MS;
   const pressGlow = usePressGlow(pressedCell, now);
+  const lineSweeps = useLineSweeps(puzzle, state, solved, now);
 
   // Which rows/columns are actually wrong is a game rule (see
   // `errorLines`'s own comment for why a triple run washes immediately
@@ -1195,6 +1295,10 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
           return renderTwinBadge(`twin-${key}-${i}`, cx, cy, radius, isViolated);
         });
       })}
+
+      {/* A line just filled in correctly. */}
+      {!reducedMotion &&
+        lineSweeps.map(event => <LineSweep key={`${event.key}:${event.startedAt}`} event={event} layout={layout} tileSize={tileSize} length={puzzle.size} />)}
 
       {/* Solve wave: a glowing double ring (a soft warm halo plus a crisp
           bright core) on every tile in turn, radiating from the cell that

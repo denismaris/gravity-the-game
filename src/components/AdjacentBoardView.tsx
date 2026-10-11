@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { Circle, DashPathEffect, Group, LinearGradient, Path, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Circle, Group, LinearGradient, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import { AdjacentCoord, AdjacentFall, AdjacentPuzzle, AdjacentState } from '../game/adjacent';
 import { shade, useAnimationClock, useReducedMotion } from '../game/rendering';
 import { theme, inkWash } from '../theme';
@@ -25,7 +25,7 @@ import { theme, inkWash } from '../theme';
  */
 
 /** Gap between a cell's bounds and its well. */
-const WELL_GAP = 1.5;
+const WELL_GAP = 3;
 /** How much of a well a tile actually covers. Paper stays visible all
  * round it - that margin is the single biggest reason this reads as the
  * same hand as the rest of the app. */
@@ -47,7 +47,7 @@ const SIDE_FACE_SHADE = 0.58;
 /** The mark stamped into the glaze - a lighter tint of the tile's own
  * colour rather than paper white, which at five colours across a full
  * tray was the loudest thing on the board. */
-const GLYPH_SHADE = 1.52;
+const GLYPH_SHADE = 1.3;
 
 /**
  * Timings, tightened after the game was reported as laggy.
@@ -195,42 +195,20 @@ function TileGlyph({ colour, cx, cy, r }: { colour: number; cx: number; cy: numb
   }
 }
 
-/** One cell's well - drawn for every square, tile or not. */
-function Well({ x, y, cell, empty }: { x: number; y: number; cell: number; empty: boolean }): React.JSX.Element {
+/** One cell's well - drawn for every square, tile or not: a shallow
+ * recess in the tray, with the shadow of its upper rim inside it. No rule
+ * round each square and no mark in an empty one - those turned the board
+ * into a spreadsheet; one even field of wells lets the chips carry it. */
+function Well({ x, y, cell }: { x: number; y: number; cell: number; empty: boolean }): React.JSX.Element {
   const size = cell - WELL_GAP * 2;
   const left = x + WELL_GAP;
   const top = y + WELL_GAP;
-  const radius = size * 0.2;
+  const radius = size * 0.24;
+  const rim = Math.max(1.5, size * 0.05);
   return (
     <Group>
-      <RoundedRect x={left} y={top} width={size} height={size} r={radius} color={theme.colors.surfaceHi} />
-      <RoundedRect
-        x={left}
-        y={top}
-        width={size}
-        height={size}
-        r={radius}
-        color={theme.colors.border}
-        style="stroke"
-        strokeWidth={1}
-      />
-      {/* An empty slot says so, the way Binairo's empty cells do - a
-          dashed ring, not a blank. A slot waiting to be refilled and a
-          hole in the tray look very different, and only one of them
-          looks finished. */}
-      {empty && (
-        <Circle
-          cx={left + size / 2}
-          cy={top + size / 2}
-          r={size * 0.26}
-          color={theme.colors.borderStrong}
-          style="stroke"
-          strokeWidth={1.1}
-          opacity={0.55}
-        >
-          <DashPathEffect intervals={[3, 3]} />
-        </Circle>
-      )}
+      <RoundedRect x={left} y={top} width={size} height={size} r={radius} color={inkWash(0.045)} />
+      <RoundedRect x={left + radius * 0.5} y={top + rim * 0.4} width={size - radius} height={rim} r={rim / 2} color={inkWash(0.05)} />
     </Group>
   );
 }

@@ -136,7 +136,14 @@ export interface PlayerProgress {
   readonly tesserae: number;
   /** Villa pieces built, in the order they were built. */
   readonly villa: ReadonlyArray<string>;
+  /** The days (`dailyKeyOf`) the Daily was solved, oldest first - for the
+   * Today tab's calendar. The most recent `DAILY_DAYS_KEPT` only. */
+  readonly dailyDays: ReadonlyArray<string>;
+  /** The day (`dailyKeyOf`) the town's gift was last collected, or ''. */
+  readonly townGiftKey: string;
 }
+
+export const DAILY_DAYS_KEPT = 400;
 
 export const PLAYER_PROGRESS_VERSION = 5 as const;
 
@@ -163,6 +170,8 @@ export function emptyProgress(): PlayerProgress {
     insights: STARTING_INSIGHTS,
     tesserae: 0,
     villa: [],
+    dailyDays: [],
+    townGiftKey: '',
     cleanRun: 0,
     grandsSolved: [],
     stampsClaimed: [],
@@ -299,6 +308,7 @@ export function recordDaily(progress: PlayerProgress, todayKey: string): PlayerP
 
   return {
     ...progress,
+    dailyDays: [...progress.dailyDays.filter(key => key !== todayKey), todayKey].slice(-DAILY_DAYS_KEPT),
     daily: { streak, lastCompletedKey: todayKey },
     bestDailyStreak: Math.max(progress.bestDailyStreak, streak),
     streakFreezes: continues ? progress.streakFreezes - missed : progress.streakFreezes,

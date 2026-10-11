@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
 import { ArukonePuzzle, ArukoneState, isArukoneSolved, isPathComplete, mirrorPairOf, pairFor } from '../../game/arukone';
 import { MosaicPuzzle, MosaicState, initialMosaicState, isMosaicSolved, placePiece, placedCells, rotatePiece } from '../../game/mosaic';
 import { Direction, GameState, StaticCellType, applyGravity, isPuzzleSolved } from '../../game/engine';
 import { AdjacentCoord, AdjacentPuzzle, AdjacentState, applyTap, groupAt } from '../../game/adjacent';
 import { BridgesPuzzle, BridgesState, bridgeLinks, cycleBridge, isBridgesSolved } from '../../game/bridges';
-import { TowersPuzzle, TowersState, setCell } from '../../game/towers';
 import { accentColorForKind } from '../../game/journey';
-import { theme, themedStyles } from '../../theme';
 import { AdjacentBoard } from '../AdjacentBoard';
 import { ArukoneBoard } from '../ArukoneBoard';
 import { AdjacentAnimation } from '../AdjacentBoardView';
@@ -16,118 +14,9 @@ import { GravityBoard } from '../GravityBoard';
 import { GravityHintArrow } from '../GravityHintArrow';
 import { useSwipeGesture } from '../useSwipeGesture';
 import { MosaicPlay } from '../MosaicPlay';
-import { PressableScale } from '../PressableScale';
-import { TowersBoard } from '../TowersBoard';
 import { LessonShell, LessonStepCopy, useLessonFlow } from './LessonShell';
 
 type Cell = { row: number; col: number };
-
-// --- Skyscrapers --------------------------------------------------------------------
-
-/** Solution 1 2 3 / 2 3 1 / 3 1 2. */
-const TOWERS: TowersPuzzle = {
-  id: 'lesson-towers',
-  difficulty: 'easy',
-  size: 3,
-  topClues: [3, 2, 1],
-  bottomClues: [1, 2, 2],
-  leftClues: [3, 2, 1],
-  rightClues: [1, 2, 2],
-};
-const TOWERS_START: TowersState = {
-  values: [
-    [1, 2, 0],
-    [0, 3, 1],
-    [0, 1, 2],
-  ],
-};
-interface TowerStep extends LessonStepCopy {
-  readonly cell: Cell;
-  readonly height: number;
-}
-const TOWER_STEPS: ReadonlyArray<TowerStep> = [
-  {
-    title: 'Every height once',
-    say: 'Each row and column holds every height once, like a sudoku. The top row already has a 1 and a 2.',
-    hint: 'Tap the height the glowing square needs.',
-    praise: 'Only the 3 was missing from that row.',
-    cell: { row: 0, col: 2 },
-    height: 3,
-  },
-  {
-    title: 'A 1 clue sees one tower',
-    say: 'Clues count the towers you see from that side, and a tall tower hides the shorter ones behind it. A 1 means the tallest stands right next to the clue.',
-    hint: 'Tap the height for the glowing square beside the 1.',
-    praise: 'The tallest tower, hiding the rest of its row.',
-    cell: { row: 2, col: 0 },
-    height: 3,
-  },
-  {
-    title: 'A 3 clue sees them all',
-    say: 'On a board of three, a 3 clue sees every tower, so from that side they climb 1, 2, 3 in order.',
-    hint: 'Tap the height for the glowing square.',
-    praise: 'One, two, three: the clue can see every tower.',
-    cell: { row: 1, col: 0 },
-    height: 2,
-  },
-];
-
-export function SkyscrapersLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
-  const [state, setState] = useState(TOWERS_START);
-  const [selected, setSelected] = useState<Cell | null>(null);
-  const flow = useLessonFlow(TOWER_STEPS.length, () => setSelected(null));
-  const step = TOWER_STEPS[flow.index];
-  // Steady while the player is meant to act: blinking it meant redrawing
-  // the whole board twice a second.
-  const glow = flow.phase === 'doing' && !selected;
-
-  const select = useCallback(
-    (row: number, col: number) => {
-      if (flow.phase !== 'doing') return;
-      if (row !== step.cell.row || col !== step.cell.col) return flow.wrong();
-      setSelected({ row, col });
-    },
-    [flow, step],
-  );
-  const choose = (height: number) => {
-    if (flow.phase !== 'doing') return;
-    if (height !== step.height) return flow.wrong();
-    // The right height counts even before the square is chosen: the lesson
-    // knows which square it means, and two taps in order was the fiddly part.
-    const cell = selected ?? step.cell;
-    setState(s => setCell(s, cell.row, cell.col, height));
-    setSelected(null);
-    flow.succeed();
-  };
-
-  return (
-    <LessonShell
-      gameName="Skyscrapers"
-      accent={accentColorForKind('towers')}
-      steps={TOWER_STEPS}
-      {...flow}
-      onDone={onDone}
-      renderBoard={size => (
-        <View style={styles.towers}>
-          <TowersBoard puzzle={TOWERS} state={state} size={size - 64} selected={selected} onSelectCell={select} flashCell={glow ? step.cell : null} solved={flow.phase === 'done'} />
-          <View style={styles.pad}>
-            {[1, 2, 3].map(h => (
-              <PressableScale
-                key={h}
-                accessibilityRole="button"
-                accessibilityLabel={`Height ${h}`}
-                onPress={() => choose(h)}
-                style={({ pressed }) => [styles.key, flow.phase === 'doing' && styles.keyLive, pressed && styles.pressed]}
-              >
-                <Text style={styles.keyText}>{h}</Text>
-              </PressableScale>
-            ))}
-          </View>
-        </View>
-      )}
-    />
-  );
-}
 
 // --- Adjacent ------------------------------------------------------------------------
 
@@ -576,12 +465,3 @@ export function GravityLesson({ onDone }: { onDone: () => void }): React.JSX.Ele
     />
   );
 }
-
-const styles = themedStyles(() => ({
-  towers: { alignItems: 'center', gap: 14 },
-  pad: { flexDirection: 'row', gap: 12 },
-  key: { width: 56, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface },
-  keyLive: { borderColor: theme.colors.goldRim, backgroundColor: theme.colors.surfaceHi },
-  keyText: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  pressed: { opacity: 0.8 },
-}));

@@ -1,7 +1,5 @@
 import { BINAIRO, emptyBinairoState, explainBinairoHint, isBinairoSolved, setValue } from '../binairo';
-import { TOWERS, emptyTowersState, explainTowersHint, isTowersSolved, setCell } from '../towers';
-import { TENTS_TREES, emptyTentsTreesState, explainTentsHint, isTentsTreesSolved } from '../tents';
-import { FILLAPIX, explainFillaPixHint, initialFillaPixState, isFillaPixSolved } from '../fillapix';
+import { GLASS_TEST_WINDOWS, glassHint, initialGlassState, isGlassSolved } from '../glass';
 import { MIRROR_MAZES, emptyMirrorMazeState, explainMirrorHint, isMirrorMazeSolved } from '../mirror';
 import { BRIDGES, emptyBridgesState, explainBridgesHint, isBridgesSolved } from '../bridges';
 import { LIGHTS_OUT, explainLightsOutHint, initialLightsOutState, isLightsOutSolved } from '../lightsout';
@@ -45,20 +43,8 @@ test('Binairo: reaches the answer, mostly by rules, and fixes a mistake first', 
   expect(fix.cell).toEqual(first.cell);
 });
 
-test('Skyscrapers', () => {
-  for (const p of sample(TOWERS)) walk(emptyTowersState(p), s => explainTowersHint(p, s), s => isTowersSolved(p, s));
-  const p = TOWERS[0];
-  const bad = setCell(emptyTowersState(p), 0, 0, 1);
-  const h = explainTowersHint(p, bad)!;
-  if (h.cell.row === 0 && h.cell.col === 0) expect(['fix', 'rule']).toContain(h.kind);
-});
-
-test('Tents', () => {
-  for (const p of sample(TENTS_TREES)) walk(emptyTentsTreesState(p), s => explainTentsHint(p, s), s => isTentsTreesSolved(p, s));
-});
-
 test('Fill-a-Pix', () => {
-  for (const p of sample(FILLAPIX)) walk(initialFillaPixState(p), s => explainFillaPixHint(p, s), s => isFillaPixSolved(p, s), 200);
+  for (const p of GLASS_TEST_WINDOWS) walk(initialGlassState(p), s => glassHint(p, s), s => isGlassSolved(p, s), 200);
 });
 
 test('Mirror Maze follows the beam', () => {

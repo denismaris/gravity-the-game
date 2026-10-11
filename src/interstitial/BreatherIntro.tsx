@@ -162,11 +162,10 @@ const styles = themedStyles(() => ({
     paddingBottom: 72,
   },
   kicker: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1.5,
+    fontSize: theme.typography.sizes.caption,
     color: theme.colors.secondary,
     marginBottom: theme.spacing.sm,
+    fontWeight: theme.typography.weights.semibold,
   },
   title: {
     fontFamily: theme.typography.families.display,

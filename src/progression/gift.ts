@@ -13,11 +13,23 @@ import { LUCKY_CHARM_CHARGES, MAX_LUCKY_CHARGES } from './shop';
  *
  * Priced against the economy in `coins.ts`: a full week pays about 345
  * coins, roughly one good day of play, spread so no single gift is worth
- * more than playing.
+ * more than playing. Most days add a little more: an Insight charge or
+ * tiles for the Villa (see `GIFT_EXTRAS`).
  */
 
 export const GIFT_COINS: ReadonlyArray<number> = [20, 25, 30, 40, 50, 60, 120];
 export const GIFT_DAYS = GIFT_COINS.length;
+/** What each day adds besides coins: Insight charges, and tiles for the
+ * Villa - so the week builds toward something on both sides of the game. */
+export const GIFT_EXTRAS: ReadonlyArray<{ readonly insights: number; readonly tiles: number }> = [
+  { insights: 0, tiles: 0 },
+  { insights: 1, tiles: 0 },
+  { insights: 0, tiles: 5 },
+  { insights: 1, tiles: 0 },
+  { insights: 0, tiles: 10 },
+  { insights: 2, tiles: 0 },
+  { insights: 1, tiles: 15 },
+];
 /** Extra coins for coming back after `WELCOME_BACK_AFTER` days away. */
 export const WELCOME_BACK_COINS = 100;
 export const WELCOME_BACK_AFTER = 3;
@@ -37,6 +49,10 @@ export interface Gift {
   readonly coins: number;
   /** The seventh day's lucky charm. */
   readonly charm: boolean;
+  /** Insight charges. */
+  readonly insights: number;
+  /** Tiles for the Villa. */
+  readonly tiles: number;
   /** Extra coins for a player returning after a break. */
   readonly welcomeBack: number;
 }
@@ -63,6 +79,7 @@ export function giftFor(progress: PlayerProgress, dayKey: string): Gift | null {
     day,
     coins: GIFT_COINS[day - 1],
     charm: day === GIFT_DAYS,
+    ...GIFT_EXTRAS[day - 1],
     welcomeBack: away >= WELCOME_BACK_AFTER ? WELCOME_BACK_COINS : 0,
   };
 }
@@ -72,7 +89,7 @@ export function tomorrowsGift(progress: PlayerProgress, dayKey: string): Gift {
   const today = giftFor(progress, dayKey);
   const day = today ? today.day : progress.gift.day;
   const next = (day % GIFT_DAYS) + 1;
-  return { day: next, coins: GIFT_COINS[next - 1], charm: next === GIFT_DAYS, welcomeBack: 0 };
+  return { day: next, coins: GIFT_COINS[next - 1], charm: next === GIFT_DAYS, ...GIFT_EXTRAS[next - 1], welcomeBack: 0 };
 }
 
 /** Claims today's gift. Null if there is none to claim. A seventh-day
@@ -87,7 +104,14 @@ export function claimGift(progress: PlayerProgress, dayKey: string): { progress:
     else coins += 100;
   }
   return {
-    progress: { ...progress, coins, luckyCharges, gift: { lastKey: dayKey, day: gift.day } },
+    progress: {
+      ...progress,
+      coins,
+      luckyCharges,
+      insights: progress.insights + gift.insights,
+      tesserae: progress.tesserae + gift.tiles,
+      gift: { lastKey: dayKey, day: gift.day },
+    },
     gift,
   };
 }

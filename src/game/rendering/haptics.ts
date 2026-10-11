@@ -59,7 +59,23 @@ export type HapticKind =
   | 'adjacentCombo'
   | 'adjacentSolve'
   | 'uiPage'
-  | 'coin';
+  | 'coin'
+  | 'teleport'
+  | 'villaFinish'
+  | 'glassRuby'
+  | 'glassCobalt'
+  | 'glassAmber'
+  | 'glassLift'
+  | 'glassClash'
+  | 'glassSolve'
+  | 'lilyHop'
+  | 'lilyWarn'
+  | 'lilyStranded'
+  | 'lilySolve'
+  | 'vaneTurn'
+  | 'vaneLoop'
+  | 'vaneAstray'
+  | 'vaneSolve';
 
 /**
  * Pattern in milliseconds passed to `Vibration.vibrate`. A single number is
@@ -210,6 +226,30 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   // or a purchase) - a quick two-beat "clink".
   uiPage: 4,
   coin: [0, 8, 40, 12],
+  // A piece through a portal: a soft pull in, and a tap as it comes out.
+  teleport: [0, 6, 330, 12],
+  // A villa finished: a slow, rising run.
+  villaFinish: [0, 12, 120, 14, 120, 18, 140, 28],
+  // Stained Glass: a light set for each glass, a softer lift, a short
+  // refusal for a clash, and a rising run for the finished window.
+  glassRuby: 9,
+  glassCobalt: 9,
+  glassAmber: 9,
+  glassLift: 4,
+  glassClash: [0, 8, 50, 8],
+  glassSolve: [0, 10, 110, 12, 110, 14, 110, 18, 160, 26],
+  // Lily Pads: a light lift-off and a firmer landing; a soft double for a
+  // pad cut off; a dull pair for a stranded frog; a rising, splashing run.
+  lilyHop: [0, 5, 260, 12],
+  lilyWarn: [0, 8, 60, 8],
+  lilyStranded: [0, 14, 110, 18],
+  lilySolve: [0, 10, 100, 12, 100, 14, 100, 18, 200, 24],
+  // Weathervanes: a crisp tick per turn; a breath and two taps as a loop
+  // closes; a muted refusal; a gust and a rising run when the roof is set.
+  vaneTurn: 7,
+  vaneLoop: [0, 10, 80, 14],
+  vaneAstray: [0, 8, 50, 8],
+  vaneSolve: [0, 12, 140, 12, 110, 14, 110, 18, 160, 26],
 };
 
 /** A transient: one tap, at `time` ms. */
@@ -296,6 +336,24 @@ const TEXTURES: Partial<Record<HapticKind, HapticEvent[]>> = {
   // The app: a page, and a coin.
   uiPage: [tap(0, 0.3, 0.7)],
   coin: [tap(0, 0.6, 1), tap(55, 0.75, 1)],
+  teleport: [hum(0, 200, 0.18, 0.4), tap(360, 0.45, 0.6), tap(420, 0.6, 0.8)],
+  villaFinish: [tap(0, 0.4, 0.5), tap(140, 0.5, 0.6), tap(280, 0.6, 0.7), tap(420, 0.7, 0.8), hum(560, 500, 0.3, 0.5)],
+  glassRuby: [tap(0, 0.5, 0.9)],
+  glassCobalt: [tap(0, 0.5, 0.95)],
+  glassAmber: [tap(0, 0.5, 1)],
+  glassLift: [tap(0, 0.3, 0.6)],
+  glassClash: [tap(0, 0.45, 0.2), tap(60, 0.35, 0.2)],
+  glassSolve: [tap(0, 0.4, 0.9), tap(120, 0.5, 0.9), tap(240, 0.6, 0.95), tap(360, 0.7, 1), hum(480, 700, 0.25, 0.9)],
+  // Lily Pads: water - a light push off, a soft wet landing, a bubble.
+  lilyHop: [tap(0, 0.3, 0.6), tap(270, 0.65, 0.2), hum(285, 70, 0.2, 0.1), tap(430, 0.2, 0.5)],
+  lilyWarn: [tap(0, 0.4, 0.2), tap(70, 0.3, 0.2)],
+  lilyStranded: [hum(0, 90, 0.4, 0.05), tap(130, 0.45, 0.1)],
+  lilySolve: [tap(0, 0.4, 0.3), tap(110, 0.5, 0.35), tap(220, 0.6, 0.4), tap(330, 0.7, 0.45), tap(500, 0.8, 0.2), hum(510, 260, 0.25, 0.15)],
+  // Weathervanes: metal and air - a crisp tick, a breath for a loop.
+  vaneTurn: [tap(0, 0.55, 0.95), hum(6, 35, 0.12, 0.6)],
+  vaneLoop: [hum(0, 120, 0.18, 0.5), tap(30, 0.5, 0.9), tap(120, 0.6, 0.95)],
+  vaneAstray: [tap(0, 0.45, 0.15), tap(55, 0.35, 0.15)],
+  vaneSolve: [hum(0, 400, 0.22, 0.4), tap(180, 0.45, 0.9), tap(300, 0.55, 0.9), tap(420, 0.65, 0.95), tap(540, 0.8, 1)],
 };
 
 let hapticsEnabled = true;

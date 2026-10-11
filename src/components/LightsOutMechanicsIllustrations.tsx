@@ -42,7 +42,7 @@ function Lamp({ row, col, lit, ringed }: { row: number; col: number; lit: boolea
       <RoundedRect x={x} y={y} width={size} height={size} r={size * 0.22} color={theme.colors.lightsOutPanelEdge} style="stroke" strokeWidth={1} />
       {/* A real radial falloff, matching the board's own lamps - a flat
           translucent amber disc over indigo reads as a brown smudge
-          rather than a glow (see `LightsOutBoardView`'s `renderLamp`). */}
+          rather than a glow (see `LightsOutBoardView`'s `Lamp`). */}
       {lit && (
         <Circle cx={cx} cy={cy} r={radius * 1.9}>
           <RadialGradient c={vec(cx, cy)} r={radius * 1.9} colors={['rgba(245, 201, 94, 0.5)', 'rgba(245, 201, 94, 0)']} />

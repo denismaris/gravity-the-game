@@ -1,14 +1,15 @@
 import React, { useEffect, useRef } from 'react';
 import { LEVELS_PER_CHAPTER, chapterAt } from '../progression/chapters';
 import { toRoman } from '../progression/rank';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Icon } from './Icon';
 import { ConfettiBurst } from './ConfettiBurst';
 import { GameEmblem } from './GameEmblem';
-import { PressableScale } from './PressableScale';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, GameKind, gameLabelForKind } from '../game/journey';
 import { motion, theme, themedStyles } from '../theme';
 import { MODAL_EXIT_MS, ModalLayer } from './ModalLayer';
+import { DialogActions, dialogStyles } from './dialog';
 
 export interface LevelSetCompleteProps {
   /** The level number that was just finished. */
@@ -21,11 +22,14 @@ export interface LevelSetCompleteProps {
 
 /** Title, the tally, the closing line, the action. */
 const ROW_COUNT = 4;
-/** Each emblem is *placed*, not merely revealed - slow enough to read as
- * one-at-a-time rather than a single group fade. */
-const PLACE_STAGGER_MS = 150;
+/** Each game is *counted*, not merely revealed - one at a time, each beat
+ * overlapping the last a little so the tally flows rather than ticks. */
+const PLACE_STAGGER_MS = 170;
 /** The tally starts once the card and its heading have settled. */
-const PLACE_DELAY_MS = 420;
+const PLACE_DELAY_MS = 380;
+/** How long each game's arrival takes, end to end: the emblem settling,
+ * its check stamping on, its name sliding in. */
+const PLACE_MS = 620;
 
 /**
  * The end of a whole level - a distinct, larger moment than finishing one
@@ -49,11 +53,14 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
   const places = useRef(kinds.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
+    // One timing per game, on the native driver; every part of a row reads
+    // its own slice of it (see `TallyRow`), so nothing springs or settles
+    // separately and the whole count runs smooth.
     Animated.sequence([
       Animated.delay(PLACE_DELAY_MS),
       Animated.stagger(
         PLACE_STAGGER_MS,
-        places.map(value => Animated.spring(value, { toValue: 1, useNativeDriver: true, ...motion.spring.pop })),
+        places.map(value => Animated.timing(value, { toValue: 1, duration: PLACE_MS, easing: Easing.linear, useNativeDriver: true })),
       ),
     ]).start();
     // Mount-only: this card is mounted exactly when a set is completed.
@@ -91,28 +98,13 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
             </Animated.View>
 
             <Animated.View style={rowStyle(0)}>
-              <Text style={styles.eyebrow}>LEVEL COMPLETE</Text>
+              <Text style={dialogStyles.kicker}>{`Level ${levelNumber} complete`}</Text>
               <Text style={styles.headline}>{kinds.length} games, all finished</Text>
             </Animated.View>
 
             <View style={styles.tally}>
               {kinds.map((kind, i) => (
-                <Animated.View
-                  key={`${kind}-${i}`}
-                  style={[
-                    styles.tallyRow,
-                    {
-                      opacity: places[i],
-                      transform: [
-                        { scale: places[i].interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }) },
-                        { translateX: places[i].interpolate({ inputRange: [0, 1], outputRange: [-18, 0] }) },
-                      ],
-                    },
-                  ]}
-                >
-                  <GameEmblem kind={kind} size={40} />
-                  <Text style={[styles.tallyLabel, { color: accentColorForKind(kind) }]}>{gameLabelForKind(kind)}</Text>
-                </Animated.View>
+                <TallyRow key={`${kind}-${i}`} kind={kind} t={places[i]} />
               ))}
             </View>
 
@@ -121,7 +113,7 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
 
             {levelNumber % LEVELS_PER_CHAPTER === 0 ? (
               <Animated.View style={[styles.chapter, rowStyle(2)]}>
-                <Text style={styles.chapterKicker}>CHAPTER {toRoman(levelNumber / LEVELS_PER_CHAPTER)} COMPLETE</Text>
+                <Text style={styles.chapterKicker}>{`Chapter ${toRoman(levelNumber / LEVELS_PER_CHAPTER)} complete`}</Text>
                 <Text style={styles.chapterName}>{chapterAt(levelNumber / LEVELS_PER_CHAPTER).name}</Text>
                 <Text style={styles.chapterNote}>Its reward is waiting in your Almanac.</Text>
               </Animated.View>
@@ -131,20 +123,96 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
               </Animated.Text>
             )}
 
-            <Animated.View style={rowStyle(3)}>
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel="Continue"
-                onPress={onContinue}
-                style={({ pressed }) => [styles.button, pressed && styles.pressed]}
-              >
-                <Text style={styles.buttonLabel}>Continue ›</Text>
-              </PressableScale>
+            <Animated.View style={[styles.actions, rowStyle(3)]}>
+              <DialogActions primary={{ label: 'Continue', onPress: onContinue }} />
             </Animated.View>
           </View>
         </Animated.View>
       </View>
     </ModalLayer>
+  );
+}
+
+/** A slice of a 0..1 clock, eased: 0 before `from`, 1 after `to`. */
+function slice(t: Animated.Value, from: number, to: number, easing: (x: number) => number, out: [number, number], before?: number): Animated.AnimatedInterpolation<number> {
+  // The easing sampled into the interpolation, so it runs on the native
+  // driver; outside [from, to] it holds its ends - or, given `before`,
+  // holds that until the slice begins (a ring that fades *out* must not
+  // show at full strength while it waits).
+  const steps = 12;
+  const inputRange = Array.from({ length: steps + 1 }, (_v, k) => from + ((to - from) * k) / steps);
+  const outputRange = inputRange.map((_x, k) => out[0] + (out[1] - out[0]) * easing(k / steps));
+  if (before !== undefined && from > 0) {
+    inputRange.unshift(0, from - 0.001);
+    outputRange.unshift(before, before);
+  }
+  return t.interpolate({ inputRange, outputRange, extrapolate: 'clamp' });
+}
+
+const settle = Easing.out(Easing.back(1.5));
+const glide = Easing.out(Easing.cubic);
+
+/**
+ * One game in the tally, counted in three beats off one clock: its emblem
+ * settles into place - rising, growing, a small turn straightening - then
+ * a check stamps onto its corner with a ring of the game's colour, and its
+ * name glides in beside it.
+ */
+function TallyRow({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JSX.Element {
+  const accent = accentColorForKind(kind);
+  return (
+    <View style={styles.tallyRow}>
+      <View>
+        <Animated.View
+          style={{
+            opacity: slice(t, 0, 0.35, glide, [0, 1]),
+            transform: [
+              { translateY: slice(t, 0, 0.55, settle, [14, 0]) },
+              { scale: slice(t, 0, 0.55, settle, [0.55, 1]) },
+              { rotate: slice(t, 0, 0.55, glide, [-8, 0]).interpolate({ inputRange: [-8, 0], outputRange: ['-8deg', '0deg'] }) },
+            ],
+          }}
+        >
+          <GameEmblem kind={kind} size={40} />
+        </Animated.View>
+        {/* The ring, spreading as the check lands. */}
+        <Animated.View
+          pointerEvents="none"
+          style={[
+            styles.checkRing,
+            {
+              borderColor: accent,
+              opacity: slice(t, 0.5, 1, glide, [0.7, 0], 0),
+              transform: [{ scale: slice(t, 0.5, 1, glide, [0.4, 1.6]) }],
+            },
+          ]}
+        />
+        <Animated.View
+          style={[
+            styles.check,
+            {
+              backgroundColor: accent,
+              opacity: slice(t, 0.45, 0.6, glide, [0, 1]),
+              transform: [{ scale: slice(t, 0.45, 0.8, settle, [0.2, 1]) }],
+            },
+          ]}
+        >
+          <Icon name="check" size={10} color={theme.colors.surfaceHi} />
+        </Animated.View>
+      </View>
+      <Animated.Text
+        style={[
+          styles.tallyLabel,
+          {
+            color: accent,
+            opacity: slice(t, 0.3, 0.75, glide, [0, 1]),
+            transform: [{ translateX: slice(t, 0.3, 0.8, glide, [-10, 0]) }],
+          },
+        ]}
+      >
+        {gameLabelForKind(kind)}
+      </Animated.Text>
+    </View>
   );
 }
 
@@ -164,7 +232,8 @@ const styles = themedStyles(() => ({
     borderWidth: 1.5,
     borderColor: theme.colors.accent,
   },
-  chapterKicker: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.accentText },
+  chapterKicker: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.accentText },
+  actions: { alignSelf: 'stretch' },
   chapterName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, marginTop: 2 },
   chapterNote: { marginTop: 2, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   overlay: {
@@ -215,10 +284,8 @@ const styles = themedStyles(() => ({
     color: theme.colors.textPrimary,
   },
   eyebrow: {
-    fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.caption,
     fontWeight: theme.typography.weights.bold,
-    letterSpacing: 3,
     color: theme.colors.accentText,
     textAlign: 'center',
   },
@@ -244,11 +311,30 @@ const styles = themedStyles(() => ({
     gap: theme.spacing.sm,
     marginBottom: theme.spacing.xs,
   },
+  check: {
+    position: 'absolute',
+    right: -5,
+    bottom: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 2,
+    borderColor: theme.colors.surface,
+  },
+  checkRing: {
+    position: 'absolute',
+    right: -5,
+    bottom: -4,
+    width: 18,
+    height: 18,
+    borderRadius: 9,
+    borderWidth: 2,
+  },
   tallyLabel: {
-    fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.caption,
     fontWeight: theme.typography.weights.bold,
-    letterSpacing: 1.5,
   },
   closing: {
     fontSize: theme.typography.sizes.body,

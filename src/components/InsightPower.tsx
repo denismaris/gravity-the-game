@@ -1,4 +1,5 @@
 import React, { useCallback, useState } from 'react';
+import { Icon } from './Icon';
 import { Modal, Text, View } from 'react-native';
 import Reanimated, { Easing as ReEasing, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -130,7 +131,7 @@ function InsightSheet({ visible, onClose, onEarned, onPaid }: { visible: boolean
               </View>
               <Text style={styles.optionTitle}>{noVideos ? 'Back tomorrow' : watching ? 'Loading\u2026' : `+${INSIGHTS_PER_VIDEO} Insight`}</Text>
               <Text style={styles.optionSub}>{noVideos ? 'No videos left today' : 'Watch a short video'}</Text>
-              {!noVideos && <Text style={styles.optionFree}>FREE</Text>}
+              {!noVideos && <Text style={styles.optionFree}>Free</Text>}
             </PressableScale>
 
             <PressableScale
@@ -172,7 +173,7 @@ export function InsightButton({ count, onPress }: { count: number; onPress: () =
       onPress={onPress}
       style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
     >
-      <Text style={styles.buttonSpark}>{'\u2726'}</Text>
+      <Icon name="spark" size={14} color={theme.colors.accent} />
       <Text style={styles.buttonText}>Insight</Text>
       <InsightCount count={count} />
     </PressableScale>
@@ -183,7 +184,7 @@ export function InsightButton({ count, onPress }: { count: number; onPress: () =
 function InsightMark(): React.JSX.Element {
   return (
     <View style={styles.markInner}>
-      <Text style={styles.markGlyph}>✦</Text>
+      <Icon name="spark" size={26} color={theme.colors.accent} />
     </View>
   );
 }

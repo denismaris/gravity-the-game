@@ -51,35 +51,29 @@ function draw(game: string, s: number, c: (token: ColorToken) => string, paper: 
         </Group>
       );
     }
-    case 'tents':
+    case 'lilypads':
       return (
         <Group>
-          <RoundedRect x={s * 0.14} y={s * 0.7} width={s * 0.72} height={s * 0.06} r={s * 0.03} color={rule} />
-          <Path path={`M ${s * 0.5} ${s * 0.24} L ${s * 0.18} ${s * 0.72} L ${s * 0.5} ${s * 0.72} Z`} color={c('tentDark')} />
-          <Path path={`M ${s * 0.5} ${s * 0.24} L ${s * 0.82} ${s * 0.72} L ${s * 0.5} ${s * 0.72} Z`} color={c('tentLight')} />
-          <Path path={`M ${s * 0.5} ${s * 0.48} L ${s * 0.43} ${s * 0.72} L ${s * 0.57} ${s * 0.72} Z`} color={paper} />
-        </Group>
-      );
-    case 'towers': {
-      const bars: Array<[number, number]> = [
-        [0.16, 0.42],
-        [0.4, 0.62],
-        [0.64, 0.32],
-      ];
-      return (
-        <Group>
-          {bars.map(([x, h], i) => (
-            <Group key={i}>
-              <Rect x={s * x} y={s * (0.82 - h)} width={s * 0.2} height={s * h} color={c('towersBuilding')} />
-              <Rect x={s * x} y={s * (0.82 - h)} width={s * 0.2} height={s * 0.04} color={c('towersBuildingRoof')} />
-              {Array.from({ length: Math.floor(h / 0.14) }, (_v, k) => (
-                <Rect key={k} x={s * (x + 0.06)} y={s * (0.82 - h + 0.08 + k * 0.13)} width={s * 0.08} height={s * 0.06} color={k % 2 === 0 ? c('towersWindow') : c('towersWindowDark')} />
-              ))}
+          <RoundedRect x={s * 0.08} y={s * 0.08} width={s * 0.84} height={s * 0.84} r={s * 0.14} color={c('pondWater')} />
+          {[[0.32, 0.36, 0.17], [0.66, 0.62, 0.15]].map(([x, y, r]) => (
+            <Group key={x}>
+              <Circle cx={s * x} cy={s * (y + 0.02)} r={s * r} color={c('lilyPadEdge')} />
+              <Circle cx={s * x} cy={s * y} r={s * r} color={c('lilyPad')} />
             </Group>
           ))}
+          <Circle cx={s * 0.66} cy={s * 0.62} r={s * 0.07} color={c('lilyBloom')} />
         </Group>
       );
-    }
+    case 'vanes':
+      return (
+        <Group>
+          <Path path={`M ${s * 0.14} ${s * 0.3} q ${s * 0.1} ${-s * 0.05} ${s * 0.2} 0`} color={c('vaneWind')} style="stroke" strokeWidth={s * 0.04} strokeCap="round" />
+          <Path path={`M ${s * 0.1} ${s * 0.72} q ${s * 0.1} ${-s * 0.05} ${s * 0.2} 0`} color={c('vaneWind')} style="stroke" strokeWidth={s * 0.04} strokeCap="round" />
+          <Path path={`M ${s * 0.28} ${s * 0.5} L ${s * 0.74} ${s * 0.5}`} color={c('vaneMetal')} style="stroke" strokeWidth={s * 0.05} strokeCap="round" />
+          <Path path={`M ${s * 0.88} ${s * 0.5} L ${s * 0.7} ${s * 0.4} L ${s * 0.74} ${s * 0.5} L ${s * 0.7} ${s * 0.6} Z`} color={c('vaneMetal')} />
+          <Path path={`M ${s * 0.36} ${s * 0.5} L ${s * 0.2} ${s * 0.38} L ${s * 0.26} ${s * 0.5} L ${s * 0.2} ${s * 0.62} Z`} color={c('vaneAccent')} />
+        </Group>
+      );
     case 'binairo':
       return (
         <Group>
@@ -135,14 +129,16 @@ function draw(game: string, s: number, c: (token: ColorToken) => string, paper: 
         </Group>
       );
     }
-    case 'fillapix': {
-      const ink = c('fillapixAccent');
-      const filled = [1, 3, 4, 5, 7];
+    case 'glass': {
+      // Four panes round a centre one, as the lesson's window.
+      const glazes: ColorToken[] = ['glassRuby', 'glassCobalt', 'glassCobalt', 'glassRuby'];
       return (
         <Group>
-          {Array.from({ length: 9 }, (_v, i) => (
-            <RoundedRect key={i} x={s * (0.14 + (i % 3) * 0.25)} y={s * (0.14 + Math.floor(i / 3) * 0.25)} width={s * 0.22} height={s * 0.22} r={s * 0.04} color={filled.includes(i) ? ink : paper} />
+          {glazes.map((t, i) => (
+            <RoundedRect key={i} x={s * (0.12 + (i % 2) * 0.39)} y={s * (0.12 + Math.floor(i / 2) * 0.39)} width={s * 0.37} height={s * 0.37} r={s * 0.07} color={c(t)} />
           ))}
+          <RoundedRect x={s * 0.32} y={s * 0.32} width={s * 0.36} height={s * 0.36} r={s * 0.08} color={paper} />
+          <RoundedRect x={s * 0.345} y={s * 0.345} width={s * 0.31} height={s * 0.31} r={s * 0.07} color={c('glassAmber')} />
         </Group>
       );
     }

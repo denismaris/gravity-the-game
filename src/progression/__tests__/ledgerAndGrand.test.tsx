@@ -9,7 +9,7 @@ import { buyCosmetic, owns } from '../shop';
 import { endlessId } from '../../game/endlessId';
 import { PlayerProgressProvider, usePlayerProgress } from '../PlayerProgressProvider';
 import { createMemoryBackend } from '../../storage';
-import { getTentsTreesById } from '../../game/tents';
+import { getLilyById } from '../../game/lilypads';
 
 const MONDAY = new Date('2026-09-28T09:00:00Z');
 const SUNDAY = new Date('2026-10-04T22:00:00Z');
@@ -36,29 +36,29 @@ describe('the Weekly Grand', () => {
   });
 
   test('is a real, hard, named board - and never one the dealer hands out', () => {
-    const tents = grandIdFor(weekIndexOf(MONDAY), 'tents');
-    const board = getTentsTreesById(tents);
+    const tents = grandIdFor(weekIndexOf(MONDAY), 'lilypads');
+    const board = getLilyById(tents, { name: 'The Grand Pond', tier: 'hard' });
     expect(board?.difficulty).toBe('hard');
-    expect(puzzleDisplayInfo('tents', tents)?.name).toMatch(/^The Grand /);
-    expect(grandWeekOf(endlessId('tents', 'hard', 40))).toBeNull();
+    expect(puzzleDisplayInfo('lilypads', tents)?.name).toMatch(/^The Grand /);
+    expect(grandWeekOf(endlessId('lilypads', 'hard', 40))).toBeNull();
   });
 
   test('pays once a week, and its exclusives at their milestones', () => {
     let p: PlayerProgress = emptyProgress();
     const coinsBefore = p.coins;
     const week = weekIndexOf(MONDAY);
-    const first = recordGrand(p, grandIdFor(week, 'tents'), MONDAY)!;
+    const first = recordGrand(p, grandIdFor(week, 'lilypads'), MONDAY)!;
     expect(first.progress.coins).toBe(coinsBefore + GRAND_COINS);
     expect(first.cosmetic).toBe(GRAND_REWARDS[0].cosmetic);
     expect(owns(first.progress, GRAND_REWARDS[0].cosmetic)).toBe(true);
     p = first.progress;
-    expect(recordGrand(p, grandIdFor(week, 'tents'), SUNDAY)).toBeNull();
+    expect(recordGrand(p, grandIdFor(week, 'lilypads'), SUNDAY)).toBeNull();
     // Finished just after midnight on Monday: last week's still counts.
     const late = recordGrand({ ...p, grandsSolved: [] }, grandIdFor(week, 'bloom'), NEXT_MONDAY);
     expect(late).not.toBeNull();
     // Older than that, or from the future, does not.
-    expect(recordGrand(p, grandIdFor(week - 2, 'tents'), MONDAY)).toBeNull();
-    expect(recordGrand(p, grandIdFor(week + 1, 'tents'), MONDAY)).toBeNull();
+    expect(recordGrand(p, grandIdFor(week - 2, 'lilypads'), MONDAY)).toBeNull();
+    expect(recordGrand(p, grandIdFor(week + 1, 'lilypads'), MONDAY)).toBeNull();
     expect(nextGrandReward(p)?.at).toBe(GRAND_REWARDS[1].at);
   });
 
@@ -72,29 +72,29 @@ describe('the Weekly Grand', () => {
 });
 
 describe('the ledger', () => {
-  function withSolves(kind: 'tents' | 'bloom', count: number, stars: 1 | 2 | 3 = 3): PlayerProgress['levels'] {
+  function withSolves(kind: 'lilypads' | 'bloom', count: number, stars: 1 | 2 | 3 = 3): PlayerProgress['levels'] {
     const levels: Record<string, { completed: true; stars: 1 | 2 | 3; bestMoves: number }> = {};
     for (let i = 0; i < count; i += 1) levels[endlessId(kind, i % 3 === 0 ? 'hard' : 'easy', i)] = { completed: true, stars, bestMoves: 1 };
     return levels;
   }
 
   test('counts each game from the save alone', () => {
-    const p = { ...emptyProgress(), levels: { ...withSolves('tents', 12), ...withSolves('bloom', 3, 2) } };
+    const p = { ...emptyProgress(), levels: { ...withSolves('lilypads', 12), ...withSolves('bloom', 3, 2) } };
     const ledger = ledgerOf(p);
-    expect(ledger.tents.solved).toBe(12);
-    expect(ledger.tents.perfect).toBe(12);
-    expect(ledger.tents.byTier.hard).toBe(4);
+    expect(ledger.lilypads.solved).toBe(12);
+    expect(ledger.lilypads.perfect).toBe(12);
+    expect(ledger.lilypads.byTier.hard).toBe(4);
     expect(ledger.bloom.stars).toBe(6);
     expect(ledger.gravity.solved).toBe(0);
   });
 
   test('a stamp is earned at its step, paid once, and never before', () => {
-    const p = { ...emptyProgress(), levels: withSolves('tents', 26) };
+    const p = { ...emptyProgress(), levels: withSolves('lilypads', 26) };
     expect(unclaimedStamps(p).map(s => s.step)).toEqual([10, 25]);
-    expect(claimStamp(p, 'tents', 50)).toBeNull();
-    const paid = claimStamp(p, 'tents', 25)!;
+    expect(claimStamp(p, 'lilypads', 50)).toBeNull();
+    const paid = claimStamp(p, 'lilypads', 25)!;
     expect(paid.coins).toBe(p.coins + STAMP_COINS[1]);
-    expect(claimStamp(paid, 'tents', 25)).toBeNull();
+    expect(claimStamp(paid, 'lilypads', 25)).toBeNull();
     expect(unclaimedStamps(paid).map(s => s.step)).toEqual([10]);
     expect(STAMP_STEPS).toEqual([10, 25, 50, 100]);
   });
@@ -102,10 +102,10 @@ describe('the ledger', () => {
 
 describe('the save', () => {
   test('new fields round-trip, and default sensibly on an older save', () => {
-    const p: PlayerProgress = { ...emptyProgress(), grandsSolved: [2900, 2901], stampsClaimed: ['tents:10'], introSeen: true };
+    const p: PlayerProgress = { ...emptyProgress(), grandsSolved: [2900, 2901], stampsClaimed: ['lilypads:10'], introSeen: true };
     const back = parseProgress(JSON.stringify(p));
     expect(back.grandsSolved).toEqual([2900, 2901]);
-    expect(back.stampsClaimed).toEqual(['tents:10']);
+    expect(back.stampsClaimed).toEqual(['lilypads:10']);
     expect(back.introSeen).toBe(true);
 
     const old = { ...emptyProgress(), grandsSolved: undefined, stampsClaimed: undefined, introSeen: undefined };
@@ -123,7 +123,7 @@ describe('through the provider', () => {
       api = usePlayerProgress();
       return null;
     }
-    const save = { ...emptyProgress(), levels: Object.fromEntries(Array.from({ length: 10 }, (_v, i) => [endlessId('tents', 'easy', i), { completed: true, stars: 3, bestMoves: 1 }])) };
+    const save = { ...emptyProgress(), levels: Object.fromEntries(Array.from({ length: 10 }, (_v, i) => [endlessId('lilypads', 'easy', i), { completed: true, stars: 3, bestMoves: 1 }])) };
     await act(async () => {
       ReactTestRenderer.create(
         <PlayerProgressProvider backend={createMemoryBackend({ [PLAYER_PROGRESS_KEY]: JSON.stringify(save) })}>
@@ -143,7 +143,7 @@ describe('through the provider', () => {
 
     const before = api.coins;
     act(() => {
-      expect(api.claimStamp('tents', 10)).toBe(true);
+      expect(api.claimStamp('lilypads', 10)).toBe(true);
     });
     expect(api.coins).toBe(before + STAMP_COINS[0]);
 

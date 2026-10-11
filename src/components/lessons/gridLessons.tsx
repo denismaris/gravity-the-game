@@ -1,17 +1,13 @@
 import React, { useCallback, useState } from 'react';
 import { BinairoPuzzle, BinairoState, nextValue, setValue } from '../../game/binairo';
 import { BloomPuzzle, BloomState } from '../../game/bloom';
-import { FillaPixPuzzle, FillaPixState, toggleCell } from '../../game/fillapix';
 import { LightsOutPuzzle, LightsOutState, press } from '../../game/lightsout';
 import { MirrorMazePuzzle, MirrorMazeState, isMirrorMazeSolved, nextMirror, setMirror, traceBeam } from '../../game/mirror';
-import { nextMark, setMark, TentsTreesPuzzle, TentsTreesState } from '../../game/tents';
 import { accentColorForKind } from '../../game/journey';
 import { BinairoBoard } from '../BinairoBoard';
 import { BloomBoard } from '../BloomBoard';
-import { FillaPixBoard } from '../FillaPixBoard';
 import { LightsOutBoard } from '../LightsOutBoard';
 import { MirrorMazeBoard } from '../MirrorMazeBoard';
-import { TentsBoard } from '../TentsBoard';
 import { LessonShell, LessonStepCopy, useLessonFlow } from './LessonShell';
 
 type Cell = { row: number; col: number };
@@ -113,62 +109,6 @@ export function TwosLesson({ onDone }: { onDone: () => void }): React.JSX.Elemen
   );
 }
 
-// --- Tents ----------------------------------------------------------------------
-
-const TENTS: TentsTreesPuzzle = {
-  id: 'lesson-tents',
-  difficulty: 'easy',
-  rows: 4,
-  cols: 4,
-  trees: [
-    { row: 1, col: 1 },
-    { row: 2, col: 3 },
-  ],
-  rowCounts: [1, 0, 0, 1],
-  colCounts: [0, 1, 0, 1],
-};
-const emptyTents = (): TentsTreesState => ({ marks: Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => 'empty' as const)) });
-const TENTS_STEPS: ReadonlyArray<GridStep<TentsTreesPuzzle, TentsTreesState>> = [
-  {
-    title: 'Every tree hides one tent',
-    say: 'A tent sits right beside its tree: above, below, left or right, never diagonally. This tree has one free spot above it.',
-    hint: 'Tap the glowing square to pitch a tent.',
-    praise: 'That tent belongs to the tree below it.',
-    target: { row: 0, col: 1 },
-    goal: s => s.marks[0][1] === 'tent',
-  },
-  {
-    title: 'Tents never touch',
-    say: 'Not even corner to corner. So every square around a tent is grass, and you can mark it.',
-    hint: 'Tap the glowing square twice to mark it as grass.',
-    praise: 'Marking grass makes the tents easy to find.',
-    target: { row: 1, col: 2 },
-    goal: s => s.marks[1][2] === 'marked',
-  },
-  {
-    title: 'Count the tents',
-    say: 'The numbers at the edges say how many tents each row and column holds. The bottom row needs one, beside the second tree.',
-    hint: 'Pitch the last tent on the glowing square.',
-    praise: 'Every tree has its tent, and every count is met.',
-    target: { row: 3, col: 3 },
-    goal: s => s.marks[3][3] === 'tent',
-  },
-];
-
-export function TentsLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
-  const { board, flow, tap, flash } = useGridLesson({ puzzle: TENTS, state: emptyTents() }, TENTS_STEPS, (p, s, r, c) => setMark(s, p, r, c, nextMark(s.marks[r][c])));
-  return (
-    <LessonShell
-      gameName="Tents and Trees"
-      accent={accentColorForKind('tents')}
-      steps={TENTS_STEPS}
-      {...flow}
-      onDone={onDone}
-      renderBoard={size => <TentsBoard puzzle={board.puzzle} state={board.state} size={size} solved={flow.phase === 'done'} onToggleCell={tap} flashCell={flash} />}
-    />
-  );
-}
-
 // --- Lanterns ---------------------------------------------------------------------
 
 const lanterns = (lit: ReadonlyArray<Cell>): { puzzle: LightsOutPuzzle; state: LightsOutState } => {
@@ -218,67 +158,6 @@ export function LanternsLesson({ onDone }: { onDone: () => void }): React.JSX.El
       {...flow}
       onDone={onDone}
       renderBoard={size => <LightsOutBoard puzzle={board.puzzle} state={board.state} size={size} solved={flow.phase === 'done'} onPressCell={tap} flashCell={flash} />}
-    />
-  );
-}
-
-// --- Pixel Clues --------------------------------------------------------------------
-
-const PIXEL: FillaPixPuzzle = {
-  id: 'lesson-pixel',
-  difficulty: 'easy',
-  size: 4,
-  solution: [
-    [true, true, false, false],
-    [true, true, false, false],
-    [false, false, false, false],
-    [false, false, false, false],
-  ],
-  clues: [
-    { row: 0, col: 0 },
-    { row: 3, col: 3 },
-  ],
-};
-const blankPixels = (): FillaPixState => ({ filled: Array.from({ length: 4 }, () => [false, false, false, false]) });
-const CORNER: ReadonlyArray<Cell> = [
-  { row: 0, col: 0 },
-  { row: 0, col: 1 },
-  { row: 1, col: 0 },
-  { row: 1, col: 1 },
-];
-const PIXEL_STEPS: ReadonlyArray<GridStep<FillaPixPuzzle, FillaPixState>> = [
-  {
-    title: 'A number counts its block',
-    say: 'Each number counts the filled squares in the block around it, its own square included. In a corner the block is only four squares, so a 4 fills them all.',
-    hint: 'Fill the glowing squares, one tap each.',
-    praise: 'The 4 is complete: every square of its block is filled.',
-    target: s => CORNER.find(c => !s.filled[c.row][c.col]) ?? null,
-    goal: s => CORNER.every(c => s.filled[c.row][c.col]),
-  },
-  {
-    title: 'A 0 keeps its block empty',
-    say: 'This 0 says none of the squares around it are filled. One of them is, by mistake.',
-    hint: 'Tap the glowing square to clear it.',
-    praise: 'Every number matches, and the picture appears.',
-    target: { row: 2, col: 2 },
-    goal: s => !s.filled[2][2],
-    board: {
-      puzzle: PIXEL,
-      state: { filled: [[true, true, false, false], [true, true, false, false], [false, false, true, false], [false, false, false, false]] },
-    },
-  },
-];
-
-export function PixelCluesLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
-  const { board, flow, tap, flash } = useGridLesson({ puzzle: PIXEL, state: blankPixels() }, PIXEL_STEPS, (_p, s, r, c) => toggleCell(s, r, c));
-  return (
-    <LessonShell
-      gameName="Pixel Clues"
-      accent={accentColorForKind('fillapix')}
-      steps={PIXEL_STEPS}
-      {...flow}
-      onDone={onDone}
-      renderBoard={size => <FillaPixBoard puzzle={board.puzzle} state={board.state} size={size} solved={flow.phase === 'done'} onToggleCell={tap} flashCell={flash} />}
     />
   );
 }

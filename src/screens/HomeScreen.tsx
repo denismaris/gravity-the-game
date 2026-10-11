@@ -1,4 +1,5 @@
 import { Canvas, Path, RoundedRect } from '@shopify/react-native-skia';
+import { Icon } from '../components/Icon';
 import React, {
   useCallback,
   useEffect,
@@ -46,7 +47,6 @@ import {
   unclaimedChapters,
   unclaimedErrands,
   usePlayerProgress,
-  buildDailyShare,
   giftFor,
   unclaimedSets,
   canBuild,
@@ -57,6 +57,7 @@ import {
   unlockedGames,
 } from '../progression';
 import { DailyGiftCard } from '../components/DailyGiftCard';
+import { StreakCalendar, WeekStrip } from '../components/StreakCalendar';
 import { getLevelById } from '../game/levels';
 import {
   accentColorForKind,
@@ -66,6 +67,7 @@ import {
   getDailyEntry,
   getWeeklyGrand,
   dailyKeyOf,
+  ROTATION,
 } from '../game/journey';
 import {
   AlmanacBackdrop,
@@ -173,7 +175,14 @@ export interface HomeScreenProps {
   onOpenCollection?: () => void;
   /** The Villa: what the puzzles build. */
   onOpenVilla?: () => void;
+  /** TEMPORARY: opens a game being tried out (see `TRIAL_BUTTONS`). */
+  onOpenTrial?: (game: 'lilypads' | 'vanes') => void;
 }
+
+/** TEMPORARY, for trying Lily Pads and Weathervanes before either joins
+ * the rotation: two buttons on Home that open them. Turn off (false)
+ * before a store build. */
+export const TRIAL_BUTTONS = true;
 
 /** How tall a card gets on a phone with room to spare. Tuned to what the
  * fullest card actually holds rather than to the screen: taller than this
@@ -230,6 +239,7 @@ export function HomeScreen({
   onOpenLedger,
   onOpenCollection,
   onOpenVilla,
+  onOpenTrial,
   onOpenLeaderboard,
 }: HomeScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
@@ -257,7 +267,7 @@ export function HomeScreen({
     loop.start();
     return () => loop.stop();
   }, [pulse, reducedMotion]);
-  const { progress, ready, markLevelOpened, dailyStreak, dailyCompletedToday, coins, collectRanks, swapPuzzle, claimGift, levelStars } =
+  const { progress, ready, markLevelOpened, dailyStreak, dailyCompletedToday, coins, collectRanks, swapPuzzle, claimGift } =
     usePlayerProgress();
 
   // Swapping the puzzle you are stuck on (see the Continue card).
@@ -299,11 +309,6 @@ export function HomeScreen({
   const isGravity = entry.kind === 'gravity';
 
   const gravityLevel = isGravity ? getLevelById(entry.puzzleId) : undefined;
-  // The hero card's own progress bar tracks *this batch* (a handful of
-  // puzzles, so it actually fills up and resets at a satisfying pace) - the
-  // lifetime total across every game lives on the progress card instead
-  // (`solved`/`TOTAL_PUZZLE_COUNT`).
-  const batchSolved = progress.currentBatch?.completedPuzzleIds.length ?? 0;
   // Games arrive one at a time (see `INTRO_ORDER`): a debut in this set is
   // marked new, the next arrival is teased, and Swap waits until there is
   // a second game to swap to.
@@ -315,7 +320,6 @@ export function HomeScreen({
   const debut = !levelPoint.allDone && !played.has(entry.kind);
   const { hasSeenTutorial } = useSettings();
   const lessonFirst = debut && !hasSeenTutorial(tutorialIdForGame(entry.kind));
-  const pct = levelPoint.batchSize ? batchSolved / levelPoint.batchSize : 0;
   const aptitude = useMemo(() => computeAptitude(progress), [progress]);
   // Deliberately `aptitude.solved`, not `getCompletedCount` - the save
   // still holds completions for puzzles that no longer exist (retired
@@ -354,23 +358,16 @@ export function HomeScreen({
   // lives on `PlayerProgress.daily` and updates itself the moment
   // `recordCompletion` sees this exact puzzle id solved, from whichever
   // screen plays it.
-  const daily = useMemo(() => getDailyEntry(), []);
-  const shareDaily = (): void => {
-    const message = buildDailyShare({
-      dayKey: todayKey,
-      game: gameDisplayName(daily.kind),
-      stars: levelStars(daily.puzzleId),
-      ms: progress.dailyTimes[todayKey] ?? null,
-      streak: dailyStreak,
-    });
-    Share.share({ message }).catch(() => {});
-  };
+  // Cheap: answered from a cache, and follows the games still arriving.
+  const daily = getDailyEntry();
+  const dailyDays = useMemo(() => new Set(progress.dailyDays), [progress.dailyDays]);
+  const [calendarOpen, setCalendarOpen] = useState(false);
   const openDaily = (): void =>
     onOpen({ kind: daily.kind, puzzleId: daily.puzzleId });
 
   // The Weekly Grand - one hard board a week, paying coins and, at a few
   // milestones, a cosmetic the shop does not sell.
-  const grand = useMemo(() => getWeeklyGrand(new Date(), progress.retired), [progress.retired]);
+  const grand = useMemo(() => getWeeklyGrand(new Date(), progress.retired, arriving ? roster : null), [progress.retired, arriving, roster]);
   const grandDone = isGrandSolved(progress, grand.week);
   const grandNext = nextGrandReward(progress);
   const grandNextItem = grandNext ? cosmeticById(grandNext.cosmetic) : undefined;
@@ -384,7 +381,6 @@ export function HomeScreen({
   // fill animates separately so it reads as "counting up to here" rather
   // than popping straight to its resting width.
   const mount = useRef(new Animated.Value(0)).current;
-  const trackFill = useRef(new Animated.Value(0)).current;
   useEffect(() => {
     mount.setValue(0);
     Animated.timing(mount, {
@@ -394,15 +390,6 @@ export function HomeScreen({
       useNativeDriver: true,
     }).start();
   }, [mount]);
-  useEffect(() => {
-    Animated.timing(trackFill, {
-      toValue: pct,
-      duration: 700,
-      delay: 220,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true, // a scaleX from the left edge, so it runs on the UI thread
-    }).start();
-  }, [pct, trackFill]);
 
   // Opens on the tab the player left from: Home unmounts behind every other
   // screen, so a trip to Your games from the You tab used to land on Play.
@@ -417,6 +404,16 @@ export function HomeScreen({
   // the finger frame for frame, with no JavaScript in the loop (the first
   // version set React state from every scroll event and stuttered).
   const scrollX = useRef(new Animated.Value(rememberedPage * width)).current;
+  // A page sliding in rises to full size and brightness as it settles; one
+  // sliding away eases back - the cards breathe with the swipe instead of
+  // moving as flat panels. Native driver, tied to the scroll itself.
+  const pageMotion = (i: number) => {
+    const range = [(i - 1) * width, i * width, (i + 1) * width];
+    return {
+      opacity: scrollX.interpolate({ inputRange: range, outputRange: [0.45, 1, 0.45], extrapolate: 'clamp' }),
+      transform: [{ scale: scrollX.interpolate({ inputRange: range, outputRange: [0.93, 1, 0.93], extrapolate: 'clamp' }) }],
+    };
+  };
   const onCarouselNativeScroll = useMemo(() => Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true }), [scrollX]);
   const goToPage = useCallback(
     (index: number) => {
@@ -458,6 +455,10 @@ export function HomeScreen({
       MAX_CARD_HEIGHT,
     ),
   );
+
+  // A short phone: the Today page drops its week strip and slims its
+  // errands so all three still show (see `ErrandList`'s `dense`).
+  const tight = cardHeight < 370;
 
   const accent = accentColorForKind(entry.kind);
 
@@ -537,8 +538,19 @@ export function HomeScreen({
         {/* U+FE0E forces the plain monochrome glyph - without it iOS renders
             a full-colour emoji gear that clashes with the flat paper
             palette (Android already renders plain either way). */}
-        <Text style={styles.settingsGlyph}>{'⚙︎'}</Text>
+        <Icon name="settings" size={20} color={theme.colors.textSecondary} />
       </PressableScale>
+
+      {TRIAL_BUTTONS && onOpenTrial && (
+        <View style={[styles.trials, { top: insets.top + 128 }]}>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Try Lily Pads" onPress={() => onOpenTrial('lilypads')} hitSlop={6} style={[styles.trial, { borderColor: theme.colors.lilyAccent }]}>
+            <Text style={[styles.trialText, { color: theme.colors.lilyAccent }]}>Try Lily Pads</Text>
+          </PressableScale>
+          <PressableScale accessibilityRole="button" accessibilityLabel="Try Weathervanes" onPress={() => onOpenTrial('vanes')} hitSlop={6} style={[styles.trial, { borderColor: theme.colors.vaneAccent }]}>
+            <Text style={[styles.trialText, { color: theme.colors.vaneAccent }]}>Try Vanes</Text>
+          </PressableScale>
+        </View>
+      )}
 
       {/* The leaderboards, one tap from anywhere on Home - opposite the
           gear, so the masthead stays symmetrical. */}
@@ -587,53 +599,62 @@ export function HomeScreen({
         {/* The coin balance shares the reserved row with the streak nudge -
             in flow, side by side, so neither can drift into the wordmark
             or the gear the way absolutely-placed badges here once did. */}
+        {/* The player's purse in one quiet line: coins (the way into the
+            shop), Insight, and the Daily streak - plain figures with drawn
+            marks, not a row of outlined chips. */}
         <View style={styles.streakSlot}>
-          <PressableScale accessibilityRole="button" accessibilityLabel={`Shop. You have ${coins} coins.`} onPress={onOpenShop} hitSlop={8}>
-            <View style={styles.purse}>
-              {/* Says what it is: the way into the shop, not just a number. */}
-              <View style={styles.shopTag}>
+          <View style={styles.status}>
+            <PressableScale accessibilityRole="button" accessibilityLabel={`Shop. You have ${coins} coins.`} onPress={onOpenShop} hitSlop={8}>
+              <View style={styles.statusItem}>
                 <ShopBag />
-                <Text style={styles.shopTagText}>Shop</Text>
+                <CoinBalance coins={coins} />
+                {progress.luckyCharges > 0 && <Text style={styles.purseCharm}>{'\u00D72'}</Text>}
+                {PURCHASES_ENABLED && (
+                  <View style={styles.pursePlus}>
+                    <Text style={styles.pursePlusText}>+</Text>
+                  </View>
+                )}
+                {setsReady > 0 && <View style={styles.statusDot} accessibilityLabel="A set bonus is ready in the shop" />}
               </View>
-              {progress.patron && <View style={styles.pursePatron} accessible accessibilityLabel="Patron" />}
-              <CoinBalance coins={coins} />
-              {progress.luckyCharges > 0 && <Text style={styles.purseCharm}>{'\u00D72'}</Text>}
-              {PURCHASES_ENABLED && (
-                <View style={styles.pursePlus}>
-                  <Text style={styles.pursePlusText}>+</Text>
-                </View>
-              )}
-              {setsReady > 0 && <View style={styles.purseDot} accessibilityLabel="A set bonus is ready in the shop" />}
-            </View>
-          </PressableScale>
-          <View style={styles.insightChip} accessible accessibilityLabel={`${progress.insights} Insight`}>
-            <Text style={styles.insightGlyph}>{'\u2726'}</Text>
-            <Text style={styles.insightChipText}>{progress.insights}</Text>
+            </PressableScale>
+            <View style={styles.statusRule} />
+            <PressableScale accessibilityRole="button" accessibilityLabel={`${progress.insights} Insight. Open the shop`} onPress={onOpenShop} hitSlop={8}>
+              <View style={styles.statusItem}>
+                <Icon name="spark" size={13} color={theme.colors.accent} />
+                <Text style={styles.statusText}>{progress.insights}</Text>
+              </View>
+            </PressableScale>
+            {!showVilla && (
+              <>
+                <View style={styles.statusRule} />
+                <PressableScale accessibilityRole="button" accessibilityLabel={`The Villa. ${progress.tesserae} tiles${villaReady ? ', ready to build' : ''}.`} onPress={onOpenVilla} hitSlop={8}>
+                  <View style={styles.statusItem}>
+                    <TileGlyph size={12} />
+                    <Text style={styles.statusText}>{progress.tesserae}</Text>
+                    {villaReady && <View style={styles.statusDot} />}
+                  </View>
+                </PressableScale>
+              </>
+            )}
+            {dailyStreak > 0 && (
+              <>
+                <View style={styles.statusRule} />
+                <PressableScale
+                  accessibilityRole="button"
+                  accessibilityLabel={dailyCompletedToday ? `${dailyStreak} day streak` : `${dailyStreak} day streak. Play today's Daily to keep it.`}
+                  onPress={openDaily}
+                  hitSlop={8}
+                >
+                  <View style={styles.statusItem}>
+                    <Icon name="sun" size={14} color={dailyCompletedToday ? theme.colors.textSecondary : theme.colors.secondary} weight={1.5} />
+                    <Text style={styles.statusText}>{dailyStreak}</Text>
+                    {/* Today's Daily still to play: a dot, not a word. */}
+                    {!dailyCompletedToday && <View style={styles.statusDot} />}
+                  </View>
+                </PressableScale>
+              </>
+            )}
           </View>
-          {/* The Villa: tiles in hand, and a dot when there is something to
-            build - only where the page has no room for its window below. */}
-          {!showVilla && (
-            <PressableScale accessibilityRole="button" accessibilityLabel={`The Villa. ${progress.tesserae} tiles${villaReady ? ', ready to build' : ''}.`} onPress={onOpenVilla} hitSlop={8}>
-              <View style={styles.insightChip}>
-                <TileGlyph size={12} />
-                <Text style={styles.insightChipText}>{progress.tesserae}</Text>
-                {villaReady && <View style={styles.purseDot} />}
-              </View>
-            </PressableScale>
-          )}
-          {dailyStreak > 0 && (
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={dailyCompletedToday ? `${dailyStreak} day streak` : `${dailyStreak} day streak. Play today's Daily to keep it.`}
-              onPress={openDaily}
-              hitSlop={6}
-              containerStyle={[styles.streakNudge, dailyCompletedToday && styles.streakNudgeDone]}
-            >
-              <Text style={[styles.streakNudgeText, dailyCompletedToday && styles.streakNudgeTextDone]}>
-                {dailyCompletedToday ? `\u2600\uFE0E ${dailyStreak}` : `\u2600\uFE0E ${dailyStreak} · play`}
-              </Text>
-            </PressableScale>
-          )}
         </View>
       </Animated.View>
 
@@ -669,6 +690,7 @@ export function HomeScreen({
           >
             {/* --- Continue ------------------------------------------------ */}
             <View style={[styles.page, { width }]}>
+              <Animated.View style={[styles.pageInner, pageMotion(0)]}>
               <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel={`${
@@ -733,7 +755,7 @@ export function HomeScreen({
                   <View
                     style={[styles.headingRule, { backgroundColor: accent }]}
                   />
-                  <Text style={styles.heroTitle} numberOfLines={2}>
+                  <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.62}>
                     {entry.name}
                   </Text>
                   <Text style={styles.heroMeta}>
@@ -783,7 +805,7 @@ export function HomeScreen({
                                 the challenge rule: worth seeing coming. */}
                               {!done && !played.has(entryRef.kind) && (
                                 <View style={[styles.setNew, { backgroundColor: accentColorForKind(entryRef.kind) }]} accessibilityLabel="new game">
-                                  <Text style={styles.setNewText}>NEW</Text>
+                                  <Text style={styles.setNewText}>New</Text>
                                 </View>
                               )}
                               {entryRef.golden && !done && (
@@ -820,17 +842,6 @@ export function HomeScreen({
                       </View>
                     )}
 
-                    <View style={styles.track}>
-                      <Animated.View
-                        style={[
-                          styles.trackFill,
-                          {
-                            backgroundColor: accent,
-                            width: '100%', transformOrigin: 'left', transform: [{ scaleX: trackFill.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }) }],
-                          },
-                        ]}
-                      />
-                    </View>
                     {/* The next game on its way: a small promise, kept a
                       few puzzles from now. Named only once it lands. */}
                     <View style={styles.cardFoot}>
@@ -845,7 +856,7 @@ export function HomeScreen({
                         >
                           {/* The next game, waiting: its emblem, faded, and
                             a bar that fills with every puzzle of the game
-                            being learned. Ten of those, and it arrives. */}
+                            being learned. Enough of those, and it arrives. */}
                           <View style={styles.nextEmblem}>
                             <GameEmblem kind={arriving.kind} size={26} />
                           </View>
@@ -873,10 +884,17 @@ export function HomeScreen({
                           hitSlop={8}
                           containerStyle={styles.swapWrap}
                         >
-                          <View style={styles.swap}>
-                            <Text style={[styles.swapText, swapNote === 'short' && styles.swapShort]}>
-                              {swapNote === 'short' ? `You need ${SWAP_PRICE} coins` : swapNote === 'done' ? 'Swapped \u2713\uFE0E' : '\u21C4\uFE0E  Swap game'}
-                            </Text>
+                          <View style={[styles.swap, arriving && styles.swapBeside]}>
+                            {swapNote === 'done' ? (
+                              <Icon name="check" size={14} color={theme.colors.success} weight={2.2} />
+                            ) : swapNote === 'short' ? (
+                              <Text style={[styles.swapText, styles.swapShort]}>{`Need ${SWAP_PRICE}`}</Text>
+                            ) : (
+                              <>
+                                <Icon name="swap" size={14} color={theme.colors.textSecondary} />
+                                {!arriving && <Text style={styles.swapText}>Swap game</Text>}
+                              </>
+                            )}
                             {swapNote === null && (
                               <>
                                 <CoinGlyph size={11} />
@@ -925,6 +943,7 @@ export function HomeScreen({
                   </View>
                 </>
               </PressableScale>
+              </Animated.View>
             </View>
 
             {/* --- Today -------------------------------------------------- */}
@@ -932,6 +951,7 @@ export function HomeScreen({
               resets at midnight, together. The Daily is the well at the
               top (tap it to play); the errands sit under it. */}
             <View style={[styles.page, { width }]}>
+              <Animated.View style={[styles.pageInner, pageMotion(1)]}>
               <View style={[styles.card, { height: cardHeight }]}>
                 <View style={styles.cardHead}>
                   <Text style={styles.eyebrowMuted}>Today</Text>
@@ -946,7 +966,7 @@ export function HomeScreen({
                   onPress={openDaily}
                   scaleTo={0.98}
                 unstable_pressDelay={110}
-                  style={[styles.todayDaily]}
+                  style={[styles.todayDaily, tight && styles.todayDailyTight]}
                 >
                   <View style={styles.todayDailyRow}>
                     <GameEmblem kind={daily.kind} size={46} />
@@ -956,13 +976,13 @@ export function HomeScreen({
                         {daily.name}
                       </Text>
                       <Text style={styles.dailyChapter} numberOfLines={1}>
-                        {daily.chapter}
+                        {tight ? (dailyStreak > 0 ? `${daily.chapter} · ${dailyStreak}-day streak` : daily.chapter) : daily.chapter}
                       </Text>
                     </View>
                     {/* Solved: a tick, not a play button - today's is done. */}
                     {dailyCompletedToday ? (
                       <View style={[styles.play, styles.playSmall, styles.playDone]}>
-                        <Text style={styles.playDoneGlyph}>{'\u2713\uFE0E'}</Text>
+                        <Icon name="check" size={20} color={theme.colors.surfaceHi} weight={2.4} />
                       </View>
                     ) : (
                       <View style={[styles.play, styles.playSmall]}>
@@ -970,42 +990,45 @@ export function HomeScreen({
                       </View>
                     )}
                   </View>
+                  {/* The week of Dailies (tap for the whole calendar), and in
+                      one line beside it the streak or today's time. */}
+                  {!tight && (
                   <View style={styles.todayStreak}>
-                    <View style={[styles.streakRow, styles.todayMarks]}>
-                      {Array.from({ length: STREAK_MARKS }, (_, i) => (
-                        <View key={i} style={[styles.streakMark, i < Math.min(dailyStreak, STREAK_MARKS) && styles.streakMarkLit]} />
-                      ))}
+                    <WeekStrip days={dailyDays} todayKey={todayKey} onPress={() => setCalendarOpen(true)} />
+                    <View style={styles.todayStreakSide}>
+                      <Text style={styles.todayStreakCount} numberOfLines={1}>
+                        {dailyStreak > 0 ? `${dailyStreak}-day streak` : 'No streak yet'}
+                      </Text>
+                      <Text style={styles.todayStatus} numberOfLines={1}>
+                        {dailyCompletedToday
+                          ? progress.dailyTimes[todayKey]
+                            ? `Solved in ${formatDuration(progress.dailyTimes[todayKey])}`
+                            : 'Solved today'
+                          : dailyStreak > 0
+                            ? 'Play to keep it'
+                            : 'New every day'}
+                      </Text>
                     </View>
-                    <Text style={styles.todayStreakCount}>{dailyStreak > 0 ? `${dailyStreak}-day streak` : 'No streak yet'}</Text>
                   </View>
-                  <View style={styles.todayStatusRow}>
-                  <Text style={[styles.todayStatus, styles.todayStatusText]} numberOfLines={1}>
-                    {dailyCompletedToday
-                      ? progress.dailyTimes[todayKey]
-                        ? `Solved in ${formatDuration(progress.dailyTimes[todayKey])}. A new one tomorrow.`
-                        : 'Solved. A new one tomorrow.'
-                      : dailyStreak > 0
-                        ? 'Play today to keep your streak.'
-                        : 'A new puzzle every day.'}
-                  </Text>
-                  {dailyCompletedToday && (
-                    <PressableScale accessibilityRole="button" accessibilityLabel="Share today's Daily result" onPress={shareDaily} hitSlop={10} containerStyle={styles.shareButton}>
-                      <Text style={styles.shareGlyph}>{'⬆︎'}</Text>
-                    </PressableScale>
                   )}
-                  </View>
                 </PressableScale>
 
-                <View style={styles.todaySpacer} />
-                <ErrandList compact />
+                <View style={[styles.todaySpacer, tight && styles.todaySpacerTight]} />
+                {/* On a small phone the three errands may not all fit under
+                    the Daily: then they scroll, rather than being cut off. */}
+                <ScrollView style={styles.todayErrands} showsVerticalScrollIndicator={false} bounces={false}>
+                  <ErrandList compact dense={tight} />
+                </ScrollView>
               </View>
+              </Animated.View>
             </View>
 
             {/* --- Weekly Grand -------------------------------------------- */}
             <View style={[styles.page, { width }]}>
+              <Animated.View style={[styles.pageInner, pageMotion(2)]}>
               <PressableScale
                 accessibilityRole="button"
-                accessibilityLabel={`Weekly Grand: ${grand.name}, a hard ${gameDisplayName(grand.kind)} board. ${
+                accessibilityLabel={`Weekly Grand: ${grand.name}, a ${grand.tier} ${gameDisplayName(grand.kind)} board. ${
                   grandDone ? 'Solved this week.' : `${grand.daysLeft} day${grand.daysLeft === 1 ? '' : 's'} left. Pays ${GRAND_COINS} coins.`
                 }${grandNextItem ? ` ${grandNext!.at - grandsSolved} more to win ${grandNextItem.name}.` : ''}`}
                 onPress={openGrand}
@@ -1025,7 +1048,7 @@ export function HomeScreen({
                     <Text style={styles.dailyTitle} numberOfLines={2}>
                       {grand.name}
                     </Text>
-                    <Text style={styles.dailyChapter}>Hard · {gameDisplayName(grand.kind)} · one a week</Text>
+                    <Text style={styles.dailyChapter}>{grand.tier === 'hard' ? 'Hard' : 'Medium'} · {gameDisplayName(grand.kind)} · one a week</Text>
                   </View>
                 </View>
 
@@ -1051,7 +1074,7 @@ export function HomeScreen({
                             {item && <CosmeticPreview item={item} size={36} />}
                             {won && (
                               <View style={styles.grandTick}>
-                                <Text style={styles.grandTickText}>{'\u2713\uFE0E'}</Text>
+                                <Icon name="check" size={11} color={theme.colors.surfaceHi} weight={2.6} />
                               </View>
                             )}
                           </View>
@@ -1076,6 +1099,7 @@ export function HomeScreen({
                   </View>
                 </View>
               </PressableScale>
+              </Animated.View>
             </View>
 
             {/* --- You ---------------------------------------------------- */}
@@ -1083,6 +1107,7 @@ export function HomeScreen({
               three (Rank, Puzzle IQ, Progress). Each figure opens where its
               detail lives: the almanac, the ledger, the achievements. */}
             <View style={[styles.page, { width }]}>
+              <Animated.View style={[styles.pageInner, pageMotion(3)]}>
               <View style={[styles.card, { height: cardHeight }]}>
                 <View style={styles.cardHead}>
                   <Text style={styles.eyebrowMuted}>You</Text>
@@ -1095,7 +1120,7 @@ export function HomeScreen({
                       <Text style={[styles.badge, styles.badgeDone]}>Rank {toRoman(rank.number)}</Text>
                     )}
                     <PressableScale accessibilityRole="button" accessibilityLabel="Share your progress" onPress={shareProgress} hitSlop={10} containerStyle={styles.shareButton}>
-                      <Text style={styles.shareGlyph}>{'⬆︎'}</Text>
+                      <Icon name="share" size={15} color={theme.colors.textPrimary} />
                     </PressableScale>
                   </View>
                 </View>
@@ -1120,67 +1145,38 @@ export function HomeScreen({
                       <XpBar share={rank.share} style={styles.rankBar} />
                     </View>
                   </View>
+                  {/* The chapter, in one quiet line - its track lives in the
+                      almanac, which this card opens. */}
                   <View style={styles.youChapter}>
-                    <View style={styles.youChapterHead}>
-                      <Text style={styles.sectionLabel} numberOfLines={1}>{`Chapter ${toRoman(chapterNow.chapter.number)} · ${chapterNow.chapter.name}`}</Text>
-                      <Text style={styles.youChapterLeft}>{`${LEVELS_PER_CHAPTER - chapterNow.levelsDone} to go`}</Text>
-                    </View>
-                    <View style={styles.chapterTicks}>
-                      {Array.from({ length: LEVELS_PER_CHAPTER }, (_v, i) => (
-                        <View key={i} style={[styles.chapterTick, styles.youTick, i < chapterNow.levelsDone && styles.chapterTickDone, i === chapterNow.levelsDone && styles.chapterTickNow]} />
-                      ))}
-                    </View>
+                    <Text style={styles.sectionLabel} numberOfLines={1}>{`Chapter ${toRoman(chapterNow.chapter.number)} · ${chapterNow.chapter.name}`}</Text>
+                    <Text style={styles.youChapterLeft}>{`${LEVELS_PER_CHAPTER - chapterNow.levelsDone} to go`}</Text>
                   </View>
                 </PressableScale>
 
-                {/* The record: four figures, each a door to its detail. */}
-                <View style={styles.youFigures}>
-                  <PressableScale accessibilityRole="button" accessibilityLabel={`${totalStars} stars, ${solved} of ${aptitude.total} puzzles solved. Open achievements`} onPress={onOpenAchievements} containerStyle={styles.figure}>
-                    <Text style={styles.youValue}>{totalStars}</Text>
-                    <Text style={styles.figureLabel}>
-                      <Text style={styles.figureStar}>★</Text> Stars
-                    </Text>
-                  </PressableScale>
-                  <View style={styles.figureRule} />
-                  <PressableScale accessibilityRole="button" accessibilityLabel={`${solved} of ${aptitude.total} puzzles solved. Open achievements`} onPress={onOpenAchievements} containerStyle={styles.figure}>
-                    <Text style={styles.youValue}>{solved}</Text>
-                    <Text style={styles.figureLabel}>Solved</Text>
-                  </PressableScale>
-                  <View style={styles.figureRule} />
-                  <PressableScale accessibilityRole="button" accessibilityLabel={`${earned} of ${ACHIEVEMENTS.length} badges. Open achievements`} onPress={onOpenAchievements} containerStyle={styles.figure}>
-                    <Text style={styles.youValue}>
-                      {earned}
-                      <Text style={styles.figureOf}>/{ACHIEVEMENTS.length}</Text>
-                    </Text>
-                    <Text style={styles.figureLabel}>Badges</Text>
-                  </PressableScale>
-                  <View style={styles.figureRule} />
-                  <PressableScale accessibilityRole="button" accessibilityLabel={iqLabel} onPress={onOpenLedger} containerStyle={styles.figure}>
-                    <Text style={styles.youValue}>{aptitude.index ?? '-'}</Text>
-                    <Text style={styles.figureLabel}>Puzzle IQ</Text>
-                  </PressableScale>
-                </View>
-
+                {/* Where the rest lives: four doors, two by two, each with
+                    one line of where it stands. */}
                 <View style={styles.youLinks}>
-                  <PressableScale accessibilityRole="button" accessibilityLabel="Open your games" onPress={onOpenCollection} containerStyle={styles.youLinkWrap} style={[styles.youLink]}>
-                    <Text style={styles.youLinkText}>Games</Text>
-                  </PressableScale>
-                  <PressableScale accessibilityRole="button" accessibilityLabel="Open the ledger" onPress={onOpenLedger} containerStyle={styles.youLinkWrap} style={[styles.youLink]}>
-                    <Text style={styles.youLinkText}>Ledger</Text>
-                    {stampsWaiting > 0 && <View style={styles.youLinkDot} />}
-                  </PressableScale>
-                  <PressableScale accessibilityRole="button" accessibilityLabel="Open achievements" onPress={onOpenAchievements} containerStyle={styles.youLinkWrap} style={[styles.youLink]}>
-                    <Text style={styles.youLinkText}>Badges</Text>
-                  </PressableScale>
-                  <PressableScale accessibilityRole="button" accessibilityLabel="Open the leaderboards" onPress={onOpenLeaderboard} containerStyle={styles.youLinkWrap} style={[styles.youLink]}>
-                    <Text style={styles.youLinkText}>Ranks</Text>
-                  </PressableScale>
-                  <PressableScale accessibilityRole="button" accessibilityLabel="Open your almanac" onPress={onOpenJourney} containerStyle={styles.youLinkWrap} style={[styles.youLink]}>
-                    <Text style={styles.youLinkText}>Almanac</Text>
-                    {chaptersWaiting > 0 && <View style={styles.youLinkDot} />}
-                  </PressableScale>
+                  {[
+                    { label: 'Games', note: `${roster.length} of ${ROTATION.length} · ${solved} solved`, a11y: 'Open your games', onPress: onOpenCollection, dot: false },
+                    { label: 'Badges', note: `${earned} of ${ACHIEVEMENTS.length} · ${totalStars} \u2605`, a11y: 'Open achievements', onPress: onOpenAchievements, dot: false },
+                    { label: 'Ledger', note: stampsWaiting > 0 ? `${stampsWaiting} stamp${stampsWaiting === 1 ? '' : 's'} to claim` : aptitude.index !== null ? `Puzzle IQ ${aptitude.index}` : 'Stamps and records', a11y: `Open the ledger. ${iqLabel}`, onPress: onOpenLedger, dot: stampsWaiting > 0 },
+                    { label: 'Leaderboards', note: 'Daily and all time', a11y: 'Open the leaderboards', onPress: onOpenLeaderboard, dot: false },
+                  ].map(link => (
+                    <PressableScale key={link.label} accessibilityRole="button" accessibilityLabel={`${link.a11y}. ${link.note}`} onPress={link.onPress} scaleTo={0.97} containerStyle={styles.youLinkWrap} style={styles.youLink}>
+                      <View style={styles.youLinkHead}>
+                        <Text style={styles.youLinkText} numberOfLines={1}>
+                          {link.label}
+                        </Text>
+                        {link.dot && <View style={styles.youLinkDot} />}
+                      </View>
+                      <Text style={styles.youLinkNote} numberOfLines={1}>
+                        {link.note}
+                      </Text>
+                    </PressableScale>
+                  ))}
                 </View>
               </View>
+              </Animated.View>
             </View>
           </Animated.ScrollView>
         </View>
@@ -1249,6 +1245,7 @@ export function HomeScreen({
           }}
         />
       )}
+      {calendarOpen && <StreakCalendar days={dailyDays} todayKey={todayKey} streak={dailyStreak} best={progress.bestDailyStreak} onClose={() => setCalendarOpen(false)} />}
       {rankUp && (
         <RankUpCard
           rank={rankUp.rank}
@@ -1264,9 +1261,6 @@ export function HomeScreen({
   );
 }
 
-/** A week. Long enough that a real streak has somewhere to go, short
- * enough that the marks stay big enough to read. */
-const STREAK_MARKS = 7;
 
 /** The streak-nudge row's fixed height, reserved whether or not the nudge
  * itself is showing that day - see `styles.streakSlot`'s own comment. */
@@ -1290,6 +1284,11 @@ const styles = themedStyles(() => ({
   ruleLine: { width: 44, height: StyleSheet.hairlineWidth * 2, backgroundColor: theme.colors.borderStrong },
   pursePlus: { width: 18, height: 18, borderRadius: 9, backgroundColor: theme.colors.goldFill, alignItems: 'center', justifyContent: 'center' },
   pursePlusText: { color: theme.colors.onGold, fontSize: 13, lineHeight: 15, fontWeight: theme.typography.weights.bold },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 7, borderRadius: theme.radii.pill, backgroundColor: theme.colors.surface },
+  statusItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  statusText: { fontSize: 14, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  statusRule: { width: StyleSheet.hairlineWidth, height: 14, backgroundColor: theme.colors.borderStrong },
+  statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.secondary },
   streakNudgeDone: { borderColor: theme.colors.border },
   streakNudgeTextDone: { color: theme.colors.textSecondary },
   todayDaily: {
@@ -1307,25 +1306,26 @@ const styles = themedStyles(() => ({
   playDoneGlyph: { color: theme.colors.surfaceHi, fontSize: 18, fontWeight: theme.typography.weights.bold },
   playSmall: { width: 42, height: 42, borderRadius: 21 },
   playTriSmall: { borderTopWidth: 8, borderBottomWidth: 8, borderLeftWidth: 12, marginLeft: 4 },
-  todayStreak: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.md },
-  todayMarks: { flex: 1 },
+  todayStreak: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: theme.spacing.sm },
+  todayStreakSide: { alignItems: 'flex-end', gap: 1 },
+  todayErrands: { flexGrow: 0, flexShrink: 1 },
   todayStreakCount: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
-  todayStatusRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm, marginTop: 6 },
-  todayStatusText: { flex: 1, marginTop: 0 },
-  todayStatus: { marginTop: 6, fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
-  todaySpacer: { flex: 1, minHeight: theme.spacing.md },
+  todayStatus: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
+  todaySpacer: { flex: 1, minHeight: theme.spacing.sm },
+  todaySpacerTight: { minHeight: 4 },
+  todayDailyTight: { marginTop: theme.spacing.sm, paddingVertical: theme.spacing.sm },
   youHeadRight: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   youRank: { marginTop: theme.spacing.sm, padding: theme.spacing.md, borderRadius: theme.radii.lg, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.background },
-  youChapter: { marginTop: theme.spacing.md },
-  youChapterHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: theme.spacing.sm },
+  youChapter: { marginTop: theme.spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: theme.spacing.sm },
   youChapterLeft: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary },
-  youTick: { height: 7 },
   youFigures: { flexDirection: 'row', alignItems: 'center', marginTop: 'auto', marginBottom: 'auto' },
   youValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  youLinks: { flexDirection: 'row', gap: 6 },
-  youLinkWrap: { flex: 1 },
-  youLink: { alignItems: 'center', paddingVertical: 10, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong, flexDirection: 'row', justifyContent: 'center', gap: 6 },
-  youLinkText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
+  youLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 'auto' },
+  youLinkWrap: { width: '48.5%', flexGrow: 1 },
+  youLink: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, backgroundColor: theme.colors.background, gap: 2 },
+  youLinkHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  youLinkText: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
+  youLinkNote: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   youLinkDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.secondary },
   pursePatron: { width: 9, height: 9, borderRadius: 2, marginRight: 6, transform: [{ rotate: '45deg' }], backgroundColor: theme.colors.gold, borderWidth: 1.5, borderColor: theme.colors.goldRim },
   purseDot: { width: 7, height: 7, borderRadius: 4, marginLeft: 4, backgroundColor: theme.colors.secondary },
@@ -1342,6 +1342,7 @@ const styles = themedStyles(() => ({
     fontWeight: theme.typography.weights.bold,
   },
   swapWrap: { alignSelf: 'center' },
+  swapBeside: { justifyContent: 'center', alignSelf: 'stretch', gap: 4, paddingHorizontal: 12, borderRadius: 14 },
   swap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.border },
   swapText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   swapShort: { color: theme.colors.danger },
@@ -1433,6 +1434,7 @@ const styles = themedStyles(() => ({
   carouselContent: {
     alignItems: 'center',
   },
+  pageInner: { alignSelf: 'stretch' },
   page: {
     paddingHorizontal: theme.spacing.lg,
   },
@@ -1459,13 +1461,9 @@ const styles = themedStyles(() => ({
    * `flex: 1` itself, which stretched the framed box to fill every spare
    * point of a tall card - a well with bands of bare paper inside it,
    * exactly the manufactured gap this screen is meant never to show. */
+  // The set sits on the card itself - no box inside the box; a box in a
+  // card in a page read as generated, not designed.
   wellCentered: {
-    backgroundColor: theme.colors.background,
-    borderRadius: theme.radii.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.md,
     marginTop: 'auto',
     marginBottom: 'auto',
   },
@@ -1608,10 +1606,8 @@ const styles = themedStyles(() => ({
     backgroundColor: theme.colors.goldFill,
   },
   goldenChipText: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: 9,
+    fontSize: 11.5,
     fontWeight: theme.typography.weights.bold,
-    letterSpacing: 1,
     color: theme.colors.onGold,
   },
   setNew: {
@@ -1624,8 +1620,10 @@ const styles = themedStyles(() => ({
     zIndex: 2,
   },
   setNewText: { fontSize: 7, fontWeight: theme.typography.weights.bold, letterSpacing: 0.8, color: theme.colors.surfaceHi },
-  cardFoot: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', alignItems: 'center', columnGap: 12, rowGap: 6, marginTop: theme.spacing.sm },
-  nextWrap: { alignSelf: 'stretch', flexBasis: '100%' },
+  // The next game and the swap share one row, so the card's foot (Continue
+  // and its play button) never gets pushed off the bottom.
+  cardFoot: { flexDirection: 'row', justifyContent: 'center', alignItems: 'stretch', gap: 8, marginTop: theme.spacing.sm },
+  nextWrap: { flex: 1 },
   next: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: theme.colors.background },
   nextEmblem: { opacity: 0.55 },
   nextBody: { flex: 1, gap: 4 },
@@ -1698,22 +1696,6 @@ const styles = themedStyles(() => ({
     color: theme.colors.textPrimary,
   },
   dailyChapter: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary, marginTop: 2 },
-  streakRow: {
-    flexDirection: 'row',
-    gap: 6,
-  },
-  streakMark: {
-    flex: 1,
-    height: 6,
-    borderRadius: 3,
-    // `borderStrong`, not `surfaceAlt`: these sit on the well's own darker
-    // paper, and `surfaceAlt` is close enough to it that an unlit week
-    // read as an empty strip rather than as seven waiting slots.
-    backgroundColor: theme.colors.borderStrong,
-  },
-  streakMarkLit: {
-    backgroundColor: theme.colors.accent,
-  },
   dailyStreakLabel: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary, marginTop: theme.spacing.sm, textAlign: 'center' },
 
 
@@ -1794,4 +1776,7 @@ const styles = themedStyles(() => ({
   dateLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   moon: { backgroundColor: theme.colors.accent, overflow: 'hidden' },
   moonShadow: { position: 'absolute', backgroundColor: theme.colors.background },
+  trials: { position: 'absolute', right: theme.spacing.md, zIndex: 5, flexDirection: 'row', gap: 8 },
+  trial: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: theme.radii.pill, borderWidth: 1, borderStyle: 'dashed', backgroundColor: theme.colors.background },
+  trialText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold },
 }));

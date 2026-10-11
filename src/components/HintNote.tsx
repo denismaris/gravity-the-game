@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Icon } from './Icon';
 import { Text, View } from 'react-native';
 import Animated, { Easing, FadeIn, FadeInDown, FadeOutDown } from 'react-native-reanimated';
 import { HintKind } from '../game/hints';
@@ -37,7 +38,7 @@ export function HintNote({ reason, tip, kind, accent, onGone }: { reason: string
     <Animated.View entering={IN} exiting={OUT} pointerEvents="box-none" style={styles.anchor}>
       <View style={styles.card}>
         <View style={styles.head}>
-          <Text style={[styles.spark, { color: accent }]}>{'✦'}</Text>
+          <Icon name="spark" size={14} color={accent} />
           <Text style={styles.title} accessibilityRole="header">
             {TITLE[kind]}
           </Text>

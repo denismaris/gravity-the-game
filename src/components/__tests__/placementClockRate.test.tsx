@@ -1,9 +1,7 @@
 import React from 'react';
 import ReactTestRenderer, { act } from 'react-test-renderer';
-import { TentsBoardView } from '../TentsBoardView';
 import { MirrorMazeBoardView } from '../MirrorMazeBoardView';
 import { SkiaEntrance } from '../SkiaEntrance';
-import { TENTS_TREES, emptyTentsTreesState, isEligible as tentEligible, setMark } from '../../game/tents';
 import { emptyMirrorMazeState, getMirrorMazeById, isEligible as mirrorEligible, setMirror, traceBeam } from '../../game/mirror';
 import * as AnimationClockModule from '../../game/rendering/useAnimationClock';
 
@@ -35,50 +33,6 @@ describe('placement animations get full-rate frames', () => {
 
   afterEach(() => {
     jest.restoreAllMocks();
-  });
-
-  function lastActive(): boolean | undefined {
-    const calls = clockSpy.mock.calls;
-    return calls.length ? (calls[calls.length - 1][0] as boolean) : undefined;
-  }
-
-  test('Tents: a pitched tent and a pencil mark arrive on the UI thread', () => {
-    const puzzle = TENTS_TREES[0];
-    const empty = emptyTentsTreesState(puzzle);
-    const eligible: Array<[number, number]> = [];
-    for (let r = 0; r < puzzle.rows; r += 1) {
-      for (let c = 0; c < puzzle.cols; c += 1) if (tentEligible(puzzle, r, c)) eligible.push([r, c]);
-    }
-    const marked = setMark(empty, puzzle, eligible[0][0], eligible[0][1], 'marked');
-    const pitched = setMark(marked, puzzle, eligible[1][0], eligible[1][1], 'tent');
-    const board = (state: typeof empty) => <TentsBoardView puzzle={puzzle} state={state} cellSize={40} solved={false} />;
-
-    let renderer!: ReactTestRenderer.ReactTestRenderer;
-    act(() => {
-      renderer = ReactTestRenderer.create(board(empty));
-    });
-    // An untouched board asks for no frames at all (no idle ambience).
-    expect(lastActive()).toBe(false);
-
-    // A pencil mark sets off nothing else: it fades in by itself, and the
-    // clock does not move.
-    now += 1000;
-    act(() => renderer.update(board(marked)));
-    expect(renderer.root.findAllByType(SkiaEntrance)).toHaveLength(1);
-    expect(lastActive()).toBe(false);
-
-    // A tent pitches in by itself too (its glow may still take real frames
-    // - that is an event of its own - but the pitch is not drawn from them).
-    now += 1000;
-    act(() => renderer.update(board(pitched)));
-    expect(renderer.root.findAllByType(SkiaEntrance)).toHaveLength(1);
-
-    // Long past everything: back to idle, nothing in flight.
-    now += 3000;
-    act(() => renderer.update(board(pitched)));
-    expect(renderer.root.findAllByType(SkiaEntrance)).toHaveLength(0);
-    expect(lastActive()).toBe(false);
-    act(() => renderer.unmount());
   });
 
   test('Mirror Maze: a flipped mirror turns in on the UI thread, with no clock at all', () => {

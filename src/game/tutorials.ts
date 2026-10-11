@@ -91,38 +91,6 @@ export const BINAIRO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
 ];
 
-/**
- * Tents and Trees' own mechanics, one slide per rule, in the order a
- * player actually meets them: the tap cycle first, then the two
- * placement rules (a tree's own tent, no touching), then the row/column
- * counts that tie the whole board together.
- */
-export const TENTS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
-  {
-    title: 'Pitch a tent',
-    body: "Tap a square to cycle it: empty, a tent, then a grass mark for a square that can never hold a tent.",
-    illustration: 'cycle',
-    tip: "Mark grass generously. Every square you rule out makes the tents easier to see.",
-  },
-  {
-    title: 'One tent per tree',
-    body: "Every tree has exactly one tent of its own, right beside it: above, below, left or right, never diagonally.",
-    illustration: 'adjacency',
-    tip: "A tree with only one free square beside it shows you exactly where its tent goes.",
-  },
-  {
-    title: 'Tents never touch',
-    body: "Two tents never sit next to each other, not even corner to corner.",
-    illustration: 'touching',
-    tip: "Once you place a tent, all eight squares around it are grass.",
-  },
-  {
-    title: 'Match the count',
-    body: "The numbers along the edges say how many tents each row and column holds. Exactly that many.",
-    illustration: 'counts',
-    tip: "A 0 makes the whole line grass. When a line needs as many tents as it has free squares, they are all tents. Stuck? Insight explains the next tent.",
-  },
-];
 
 /**
  * Gravity's own mechanics, one slide per rule: the swipe input first
@@ -190,32 +158,6 @@ export const MIRROR_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
 ];
 
-/**
- * Skyscrapers' own mechanics, one slide per rule: the tap-then-fill input
- * first, then the Latin-square rule every row/column follows, then the
- * one idea that's genuinely new to this game - a clue counts *visible*
- * towers, not a position or a total.
- */
-export const TOWERS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
-  {
-    title: 'Tap and fill',
-    body: "Tap a square, then tap a height below the board to place it. The eraser clears a square again.",
-    illustration: 'fill',
-    tip: "Fill the heights you are certain of first, and leave the doubtful squares for last.",
-  },
-  {
-    title: 'Every height once',
-    body: "Each row and each column holds every height from 1 up to the board size, exactly once, like a sudoku.",
-    illustration: 'unique',
-    tip: "When a row has only one height missing, it goes in its last empty square.",
-  },
-  {
-    title: 'Clues count what you see',
-    body: "Each number outside the board says how many towers you would see looking in from that side. A taller tower hides every shorter one behind it.",
-    illustration: 'visibility',
-    tip: "A 1 means the tallest tower stands right next to the clue. A clue equal to the board size means the towers climb 1, 2, 3 in order. Stuck? Insight explains the next height.",
-  },
-];
 
 /**
  * Arukone+'s own mechanics. Three slides, in the order the player meets
@@ -252,38 +194,28 @@ export const ARUKONE_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 ];
 
 /**
- * Fill-a-Pix's own mechanics. Three slides, in the order a player actually
- * needs them: the goal first (what tapping cells even does - there is no
- * board game precedent to lean on here the way "connect the pairs" or
- * "one tent per tree" can), then the one rule in full (counting *and*
- * diagonals together, since splitting them into two slides left the
- * diagonal rule floating with nothing concrete attached to it), then what
- * finishing looks like. The rule slide's own illustration shows an actual
- * clue digit rather than an abstract ring - the earlier version could
- * never do this (no Skia font, and the ring alone doesn't explain what a
- * number *means*), fixed in `FillaPixMechanicsIllustrations.tsx` with a
- * small hand-drawn digit renderer, the same technique this app's own
- * hand-stroked icons (the header's "?", the Undo/Restart arrows) already
- * use in place of a font.
+ * Stained Glass in three slides: what a tap does, the one rule (shown
+ * broken, ringed red, since a clash is what the player will actually
+ * see), and what a finished window looks like.
  */
-export const FILLAPIX_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+export const GLASS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
-    title: 'Paint the hidden picture',
-    body: "Tap a square to fill it, and tap again to clear it. The filled squares slowly reveal a small picture.",
-    illustration: 'goal',
-    tip: "Start with the numbers that can only be filled one way.",
+    title: 'Glaze the panes',
+    body: "Pick a glass from the tray under the window, then tap a pane to set it. Draw across several panes to glaze them in one stroke.",
+    illustration: 'colour',
+    tip: "Tap a pane again in the same glass to take it out, or pick the clear slot and draw.",
   },
   {
-    title: 'A number counts its own 3x3',
-    body: "Each number counts the filled squares in the block of nine around it, its own square and the corners included. A 0 means all nine stay empty, and a 9 means all nine are filled.",
-    illustration: 'clue',
-    tip: "On an edge a block has only 6 squares, in a corner only 4. A 6 on an edge or a 4 in a corner fills its whole block.",
+    title: 'Touching panes differ',
+    body: "Two panes that share a strip of lead can never be the same colour. If they are, both are ringed in red until one changes.",
+    illustration: 'clash',
+    tip: "Panes that only meet at a corner may match. Start with a pane that already touches two colours: it has one glass left.",
   },
   {
-    title: 'Match every clue to solve it',
-    body: "When every number matches the filled squares around it, the picture is complete.",
-    illustration: 'reveal',
-    tip: "Once a number has all its squares, every other square around it stays empty. Stuck? Insight finds the clue you are closest to finishing.",
+    title: 'Let the light through',
+    body: "Glaze every pane with no two neighbours alike and the window is finished. There is only ever one way to do it.",
+    illustration: 'finish',
+    tip: "Stuck? Insight sets the pane the window is readiest for, and says why.",
   },
 ];
 
@@ -399,6 +331,74 @@ export const ADJACENT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
 ];
 
+/** Lily Pads, on trial: the hop, the sinking pad, the warning, the end. */
+export const LILY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Hop in a line',
+    body: 'Tap a pad in line with the frog, or swipe toward it. The frog hops to the nearest pad that way, clean over open water.',
+    illustration: 'hop',
+    tip: 'Pale rings show every pad the frog can reach from where it sits.',
+  },
+  {
+    title: 'The pad behind sinks',
+    body: 'Each pad the frog leaves goes under, so there is no hopping back. Every hop uses a pad up for good.',
+    illustration: 'sink',
+    tip: 'Undo takes a hop back whenever you like.',
+  },
+  {
+    title: 'Lotus pads',
+    body: 'A pad with a lotus survives the first visit: when the frog leaves, only the lotus sinks. Come back to it later, and then it sinks for good.',
+    illustration: 'lotus',
+    tip: 'While a lotus pad floats it stops every hop along its row and column. Use it as a stepping stone.',
+  },
+  {
+    title: 'Leave no pad behind',
+    body: 'A pad with nothing left in its row or its column can never be reached. It is ringed in red the moment that happens.',
+    illustration: 'cutoff',
+    tip: 'Visit pads at the ends of rows and in corners early, while a way back is still open.',
+  },
+  {
+    title: 'Clear the pond',
+    body: 'Visit every pad, ending on the last one, and a water lily opens under the frog.',
+    illustration: 'clear',
+    tip: 'Stuck? Insight finds a hop that keeps every pad in reach, going back first if it has to.',
+  },
+];
+
+/** Weathervanes, on trial: the turn, the wind, what goes wrong, the loop. */
+export const VANE_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Turn the vanes',
+    body: 'Tap a vane to turn it a quarter, clockwise. It points at the nearest vane that way, along its row or column.',
+    illustration: 'turn',
+    tip: 'Vanes on a coloured plate are set from the start and never turn. Begin beside them.',
+  },
+  {
+    title: 'Follow the wind',
+    body: 'A dashed line shows where each vane sends its wind. A vane the wind reaches wears a blue ring.',
+    illustration: 'wind',
+    tip: 'Every vane needs exactly one wind arriving: no more, no fewer.',
+  },
+  {
+    title: 'Three things go wrong',
+    body: 'Wind blowing into open air, two vanes pointing at each other, or two winds into the same vane. Each one turns red.',
+    illustration: 'trouble',
+    tip: 'A vane in a corner has only two ways to point. Start there.',
+  },
+  {
+    title: 'Chimneys',
+    body: 'Wind does not pass a chimney. A vane pointing at one points into open air.',
+    illustration: 'chimney',
+    tip: 'A chimney between two vanes takes a way away from both. Start beside it.',
+  },
+  {
+    title: 'Close the loops',
+    body: 'When the wind runs round in closed loops through every vane, the roof is set. A loop turns solid the moment it closes.',
+    illustration: 'loop',
+    tip: 'Stuck? Insight turns the vane the others already force, and says why.',
+  },
+];
+
 const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   gravity: {
     title: 'Gravity',
@@ -408,13 +408,13 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
     title: 'Mirror Maze',
     body: 'Tap a cell to place a mirror, tap again to rotate it, and once more to remove it. Route the beam through every gem to the target to solve it.',
   },
-  tents: {
-    title: 'Tents and Trees',
-    body: 'Tap a cell to pitch a tent, tap again to cross it out as empty. Every tent needs exactly one tree beside it, and no two tents may touch. Match every row and column\'s count to solve it.',
+  lilypads: {
+    title: 'Lily Pads',
+    body: 'Tap a pad in line with the frog, or swipe toward it, and the frog hops to the nearest pad that way. The pad it leaves sinks. A lotus pad sinks only its lotus the first time, so the frog must come back to it. Visit every pad to clear the pond.',
   },
-  towers: {
-    title: 'Skyscrapers',
-    body: 'Fill every row and column with each height exactly once. Tap a cell, then tap a number. The clues outside the grid show how many towers are visible from that side.',
+  vanes: {
+    title: 'Weathervanes',
+    body: 'Tap a vane to turn it a quarter. Each points at the nearest vane that way, and wind does not pass a chimney. Every vane must point at another, be reached by exactly one, and never point straight back. Then the wind runs round in loops.',
   },
   binairo: {
     title: 'Twos',
@@ -424,9 +424,9 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
     title: 'Twinpath',
     body: 'Drag from a number to its twin to join them, routing around the blocked squares. The board is folded down the middle: draw one side and the other side draws itself. Join every pair without two paths crossing, and fill every square, to solve it.',
   },
-  fillapix: {
-    title: 'Pixel Clues',
-    body: 'Tap a square to fill it, and tap again to clear it. The filled squares form a hidden picture. Each number counts the filled squares in its own block of nine, including the square it sits on. Match every number to complete the picture.',
+  glass: {
+    title: 'Stained Glass',
+    body: 'Pick a glass from the tray, then tap a pane or draw across several to set it. Two panes that share lead can never be the same colour. Glaze every pane to finish the window.',
   },
   lightsout: {
     title: 'Lanterns',

@@ -1,0 +1,160 @@
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { HOP_MS, LilyPadsBoard } from '../components/LilyPadsBoard';
+import { renderLilyIllustration } from '../components/TrialIllustrations';
+import { PlayShell, SetMode, TrialMode, TrialNote } from '../components/PlayShell';
+import { GameKind, NextPuzzleOptions } from '../game/journey';
+import { cutOff, getLilyTrial, hop, hopsFrom, initialLilyState, isLilySolved, isStranded, LILY_TRIAL_IDS, LilyPuzzle, LilyState, lilyHint, padsLeft } from '../game/lilypads';
+import { triggerFeedback } from '../game/rendering';
+import { LILY_MECHANICS_SLIDES } from '../game/tutorials';
+import { theme } from '../theme';
+
+const RESERVED = 300;
+
+const LOTUS_INTRO = {
+  id: 'mechanic:lotus',
+  title: 'Lotus pads',
+  body: 'A pad with a lotus survives the frog\'s first visit: when the frog leaves, only the lotus sinks. The frog must come back to it later. While it floats, it stops every hop along its row and column.',
+};
+
+export interface LilyPadsScreenProps {
+  puzzle: LilyPuzzle;
+  onExit: () => void;
+  onNextPuzzle: (kind: GameKind, puzzleId: string, options?: NextPuzzleOptions) => void;
+}
+
+/** Lily Pads, as dealt in a set, the Daily or the Grand. */
+export function LilyPadsScreen({ puzzle, onExit, onNextPuzzle }: LilyPadsScreenProps): React.JSX.Element {
+  return <Pond puzzle={puzzle} mode={{ type: 'set', puzzleId: puzzle.id, onNextPuzzle }} onExit={onExit} />;
+}
+
+/**
+ * Lily Pads from the Home test button: a run of ponds, small to large,
+ * after the lesson the first time.
+ */
+export function LilyPadsTrialScreen({ onExit }: { onExit: () => void }): React.JSX.Element {
+  const [index, setIndex] = useState(0);
+  // Each pond mounts fresh, so no frame ever pairs a pond with the last
+  // one's frog.
+  return (
+    <Pond
+      key={index}
+      puzzle={getLilyTrial(index)}
+      mode={{ type: 'trial', index, total: LILY_TRIAL_IDS.length, onNext: () => setIndex(i => Math.min(i + 1, LILY_TRIAL_IDS.length - 1)) }}
+      onExit={onExit}
+    />
+  );
+}
+
+function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | SetMode; onExit: () => void }): React.JSX.Element {
+  const insets = useSafeAreaInsets();
+  const { width, height } = useWindowDimensions();
+  const [state, setState] = useState<LilyState>(() => initialLilyState(puzzle));
+  const [history, setHistory] = useState<LilyState[]>([]);
+  const [hints, setHints] = useState(0);
+  const [glow, setGlow] = useState<number | null>(null);
+  const [note, setNote] = useState<TrialNote | null>(null);
+
+  const solved = isLilySolved(state);
+  const stranded = isStranded(puzzle, state);
+  const reach = useMemo(() => hopsFrom(puzzle, state), [puzzle, state]);
+  const lonely = useMemo(() => cutOff(puzzle, state), [puzzle, state]);
+  const left = padsLeft(state) - 1;
+
+  // Sounds land with the frog, not with the finger.
+  const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
+  useEffect(() => () => timers.current.forEach(clearTimeout), []);
+  const later = (fn: () => void, ms: number) => timers.current.push(setTimeout(fn, ms));
+
+  const onHop = useCallback(
+    (pad: number) => {
+      const next = hop(puzzle, state, pad);
+      if (next === state) return;
+      setHistory(h => [...h, state]);
+      setState(next);
+      setGlow(null);
+      triggerFeedback('lilyHop');
+      if (isLilySolved(next)) later(() => triggerFeedback('lilySolve'), HOP_MS + 120);
+      else if (cutOff(puzzle, next).length > cutOff(puzzle, state).length) later(() => triggerFeedback('lilyWarn'), HOP_MS + 80);
+      else if (isStranded(puzzle, next)) later(() => triggerFeedback('lilyStranded'), HOP_MS + 80);
+    },
+    [puzzle, state],
+  );
+
+  const undo = useCallback(() => {
+    if (history.length === 0) return;
+    setState(history[history.length - 1]);
+    setHistory(h => h.slice(0, -1));
+    setGlow(null);
+    triggerFeedback('tap');
+  }, [history]);
+
+  const restart = useCallback(() => {
+    setState(initialLilyState(puzzle));
+    setHistory([]);
+    setGlow(null);
+  }, [puzzle]);
+
+  const useHint = useCallback(() => {
+    const h = lilyHint(puzzle, history, state);
+    if (!h) return;
+    let s = state;
+    let past = history;
+    for (let k = 0; k < h.back; k += 1) {
+      s = past[past.length - 1];
+      past = past.slice(0, -1);
+    }
+    setHistory(past);
+    setState(s);
+    setGlow(h.pad);
+    setHints(n => n + 1);
+    setNote({ reason: h.reason, kind: h.back > 0 ? 'fix' : 'rule', id: Date.now() });
+    triggerFeedback('targetReached');
+  }, [puzzle, history, state]);
+
+  const boardSize = Math.max(0, Math.min(width - theme.spacing.lg * 2 - theme.spacing.sm * 2, height - insets.top - insets.bottom - RESERVED));
+  const kicker = solved
+    ? 'pond cleared'
+    : stranded
+      ? 'stranded, undo a hop'
+      : lonely.length > 0
+        ? `${lonely.length === 1 ? 'a pad is' : `${lonely.length} pads are`} cut off`
+        : `${left} ${left === 1 ? 'pad' : 'pads'} to go`;
+
+  return (
+    <PlayShell
+      kind="lilypads"
+      mode={mode}
+      name={puzzle.name}
+      difficulty={puzzle.difficulty}
+      kicker={kicker}
+      progress={(puzzle.pads.length - 1 - left) / Math.max(1, puzzle.pads.length - 1)}
+      introduce={puzzle.lotus?.some(Boolean) ? LOTUS_INTRO : null}
+      slides={LILY_MECHANICS_SLIDES}
+      renderIllustration={renderLilyIllustration}
+      solved={solved}
+      hints={hints}
+      note={note}
+      onClearNote={() => setNote(null)}
+      canUndo={history.length > 0}
+      onExit={onExit}
+      onHint={useHint}
+      onUndo={undo}
+      onRestart={restart}
+    >
+      <LilyPadsBoard
+        puzzle={puzzle}
+        state={state}
+        size={boardSize}
+        solved={solved}
+        reach={reach}
+        cutOff={lonely}
+        stranded={stranded}
+        onHop={onHop}
+        onRefused={() => triggerFeedback('bridgesBlocked')}
+        glow={glow}
+      />
+    </PlayShell>
+  );
+}

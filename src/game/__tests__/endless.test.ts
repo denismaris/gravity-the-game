@@ -1,7 +1,5 @@
-import { getTentsTreesById, assertValidTentsAndTrees } from '../tents';
 import { getBinairoById, assertValidBinairo } from '../binairo';
-import { getFillaPixById } from '../fillapix';
-import { assertValidFillaPix } from '../fillapix/solver';
+import { getGlassWindow, solveGlass } from '../glass';
 import { getMirrorMazeById } from '../mirror';
 import { assertValidMirrorMaze, fewestMirrors } from '../mirror/solver';
 import { generateMirrorMaze, mirrorShapeFor } from '../mirror/generator';
@@ -10,7 +8,6 @@ import { assertValidLevel, createGameStateFromLevel } from '../levels/level';
 import { findShortestSolution } from '../engine/solver';
 import { generateGravityLevel } from '../levels/generator';
 import { endlessId, endlessName } from '../endlessId';
-import { emblemFor } from '../fillapix/emblems';
 import { PuzzleDifficulty } from '../puzzleDifficulty';
 
 const TIERS: PuzzleDifficulty[] = ['easy', 'medium', 'hard'];
@@ -22,17 +19,6 @@ const TIERS: PuzzleDifficulty[] = ['easy', 'medium', 'hard'];
  * checks, and in its tier's difficulty band.
  */
 describe('endless boards', () => {
-  test('Tents: valid, one answer, reproducible', () => {
-    for (const tier of TIERS) {
-      for (let i = 0; i < 4; i += 1) {
-        const id = endlessId('tents', tier, i);
-        const puzzle = getTentsTreesById(id)!;
-        assertValidTentsAndTrees(puzzle);
-        expect(puzzle.difficulty).toBe(tier);
-      }
-    }
-  });
-
   test('Binairo: valid, never past 8x8', () => {
     for (const tier of TIERS) {
       for (let i = 0; i < 4; i += 1) {
@@ -43,17 +29,11 @@ describe('endless boards', () => {
     }
   });
 
-  test('Fill-a-Pix: emblems are symmetric pictures, boards reasoned out without guessing', () => {
+  test('Stained Glass: endless windows have exactly one answer', () => {
     for (const tier of TIERS) {
-      for (let i = 0; i < 4; i += 1) {
-        const id = endlessId('fillapix', tier, i);
-        const image = emblemFor(id, tier);
-        expect(image.rows.every(row => row === [...row].reverse().join(''))).toBe(true);
-        const filled = image.rows.join('').split('').filter(c => c === '#').length / image.rows.join('').length;
-        expect(filled).toBeGreaterThan(0.3);
-        expect(filled).toBeLessThan(0.7);
-        assertValidFillaPix(getFillaPixById(id)!);
-      }
+      const id = endlessId('glass', tier, 0);
+      const w = getGlassWindow(id, { name: 'Endless', tier })!;
+      expect(solveGlass(w.touching, w.given, 2)).toHaveLength(1);
     }
   });
 
@@ -91,7 +71,7 @@ describe('endless boards', () => {
   test('names are themed per game and do not repeat for hundreds of boards', () => {
     const names = new Set(Array.from({ length: 150 }, (_v, i) => endlessName(i, 'bridges')));
     expect(names.size).toBe(150);
-    expect(endlessName(0, 'tents')).not.toBe(endlessName(0, 'bridges'));
+    expect(endlessName(0, 'lilypads')).not.toBe(endlessName(0, 'bridges'));
   });
 });
 

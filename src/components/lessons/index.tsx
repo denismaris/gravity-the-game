@@ -1,20 +1,22 @@
 import React from 'react';
 import { GameKind } from '../../game/journey';
 import { LESSON_GUIDES, LessonGuideContext } from './guides';
-import { BloomLesson, LanternsLesson, MirrorLesson, PixelCluesLesson, TentsLesson, TwosLesson } from './gridLessons';
-import { AdjacentLesson, BridgesLesson, GravityLesson, MosaicLesson, SkyscrapersLesson, TwinpathLesson } from './moreLessons';
+import { BloomLesson, LanternsLesson, MirrorLesson, TwosLesson } from './gridLessons';
+import { LilyPadsLesson, VanesLesson } from './trialLessons';
+import { GlassLesson } from './glassLesson';
+import { AdjacentLesson, BridgesLesson, GravityLesson, MosaicLesson, TwinpathLesson } from './moreLessons';
 
 /** The hands-on lesson for each game that has one: the first time a
  * player opens the game, they play it - a tiny board, a step at a time -
  * instead of reading about it. */
 export const LESSONS: Record<GameKind, React.ComponentType<{ onDone: () => void }>> = {
   binairo: TwosLesson,
-  tents: TentsLesson,
+  lilypads: LilyPadsLesson,
   lightsout: LanternsLesson,
-  fillapix: PixelCluesLesson,
+  glass: GlassLesson,
   mirror: MirrorLesson,
   bloom: BloomLesson,
-  towers: SkyscrapersLesson,
+  vanes: VanesLesson,
   adjacent: AdjacentLesson,
   bridges: BridgesLesson,
   arukone: TwinpathLesson,

@@ -1,4 +1,5 @@
 import React, { useMemo } from 'react';
+import { BackLabel } from '../components/Icon';
 import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import Animated, { Easing, FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -7,7 +8,7 @@ import { GameEmblem } from '../components/GameEmblem';
 import { PageBloom } from '../components/PageBloom';
 import { LESSON_GUIDES } from '../components/lessons/guides';
 import { accentColorForKind, gameDisplayName, GameKind } from '../game/journey';
-import { INTRO_ORDER, ledgerOf, nextGameToArrive, unlockedGames, usePlayerProgress } from '../progression';
+import { INTRO_ORDER, INTRO_SOLVES, ledgerOf, nextGameToArrive, unlockedGames, usePlayerProgress } from '../progression';
 import { theme, themedStyles } from '../theme';
 
 export interface CollectionScreenProps {
@@ -36,7 +37,7 @@ export function CollectionScreen({ onExit, onReplayLesson }: CollectionScreenPro
       <PageBloom />
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8} containerStyle={styles.headerSide}>
-          <Text style={styles.back}>‹ Home</Text>
+          <BackLabel label="Home" style={styles.back} />
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.title}>Your games</Text>
@@ -50,7 +51,7 @@ export function CollectionScreen({ onExit, onReplayLesson }: CollectionScreenPro
             {roster.length}
             <Text style={styles.countOf}>{` of ${INTRO_ORDER.length}`}</Text>
           </Text>
-          <Text style={styles.countLabel}>{roster.length === INTRO_ORDER.length ? 'Every game is yours.' : 'games so far. Ten puzzles of the newest one bring the next.'}</Text>
+          <Text style={styles.countLabel}>{roster.length === INTRO_ORDER.length ? 'Every game is yours.' : `games so far. ${INTRO_SOLVES} puzzles of the newest one bring the next.`}</Text>
           <View style={styles.track}>
             {INTRO_ORDER.map(kind => (
               <View key={kind} style={[styles.trackCell, roster.includes(kind) && { backgroundColor: accentColorForKind(kind) }]} />

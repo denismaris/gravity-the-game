@@ -41,7 +41,7 @@ def gravity(s):
     return s[:end] + inject + s[end:]
 
 if mode == 'auto':
-    for f in ['MirrorMazeScreen','MosaicScreen','BloomScreen','LightsOutScreen','TentsScreen','BinairoScreen','TowersScreen','ArukoneScreen','FillaPixScreen','AdjacentScreen','BridgesScreen']:
+    for f in ['MirrorMazeScreen','MosaicScreen','BloomScreen','LightsOutScreen','BinairoScreen','ArukoneScreen','GlassScreen','AdjacentScreen','BridgesScreen']:
         patch(f'src/screens/{f}.tsx', autoplay)
     patch('src/screens/GameScreen.tsx', gravity)
 

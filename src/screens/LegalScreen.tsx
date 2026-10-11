@@ -1,4 +1,5 @@
 import React, { useMemo, useState } from 'react';
+import { BackLabel } from '../components/Icon';
 import { FlatList, ScrollView, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '../components';
@@ -31,7 +32,7 @@ export function LegalScreen({ doc, onClose }: { doc: LegalDoc; onClose: () => vo
     <View style={styles.layer}>
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back" onPress={onClose} hitSlop={8} containerStyle={styles.headerSide}>
-          <Text style={styles.back}>‹ Back</Text>
+          <BackLabel label="Back" style={styles.back} />
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.title} accessibilityRole="header">

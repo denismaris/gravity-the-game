@@ -210,18 +210,16 @@ const styles = themedStyles(() => ({
     gap: 5,
   },
   balanceText: {
-    fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.caption,
-    letterSpacing: 1,
     color: theme.colors.textSecondary,
+    fontWeight: theme.typography.weights.semibold,
   },
   short: {
     marginTop: 4,
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 0.8,
+    fontSize: theme.typography.sizes.caption,
     color: theme.colors.secondary,
     textAlign: 'center',
+    fontWeight: theme.typography.weights.semibold,
   },
   earned: {
     flexDirection: 'row',
@@ -230,10 +228,8 @@ const styles = themedStyles(() => ({
     gap: 6,
   },
   earnedText: {
-    fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
     color: theme.colors.accentText,
-    letterSpacing: 1,
   },
 }));

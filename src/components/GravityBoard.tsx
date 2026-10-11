@@ -2,7 +2,7 @@ import React, { useEffect } from 'react';
 import { StyleSheet } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
 import { GameState } from '../game/engine';
-import { BoardView, useReducedMotion, useSlidePlan } from '../game/rendering';
+import { BoardView, triggerFeedback, useReducedMotion, useSlidePlan } from '../game/rendering';
 
 export interface GravityBoardProps {
   /** The engine's authoritative state - changes once per move, never
@@ -50,11 +50,19 @@ export const GravityBoard = React.memo(function GravityBoardImpl({
   // cell (that's real game state, not decoration), they just get there in
   // one frame instead of an animated slide.
   const reducedMotion = useReducedMotion();
-  const slide = useSlidePlan(state.movables, instant || reducedMotion);
+  const slide = useSlidePlan(state.movables, instant || reducedMotion, state.portals);
 
   useEffect(() => {
     onAnimatingChange(slide.isAnimating);
   }, [slide.isAnimating, onAnimatingChange]);
+
+  // A piece going through a portal is heard as it reaches it.
+  useEffect(() => {
+    if (slide.teleports.size === 0) return;
+    const reach = Math.min(...[...slide.teleports.values()].map(t => t.timing.approach));
+    const id = setTimeout(() => triggerFeedback('teleport'), reach);
+    return () => clearTimeout(id);
+  }, [slide.key, slide.teleports]);
 
   return (
     <Canvas style={styles.canvas}>

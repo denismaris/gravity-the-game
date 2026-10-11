@@ -1,4 +1,5 @@
 import { HintNote } from '../components/HintNote';
+import { BackLabel } from '../components/Icon';
 import { HintKind } from '../game/hints';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isTodaysDaily } from '../game/journey/daily';
@@ -301,7 +302,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
       <PageBloom />
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
-          <Text style={styles.back}>‹ Home</Text>
+          <BackLabel label="Home" style={styles.back} />
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
@@ -386,7 +387,6 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
           stars={stars}
           hintsUsed={hints}
           coinsEarned={coinsEarned}
-          onReplay={restart}
           onDone={onExit}
           hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
           onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
@@ -440,7 +440,7 @@ function AnimatedKicker({ left, solved, difficulty }: { left: number; solved: bo
     <View style={styles.kickerRow}>
       <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
       <Animated.Text numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
-        {solved ? 'TWOS · SOLVED' : `TWOS · ${left} LEFT`}
+        {solved ? 'Twos · solved' : `Twos · ${left} left`}
       </Animated.Text>
       {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
     </View>
@@ -481,11 +481,10 @@ const styles = themedStyles(() => ({
     marginTop: 2,
   },
   kicker: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1,
+    fontSize: theme.typography.sizes.caption,
     color: theme.colors.binairoAccent,
     flexShrink: 1,
+    fontWeight: theme.typography.weights.semibold,
   },
   kickerChip: { marginRight: 6 },
   solvedBadge: {
@@ -561,10 +560,9 @@ const styles = themedStyles(() => ({
     color: theme.colors.textTertiary,
   },
   legendLabel: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 0.6,
+    fontSize: theme.typography.sizes.caption,
     color: theme.colors.textTertiary,
+    fontWeight: theme.typography.weights.semibold,
   },
   // Sits with the board inside the centred group rather than pinned to the
   // bottom of the screen - the arrangement Gravity's own board already

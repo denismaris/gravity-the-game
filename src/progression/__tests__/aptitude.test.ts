@@ -1,6 +1,6 @@
 import { ARUKONE } from '../../game/arukone';
 import { BINAIRO } from '../../game/binairo';
-import { FILLAPIX } from '../../game/fillapix';
+import { GLASS_WINDOWS } from '../../game/glass';
 import { ROTATION } from '../../game/journey';
 import { getLevelsByDifficulty, LEVELS } from '../../game/levels';
 import { LIGHTS_OUT } from '../../game/lightsout';
@@ -9,8 +9,8 @@ import { BLOOM } from '../../game/bloom';
 import { MOSAIC } from '../../game/mosaic';
 import { BRIDGES } from '../../game/bridges';
 import { MIRROR_MAZES } from '../../game/mirror';
-import { TENTS_TREES } from '../../game/tents';
-import { TOWERS } from '../../game/towers';
+import { LILY_PONDS } from '../../game/lilypads';
+import { VANE_ROOFS } from '../../game/vanes';
 import { computeAptitude, MIN_SOLVES_FOR_INDEX } from '../aptitude';
 import { emptyProgress, PlayerProgress, recordCompletion } from '../playerProgress';
 
@@ -58,10 +58,10 @@ describe('computeAptitude - the empty case', () => {
 
 describe('computeAptitude - precision', () => {
   test('a game solved flawlessly reads near the top, the same game solved badly reads low', () => {
-    const flawless = computeAptitude(solveMany(emptyProgress(), TENTS_TREES.map(p => p.id), 3));
-    const sloppy = computeAptitude(solveMany(emptyProgress(), TENTS_TREES.map(p => p.id), 1));
+    const flawless = computeAptitude(solveMany(emptyProgress(), LILY_PONDS.map(p => p.id), 3));
+    const sloppy = computeAptitude(solveMany(emptyProgress(), LILY_PONDS.map(p => p.id), 1));
 
-    const tentsOf = (a: ReturnType<typeof computeAptitude>) => a.games.find(g => g.kind === 'tents')!;
+    const tentsOf = (a: ReturnType<typeof computeAptitude>) => a.games.find(g => g.kind === 'lilypads')!;
     // Not exactly 1: scores are measured against the app's average
     // difficulty (`REFERENCE_MULTIPLIER`), and this pool sits a little
     // under it - so a clean sweep of Tents is excellent without being the
@@ -80,15 +80,15 @@ describe('computeAptitude - precision', () => {
     // rather than being dragged toward zero by the untouched rest of the
     // pool - that is what coverage is for, and it is the one that stays
     // low here.
-    const progress = solveAt(emptyProgress(), TENTS_TREES[0].id, 3);
-    const tents = computeAptitude(progress).games.find(game => game.kind === 'tents')!;
+    const progress = solveAt(emptyProgress(), LILY_PONDS[0].id, 3);
+    const tents = computeAptitude(progress).games.find(game => game.kind === 'lilypads')!;
     expect(tents.solved).toBe(1);
-    expect(tents.coverage).toBeCloseTo(1 / TENTS_TREES.length, 5);
+    expect(tents.coverage).toBeCloseTo(1 / LILY_PONDS.length, 5);
     expect(tents.precision).toBeGreaterThan(0.7);
 
     // Solving one more, just as cleanly, cannot lower it.
-    const both = solveAt(progress, TENTS_TREES[1].id, 3);
-    const after = computeAptitude(both).games.find(game => game.kind === 'tents')!;
+    const both = solveAt(progress, LILY_PONDS[1].id, 3);
+    const after = computeAptitude(both).games.find(game => game.kind === 'lilypads')!;
     expect(after.precision).toBeGreaterThanOrEqual(tents.precision);
     expect(after.coverage).toBeGreaterThan(tents.coverage);
   });
@@ -129,8 +129,8 @@ describe('computeAptitude - precision', () => {
   });
 
   test('stars are reported raw alongside it, not only as a ratio', () => {
-    const progress = solveMany(emptyProgress(), TENTS_TREES.slice(0, 3).map(p => p.id), 2);
-    const tents = computeAptitude(progress).games.find(game => game.kind === 'tents')!;
+    const progress = solveMany(emptyProgress(), LILY_PONDS.slice(0, 3).map(p => p.id), 2);
+    const tents = computeAptitude(progress).games.find(game => game.kind === 'lilypads')!;
     expect(tents.stars).toBe(6);
     expect(tents.solved).toBe(3);
   });
@@ -195,17 +195,17 @@ describe('computeAptitude - the index', () => {
 
 describe('computeAptitude - strongest and weakest', () => {
   test('stay null until two games have been tested', () => {
-    const one = computeAptitude(solveMany(emptyProgress(), TENTS_TREES.map(p => p.id), 3));
+    const one = computeAptitude(solveMany(emptyProgress(), LILY_PONDS.map(p => p.id), 3));
     expect(one.strongest).toBeNull();
     expect(one.weakest).toBeNull();
   });
 
   test('pick the cleanest and the scrappiest of the games actually played', () => {
-    let progress = solveMany(emptyProgress(), TENTS_TREES.slice(0, 3).map(p => p.id), 3);
+    let progress = solveMany(emptyProgress(), LILY_PONDS.slice(0, 3).map(p => p.id), 3);
     progress = solveMany(progress, BINAIRO.slice(0, 3).map(p => p.id), 1);
     const aptitude = computeAptitude(progress);
 
-    expect(aptitude.strongest).toBe('tents');
+    expect(aptitude.strongest).toBe('lilypads');
     expect(aptitude.weakest).toBe('binairo');
   });
 
@@ -213,7 +213,7 @@ describe('computeAptitude - strongest and weakest', () => {
    * because it has no evidence, and "you are worst at Lights Out" when
    * the player has never opened Lights Out is simply wrong. */
   test('never names an untested game as the weakest', () => {
-    let progress = solveMany(emptyProgress(), TENTS_TREES.slice(0, 2).map(p => p.id), 3);
+    let progress = solveMany(emptyProgress(), LILY_PONDS.slice(0, 2).map(p => p.id), 3);
     progress = solveMany(progress, BINAIRO.slice(0, 2).map(p => p.id), 2);
     const aptitude = computeAptitude(progress);
 
@@ -229,11 +229,11 @@ function solveEverything(): PlayerProgress {
   const allIds = [
     ...LEVELS.map(level => level.id),
     ...MIRROR_MAZES.map(puzzle => puzzle.id),
-    ...TENTS_TREES.map(puzzle => puzzle.id),
-    ...TOWERS.map(puzzle => puzzle.id),
+    ...LILY_PONDS.map(puzzle => puzzle.id),
+    ...VANE_ROOFS.map(puzzle => puzzle.id),
     ...BINAIRO.map(puzzle => puzzle.id),
     ...ARUKONE.map(puzzle => puzzle.id),
-    ...FILLAPIX.map(puzzle => puzzle.id),
+    ...GLASS_WINDOWS.map(puzzle => puzzle.id),
     ...LIGHTS_OUT.map(puzzle => puzzle.id),
     ...ADJACENT.map(puzzle => puzzle.id),
     ...BLOOM.map(puzzle => puzzle.id),

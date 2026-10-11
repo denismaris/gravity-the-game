@@ -1,6 +1,6 @@
 import { ARUKONE } from '../game/arukone';
 import { BINAIRO } from '../game/binairo';
-import { FILLAPIX } from '../game/fillapix';
+import { GLASS_WINDOWS } from '../game/glass';
 import { LIGHTS_OUT } from '../game/lightsout';
 import { ADJACENT } from '../game/adjacent';
 import { BLOOM } from '../game/bloom';
@@ -8,8 +8,8 @@ import { MOSAIC } from '../game/mosaic';
 import { BRIDGES } from '../game/bridges';
 import { LEVELS } from '../game/levels';
 import { MIRROR_MAZES } from '../game/mirror';
-import { TENTS_TREES } from '../game/tents';
-import { TOWERS } from '../game/towers';
+import { LILY_PONDS } from '../game/lilypads';
+import { VANE_ROOFS } from '../game/vanes';
 import { WORLDS } from '../game/worlds';
 import type { GameKind } from '../game/journey';
 
@@ -21,11 +21,11 @@ import type { GameKind } from '../game/journey';
 const ALL_PUZZLE_IDS: ReadonlyArray<string> = [
   ...LEVELS.map(level => level.id),
   ...MIRROR_MAZES.map(puzzle => puzzle.id),
-  ...TENTS_TREES.map(puzzle => puzzle.id),
-  ...TOWERS.map(puzzle => puzzle.id),
+  ...LILY_PONDS.map(puzzle => puzzle.id),
+  ...VANE_ROOFS.map(puzzle => puzzle.id),
   ...BINAIRO.map(puzzle => puzzle.id),
   ...ARUKONE.map(puzzle => puzzle.id),
-  ...FILLAPIX.map(puzzle => puzzle.id),
+  ...GLASS_WINDOWS.map(puzzle => puzzle.id),
   ...LIGHTS_OUT.map(puzzle => puzzle.id),
   ...ADJACENT.map(puzzle => puzzle.id),
   ...BLOOM.map(puzzle => puzzle.id),
@@ -111,7 +111,7 @@ function anyFlawless(progress: PlayerProgress, pool: ReadonlyArray<{ id: string 
 }
 
 const TOTAL_STARS_POSSIBLE = ALL_PUZZLE_IDS.length * 3;
-const NOT_GRAVITY = [...MIRROR_MAZES, ...TENTS_TREES, ...TOWERS, ...BINAIRO, ...ARUKONE, ...FILLAPIX, ...LIGHTS_OUT, ...ADJACENT, ...BLOOM, ...MOSAIC, ...BRIDGES];
+const NOT_GRAVITY = [...MIRROR_MAZES, ...LILY_PONDS, ...VANE_ROOFS, ...BINAIRO, ...ARUKONE, ...GLASS_WINDOWS, ...LIGHTS_OUT, ...ADJACENT, ...BLOOM, ...MOSAIC, ...BRIDGES];
 
 /**
  * The fixed set of achievements. Order here is display order. Ids are
@@ -132,11 +132,11 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
     }),
   ),
   everyPuzzle('game:mirror', 'mirror', 'Bending Light', 'Solve every Mirror Maze puzzle.', MIRROR_MAZES),
-  everyPuzzle('game:tents', 'tents', 'Under Canvas', 'Solve every Tents and Trees puzzle.', TENTS_TREES),
-  everyPuzzle('game:towers', 'towers', 'Top Floor', 'Solve every Skyscrapers puzzle.', TOWERS),
+  everyPuzzle('game:lilypads', 'lilypads', 'Leap of Faith', 'Clear every Lily Pads pond.', LILY_PONDS),
+  everyPuzzle('game:vanes', 'vanes', 'Which Way the Wind', 'Set every Weathervanes roof.', VANE_ROOFS),
   everyPuzzle('game:binairo', 'binairo', 'Binary Star', 'Solve every Twos puzzle.', BINAIRO),
   everyPuzzle('game:arukone', 'arukone', 'Both Sides', 'Solve every Twinpath puzzle.', ARUKONE),
-  everyPuzzle('game:fillapix', 'fillapix', 'Picture Perfect', 'Solve every Pixel Clues puzzle.', FILLAPIX),
+  everyPuzzle('game:glass', 'glass', 'Rose Window', 'Finish every Stained Glass window.', GLASS_WINDOWS),
   everyPuzzle('game:lightsout', 'lightsout', 'Nothing Burning', 'Solve every Lanterns puzzle.', LIGHTS_OUT),
   everyPuzzle('game:adjacent', 'adjacent', 'Down to the Tray', 'Solve every Adjacent puzzle.', ADJACENT),
   everyPuzzle('game:bloom', 'bloom', 'Walled Garden', 'Solve every Bloom puzzle.', BLOOM),

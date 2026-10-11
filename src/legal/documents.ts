@@ -16,7 +16,7 @@ export const LEGAL = {
   /** Where the Supabase project's servers are (Dashboard > Project
    * Settings > General), e.g. 'Frankfurt, Germany'. */
   dataRegion: '',
-  updated: '4 October 2026',
+  updated: '6 October 2026',
 };
 
 const who = () => LEGAL.owner || 'the developer of Tessellatum';
@@ -47,19 +47,20 @@ export function privacyPolicy(): LegalDocument {
           'Your leaderboard profile: the name you choose to show (or, only if you say yes, the first name and initial of your Google or Apple account), your country (taken from your phone’s region setting, which you can change) and a city, only if you type one in.',
           'Reports: if you report another player’s name, we store that you reported it, so that names reported by several players can be hidden.',
           'Which kind of phone saved your progress (iPhone or Android), to keep copies on two phones from overwriting each other.',
+          'Like any website, our server briefly records the IP address of each connection in its security logs, to keep the service working and stop abuse. These logs are deleted automatically after a short time.',
         ],
       },
       {
         heading: 'What is not',
         paragraphs: [
-          'Tessellatum does not use your location (no GPS), your contacts, your photos, your microphone or camera, or your advertising identifier. It contains no analytics or tracking tools, does not track you across other apps, and nothing about you is sold.',
+          'Tessellatum does not use your location (no GPS), your contacts, your photos, your microphone or camera. It never asks to track you, contains no analytics or tracking tools, does not track you across other apps, and nothing about you is sold.',
         ],
       },
       {
         heading: 'Ads',
         paragraphs: [
-          'Tessellatum is free and shows a few ads: now and then a full-screen ad between level sets (never during a puzzle, and none in your first sessions), and short videos for coins, only when you choose to watch one. Ad-free time from the shop switches the full-screen ads off.',
-          'The ads come from Google AdMob. They are always non-personalised: they are not based on your interests or your activity in other apps, and your device\u2019s advertising identifier is not used. To show an ad and count it, Google still processes technical information such as your IP address (for your approximate country), your device type and how you interact with the ad, under its own privacy policy (policies.google.com/privacy).',
+          'Tessellatum is free and shows a few ads: now and then a full-screen ad between level sets (never during a puzzle, and none in your first sessions), and short videos for coins or an Insight, only when you choose to watch one. Ad-free time from the shop switches the full-screen ads off.',
+          'The ads come from Google AdMob. They are always non-personalised: they are not based on your interests or your activity in other apps. To show an ad and count it, Google still processes technical information such as your IP address (for your approximate country), your device type, a device identifier (used to limit how often you see the same ad and to stop fraud) and how you interact with the ad, under its own privacy policy (policies.google.com/privacy).',
           'In the European Economic Area, the UK and Switzerland, you are asked for your choice before any ad is shown, and you can change it at any time in Settings, under Ad Privacy Choices.',
         ],
       },
@@ -103,6 +104,7 @@ export function privacyPolicy(): LegalDocument {
         heading: 'Stored on your phone',
         paragraphs: [
           'The game keeps your progress, settings and the list of players you have hidden on your phone, because it needs them to work. This is not used for tracking, so no consent prompt is needed for it.',
+          'Daily reminders, if you turn them on, are scheduled on your phone and never pass through our server. The home screen widget reads your streak and today’s Daily from the game on your phone and sends nothing anywhere.',
         ],
       },
       {

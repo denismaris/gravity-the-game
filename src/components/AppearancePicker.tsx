@@ -139,9 +139,8 @@ const styles = themedStyles(() => ({
   labelOn: { color: theme.colors.textPrimary },
   note: {
     marginTop: 1,
-    fontFamily: theme.typography.families.mono,
-    fontSize: 9.5,
-    letterSpacing: 0.4,
+    fontSize: 11.5,
     color: theme.colors.textTertiary,
+    fontWeight: theme.typography.weights.semibold,
   },
 }));

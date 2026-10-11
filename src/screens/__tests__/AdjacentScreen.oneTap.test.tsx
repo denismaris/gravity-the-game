@@ -84,7 +84,7 @@ describe('AdjacentScreen - one press applies exactly one clear', () => {
     });
 
     const root = renderer.root;
-    expect(allText(root)).toContain('ADJACENT · 0 / 10000');
+    expect(allText(root)).toContain('Adjacent · 0 of 10000');
 
     // Row 4, column 2 in one-based screen terms is grid (3, 1) - the
     // bottom of the run.
@@ -97,7 +97,7 @@ describe('AdjacentScreen - one press applies exactly one clear', () => {
     await act(async () => {
       cell.props.onPressIn();
     });
-    expect(allText(root)).toContain('ADJACENT · 0 / 10000');
+    expect(allText(root)).toContain('Adjacent · 0 of 10000');
 
     // Finger up clears it, immediately - and once.
     await act(async () => {
@@ -105,8 +105,8 @@ describe('AdjacentScreen - one press applies exactly one clear', () => {
     });
 
     expect(cascadeScore(3)).toBe(200);
-    expect(allText(root)).toContain(`ADJACENT · ${cascadeScore(3)} / 10000`);
-    expect(allText(root)).not.toContain(`ADJACENT · ${cascadeScore(3) * 2} / 10000`);
+    expect(allText(root)).toContain(`Adjacent · ${cascadeScore(3)} of 10000`);
+    expect(allText(root)).not.toContain(`Adjacent · ${cascadeScore(3) * 2} of 10000`);
 
     await act(async () => {
       renderer.unmount();

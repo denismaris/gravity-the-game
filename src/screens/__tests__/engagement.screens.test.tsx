@@ -158,7 +158,7 @@ describe('passes', () => {
 
   test('swapping the current puzzle charges and replaces it', async () => {
     // A player every game has reached, so there is another game to swap to.
-    const levels = Object.fromEntries(ROTATION.map(kind => [endlessId(kind, 'medium', 900), { completed: true, bestMoves: 1, stars: 3 }]));
+    const levels = Object.fromEntries(ROTATION.flatMap(kind => Array.from({ length: 15 }, (_v, i) => [endlessId(kind, 'medium', 900 + i), { completed: true, bestMoves: 1, stars: 3 }])));
     const { api, renderer } = await mount(<ErrandList />, { coins: 500, levels });
     const before = api().progress.currentBatch!;
     let swapped: ReturnType<Api['swapPuzzle']> = null;
@@ -177,12 +177,12 @@ describe('the ledger', () => {
   afterEach(() => jest.useRealTimers());
 
   test('an earned stamp is claimed with a tap on it, and pays', async () => {
-    const levels = Object.fromEntries(Array.from({ length: 11 }, (_v, i) => [`tents-e-easy-${i}`, { completed: true, stars: 3, bestMoves: 1 }]));
+    const levels = Object.fromEntries(Array.from({ length: 11 }, (_v, i) => [`lilypads-e-easy-${i}`, { completed: true, stars: 3, bestMoves: 1 }]));
     const { api, press, renderer } = await mount(<LedgerScreen onExit={() => {}} onOpenShop={() => {}} />, { levels, coins: 0 });
-    expect(renderer.root.findAll(node => node.props.children === '1 TO CLAIM').length).toBeGreaterThan(0);
+    expect(renderer.root.findAll(node => node.props.children === '1 to claim').length).toBeGreaterThan(0);
     await press('10 solves stamp: earned, tap to claim');
     expect(api().coins).toBe(25);
-    expect(api().progress.stampsClaimed).toEqual(['tents:10']);
+    expect(api().progress.stampsClaimed).toEqual(['lilypads:10']);
     expect(renderer.root.findAll(node => node.props.accessibilityLabel === '10 solves stamp: collected').length).toBeGreaterThan(0);
     expect(renderer.root.findAll(node => node.props.accessibilityLabel === '10 solves stamp: earned, tap to claim')).toHaveLength(0);
     await act(async () => renderer.unmount());

@@ -14,7 +14,7 @@ export function PuzzleProgressMark({ batch, puzzleId, style }: { batch: BatchSta
   if (isTodaysDaily(puzzleId)) {
     return (
       <View style={[styles.daily, style]} accessibilityRole="text" accessibilityLabel="Today's Daily">
-        <Text style={styles.dailyText}>TODAY'S DAILY</Text>
+        <Text style={styles.dailyText}>Today's Daily</Text>
       </View>
     );
   }
@@ -23,5 +23,5 @@ export function PuzzleProgressMark({ batch, puzzleId, style }: { batch: BatchSta
 
 const styles = themedStyles(() => ({
   daily: { alignSelf: 'center', paddingHorizontal: 10, paddingVertical: 3, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.secondary },
-  dailyText: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 1.4, fontWeight: theme.typography.weights.bold, color: theme.colors.secondary },
+  dailyText: { fontSize: 11.5, fontWeight: theme.typography.weights.bold, color: theme.colors.secondary },
 }));

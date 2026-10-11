@@ -42,16 +42,13 @@ export function TutorialOverlay({
   }, [progress]);
 
   const opacity = progress;
-  const scale = progress.interpolate({
-    inputRange: [0, 1],
-    outputRange: [motion.cardEnter.scaleFrom, 1],
-  });
+  const rise = progress.interpolate({ inputRange: [0, 1], outputRange: [40, 0] });
 
   return (
     <ModalLayer zIndex={10}>
       <View style={styles.overlay}>
-        <Animated.View style={[styles.card, { opacity, transform: [{ scale }] }]}>
-          <Text style={[styles.eyebrow, { color: accentColor }]}>HOW TO PLAY</Text>
+        <Animated.View style={[styles.card, { opacity, transform: [{ translateY: rise }] }]}>
+          <Text style={[styles.eyebrow, { color: accentColor }]}>New on the board</Text>
           <Text style={styles.title}>{copy.title}</Text>
           <Text style={styles.body}>{copy.body}</Text>
           <PressableScale
@@ -69,12 +66,15 @@ export function TutorialOverlay({
 }
 
 const styles = themedStyles(() => ({
+  // At the foot of the screen, over the controls, with only a light dim:
+  // the card explains what is on the board, so the board stays in view.
   overlay: {
     ...StyleSheet.absoluteFill,
     alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.overlay,
-    paddingHorizontal: theme.spacing.xl,
+    justifyContent: 'flex-end',
+    backgroundColor: 'rgba(20, 16, 34, 0.22)',
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.xxl + theme.spacing.lg,
     zIndex: 10,
   },
   card: {
@@ -85,12 +85,17 @@ const styles = themedStyles(() => ({
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    maxWidth: 360,
+    maxWidth: 380,
+    alignSelf: 'stretch',
+    shadowColor: theme.colors.shadow,
+    shadowOpacity: 0.22,
+    shadowRadius: 22,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 12,
   },
   eyebrow: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: theme.typography.tracking.eyebrow,
+    fontSize: theme.typography.sizes.caption + 1,
+    fontWeight: theme.typography.weights.semibold,
     color: theme.colors.secondary,
     marginBottom: theme.spacing.sm,
   },

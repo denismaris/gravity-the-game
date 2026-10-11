@@ -3,7 +3,7 @@ import { assertValidLevel, createGameStateFromLevel } from '../../levels/level';
 import { LEVELS, getLevelById, getLevelByOrder } from '../../levels/levelData';
 import { isPuzzleSolved } from '../completion';
 
-const LEVEL_COUNT = 194;
+const LEVEL_COUNT = 230;
 
 /**
  * Validates the entire hand-authored level pack: structural integrity of
@@ -86,11 +86,21 @@ describe('LEVELS (the hand-authored level pack)', () => {
     expect(shapes.size).toBeGreaterThanOrEqual(4);
   });
 
-  test('difficulty anchors the progression (first level easy, last expert)', () => {
+  test('difficulty anchors the progression (first level easy, the Deep End ends expert)', () => {
     const rank = { easy: 0, medium: 1, hard: 2, expert: 3 } as const;
     const sorted = [...LEVELS].sort((a, b) => a.order - b.order);
     expect(rank[sorted[0].difficulty]).toBe(rank.easy);
-    expect(rank[sorted[sorted.length - 1].difficulty]).toBe(rank.expert);
+    expect(rank[sorted.find(level => level.order === 194)!.difficulty]).toBe(rank.expert);
+  });
+
+  test('the pairs boards each need both balls, and stay easy or medium', () => {
+    const pairs = LEVELS.filter(level => level.order >= 195);
+    expect(pairs).toHaveLength(36);
+    for (const level of pairs) {
+      expect(level.objects).toHaveLength(2);
+      expect(['easy', 'medium']).toContain(level.difficulty);
+      expect(level.metadata?.tags).toContain('pairs');
+    }
   });
 
   test('mechanic use tracks the world it belongs to', () => {
@@ -164,14 +174,14 @@ describe('LEVELS (the hand-authored level pack)', () => {
    * at least six moves deep, it climbs in order, and it ends on the
    * deepest puzzles in the game. */
   test('World 8 is six moves deep at its shallowest, climbs, and holds the deepest finale', () => {
-    const world8 = LEVELS.filter(level => level.order >= 171).sort((a, b) => a.order - b.order);
+    const world8 = LEVELS.filter(level => level.order >= 171 && level.order <= 194).sort((a, b) => a.order - b.order);
     const depths = world8.map(level => level.metadata?.minMoves ?? 0);
     expect(world8).toHaveLength(24);
     expect(Math.min(...depths)).toBeGreaterThanOrEqual(6);
     expect(depths).toEqual([...depths].sort((a, b) => a - b));
     const deepest = Math.max(...LEVELS.map(level => level.metadata?.minMoves ?? 0));
     expect(deepest).toBe(11);
-    expect(LEVELS.filter(level => level.metadata?.minMoves === deepest).every(level => level.order >= 171)).toBe(true);
+    expect(LEVELS.filter(level => level.metadata?.minMoves === deepest).every(level => level.order >= 171 && level.order <= 194)).toBe(true);
   });
 
   test('the longest solution in the first six worlds (7 moves) is still the anchor-world finale', () => {

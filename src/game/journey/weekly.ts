@@ -29,16 +29,16 @@ export function daysLeftInWeek(date: Date): number {
 
 /** The game a week's Grand is in - the rotation in turn, stepping past
  * any game the player has retired. */
-export function grandKindFor(week: number, retired: ReadonlyArray<GameKind> = []): GameKind {
+export function grandKindFor(week: number, retired: ReadonlyArray<GameKind> = [], games: ReadonlyArray<GameKind> | null = null): GameKind {
   for (let step = 0; step < ROTATION.length; step += 1) {
     const kind = ROTATION[(week + step) % ROTATION.length];
-    if (!retired.includes(kind)) return kind;
+    if (!retired.includes(kind) && (!games || games.includes(kind))) return kind;
   }
-  return ROTATION[week % ROTATION.length];
+  return games?.[0] ?? ROTATION[week % ROTATION.length];
 }
 
-export function grandIdFor(week: number, kind: GameKind): string {
-  return endlessId(kind, 'hard', GRAND_INDEX_BASE + week);
+export function grandIdFor(week: number, kind: GameKind, tier: 'medium' | 'hard' = 'hard'): string {
+  return endlessId(kind, tier, GRAND_INDEX_BASE + week);
 }
 
 /** The week a Grand board belongs to, or null for any other puzzle. */
@@ -53,11 +53,17 @@ export interface WeeklyGrand {
   readonly puzzleId: string;
   readonly name: string;
   readonly daysLeft: number;
+  /** Hard, once every game has arrived; medium before. */
+  readonly tier: 'medium' | 'hard';
 }
 
-export function getWeeklyGrand(date: Date = new Date(), retired: ReadonlyArray<GameKind> = []): WeeklyGrand {
+/** `games`: the games this player has while they are still arriving (null
+ * once all have) - a newcomer's Grand is one of their own games, and no
+ * harder than medium, like everything else they are dealt then. */
+export function getWeeklyGrand(date: Date = new Date(), retired: ReadonlyArray<GameKind> = [], games: ReadonlyArray<GameKind> | null = null): WeeklyGrand {
   const week = weekIndexOf(date);
-  const kind = grandKindFor(week, retired);
-  const puzzleId = grandIdFor(week, kind);
-  return { week, kind, puzzleId, name: puzzleDisplayInfo(kind, puzzleId)?.name ?? 'The Grand', daysLeft: daysLeftInWeek(date) };
+  const kind = grandKindFor(week, retired, games);
+  const tier = games ? 'medium' : 'hard';
+  const puzzleId = grandIdFor(week, kind, tier);
+  return { week, kind, puzzleId, name: puzzleDisplayInfo(kind, puzzleId)?.name ?? 'The Grand', daysLeft: daysLeftInWeek(date), tier };
 }

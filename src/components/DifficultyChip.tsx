@@ -37,7 +37,7 @@ export interface DifficultyChipProps {
  * "this one counts".
  */
 export function DifficultyChip({ difficulty, expert = false, challenge = false, extreme = false, style }: DifficultyChipProps): React.JSX.Element {
-  const label = extreme ? 'EXTREME' : challenge ? 'CHALLENGE' : expert ? 'EXPERT' : difficulty.toUpperCase();
+  const label = extreme ? 'Extreme' : challenge ? 'Challenge' : expert ? 'Expert' : difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
   const loud = extreme || challenge || expert || difficulty === 'hard';
 
   return (
@@ -65,9 +65,8 @@ const styles = themedStyles(() => ({
     backgroundColor: 'rgba(183, 137, 47, 0.12)',
   },
   label: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1,
+    fontSize: theme.typography.sizes.caption,
+    fontWeight: theme.typography.weights.semibold,
   },
   labelEasy: { color: theme.colors.textTertiary },
   labelMedium: { color: theme.colors.textSecondary },

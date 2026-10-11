@@ -59,7 +59,7 @@ describe('game skins', () => {
     for (const id of ['garden-camellia', 'skin-tents-ochre', 'confetti-gold']) p = buyCosmetic(p, id)!;
     const back = parseProgress(JSON.stringify(p));
     expect(back.equipped.garden).toBe('garden-camellia');
-    expect(back.equipped['skin-tents']).toBe('skin-tents-ochre');
+    expect(back.equipped['skin-lilypads']).toBe('skin-tents-ochre');
     expect(back.equipped.confetti).toBe('confetti-gold');
   });
 });

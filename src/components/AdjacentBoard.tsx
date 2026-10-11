@@ -221,9 +221,7 @@ const styles = themedStyles(() => ({
     color: theme.colors.adjacentAccent,
   },
   popupBonus: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1.2,
+    fontSize: theme.typography.sizes.caption,
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.adjacentAccent,
     marginTop: 1,

@@ -14,6 +14,12 @@ export function elapsedFor(id: string, now = Date.now()): number | null {
   return opened?.id === id ? Math.max(0, now - opened.at) : null;
 }
 
+/** Ends the clock on `id` once it is solved, so opening it again (a
+ * replay of the Daily, say) starts a fresh one. */
+export function clearPuzzleTimer(id: string): void {
+  if (opened?.id === id) opened = null;
+}
+
 /** "2:31" / "12:04". */
 export function formatDuration(ms: number): string {
   const s = Math.round(ms / 1000);

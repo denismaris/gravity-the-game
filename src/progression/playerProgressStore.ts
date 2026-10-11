@@ -5,6 +5,7 @@ import { StarRating } from '../game/scoring';
 import { GameKind, ROTATION } from '../game/journey';
 import { BatchPuzzleRef, BatchState } from './batches';
 import {
+  DAILY_DAYS_KEPT,
   DailyStatus,
   emptyProgress,
   EMPTY_DAILY,
@@ -217,6 +218,8 @@ export function parseProgress(raw: string | null): PlayerProgress {
     setsClaimed?: unknown;
     tesserae?: unknown;
     villa?: unknown;
+    dailyDays?: unknown;
+    townGiftKey?: unknown;
     patron?: unknown;
     adFreeUntil?: unknown;
   };
@@ -280,7 +283,24 @@ export function parseProgress(raw: string | null): PlayerProgress {
     tesserae: parseCount(record.tesserae, Object.keys(levels).length * 2),
     // Pieces built in the first version (one room) carry into the first villa.
     villa: Array.isArray(record.villa) ? migrateVillaIds(record.villa.filter((id): id is string => typeof id === 'string')) : [],
+    dailyDays: parseDailyDays(record.dailyDays, record.dailyTimes, record.daily),
+    townGiftKey: typeof record.townGiftKey === 'string' ? record.townGiftKey : '',
   };
+}
+
+/** The days the Daily was solved. A save from before they were kept is
+ * pieced together from what it does know: every timed Daily, and the
+ * current streak's run of days back from the last one. */
+function parseDailyDays(value: unknown, times: unknown, daily: unknown): string[] {
+  const isKey = (k: unknown): k is string => typeof k === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(k);
+  if (Array.isArray(value)) return [...new Set(value.filter(isKey))].sort().slice(-DAILY_DAYS_KEPT);
+  const days = new Set<string>(Object.keys(parseDailyTimes(times)));
+  const d = daily as { streak?: unknown; lastCompletedKey?: unknown } | null;
+  if (d && isKey(d.lastCompletedKey) && typeof d.streak === 'number' && d.streak > 0) {
+    const last = Date.parse(`${d.lastCompletedKey}T00:00:00Z`);
+    for (let i = 0; i < Math.min(d.streak, DAILY_DAYS_KEPT); i += 1) days.add(new Date(last - i * 86400000).toISOString().slice(0, 10));
+  }
+  return [...days].sort().slice(-DAILY_DAYS_KEPT);
 }
 
 function parseGift(value: unknown): GiftLog {

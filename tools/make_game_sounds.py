@@ -586,6 +586,218 @@ NO_BELLS = {
 SOUNDS.update(NO_BELLS)
 
 
+
+# --- New moments (2026-10-08) -------------------------------------------------
+# Three moments that played silently: a Gravity piece going through a
+# portal, a Lantern catching light, and a villa finished. Same warm family:
+# soft attacks, filtered, nothing that rings.
+
+def teleport():
+    """A soft breath drawn in as the piece sinks, a beat of nothing, and a
+    rising pair of muted notes as it comes out of the other portal."""
+    total_s = 0.75
+    total = int(SR * total_s)
+    t = timeline(total_s)
+    # In: filtered air, swelling then cut as the piece vanishes.
+    breath = bandpass_noise(t, 300, 1800, 0.5, 0.5) * np.clip(t / 0.16, 0, 1) * (t < 0.22)
+    sink = tone(t, 330, 0.5, 0.12, attack=0.03, glide_to=196, glide_time=0.2)
+    out = breath + sink * (t < 0.3)
+    # Out: two notes rising, after the pause.
+    tt = timeline(0.4)
+    out += at(wood(tt, 293.66, 0.7, 0.12), 0.36, total) + at(wood(tt, 440.0, 0.85, 0.16), 0.42, total)
+    return finish(lowpass(room(out, 0.16), 2400), 0.3)
+
+
+def lantern_light():
+    """A flame catching: a tiny puff of air and a warm low note blooming."""
+    t = timeline(0.32)
+    puff = bandpass_noise(t, 600, 2600, 0.03, 0.35) * np.clip(t / 0.006, 0, 1)
+    body = tone(t, 261.63, 0.9, 0.12, attack=0.018) + tone(t, 523.25, 0.18, 0.06, attack=0.018)
+    return finish(lowpass(room(puff + body, 0.12), 2200), 0.26)
+
+
+def lantern_douse():
+    """The same, lower and shorter: a light going out."""
+    t = timeline(0.26)
+    puff = bandpass_noise(t, 400, 1600, 0.025, 0.25) * np.clip(t / 0.004, 0, 1)
+    body = tone(t, 196.0, 0.85, 0.09, attack=0.012, glide_to=174.6, glide_time=0.12)
+    return finish(lowpass(room(puff + body, 0.1), 1800), 0.22)
+
+
+def villa_finish():
+    """A villa finished: a slow, warm rise and a held chord - the one
+    finish in the app that is allowed a little more time."""
+    notes = [196.0, 246.94, 293.66, 392.0, 493.88]
+    gap = 0.14
+    tail = 1.2
+    total = int(SR * (gap * (len(notes) - 1) + tail))
+    t = timeline(tail)
+    out = np.zeros(total)
+    for i, f in enumerate(notes):
+        out += at(wood(t, f, 0.75 if i < len(notes) - 1 else 1.0, 0.25 if i < len(notes) - 1 else 0.6), i * gap, total)
+    # The chord under the last note, soft.
+    out += at(tone(t, 196.0, 0.25, 0.7, attack=0.08) + tone(t, 293.66, 0.18, 0.7, attack=0.08), gap * (len(notes) - 1), total)
+    return finish(lowpass(room(out, 0.2), 2200), 0.4)
+
+
+SOUNDS.update({
+    'sfx_teleport': teleport,
+    'sfx_lightsout_tap': lantern_light,
+    'sfx_lightsout_darker': lantern_douse,
+    'sfx_villa_finish': villa_finish,
+})
+
+
+# --- Stained Glass (2026-10-10) ------------------------------------------------
+# A pane set is a small glass tone - inharmonic partials, struck softly -
+# and each glass has its own note (ruby C, cobalt E, amber G), so colouring
+# a window plays a chord. Taking a pane out is a muted lift; a clash a
+# dull, low touch; the finished window a slow, shimmering rise.
+
+def glass_tone(t, freq, amp=1.0, ring=0.45):
+    env = np.exp(-t / ring) * np.clip(t / 0.004, 0, 1)
+    body = np.sin(2 * np.pi * freq * t) + 0.35 * np.sin(2 * np.pi * freq * 2.76 * t) * np.exp(-t / (ring * 0.4)) + 0.12 * np.sin(2 * np.pi * freq * 5.4 * t) * np.exp(-t / (ring * 0.18))
+    return amp * env * body
+
+
+def glass_set(freq):
+    t = timeline(0.7)
+    return finish(lowpass(room(glass_tone(t, freq, 1.0, 0.32), 0.2), 4200), 0.26)
+
+
+def glass_lift():
+    t = timeline(0.18)
+    return finish(lowpass(tone(t, 392.0, 0.8, 0.035, attack=0.002) + bandpass_noise(t, 1500, 4000, 0.012, 0.25), 3000), 0.16)
+
+
+def glass_clash():
+    t = timeline(0.3)
+    return finish(lowpass(room(tone(t, 196.0, 1.0, 0.07, attack=0.003) + tone(t, 207.65, 0.6, 0.07, attack=0.003), 0.1), 1400), 0.24)
+
+
+def glass_solve():
+    notes = [523.25, 659.25, 783.99, 1046.5, 1318.5]
+    gap = 0.12
+    tail = 1.6
+    total = int(SR * (gap * (len(notes) - 1) + tail))
+    t = timeline(tail)
+    out = np.zeros(total)
+    for i, f in enumerate(notes):
+        out += at(glass_tone(t, f, 0.7 if i < len(notes) - 1 else 0.9, 0.5 if i < len(notes) - 1 else 1.1), i * gap, total)
+    # A faint shimmer over the top: high partials, slowly fading.
+    tt = timeline(tail)
+    out += at(0.05 * np.sin(2 * np.pi * 2093 * tt) * np.exp(-tt / 0.9) * (0.5 + 0.5 * np.sin(2 * np.pi * 7 * tt)), gap * 2, total)
+    return finish(lowpass(room(out, 0.28), 5200), 0.4)
+
+
+SOUNDS.update({
+    'sfx_glass_ruby': lambda: glass_set(523.25),
+    'sfx_glass_cobalt': lambda: glass_set(659.25),
+    'sfx_glass_amber': lambda: glass_set(783.99),
+    'sfx_glass_lift': glass_lift,
+    'sfx_glass_clash': glass_clash,
+    'sfx_glass_solve': glass_solve,
+})
+
+# --- Lily Pads and Weathervanes (2026-10-11) -----------------------------------
+# Lily Pads is water: a hop is a light plip as the frog leaves and a rounder
+# plop as it lands, with a small bubble from the pad going under; a pad cut
+# off is a soft, low warning; a stranded frog a dull pair; the cleared pond
+# a warm rise with a last splash. Weathervanes is metal and air: a turn is
+# a small iron tick with a breath of creak; a loop closing an airy two-note
+# chime; a vane astray a muted touch; the set roof a gust and rising chimes.
+
+def plip(t, f0, f1, amp=1.0, decay=0.05):
+    return tone(t, f0, amp, decay, attack=0.002, glide_to=f1, glide_time=0.04)
+
+
+def lily_hop():
+    total = int(SR * 0.62)
+    t = timeline(0.3)
+    out = at(plip(t, 900, 1500, 0.55, 0.03), 0.0, total)
+    out += at(plip(t, 520, 300, 1.0, 0.07) + bandpass_noise(t, 600, 2400, 0.02, 0.25), 0.27, total)
+    tb = timeline(0.25)
+    bubbles = sum(plip(tb, f, f * 1.6, 0.25, 0.025) for f in (700, 860))
+    out += at(bubbles, 0.42, total)
+    return finish(lowpass(room(out, 0.14), 3600), 0.3)
+
+
+def lily_warn():
+    t = timeline(0.45)
+    return finish(lowpass(room(wood(t, 261.63, 1.0, 0.14) + 0.6 * wood(t, 246.94, 1.0, 0.14), 0.15), 1800), 0.2)
+
+
+def lily_stranded():
+    total = int(SR * 0.5)
+    t = timeline(0.3)
+    out = at(wood(t, 220.0, 1.0, 0.1), 0, total) + at(wood(t, 196.0, 1.0, 0.14), 0.13, total)
+    return finish(lowpass(out, 1500), 0.24)
+
+
+def lily_solve():
+    notes = [392.0, 493.88, 587.33, 783.99]
+    gap = 0.11
+    tail = 1.0
+    total = int(SR * (gap * (len(notes) - 1) + tail + 0.3))
+    t = timeline(tail)
+    out = np.zeros(total)
+    for i, f in enumerate(notes):
+        out += at(wood(t, f, 0.9, 0.3 if i == len(notes) - 1 else 0.18), i * gap, total)
+    ts = timeline(0.35)
+    out += at(plip(ts, 600, 360, 0.5, 0.09) + bandpass_noise(ts, 500, 3000, 0.05, 0.3), gap * len(notes) + 0.05, total)
+    return finish(lowpass(room(out, 0.25), 3000), 0.38)
+
+
+def vane_turn():
+    t = timeline(0.2)
+    tick = partials(t, 1850, [1, 1.52, 2.31], [1, 0.5, 0.3], [0.018, 0.012, 0.008])
+    creak = 0.18 * np.sin(2 * np.pi * (140 + 60 * t / 0.2) * t) * np.exp(-t / 0.05) * np.clip(t / 0.01, 0, 1)
+    return finish(lowpass(tick + creak + bandpass_noise(t, 2000, 6000, 0.006, 0.2), 5000), 0.2)
+
+
+def air(t, amp=1.0, low=400, high=2400, rise=0.15, decay=0.4):
+    noise = bandpass_noise(t, low, high, 10.0, 1.0)
+    env = np.clip(t / rise, 0, 1) * np.exp(-np.maximum(0, t - rise) / decay)
+    return amp * noise * env
+
+
+def vane_loop():
+    total = int(SR * 0.9)
+    t = timeline(0.9)
+    out = air(t, 0.18, 600, 3000, 0.08, 0.25)
+    tt = timeline(0.7)
+    out += at(glass_tone(tt, 659.25, 0.6, 0.3), 0.02, total) + at(glass_tone(tt, 987.77, 0.55, 0.4), 0.11, total)
+    return finish(lowpass(room(out, 0.22), 5000), 0.26)
+
+
+def vane_astray():
+    t = timeline(0.25)
+    return finish(lowpass(tone(t, 233.08, 1.0, 0.06, attack=0.003) + tone(t, 246.94, 0.5, 0.06, attack=0.003), 1400), 0.18)
+
+
+def vane_solve():
+    tail = 1.7
+    total = int(SR * tail)
+    t = timeline(tail)
+    out = air(t, 0.35, 300, 2600, 0.35, 0.5)
+    notes = [523.25, 659.25, 783.99, 1046.5]
+    tt = timeline(1.1)
+    for i, f in enumerate(notes):
+        out += at(glass_tone(tt, f, 0.6 if i < 3 else 0.8, 0.45 if i < 3 else 0.9), 0.18 + i * 0.12, total)
+    return finish(lowpass(room(out, 0.3), 5200), 0.38)
+
+
+SOUNDS.update({
+    'sfx_lily_hop': lily_hop,
+    'sfx_lily_warn': lily_warn,
+    'sfx_lily_stranded': lily_stranded,
+    'sfx_lily_solve': lily_solve,
+    'sfx_vane_turn': vane_turn,
+    'sfx_vane_loop': vane_loop,
+    'sfx_vane_astray': vane_astray,
+    'sfx_vane_solve': vane_solve,
+})
+
 def write(path, signal):
     data = (np.clip(signal, -1, 1) * 32767).astype('<i2').tobytes()
     with wave.open(path, 'wb') as out:

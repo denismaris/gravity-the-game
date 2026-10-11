@@ -1,8 +1,8 @@
 import React from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
-import { Canvas, Circle, Group, Path, Rect, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Canvas, Circle, Group, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import { accentColorForKind, GameKind } from '../game/journey';
-import { hexToRgb } from '../game/rendering';
+import { hexToRgb, shade } from '../game/rendering';
 import { motion, theme, themedStyles } from '../theme';
 
 export interface GameEmblemProps {
@@ -17,7 +17,7 @@ const DEFAULT_SIZE = 64;
 /** `hex` at `alpha` - the accents are all `#rrggbb` literals, and a tinted
  * plate needs real transparency rather than `shade`'s opaque tone, so the
  * plate keeps working over the card's paper *and* over a dimmed board. */
-function tint(hex: string, alpha: number): string {
+export function tint(hex: string, alpha: number): string {
   const { r, g, b } = hexToRgb(hex);
   return `rgba(${r},${g},${b},${alpha})`;
 }
@@ -70,20 +70,20 @@ export function GameEmblemGlyph({ kind, size, x = 0, y = 0, opacity = 1 }: { kin
 
 function renderMark(kind: GameKind, size: number, accent: string, plate: string): React.JSX.Element {
   switch (kind) {
-    case 'towers':
-      return <TowersMark size={size} accent={accent} plate={plate} />;
+    case 'vanes':
+      return <VanesMark size={size} accent={accent} plate={plate} />;
     case 'binairo':
       return <BinairoMark size={size} accent={accent} plate={plate} />;
     case 'mirror':
       return <MirrorMark size={size} accent={accent} plate={plate} />;
-    case 'tents':
-      return <TentsMark size={size} accent={accent} plate={plate} />;
+    case 'lilypads':
+      return <LilyMark size={size} accent={accent} plate={plate} />;
     case 'gravity':
       return <GravityMark size={size} accent={accent} plate={plate} />;
     case 'arukone':
       return <ArukoneMark size={size} accent={accent} plate={plate} />;
-    case 'fillapix':
-      return <FillaPixMark size={size} accent={accent} plate={plate} />;
+    case 'glass':
+      return <GlassMark size={size} accent={accent} plate={plate} />;
     case 'lightsout':
       return <LightsOutMark size={size} accent={accent} plate={plate} />;
     case 'adjacent':
@@ -106,55 +106,6 @@ interface MarkProps {
   readonly plate: string;
 }
 
-/**
- * A skyline of four towers with lit windows - the thing the clues ask you
- * to count, now with enough detail to read as buildings rather than a bar
- * chart. Windows are knocked out of the tower rather than drawn over it,
- * so the mark stays one colour on its plate.
- */
-function TowersMark({ size, accent, plate }: MarkProps): React.JSX.Element {
-  const baseline = size * 0.78;
-  const bars = [
-    { w: 0.11, h: 0.22, floors: 1 },
-    { w: 0.13, h: 0.38, floors: 2 },
-    { w: 0.11, h: 0.30, floors: 2 },
-    { w: 0.14, h: 0.50, floors: 3 },
-  ];
-  const gap = size * 0.035;
-  const totalWidth = bars.reduce((sum, b) => sum + b.w * size, 0) + gap * (bars.length - 1);
-  let x = (size - totalWidth) / 2;
-
-  const shapes: React.JSX.Element[] = [];
-  bars.forEach((bar, i) => {
-    const w = bar.w * size;
-    const h = bar.h * size;
-    const top = baseline - h;
-    shapes.push(
-      <RoundedRect key={`t-${i}`} x={x} y={top} width={w} height={h} r={size * 0.02} color={accent} />,
-    );
-    // Windows: one small notch per floor, in the plate colour.
-    for (let f = 0; f < bar.floors; f += 1) {
-      shapes.push(
-        <Rect
-          key={`w-${i}-${f}`}
-          x={x + w * 0.28}
-          y={top + h * 0.16 + f * (h * 0.3)}
-          width={w * 0.44}
-          height={size * 0.035}
-          color={plate}
-        />,
-      );
-    }
-    x += w + gap;
-  });
-
-  return (
-    <Group>
-      {shapes}
-      <Rect x={size * 0.16} y={baseline} width={size * 0.68} height={size * 0.035} color={accent} />
-    </Group>
-  );
-}
 
 /**
  * A 2x2 fragment of a real Binairo board: circles and squares alternating
@@ -247,49 +198,6 @@ function MirrorMark({ size, accent }: MarkProps): React.JSX.Element {
   );
 }
 
-/**
- * Two trees and the tent pitched between them, on a ground line - the
- * game's actual subject rather than one of each. The tents-never-touch
- * rule is why the tent sits off-centre, with room either side.
- */
-function TentsMark({ size, accent, plate }: MarkProps): React.JSX.Element {
-  const baseline = size * 0.76;
-  const trunkWidth = Math.max(2, size * 0.05);
-
-  const tree = (cx: number, key: string, canopy: number): React.JSX.Element => (
-    <Group key={key}>
-      <Circle cx={cx} cy={baseline - canopy - size * 0.1} r={canopy} color={accent} />
-      <RoundedRect
-        x={cx - trunkWidth / 2}
-        y={baseline - canopy - size * 0.02}
-        width={trunkWidth}
-        height={canopy + size * 0.02}
-        r={trunkWidth / 2}
-        color={accent}
-      />
-    </Group>
-  );
-
-  const tentCx = size * 0.5;
-  const tentHalf = size * 0.13;
-
-  return (
-    <Group>
-      {tree(size * 0.22, 'tree-l', size * 0.1)}
-      {tree(size * 0.78, 'tree-r', size * 0.085)}
-      <Path
-        path={`M ${tentCx} ${size * 0.42} L ${tentCx + tentHalf} ${baseline} L ${tentCx - tentHalf} ${baseline} Z`}
-        color={accent}
-      />
-      {/* The tent's own doorway, knocked out so the mark stays one colour. */}
-      <Path
-        path={`M ${tentCx} ${size * 0.58} L ${tentCx + tentHalf * 0.4} ${baseline} L ${tentCx - tentHalf * 0.4} ${baseline} Z`}
-        color={plate}
-      />
-      <Rect x={size * 0.12} y={baseline} width={size * 0.76} height={size * 0.035} color={accent} />
-    </Group>
-  );
-}
 
 /**
  * A piece falling to its target ring, with the fall itself shown - two
@@ -381,28 +289,142 @@ function ArukoneMark({ size, accent, plate }: MarkProps): React.JSX.Element {
 }
 
 /**
- * A tiny 3x3 mosaic - a small plus of filled tiles among empty ones, the
- * same "picture made of squares" the real board asks a player to build,
- * shrunk to the smallest shape that still reads as a picture rather than
- * a random scatter.
+ * A lily pad seen from above - its notch, its veins knocked out of it -
+ * on a ripple of water, with a lotus in flower at its edge: the pond, and
+ * the one pad that asks to be visited twice. In the pond's own colours,
+ * as Mosaic's emblem wears its glazes.
  */
-function FillaPixMark({ size, accent, plate }: MarkProps): React.JSX.Element {
-  const cell = size * 0.2;
-  const gap = size * 0.025;
-  const span = cell * 3 + gap * 2;
-  const originX = (size - span) / 2;
-  const originY = (size - span) / 2;
-  const filled = new Set([1, 3, 4, 5, 7]); // a plus, indices 0..8 row-major
-
+function LilyMark({ size, plate }: MarkProps): React.JSX.Element {
+  const c = size * 0.46;
+  const cy = size * 0.54;
+  const r = size * 0.28;
+  const turn = -Math.PI / 4;
+  const a1 = turn - 0.32;
+  const a2 = turn + 0.32;
+  const leaf = (y: number) => `M ${c + Math.cos(turn) * r * 0.08} ${y + Math.sin(turn) * r * 0.08} L ${c + Math.cos(a1) * r} ${y + Math.sin(a1) * r} A ${r} ${r} 0 1 0 ${c + Math.cos(a2) * r} ${y + Math.sin(a2) * r} Z`;
+  const pad = theme.colors.lilyPad;
+  const bloom = theme.colors.lilyBloom;
+  const lx = size * 0.68;
+  const ly = size * 0.34;
+  const petal = (a: number, len: number, w: number) => {
+    const l = { x: lx + Math.cos(a - 1.57) * w, y: ly + Math.sin(a - 1.57) * w };
+    const rr = { x: lx + Math.cos(a + 1.57) * w, y: ly + Math.sin(a + 1.57) * w };
+    const tip = { x: lx + Math.cos(a) * len, y: ly + Math.sin(a) * len };
+    return `M ${l.x} ${l.y} Q ${l.x + Math.cos(a) * len * 0.85} ${l.y + Math.sin(a) * len * 0.85} ${tip.x} ${tip.y} Q ${rr.x + Math.cos(a) * len * 0.85} ${rr.y + Math.sin(a) * len * 0.85} ${rr.x} ${rr.y} Z`;
+  };
   return (
     <Group>
-      {Array.from({ length: 9 }).map((_, i) => {
-        const r = Math.floor(i / 3);
-        const c = i % 3;
-        const x = originX + c * (cell + gap);
-        const y = originY + r * (cell + gap);
-        return <RoundedRect key={`cell-${i}`} x={x} y={y} width={cell} height={cell} r={cell * 0.22} color={filled.has(i) ? accent : plate} />;
+      {/* The water: two ripples under the pad. */}
+      {[0.16, 0.3].map((k, i) => (
+        <Path
+          key={i}
+          path={`M ${size * (0.16 + k * 0.6)} ${size * (0.86 - i * 0.02)} q ${size * 0.06} ${-size * 0.035} ${size * 0.12} 0 q ${size * 0.06} ${size * 0.035} ${size * 0.12} 0`}
+          color={pad}
+          style="stroke"
+          strokeWidth={Math.max(1.2, size * 0.03)}
+          strokeCap="round"
+          opacity={0.45}
+        />
+      ))}
+      <Path path={leaf(cy + size * 0.035)} color={shade(pad, 0.7)} />
+      <Path path={leaf(cy)} color={pad} />
+      {[-1.3, -0.6, 0.6, 1.3, Math.PI].map(a => (
+        <Path key={a} path={`M ${c} ${cy} L ${c + Math.cos(turn + a) * r * 0.72} ${cy + Math.sin(turn + a) * r * 0.72}`} color={plate} style="stroke" strokeWidth={Math.max(1, size * 0.022)} strokeCap="round" opacity={0.9} />
+      ))}
+      {Array.from({ length: 6 }, (_v, i) => (
+        <Path key={`p${i}`} path={petal((i / 6) * Math.PI * 2 - Math.PI / 2, size * 0.15, size * 0.045)} color={bloom} />
+      ))}
+      {Array.from({ length: 5 }, (_v, i) => (
+        <Path key={`q${i}`} path={petal((i / 5) * Math.PI * 2 - Math.PI / 2 + 0.3, size * 0.09, size * 0.03)} color="#FFFFFF" opacity={0.85} />
+      ))}
+      <Circle cx={lx} cy={ly} r={size * 0.03} color="#F6D46A" />
+    </Group>
+  );
+}
+
+/**
+ * The game, solved, in the smallest roof that shows it: four vanes at the
+ * corners of a square, each sending its wind to the next, so the wind
+ * runs round in one closed loop. Rings for the vanes and strokes for the
+ * wind, in one colour - the same hand as Twinpath's emblem.
+ */
+function VanesMark({ size, accent, plate }: MarkProps): React.JSX.Element {
+  const lo = size * 0.25;
+  const hi = size * 0.75;
+  const corners = [
+    { x: lo, y: lo },
+    { x: hi, y: lo },
+    { x: hi, y: hi },
+    { x: lo, y: hi },
+  ];
+  const stroke = Math.max(2, size * 0.065);
+  const nodeR = size * 0.085;
+  const gap = nodeR + size * 0.06; // wind stops short of each vane
+  const head = size * 0.075;
+  return (
+    <Group>
+      {corners.map((a, i) => {
+        const b = corners[(i + 1) % 4];
+        const dx = Math.sign(b.x - a.x);
+        const dy = Math.sign(b.y - a.y);
+        const sx = a.x + dx * gap;
+        const sy = a.y + dy * gap;
+        const ex = b.x - dx * gap;
+        const ey = b.y - dy * gap;
+        // The arrowhead's two barbs, swept back from the tip.
+        const barbs = `M ${ex - dx * head - dy * head} ${ey - dy * head + dx * head} L ${ex} ${ey} L ${ex - dx * head + dy * head} ${ey - dy * head - dx * head}`;
+        return (
+          <Group key={i}>
+            <Path path={`M ${sx} ${sy} L ${ex} ${ey}`} color={accent} style="stroke" strokeWidth={stroke} strokeCap="round" />
+            <Path path={barbs} color={accent} style="stroke" strokeWidth={stroke} strokeCap="round" strokeJoin="round" />
+          </Group>
+        );
       })}
+      {corners.map((c, i) => (
+        <Group key={`v${i}`}>
+          <Circle cx={c.x} cy={c.y} r={nodeR} color={accent} />
+          <Circle cx={c.x} cy={c.y} r={nodeR * 0.42} color={plate} />
+        </Group>
+      ))}
+    </Group>
+  );
+}
+
+/**
+ * A small arched window of real glass - ruby, cobalt and amber, with the
+ * lead between the panes knocked out to the plate - coloured so that no
+ * two panes sharing lead match: the game's one rule, as a window. In the
+ * glass's own colours, as Mosaic's emblem wears its glazes.
+ */
+function GlassMark({ size, accent, plate }: MarkProps): React.JSX.Element {
+  const left = size * 0.24;
+  const right = size * 0.76;
+  const top = size * 0.14;
+  const bottom = size * 0.86;
+  const w = right - left;
+  const spring = top + w / 2; // where the arch meets the sides
+  const mid = (left + right) / 2;
+  const row = spring + (bottom - spring) * 0.48;
+  const lead = Math.max(1.4, size * 0.035);
+  const window = `M ${left} ${bottom} L ${left} ${spring} A ${w / 2} ${w / 2} 0 0 1 ${right} ${spring} L ${right} ${bottom} Z`;
+  const ruby = theme.colors.glassRuby;
+  const cobalt = theme.colors.glassCobalt;
+  const amber = theme.colors.glassAmber;
+  return (
+    <Group>
+      {/* The panes: the arch, two above the transom and two below. */}
+      <Group clip={window}>
+        <RoundedRect x={left} y={top} width={w} height={spring - top + size * 0.02} r={0} color={amber} />
+        <RoundedRect x={left} y={spring} width={w / 2} height={row - spring} r={0} color={ruby} />
+        <RoundedRect x={mid} y={spring} width={w / 2} height={row - spring} r={0} color={cobalt} />
+        <RoundedRect x={left} y={row} width={w / 2} height={bottom - row} r={0} color={cobalt} />
+        <RoundedRect x={mid} y={row} width={w / 2} height={bottom - row} r={0} color={amber} />
+        {/* The glint of glass: one lighter stripe across the window. */}
+        <Path path={`M ${left - size * 0.1} ${size * 0.62} L ${left + size * 0.02} ${size * 0.62} L ${right + size * 0.02} ${size * 0.1} L ${right - size * 0.1} ${size * 0.1} Z`} color="#FFFFFF" opacity={0.2} />
+      </Group>
+      {/* The lead, knocked out to the plate. */}
+      <Path path={`M ${left} ${spring} L ${right} ${spring} M ${left} ${row} L ${right} ${row} M ${mid} ${spring} L ${mid} ${bottom}`} color={plate} style="stroke" strokeWidth={lead} />
+      <Path path={window} color={accent} style="stroke" strokeWidth={lead * 1.1} strokeJoin="round" />
     </Group>
   );
 }
@@ -412,9 +434,8 @@ function FillaPixMark({ size, accent, plate }: MarkProps): React.JSX.Element {
  * diagonals left dark. That shape *is* the game's one rule, which is what
  * earns it the emblem.
  *
- * Deliberately round lamps with a halo, where `FillaPixMark` next door is
- * square tiles - both marks are a plus in a 3x3, and shape is what keeps
- * them from reading as the same emblem at card size.
+ * Deliberately round lamps with a halo, so the plus reads as lights
+ * rather than as tiles at card size.
  */
 function LightsOutMark({ size, accent, plate }: MarkProps): React.JSX.Element {
   const step = size * 0.235;

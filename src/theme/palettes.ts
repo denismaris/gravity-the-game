@@ -96,15 +96,43 @@ export const lightColors = {
   lightsOutLitCore: '#FFF3D4',
   lightsOutDim: '#333A5C',
 
+  // --- Stained Glass: the lead, the clear pane, and the three glasses ---
+  glassLead: '#2E2634',
+  glassLeadLight: '#4A4052',
+  glassClear: '#EFEBE1',
+  glassClearLine: '#E2DCCD',
+  glassRuby: '#B8324B',
+  glassCobalt: '#2F5DA8',
+  glassAmber: '#DFA02C',
+  glassAccent: '#9A3A8C',
+
+  // --- Lily Pads: the pond, the pads and the frog ---
+  pondWater: '#BFDCD8',
+  pondRipple: '#D6EAE6',
+  lilyPad: '#5E9E4A',
+  lilyPadEdge: '#3F7432',
+  lilyVein: '#7DB866',
+  lilyFrog: '#8CBF3F',
+  lilyFrogDark: '#5C8A26',
+  lilyBloom: '#F2A7B8',
+  lilyAccent: '#2F8577',
+
+  // --- Weathervanes: the roof, the vanes and the wind ---
+  vaneRoof: '#E8DCC6',
+  vaneMetal: '#3C3346',
+  vaneMetalLight: '#6A5E77',
+  vaneWind: '#7FA9C9',
+  vaneAccent: '#B5652E',
+
   // --- Adjacent's tray and tiles ---
   adjacentTray: '#E0D4B8',
   adjacentTrayEdge: '#C8B894',
   adjacentSlot: '#D7C9A9',
-  adjacentTile0: '#C4632F', // terracotta
-  adjacentTile1: '#B08616', // gold
-  adjacentTile2: '#2F7A42', // forest green
-  adjacentTile3: '#2E6285', // steel blue
-  adjacentTile4: '#6B4396', // violet
+  adjacentTile0: '#D06A3A', // coral terracotta
+  adjacentTile1: '#D49E1C', // saffron
+  adjacentTile2: '#3A946A', // jade
+  adjacentTile3: '#3473B4', // cobalt
+  adjacentTile4: '#8752C0', // amethyst
   adjacentGlyph: '#F4EBD8',
 
   // --- Skyscrapers ---
@@ -249,11 +277,33 @@ export const darkColors: Palette = {
   adjacentTray: '#241C2B',
   adjacentTrayEdge: '#3F3349',
   adjacentSlot: '#1B1521',
-  adjacentTile0: '#D8743D',
-  adjacentTile1: '#CFA232',
-  adjacentTile2: '#4B9A5E',
-  adjacentTile3: '#4C86B0',
-  adjacentTile4: '#8C63BC',
+  glassLead: '#15111B',
+  glassLeadLight: '#3A3244',
+  glassClear: '#5B5470',
+  glassClearLine: '#675F7D',
+  glassRuby: '#D24A63',
+  glassCobalt: '#4C7ED0',
+  glassAmber: '#EDB548',
+  glassAccent: '#D27BC4',
+  pondWater: '#1F3A44',
+  pondRipple: '#2A4A55',
+  lilyPad: '#4E8C3E',
+  lilyPadEdge: '#2E5A25',
+  lilyVein: '#6BA857',
+  lilyFrog: '#9CCB52',
+  lilyFrogDark: '#6A9A30',
+  lilyBloom: '#F0A0B4',
+  lilyAccent: '#5FBFAE',
+  vaneRoof: '#2C2433',
+  vaneMetal: '#E6DCCB',
+  vaneMetalLight: '#B9AEC4',
+  vaneWind: '#7FB2D9',
+  vaneAccent: '#E08A4E',
+  adjacentTile0: '#E07F4C',
+  adjacentTile1: '#E3B23C',
+  adjacentTile2: '#52AE80',
+  adjacentTile3: '#4F8FD0',
+  adjacentTile4: '#A06FD8',
   adjacentGlyph: '#1B1521',
 
   towersBuilding: '#5B3B7D',

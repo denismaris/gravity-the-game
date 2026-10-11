@@ -1,10 +1,10 @@
 import { getLevelById, gravityTierOf } from '../levels';
 import { getMirrorMazeById } from '../mirror';
-import { getTentsTreesById } from '../tents';
-import { getTowersById } from '../towers';
+import { lilyCuratedInfo } from '../lilypads';
+import { vaneCuratedInfo } from '../vanes';
 import { getBinairoById } from '../binairo';
 import { getArukoneById } from '../arukone';
-import { getFillaPixById } from '../fillapix';
+import { glassCuratedInfo } from '../glass';
 import { getLightsOutById } from '../lightsout';
 import { getAdjacentById } from '../adjacent';
 import { getBloomById } from '../bloom';
@@ -24,7 +24,7 @@ import { getWorldForLevel } from '../worlds';
  * module that outlived that replacement, because they're about game
  * identity, not about any one ordering of puzzles).
  */
-export type GameKind = 'gravity' | 'mirror' | 'tents' | 'towers' | 'binairo' | 'arukone' | 'fillapix' | 'lightsout' | 'adjacent' | 'bloom' | 'mosaic' | 'bridges';
+export type GameKind = 'gravity' | 'mirror' | 'lilypads' | 'vanes' | 'binairo' | 'arukone' | 'glass' | 'lightsout' | 'adjacent' | 'bloom' | 'mosaic' | 'bridges';
 
 /** Passed by every game screen's own "Next" action alongside the target
  * puzzle - `App.tsx`'s `openPuzzle` reads `showInterstitial` to decide
@@ -40,7 +40,7 @@ export interface NextPuzzleOptions {
 /** The fixed lineup, in the app's own canonical game order - used anywhere
  * something needs to enumerate "every game" in one stable order (the batch
  * generator's own weighted sampling, Browse's old section order, etc.). */
-export const ROTATION: ReadonlyArray<GameKind> = ['gravity', 'mirror', 'tents', 'towers', 'binairo', 'arukone', 'fillapix', 'lightsout', 'adjacent', 'bloom', 'mosaic', 'bridges'];
+export const ROTATION: ReadonlyArray<GameKind> = ['gravity', 'mirror', 'lilypads', 'vanes', 'binairo', 'arukone', 'glass', 'lightsout', 'adjacent', 'bloom', 'mosaic', 'bridges'];
 
 /** What each game is called, in one place. `puzzleDisplayInfo` below reads
  * these for its `chapter` field, so a game renamed here is renamed
@@ -48,11 +48,11 @@ export const ROTATION: ReadonlyArray<GameKind> = ['gravity', 'mirror', 'tents', 
 const DISPLAY_NAMES: Readonly<Record<GameKind, string>> = {
   gravity: 'Gravity',
   mirror: 'Mirror Maze',
-  tents: 'Tents and Trees',
-  towers: 'Skyscrapers',
+  lilypads: 'Lily Pads',
+  vanes: 'Weathervanes',
   binairo: 'Twos',
   arukone: 'Twinpath',
-  fillapix: 'Pixel Clues',
+  glass: 'Stained Glass',
   lightsout: 'Lanterns',
   adjacent: 'Adjacent',
   bloom: 'Bloom',
@@ -74,14 +74,14 @@ export function gameShortName(kind: GameKind): string {
   switch (kind) {
     case 'mirror':
       return 'Mirror';
-    case 'tents':
-      return 'Tents';
-    case 'towers':
-      return 'Towers';
+    case 'lilypads':
+      return 'Lilies';
+    case 'vanes':
+      return 'Vanes';
     case 'arukone':
       return 'Twinpath';
-    case 'fillapix':
-      return 'Pixels';
+    case 'glass':
+      return 'Glass';
     case 'lightsout':
       return 'Lanterns';
     case 'gravity':
@@ -146,15 +146,15 @@ export function puzzleDisplayInfo(kind: GameKind, puzzleId: string): PuzzleDispl
       if (!puzzle) return undefined;
       return { name: puzzle.name ?? puzzle.id, chapter: DISPLAY_NAMES.mirror, difficulty: puzzle.difficulty };
     }
-    case 'tents': {
-      const puzzle = getTentsTreesById(puzzleId);
-      if (!puzzle) return undefined;
-      return { name: puzzle.name ?? puzzle.id, chapter: DISPLAY_NAMES.tents, difficulty: puzzle.difficulty };
+    case 'lilypads': {
+      const info = lilyCuratedInfo(puzzleId);
+      if (!info) return undefined;
+      return { name: info.name, chapter: DISPLAY_NAMES.lilypads, difficulty: info.difficulty };
     }
-    case 'towers': {
-      const puzzle = getTowersById(puzzleId);
-      if (!puzzle) return undefined;
-      return { name: puzzle.name ?? puzzle.id, chapter: DISPLAY_NAMES.towers, difficulty: puzzle.difficulty };
+    case 'vanes': {
+      const info = vaneCuratedInfo(puzzleId);
+      if (!info) return undefined;
+      return { name: info.name, chapter: DISPLAY_NAMES.vanes, difficulty: info.difficulty };
     }
     case 'binairo': {
       const puzzle = getBinairoById(puzzleId);
@@ -166,10 +166,10 @@ export function puzzleDisplayInfo(kind: GameKind, puzzleId: string): PuzzleDispl
       if (!puzzle) return undefined;
       return { name: puzzle.name ?? puzzle.id, chapter: DISPLAY_NAMES.arukone, difficulty: puzzle.difficulty };
     }
-    case 'fillapix': {
-      const puzzle = getFillaPixById(puzzleId);
-      if (!puzzle) return undefined;
-      return { name: puzzle.name ?? puzzle.id, chapter: DISPLAY_NAMES.fillapix, difficulty: puzzle.difficulty };
+    case 'glass': {
+      const info = glassCuratedInfo(puzzleId);
+      if (!info) return undefined;
+      return { name: info.name, chapter: DISPLAY_NAMES.glass, difficulty: info.difficulty };
     }
     case 'lightsout': {
       const puzzle = getLightsOutById(puzzleId);

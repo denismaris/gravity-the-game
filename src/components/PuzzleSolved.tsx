@@ -2,13 +2,11 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { DailyStanding, reportDaily } from '../backend';
 import { useLastBonus, usePlayerProgress } from '../progression/PlayerProgressProvider';
 import { INTRO_SOLVES, nextGameToArrive } from '../progression/batches';
-import { buildDailyShare } from '../progression/shareMessage';
-import { dailyKeyOf, gameDisplayName, gameShortName } from '../game/journey';
+import { dailyKeyOf, gameDisplayName, gameShortName, getDailyEntry } from '../game/journey';
 import { cosmeticById } from '../progression/shop';
 import { formatDuration } from '../progression/timing';
 import { CosmeticPreview } from './CosmeticPreview';
-import { Animated, Share, StyleSheet, Text, View } from 'react-native';
-import { PressableScale } from './PressableScale';
+import { Animated, StyleSheet, Text, View } from 'react-native';
 import { GameEmblem } from './GameEmblem';
 import { StarRow } from './StarRow';
 import { useCardEntrance } from './useCardEntrance';
@@ -16,6 +14,7 @@ import { accentColorForKind, encouragementTier, GameKind, pickEncouragement } fr
 import { motion, theme, themedStyles } from '../theme';
 import { CoinGlyph } from './Coins';
 import { ModalLayer } from './ModalLayer';
+import { DialogActions } from './dialog';
 import { TileGlyph } from './TileGlyph';
 
 export interface PuzzleSolvedProps {
@@ -34,7 +33,6 @@ export interface PuzzleSolvedProps {
   note?: string;
   /** The label under `note` in the result strip ("MOVES", "POINTS"). */
   noteLabel?: string;
-  onReplay: () => void;
   onDone: () => void;
   /** Whether another puzzle follows this one in the Journey. When true, the
    * primary action advances there instead of leaving to Home - this is what
@@ -77,8 +75,7 @@ export function PuzzleSolved({
   hintsUsed,
   kind,
   note,
-  noteLabel = 'RESULT',
-  onReplay,
+  noteLabel = 'result',
   onDone,
   hasNext = false,
   onNext,
@@ -88,7 +85,7 @@ export function PuzzleSolved({
   // What multiplied this solve's coins: a golden puzzle, the clean-run
   // combo, the lucky charm (see the shop).
   const bonus = useLastBonus();
-  const { dailyStreak, progress } = usePlayerProgress();
+  const { progress } = usePlayerProgress();
   // While a game is being learned, every solve of it moves the next game
   // closer - shown here, where the solve happens.
   const arriving = useMemo(() => nextGameToArrive(progress), [progress]);
@@ -98,7 +95,7 @@ export function PuzzleSolved({
   // among everyone's. Silent offline - the card simply does not say.
   const [world, setWorld] = useState<DailyStanding | null>(null);
   useEffect(() => {
-    if (!bonus?.daily || !kind) return;
+    if (!bonus?.daily || !kind || !getDailyEntry().shared) return;
     let live = true;
     reportDaily({ dayKey: dailyKeyOf(new Date()), game: gameDisplayName(kind), ms: bonus.daily.ms, stars }).then(standing => {
       if (live) setWorld(standing);
@@ -109,12 +106,34 @@ export function PuzzleSolved({
     // Once, for the solve this card reports.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const shareDaily = () => {
-    if (!bonus?.daily || !kind) return;
-    const message = buildDailyShare({ dayKey: dailyKeyOf(new Date()), game: gameDisplayName(kind), stars, ms: bonus.daily.ms, streak: dailyStreak });
-    Share.share({ message }).catch(() => {});
-  };
   const paid = coinsEarned > 0;
+  const tiles = bonus?.tesserae ?? 0;
+  // The multipliers behind this solve's coins, in one plain line.
+  const bonusLine =
+    [
+      paid && bonus?.golden ? 'Golden puzzle \u00D73' : null,
+      paid && bonus && bonus.comboMultiplier > 1 ? `Clean run of ${bonus.cleanRun} \u00D7${bonus.comboMultiplier}` : null,
+      paid && bonus?.charmed ? 'Lucky charm \u00D72' : null,
+      bonus?.grand ? 'Weekly Grand solved' : null,
+    ]
+      .filter(Boolean)
+      .join(' \u00B7 ') || null;
+  // The Daily's clock. The first solve of the day is the official time
+  // (ranked, posted, shareable); a replay still shows how long it took.
+  const daily = bonus?.daily
+    ? {
+        official: true,
+        ms: bonus.daily.ms,
+        note:
+          bonus.daily.of === 1
+            ? 'Your first timed Daily'
+            : bonus.daily.place === 1
+              ? `Your best of ${bonus.daily.of} Dailies`
+              : `Faster than ${Math.round(bonus.daily.beat * 100)}% of your Dailies. Best ${formatDuration(bonus.daily.best)}`,
+      }
+    : bonus?.dailyReplayMs
+      ? { official: false, ms: bonus.dailyReplayMs, note: 'A replay. Your first solve today is the time that counts.' }
+      : null;
   // A Weekly Grand milestone's exclusive, won by this very solve.
   const won = bonus?.grandCosmetic ? cosmeticById(bonus.grandCosmetic) : undefined;
 
@@ -169,7 +188,7 @@ export function PuzzleSolved({
                   },
                 ]}
               >
-                <GameEmblem kind={kind} size={64} />
+                <GameEmblem kind={kind} size={58} />
               </Animated.View>
             )}
 
@@ -179,96 +198,86 @@ export function PuzzleSolved({
             </Animated.View>
 
             <Animated.View style={[styles.stars, starsRow]}>
-              <StarRow earned={stars} size={46} animateIn />
+              <StarRow earned={3} size={46} animateIn />
             </Animated.View>
 
             <Animated.Text style={[styles.praise, rowStyle(2)]}>{praise}</Animated.Text>
 
-            {/* What the solve paid, in one quiet line. */}
-            <Animated.View style={[styles.result, rowStyle(3)]}>
-              {paid && (
-                <>
-                  <CoinGlyph size={14} />
-                  <Text style={[styles.resultText, styles.resultGold]}>{`+${coinsEarned}`}</Text>
-                  <Text style={styles.resultDot}>·</Text>
-                </>
+            {/* What the solve paid: one quiet panel, a column per reward. */}
+            <Animated.View style={[styles.ledger, rowStyle(3)]}>
+              <View style={styles.ledgerRow}>
+                {paid && (
+                  <View style={styles.stat}>
+                    <View style={styles.statValue}>
+                      <CoinGlyph size={15} />
+                      <Text style={[styles.statNumber, styles.statGold]}>{`+${coinsEarned}`}</Text>
+                    </View>
+                    <Text style={styles.statLabel}>coins</Text>
+                  </View>
+                )}
+                {tiles > 0 && (
+                  <>
+                    {paid && <View style={styles.statRule} />}
+                    <View style={styles.stat}>
+                      <View style={styles.statValue}>
+                        <TileGlyph size={14} />
+                        <Text style={[styles.statNumber, styles.statTiles]}>{`+${tiles}`}</Text>
+                      </View>
+                      <Text style={styles.statLabel}>tiles</Text>
+                    </View>
+                  </>
+                )}
+                {(paid || tiles > 0) && <View style={styles.statRule} />}
+                <View style={styles.stat}>
+                  <Text style={styles.statNumber}>{note ?? String(hintsUsed)}</Text>
+                  <Text style={styles.statLabel}>{note ? noteLabel.toLowerCase() : 'Insight used'}</Text>
+                </View>
+              </View>
+              {bonusLine && <Text style={styles.bonusLine}>{bonusLine}</Text>}
+              {daily && (
+                <View style={styles.daily}>
+                  <View style={styles.dailyHead}>
+                    <Text style={styles.dailyLabel}>{daily.official ? 'Daily time' : 'This time'}</Text>
+                    <Text style={styles.dailyTime}>{formatDuration(daily.ms)}</Text>
+                  </View>
+                  <Text style={styles.dailyNote}>{daily.note}</Text>
+                  {world && world.players > 1 && daily.official && (
+                    <Text style={styles.dailyWorld}>{`Faster than ${Math.round(world.fasterThan * 100)}% of ${world.players.toLocaleString('en-US')} players today`}</Text>
+                  )}
+                </View>
               )}
-              {/* Tiles laid for the Villa. */}
-              {(bonus?.tesserae ?? 0) > 0 && (
-                <>
-                  <TileGlyph size={13} />
-                  <Text style={[styles.resultText, styles.resultTiles]}>{`+${bonus!.tesserae}`}</Text>
-                  <Text style={styles.resultDot}>·</Text>
-                </>
+              {won && (
+                <View style={styles.wonRow}>
+                  <View style={styles.wonPreview}>
+                    <CosmeticPreview item={won} size={30} />
+                  </View>
+                  <Text style={styles.wonText}>{`You won ${won.name}. It is never sold in the shop.`}</Text>
+                </View>
               )}
-              <Text style={styles.resultText}>
-                {note ? `${note} ${noteLabel.toLowerCase()}` : hintsUsed === 0 ? 'No Insight used' : `${hintsUsed} Insight used`}
-              </Text>
             </Animated.View>
 
             {towardNext && (
-              <Animated.View style={[styles.toward, rowStyle(3)]}>
-                <View style={styles.towardHead}>
-                  <Text style={styles.towardText}>{`Next game: ${gameShortName(towardNext.kind)}`}</Text>
-                  <Text style={styles.towardCount}>{`${towardNext.done}/${INTRO_SOLVES}`}</Text>
-                </View>
-                <View style={styles.towardTrack}>
-                  <View style={[styles.towardFill, { width: `${(towardNext.done / INTRO_SOLVES) * 100}%`, backgroundColor: accent }]} />
+              <Animated.View style={[styles.toward, rowStyle(4)]}>
+                <GameEmblem kind={towardNext.kind} size={30} />
+                <View style={styles.towardBody}>
+                  <View style={styles.towardHead}>
+                    <Text style={styles.towardText} numberOfLines={1}>{`Next: ${gameShortName(towardNext.kind)}`}</Text>
+                    <Text style={styles.towardCount}>{`${towardNext.done}/${INTRO_SOLVES}`}</Text>
+                  </View>
+                  <View style={styles.towardTrack}>
+                    <View style={[styles.towardFill, { width: `${(towardNext.done / INTRO_SOLVES) * 100}%`, backgroundColor: accent }]} />
+                  </View>
                 </View>
               </Animated.View>
             )}
 
-            <Animated.View style={[rowStyle(3), styles.coinRow]}>
-              {paid && bonus?.golden && <Text style={[styles.charm, styles.golden]}>{'GOLDEN \u00D73'}</Text>}
-              {paid && bonus && bonus.comboMultiplier > 1 && (
-                <Text style={[styles.charm, styles.combo]}>{`CLEAN RUN ${bonus.cleanRun} \u00B7 \u00D7${bonus.comboMultiplier}`}</Text>
-              )}
-              {paid && bonus?.charmed && <Text style={styles.charm}>{'LUCKY \u00D72'}</Text>}
-              {bonus?.grand && <Text style={[styles.charm, styles.golden]}>{'WEEKLY GRAND \u2713\uFE0E'}</Text>}
-            </Animated.View>
-            {bonus?.daily && (
-              <Animated.View style={[rowStyle(3), styles.duel]}>
-                <Text style={styles.duelKicker}>DAILY DUEL</Text>
-                <Text style={styles.duelTime}>{formatDuration(bonus.daily.ms)}</Text>
-                <Text style={styles.duelNote}>
-                  {bonus.daily.of === 1
-                    ? 'YOUR FIRST TIMED DAILY'
-                    : bonus.daily.place === 1
-                      ? `NEW BEST · FASTEST OF YOUR ${bonus.daily.of}`
-                      : `FASTER THAN ${Math.round(bonus.daily.beat * 100)}% OF YOUR DAILIES · BEST ${formatDuration(bonus.daily.best)}`}
-                </Text>
-                {world && world.players > 1 && (
-                  <Text style={styles.worldNote}>{`FASTER THAN ${Math.round(world.fasterThan * 100)}% OF ${world.players.toLocaleString('en-US')} PLAYERS TODAY`}</Text>
-                )}
-                <PressableScale accessibilityRole="button" accessibilityLabel="Share today's Daily result" onPress={shareDaily} hitSlop={6} style={({ pressed }) => [styles.share, pressed && styles.pressed]}>
-                  <Text style={styles.shareText}>{'Share result  ↗︎'}</Text>
-                </PressableScale>
-              </Animated.View>
-            )}
-            {won && (
-              <Animated.View style={[rowStyle(3), styles.wonRow]}>
-                <View style={styles.wonPreview}>
-                  <CosmeticPreview item={won} size={30} />
-                </View>
-                <Text style={styles.wonText}>{`WON: ${won.name.toUpperCase()} · NOT IN THE SHOP`}</Text>
-              </Animated.View>
-            )}
-
-
-            {/* One clear way on, full width; Replay as a quiet second. */}
+            {/* One clear way on. Home stays a quiet second only when the
+                primary goes on to another puzzle. */}
             <Animated.View style={[styles.actions, rowStyle(5)]}>
-              <PressableScale
-                accessibilityRole="button"
-                accessibilityLabel={hasNext ? 'Next puzzle' : 'Back to home'}
-                onPress={hasNext && onNext ? onNext : onDone}
-                containerStyle={styles.primaryWrap}
-                style={({ pressed }) => [styles.button, styles.primary, pressed && styles.pressed]}
-              >
-                <Text style={styles.primaryLabel}>{hasNext && onNext ? 'Next puzzle ›' : 'Done'}</Text>
-              </PressableScale>
-              <PressableScale accessibilityRole="button" accessibilityLabel="Replay puzzle" onPress={onReplay} hitSlop={8} style={({ pressed }) => [styles.replay, pressed && styles.pressed]}>
-                <Text style={styles.secondaryLabel}>Replay</Text>
-              </PressableScale>
+              <DialogActions
+                primary={hasNext && onNext ? { label: 'Next puzzle', onPress: onNext } : { label: 'Done', onPress: onDone, accessibilityLabel: 'Back to home' }}
+                secondary={hasNext && onNext ? { label: 'Home', onPress: onDone, accessibilityLabel: 'Back to home' } : undefined}
+              />
             </Animated.View>
           </View>
         </Animated.View>
@@ -278,70 +287,15 @@ export function PuzzleSolved({
 }
 
 const styles = themedStyles(() => ({
-  coinRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'center', columnGap: 8, paddingHorizontal: theme.spacing.md },
-  golden: { backgroundColor: theme.colors.goldFill, borderWidth: 1, borderColor: theme.colors.goldRim, color: theme.colors.onGold },
-  duel: { alignItems: 'center', marginTop: theme.spacing.sm },
-  duelKicker: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 1.4, color: theme.colors.secondary },
-  duelTime: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  worldNote: { marginTop: 4, fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 0.8, fontWeight: theme.typography.weights.bold, color: theme.colors.secondary, textAlign: 'center' },
-  share: { marginTop: theme.spacing.sm, paddingHorizontal: 14, paddingVertical: 6, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong },
-  shareText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
-  duelNote: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 0.8, color: theme.colors.textTertiary, textAlign: 'center' },
-  wonRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'center',
-    gap: 8,
-    marginTop: theme.spacing.sm,
-    paddingVertical: 4,
-    paddingLeft: 4,
-    paddingRight: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: theme.colors.goldRim,
-  },
-  wonPreview: { width: 34, height: 34, borderRadius: 9, backgroundColor: theme.colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  wonText: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: 9.5,
-    letterSpacing: 0.8,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-  },
-  combo: { backgroundColor: 'transparent', borderWidth: 1, borderColor: theme.colors.border, color: theme.colors.textPrimary },
-  charm: {
-    marginTop: theme.spacing.sm,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-    overflow: 'hidden',
-    backgroundColor: theme.colors.accent,
-    color: theme.colors.surfaceHi,
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    fontWeight: theme.typography.weights.bold,
-    letterSpacing: 1,
-  },
-  overlay: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  /** Separated from `overlay` so the dim can fade in on its own clock -
-   * `overlay` still has to be laid out (and hit-testable) from frame one. */
-  scrim: {
-    ...StyleSheet.absoluteFill,
-    backgroundColor: theme.colors.overlay,
-  },
-  /** Carries the elevation only. The card clips, and a clipped view would
+  overlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
+  /** Separated from `overlay` so the dim can fade in on its own clock. */
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: theme.colors.overlay },
+  /** Carries the elevation only: the card clips, and a clipped view would
    * clip its own shadow away. */
   cardShadow: {
     width: '86%',
     maxWidth: 340,
-    borderRadius: theme.radii.lg,
-    // The one place in this app a card really is lifted off the page
-    // rather than ruled onto it - it floats over a dimmed board, so there
-    // is no "ghost card" double-elevation to worry about here.
+    borderRadius: 30,
     shadowColor: theme.colors.shadow,
     shadowOpacity: 0.26,
     shadowRadius: 28,
@@ -350,96 +304,67 @@ const styles = themedStyles(() => ({
   },
   card: {
     alignItems: 'center',
-    paddingHorizontal: theme.spacing.xl,
-    paddingTop: theme.spacing.xl + theme.spacing.sm,
-    paddingBottom: theme.spacing.lg,
-    borderRadius: 28,
+    paddingHorizontal: theme.spacing.lg,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing.md,
+    borderRadius: 30,
     backgroundColor: theme.colors.surface,
     overflow: 'hidden',
-    // The set summary can carry five emblems side by side, which would
-    // otherwise size this card wider than a narrow phone. Capped here and
-    // the emblem row wraps rather than overflowing.
-    maxWidth: 340,
   },
-  emblem: {
-    marginBottom: theme.spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  result: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: theme.spacing.md },
-  resultText: { fontSize: theme.typography.sizes.body, color: theme.colors.textSecondary },
-  resultGold: { color: theme.colors.accentText, fontWeight: theme.typography.weights.semibold },
-  resultTiles: { color: theme.colors.secondary, fontWeight: theme.typography.weights.semibold },
-  resultDot: { fontSize: theme.typography.sizes.body, color: theme.colors.textTertiary },
-  toward: { alignSelf: 'stretch', marginTop: theme.spacing.sm, gap: 6 },
-  towardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  towardText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
-  towardCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
-  towardTrack: { height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: theme.colors.border },
-  towardFill: { height: 6, borderRadius: 3 },
-  kicker: {
-    fontSize: theme.typography.sizes.caption + 1,
-    fontWeight: theme.typography.weights.semibold,
-    textAlign: 'center',
-    marginBottom: 2,
-  },
+  emblem: { marginBottom: theme.spacing.sm, alignItems: 'center', justifyContent: 'center' },
+  kicker: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, textAlign: 'center' },
   title: {
     fontFamily: theme.typography.families.display,
-    fontSize: 38,
+    fontSize: 36,
     fontWeight: theme.typography.weights.bold,
     textAlign: 'center',
     color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.sm,
   },
-  /** The line that changes every solve - given real weight, since it is
-   * the only part of this card the player hasn't already read before. */
+  titlePerfect: { color: theme.colors.accentText },
+  stars: { marginBottom: theme.spacing.sm, alignItems: 'center', justifyContent: 'center' },
+  /** The line that changes every solve. */
   praise: {
     fontSize: theme.typography.sizes.body,
     lineHeight: theme.typography.lineHeights.body,
-    color: theme.colors.textPrimary,
+    color: theme.colors.textSecondary,
     textAlign: 'center',
     maxWidth: 260,
-    marginBottom: theme.spacing.xs,
   },
-  titlePerfect: {
-    color: theme.colors.accentText,
-  },
-  stars: {
-    marginBottom: theme.spacing.md,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  note: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.caption,
-    color: theme.colors.textTertiary,
-    marginBottom: theme.spacing.md,
-  },
-  coins: { marginTop: -theme.spacing.xs, marginBottom: theme.spacing.md },
-  actions: { alignSelf: 'stretch', alignItems: 'center', gap: theme.spacing.xs, marginTop: theme.spacing.xl },
+  ledger: { alignSelf: 'stretch', marginTop: theme.spacing.md, paddingVertical: 14, paddingHorizontal: 12, borderRadius: 20, backgroundColor: theme.colors.surfaceAlt, gap: 10 },
+  ledgerRow: { flexDirection: 'row', alignItems: 'center' },
+  stat: { flex: 1, alignItems: 'center', gap: 3 },
+  statValue: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  statNumber: { fontSize: theme.typography.sizes.title - 3, fontWeight: theme.typography.weights.bold, fontVariant: ['tabular-nums'], color: theme.colors.textPrimary },
+  statGold: { color: theme.colors.accentText },
+  statTiles: { color: theme.colors.secondary },
+  statLabel: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
+  statRule: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', marginVertical: 4, backgroundColor: theme.colors.borderStrong },
+  bonusLine: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.accentText, textAlign: 'center' },
+  daily: { alignItems: 'center', gap: 3, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.borderStrong },
+  dailyHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
+  dailyLabel: { fontSize: theme.typography.sizes.caption + 1, color: theme.colors.textSecondary },
+  dailyTime: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  dailyNote: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary, textAlign: 'center' },
+  dailyWorld: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary, textAlign: 'center' },
+  share: { marginTop: 6, paddingHorizontal: 14, paddingVertical: 6, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong },
+  shareText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
+  wonRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.borderStrong },
+  wonPreview: { width: 36, height: 36, borderRadius: 10, backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center' },
+  wonText: { flex: 1, fontSize: theme.typography.sizes.caption + 1, lineHeight: 17, color: theme.colors.textPrimary },
+  toward: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: theme.spacing.md, paddingHorizontal: 4 },
+  towardBody: { flex: 1, gap: 6 },
+  towardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  towardText: { flex: 1, fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  towardCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
+  towardTrack: { height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: theme.colors.border },
+  towardFill: { height: 6, borderRadius: 3 },
+  actions: { alignSelf: 'stretch' },
   primaryWrap: { alignSelf: 'stretch' },
-  button: {
-    height: 52,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: theme.radii.pill,
-  },
-  replay: { paddingHorizontal: theme.spacing.md, paddingVertical: 6 },
+  button: { height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: theme.radii.pill },
   primary: { backgroundColor: theme.colors.primary },
-  secondary: {
-    backgroundColor: theme.colors.surfaceAlt,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
+  primaryLabel: { color: theme.colors.surfaceHi, fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.semibold },
+  quiet: { paddingHorizontal: theme.spacing.md, paddingVertical: 8 },
+  quietLabel: { color: theme.colors.textSecondary, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold },
   pressed: { opacity: 0.85 },
-  primaryLabel: {
-    color: theme.colors.surfaceHi,
-    fontSize: theme.typography.sizes.body + 1,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  secondaryLabel: {
-    color: theme.colors.textSecondary,
-    fontSize: theme.typography.sizes.body,
-    fontWeight: theme.typography.weights.semibold,
-  },
 }));

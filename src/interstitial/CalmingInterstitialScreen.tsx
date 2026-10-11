@@ -103,13 +103,17 @@ const MazeSlab = React.memo(function MazeSlabImpl({ width, height, paint }: { wi
   );
 });
 
-function floorTile({ key: k, col, row, eastOpen, southOpen }: CellInfo, cellSize: number, floor: string, seam: string, lip?: string): React.JSX.Element {
+/** One square of the channel floor. Painted or bare, every square is the
+ * same flat tile - only its colour changes - so the floor reads as one
+ * surface; the far walls are the only thing standing up. (Painted squares
+ * once carried a light lip along their top edge, which made them look
+ * like raised blocks beside flat bare ones.) */
+function floorTile({ key: k, col, row, eastOpen, southOpen }: CellInfo, cellSize: number, floor: string, seam: string): React.JSX.Element {
   const x = col * cellSize;
   const y = row * cellSize;
   return (
     <Group key={`floor-${k}`}>
       <Rect x={x} y={y} width={cellSize} height={cellSize} color={floor} />
-      {lip && <Rect x={x} y={y} width={cellSize} height={2} color={lip} opacity={0.75} />}
       {eastOpen && <Rect x={x + cellSize - SEAM_WIDTH / 2} y={y} width={SEAM_WIDTH} height={cellSize} color={seam} />}
       {southOpen && <Rect x={x} y={y + cellSize - SEAM_WIDTH / 2} width={cellSize} height={SEAM_WIDTH} color={seam} />}
     </Group>
@@ -136,7 +140,7 @@ const MazePaintedFloor = React.memo(function MazePaintedFloorImpl({
   paintedVersion: number;
 }): React.JSX.Element {
   const seam = shade(paint[1], 0.9);
-  return <>{cells.filter(cell => paintedRef.current?.has(cell.key) ?? false).map(cell => floorTile(cell, cellSize, paint[1], seam, paint[0]))}</>;
+  return <>{cells.filter(cell => paintedRef.current?.has(cell.key) ?? false).map(cell => floorTile(cell, cellSize, paint[1], seam))}</>;
 });
 
 /** The channel's far walls: a flat band above every square with no floor
@@ -205,7 +209,7 @@ const BreakProgress = React.memo(function BreakProgressImpl({ painted, total, pa
         <View style={[styles.progressFill, { width: `${Math.round(share * 100)}%`, backgroundColor: paint[1] }]} />
       </View>
       <Text style={styles.progressCaption}>
-        SWIPE TO ROLL · {painted} OF {total} TILES
+        Swipe to roll · {painted} of {total} tiles
       </Text>
     </View>
   );
@@ -922,10 +926,9 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.lg,
   },
   kicker: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1.5,
+    fontSize: theme.typography.sizes.caption,
     color: theme.colors.secondary,
+    fontWeight: theme.typography.weights.semibold,
   },
   title: {
     marginTop: 2,
@@ -1024,9 +1027,8 @@ const styles = themedStyles(() => ({
   },
   progressCaption: {
     marginTop: theme.spacing.sm,
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    letterSpacing: 1,
+    fontSize: theme.typography.sizes.caption,
     color: theme.colors.textSecondary,
+    fontWeight: theme.typography.weights.semibold,
   },
 }));

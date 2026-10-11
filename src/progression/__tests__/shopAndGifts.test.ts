@@ -232,3 +232,23 @@ describe('ad-free time', () => {
     expect(parseProgress(JSON.stringify(p)).adFreeUntil).toBe(p.adFreeUntil);
   });
 });
+
+describe('the gift week’s extras', () => {
+  test('Insight and tiles arrive with the coins on the days that carry them', () => {
+    const { claimGift: claim, GIFT_EXTRAS: extras } = jest.requireActual('../gift') as typeof import('../gift');
+    let p = emptyProgress();
+    const start = Date.UTC(2026, 9, 1);
+    let insights = 0;
+    let tiles = 0;
+    for (let i = 0; i < 7; i += 1) {
+      const key = new Date(start + i * 86400000).toISOString().slice(0, 10);
+      p = claim(p, key)!.progress;
+      insights += extras[i].insights;
+      tiles += extras[i].tiles;
+    }
+    expect(insights).toBeGreaterThan(0);
+    expect(tiles).toBeGreaterThan(0);
+    expect(p.insights).toBe(emptyProgress().insights + insights);
+    expect(p.tesserae).toBe(emptyProgress().tesserae + tiles);
+  });
+});

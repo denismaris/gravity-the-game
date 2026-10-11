@@ -1,6 +1,7 @@
 import React from 'react';
 import { Text, View } from 'react-native';
-import { canBuild, currentVilla, PIECES_PER_VILLA, usePlayerProgress } from '../progression';
+import { canBuild, currentVilla, PIECES_PER_VILLA, townGift, usePlayerProgress } from '../progression';
+import { dailyKeyOf } from '../game/journey';
 import { useAppearance } from '../settings';
 import { theme, themedStyles } from '../theme';
 import { PressableScale } from './PressableScale';
@@ -18,6 +19,8 @@ export function VillaBanner({ width, height, onOpen }: { width: number; height: 
   const night = useAppearance() === 'dark';
   const { plan, built } = currentVilla(progress);
   const ready = canBuild(progress);
+  // The town's residents have left today's gift.
+  const gift = townGift(progress, dailyKeyOf(new Date()));
   const islandWidth = Math.min(width * 0.5, height * 1.25);
   return (
     <PressableScale
@@ -40,6 +43,11 @@ export function VillaBanner({ width, height, onOpen }: { width: number; height: 
         {ready ? (
           <View style={styles.build}>
             <Text style={styles.buildText}>Build now</Text>
+          </View>
+        ) : gift > 0 ? (
+          <View style={styles.tiles}>
+            <View style={styles.giftDot} />
+            <Text style={styles.giftText}>{`A gift of ${gift} tiles from the town`}</Text>
           </View>
         ) : (
           <View style={styles.tiles}>
@@ -65,5 +73,7 @@ const styles = themedStyles(() => ({
   build: { alignSelf: 'flex-start', marginTop: 4, paddingHorizontal: 14, paddingVertical: 6, borderRadius: theme.radii.pill, backgroundColor: theme.colors.primary },
   buildText: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.surfaceHi },
   tiles: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4 },
+  giftDot: { width: 7, height: 7, borderRadius: 4, backgroundColor: theme.colors.secondary },
+  giftText: { flexShrink: 1, fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   tilesText: { fontSize: theme.typography.sizes.caption + 1, color: theme.colors.textSecondary },
 }));

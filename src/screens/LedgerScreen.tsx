@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { BackLabel } from '../components/Icon';
 import { Animated, Easing, ScrollView, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, RoundedRect } from '@shopify/react-native-skia';
@@ -82,17 +83,17 @@ function AlbumPage({
             <Text style={styles.pageTitle} numberOfLines={1}>
               {gameDisplayName(row.kind)}
             </Text>
-            {retired && <Text style={styles.retired}>RETIRED</Text>}
+            {retired && <Text style={styles.retired}>Retired</Text>}
             {/* Every set in the shop for this game owned. */}
-            {collector && <Text style={styles.collector}>{'\u2726\uFE0E COLLECTOR'}</Text>}
+            {collector && <Text style={styles.collector}>Collector</Text>}
           </View>
           <Text style={styles.pageStats}>
-            {row.solved > 0 ? `★ ${average} AVG · ${perfect}% PERFECT · ${row.byTier.hard} HARD` : 'NOT PLAYED YET'}
+            {row.solved > 0 ? `★ ${average} average · ${perfect}% perfect · ${row.byTier.hard} hard` : 'Not played yet'}
           </Text>
         </View>
         <View style={styles.pageCount}>
           <Text style={styles.pageCountValue}>{row.solved}</Text>
-          <Text style={styles.pageCountLabel}>SOLVED</Text>
+          <Text style={styles.pageCountLabel}>solved</Text>
         </View>
       </View>
 
@@ -101,13 +102,13 @@ function AlbumPage({
       <View style={styles.pageFoot}>
         {ready.length > 0 ? (
           <View style={styles.claimHint}>
-            <Text style={styles.claimHintText}>TAP TO CLAIM</Text>
+            <Text style={styles.claimHintText}>Tap to claim</Text>
             <CoinGlyph size={11} />
             <Text style={styles.claimHintText}>{ready.reduce((sum, s) => sum + STAMP_COINS[s.rank], 0)}</Text>
           </View>
         ) : (
           <Text style={styles.pageFootText}>
-            {next ? `${next.step - row.solved} MORE FOR ${STAMP_NAMES[next.rank].toUpperCase()}` : 'PAGE COMPLETE'}
+            {next ? `${next.step - row.solved} more for ${STAMP_NAMES[next.rank]}` : 'Page complete'}
           </Text>
         )}
         <View style={styles.pageTrack}>
@@ -168,7 +169,7 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
       <PageBloom />
       <View style={[styles.header, { paddingTop: insets.top + theme.spacing.sm }]}>
         <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8} containerStyle={styles.headerSide}>
-          <Text style={styles.back}>‹ Home</Text>
+          <BackLabel label="Home" style={styles.back} />
         </PressableScale>
         <View style={styles.headerCenter}>
           <Text style={styles.title}>The Ledger</Text>
@@ -188,12 +189,12 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
           <View style={styles.figures}>
             <View style={styles.figure}>
               <Text style={styles.figureValue}>{totals.solved.toLocaleString('en-US')}</Text>
-              <Text style={styles.figureLabel}>SOLVED</Text>
+              <Text style={styles.figureLabel}>Solved</Text>
             </View>
             <View style={styles.figureRule} />
             <View style={styles.figure}>
               <Text style={styles.figureValue}>{totals.solved > 0 ? Math.round((totals.perfect / totals.solved) * 100) : 0}%</Text>
-              <Text style={styles.figureLabel}>PERFECT</Text>
+              <Text style={styles.figureLabel}>Perfect</Text>
             </View>
             <View style={styles.figureRule} />
             <View style={styles.figure}>
@@ -201,10 +202,10 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
                 {totals.stamps}
                 <Text style={styles.figureOf}>/{ROTATION.length * STAMP_STEPS.length}</Text>
               </Text>
-              <Text style={styles.figureLabel}>STAMPS</Text>
+              <Text style={styles.figureLabel}>Stamps</Text>
             </View>
           </View>
-          <Text style={styles.sectionLabel}>SOLVES BY GAME</Text>
+          <Text style={styles.sectionLabel}>Solves by game</Text>
           <SolveChart ledger={ledger} width={contentWidth - theme.spacing.md * 2} />
         </Animated.View>
 
@@ -213,7 +214,7 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
             where it was one page too many. */}
         <View style={styles.hero}>
           <View style={styles.iqHead}>
-            <Text style={styles.sectionLabel}>PUZZLE IQ</Text>
+            <Text style={styles.sectionLabel}>Puzzle IQ</Text>
             {aptitude.index !== null && <Text style={styles.iqPrecision}>{`${Math.round(aptitude.precision * 100)}% PRECISION`}</Text>}
           </View>
           {aptitude.index === null ? (
@@ -228,20 +229,20 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
             <View style={styles.figures}>
               <View style={styles.figure}>
                 <Text style={styles.iqFigureValue} numberOfLines={1}>{gameDisplayName(aptitude.strongest)}</Text>
-                <Text style={styles.figureLabel}>SHARPEST</Text>
+                <Text style={styles.figureLabel}>Sharpest</Text>
               </View>
               <View style={styles.figureRule} />
               <View style={styles.figure}>
                 <Text style={styles.iqFigureValue} numberOfLines={1}>{gameDisplayName(aptitude.weakest)}</Text>
-                <Text style={styles.figureLabel}>MOST ROOM</Text>
+                <Text style={styles.figureLabel}>Most room</Text>
               </View>
             </View>
           )}
         </View>
 
         <View style={styles.albumHead}>
-          <Text style={styles.sectionTitle}>THE ALBUM</Text>
-          {totals.waiting > 0 && <Text style={[styles.sectionTitle, styles.sectionLive]}>{`${totals.waiting} TO CLAIM`}</Text>}
+          <Text style={styles.sectionTitle}>The album</Text>
+          {totals.waiting > 0 && <Text style={[styles.sectionTitle, styles.sectionLive]}>{`${totals.waiting} to claim`}</Text>}
         </View>
         <Text style={styles.albumNote}>
           {`A stamp for ${STAMP_STEPS.slice(0, -1).join(', ')} and ${STAMP_STEPS[STAMP_STEPS.length - 1]} solves in each game. Each one pays when you claim it.`}
@@ -289,16 +290,16 @@ const styles = themedStyles(() => ({
   figureRule: { width: 1, alignSelf: 'stretch', backgroundColor: theme.colors.border },
   figureValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 4, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   figureOf: { fontSize: theme.typography.sizes.body, color: theme.colors.textTertiary },
-  figureLabel: { fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 1.2, color: theme.colors.textTertiary, marginTop: 2 },
+  figureLabel: { fontSize: 11.5, color: theme.colors.textTertiary, marginTop: 2, fontWeight: theme.typography.weights.semibold },
   iqHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  iqPrecision: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.2, color: theme.colors.secondary },
+  iqPrecision: { fontSize: theme.typography.sizes.caption, color: theme.colors.secondary, fontWeight: theme.typography.weights.semibold },
   iqNumber: { fontFamily: theme.typography.families.display, fontSize: 56, lineHeight: 62, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   iqPending: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   iqChart: { alignItems: 'center', marginVertical: theme.spacing.md },
   iqFigureValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  sectionLabel: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.4, color: theme.colors.textTertiary, marginBottom: theme.spacing.sm },
+  sectionLabel: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary, marginBottom: theme.spacing.sm, fontWeight: theme.typography.weights.semibold },
   albumHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  sectionTitle: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro, letterSpacing: 1.5, color: theme.colors.secondary, marginBottom: theme.spacing.sm },
+  sectionTitle: { fontSize: theme.typography.sizes.caption, color: theme.colors.secondary, marginBottom: theme.spacing.sm, fontWeight: theme.typography.weights.semibold },
   sectionLive: { color: theme.colors.gold, fontWeight: theme.typography.weights.bold },
   albumNote: { fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textSecondary, marginBottom: theme.spacing.md },
   album: { gap: theme.spacing.sm },
@@ -316,16 +317,16 @@ const styles = themedStyles(() => ({
   pageTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pageSwatch: { width: 10, height: 10, borderRadius: 3 },
   pageTitle: { flexShrink: 1, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  collector: { fontFamily: theme.typography.families.mono, fontSize: 8.5, letterSpacing: 1, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold, backgroundColor: theme.colors.goldFill, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden' },
-  retired: { fontFamily: theme.typography.families.mono, fontSize: 8.5, letterSpacing: 1, color: theme.colors.textTertiary, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1 },
-  pageStats: { marginTop: 4, fontFamily: theme.typography.families.mono, fontSize: 9.5, letterSpacing: 0.6, color: theme.colors.textSecondary },
+  collector: { fontSize: 8.5, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold, backgroundColor: theme.colors.goldFill, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden' },
+  retired: { fontSize: 8.5, color: theme.colors.textTertiary, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, fontWeight: theme.typography.weights.semibold },
+  pageStats: { marginTop: 4, fontSize: 11.5, color: theme.colors.textSecondary, fontWeight: theme.typography.weights.semibold },
   pageCount: { alignItems: 'flex-end' },
   pageCountValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, lineHeight: theme.typography.sizes.title + 6, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  pageCountLabel: { fontFamily: theme.typography.families.mono, fontSize: 8.5, letterSpacing: 1, color: theme.colors.textTertiary },
+  pageCountLabel: { fontSize: 8.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   pageFoot: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
-  pageFootText: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 0.8, color: theme.colors.textTertiary },
+  pageFootText: { fontSize: 11.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   claimHint: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  claimHintText: { fontFamily: theme.typography.families.mono, fontSize: 9, letterSpacing: 0.8, fontWeight: theme.typography.weights.bold, color: theme.colors.gold },
+  claimHintText: { fontSize: 11.5, fontWeight: theme.typography.weights.bold, color: theme.colors.gold },
   pageTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: theme.colors.surfaceAlt, overflow: 'hidden' },
   pageTrackFill: { height: 4, borderRadius: 2 },
 }));

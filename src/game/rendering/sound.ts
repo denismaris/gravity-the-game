@@ -80,6 +80,22 @@ const FILES: Record<HapticKind, string> = {
   adjacentSolve: 'sfx_adjacent_solve.wav',
   uiPage: 'sfx_ui_page.wav',
   coin: 'sfx_coin.wav',
+  teleport: 'sfx_teleport.wav',
+  villaFinish: 'sfx_villa_finish.wav',
+  glassRuby: 'sfx_glass_ruby.wav',
+  glassCobalt: 'sfx_glass_cobalt.wav',
+  glassAmber: 'sfx_glass_amber.wav',
+  glassLift: 'sfx_glass_lift.wav',
+  glassClash: 'sfx_glass_clash.wav',
+  glassSolve: 'sfx_glass_solve.wav',
+  lilyHop: 'sfx_lily_hop.wav',
+  lilyWarn: 'sfx_lily_warn.wav',
+  lilyStranded: 'sfx_lily_stranded.wav',
+  lilySolve: 'sfx_lily_solve.wav',
+  vaneTurn: 'sfx_vane_turn.wav',
+  vaneLoop: 'sfx_vane_loop.wav',
+  vaneAstray: 'sfx_vane_astray.wav',
+  vaneSolve: 'sfx_vane_solve.wav',
 };
 
 /** The same sound fired again within this many ms is skipped - a drag

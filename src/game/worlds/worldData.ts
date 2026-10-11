@@ -111,6 +111,14 @@ export const WORLDS: ReadonlyArray<WorldDefinition> = [
     mechanics: ['gravity', 'targets', 'obstacles', 'multi-object', 'anchored', 'portals'],
     levelIds: levelIdsInOrderRange(171, 194),
   },
+  {
+    id: 'world-9',
+    order: 9,
+    name: 'Two of a Kind',
+    subtitle: 'Two balls, and neither gets home alone.',
+    mechanics: ['gravity', 'targets', 'obstacles', 'multi-object', 'portals'],
+    levelIds: levelIdsInOrderRange(195, 230),
+  },
 ];
 
 WORLDS.forEach(assertValidWorld);

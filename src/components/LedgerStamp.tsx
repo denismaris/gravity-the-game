@@ -121,10 +121,8 @@ const styles = themedStyles(() => ({
   hit: { position: 'absolute', top: 0 },
   face: { justifyContent: 'flex-end', alignItems: 'center' },
   step: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: 10,
+    fontSize: 11.5,
     fontWeight: theme.typography.weights.bold,
-    letterSpacing: 0.5,
     textAlign: 'center',
   },
   stepAhead: { color: theme.colors.textTertiary },

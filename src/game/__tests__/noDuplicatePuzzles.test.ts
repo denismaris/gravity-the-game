@@ -1,10 +1,7 @@
 import { LEVELS } from '../levels';
 import { MIRROR_MAZES } from '../mirror';
-import { TENTS_TREES } from '../tents';
-import { TOWERS } from '../towers';
 import { BINAIRO } from '../binairo';
 import { ARUKONE } from '../arukone';
-import { FILLAPIX } from '../fillapix';
 import { LIGHTS_OUT } from '../lightsout';
 import { BLOOM, tileEnds } from '../bloom';
 import { BRIDGES } from '../bridges';
@@ -187,17 +184,6 @@ describe('no game ships the same puzzle twice', () => {
     );
   });
 
-  test('Tents and Trees - tree placement', () => {
-    expectNoDuplicates(
-      'tents',
-      TENTS_TREES.map(puzzle => {
-        const grid = blank(puzzle.rows, puzzle.cols);
-        for (const tree of puzzle.trees) grid[tree.row][tree.col] = 'T';
-        return [puzzle.id, grid] as const;
-      }),
-    );
-  });
-
   test('Arukone+ - terminals and obstacles', () => {
     expectNoDuplicates(
       'arukone',
@@ -221,16 +207,6 @@ describe('no game ships the same puzzle twice', () => {
       BINAIRO.map(puzzle => [
         puzzle.id,
         puzzle.givens.map(row => row.map(v => (v === null ? '.' : String(v)))) as Grid,
-      ] as const),
-    );
-  });
-
-  test('Fill-a-Pix - the hidden picture', () => {
-    expectNoDuplicates(
-      'fillapix',
-      FILLAPIX.map(puzzle => [
-        puzzle.id,
-        puzzle.solution.map(row => row.map(filled => (filled ? '#' : '.'))) as Grid,
       ] as const),
     );
   });
@@ -284,29 +260,5 @@ describe('no game ships the same puzzle twice', () => {
       }),
     );
     /* eslint-enable no-bitwise */
-  });
-
-  test('Skyscrapers - the four clue edges', () => {
-    // No grid to compare: a Skyscrapers puzzle *is* its clues. Rotating
-    // the board cycles the four edges and reverses two of them, so the
-    // canonical form is the smallest of those eight readings.
-    const byClues = new Map<string, string[]>();
-    for (const puzzle of TOWERS) {
-      const forms: string[] = [];
-      let [top, right, bottom, left] = [puzzle.topClues, puzzle.rightClues, puzzle.bottomClues, puzzle.leftClues];
-      for (let i = 0; i < 4; i += 1) {
-        forms.push([top, right, bottom, left].map(edge => edge.join('')).join('|'));
-        forms.push(
-          [[...top].reverse(), [...left].reverse(), [...bottom].reverse(), [...right].reverse()]
-            .map(edge => edge.join(''))
-            .join('|'),
-        );
-        [top, right, bottom, left] = [[...left].reverse(), top, [...right].reverse(), bottom];
-      }
-      const key = forms.sort()[0];
-      byClues.set(key, [...(byClues.get(key) ?? []), puzzle.id]);
-    }
-    const duplicates = [...byClues.values()].filter(ids => ids.length > 1);
-    expect({ game: 'towers', duplicates }).toEqual({ game: 'towers', duplicates: [] });
   });
 });
