@@ -27,6 +27,33 @@ export function glassColor(color: GlassColor | null): string {
   return color === null ? theme.colors.surface : [theme.colors.glassRuby, theme.colors.glassCobalt, theme.colors.glassAmber][color];
 }
 
+/**
+ * Each glass's own faint texture, so the three are told apart by more than
+ * colour (for anyone who sees ruby and amber alike), and so they read as
+ * glass with a grain: cobalt is hatched, amber is seeded with small dots,
+ * ruby is clear. Returned as one path covering a square of half-side
+ * `half` round (`cx`, `cy`) - the caller clips it to the pane - drawn as a
+ * stroke for the hatch and a fill for the dots.
+ */
+export function glassTexture(color: GlassColor | null, cx: number, cy: number, half: number, cell: number): { path: string; style: 'stroke' | 'fill' } | null {
+  if (color === 1) {
+    const step = cell * 0.2;
+    let d = '';
+    for (let k = -2 * half; k <= 2 * half; k += step) d += `M ${cx + k - half} ${cy - half} L ${cx + k + half} ${cy + half} `;
+    return { path: d, style: 'stroke' };
+  }
+  if (color === 2) {
+    const step = cell * 0.24;
+    const r = cell * 0.032;
+    let d = '';
+    for (let yy = cy - half, row = 0; yy <= cy + half; yy += step, row += 1) {
+      for (let xx = cx - half + (row % 2) * step * 0.5; xx <= cx + half; xx += step) d += `M ${xx + r} ${yy} A ${r} ${r} 0 1 0 ${xx - r} ${yy} A ${r} ${r} 0 1 0 ${xx + r} ${yy} Z `;
+    }
+    return { path: d, style: 'fill' };
+  }
+  return null;
+}
+
 /** No arch any more: the window is a square tray like every other board.
  * Kept (at 0) so callers sizing the board need not change. */
 export const GLASS_ARCH = 0;
@@ -43,6 +70,8 @@ interface Geometry {
   readonly paths: ReadonlyArray<SkPath | null>;
   readonly svg: ReadonlyArray<string>;
   readonly centres: ReadonlyArray<{ x: number; y: number }>;
+  /** Each pane's cell centres, for how far a flood has to reach. */
+  readonly cells: ReadonlyArray<ReadonlyArray<{ x: number; y: number }>>;
 }
 
 /**
@@ -123,7 +152,7 @@ function geometryOf(puzzle: GlassPuzzle, size: number): Geometry {
     const cy = cells.reduce((t, c) => t + c.y, 0) / cells.length;
     return cells.reduce((best, c) => ((c.x - cx) ** 2 + (c.y - cy) ** 2 < (best.x - cx) ** 2 + (best.y - cy) ** 2 ? c : best), cells[0]);
   });
-  return { cell, inset, paths: svg.map(d => Skia.Path.MakeFromSVGString(d)), svg, centres };
+  return { cell, inset, paths: svg.map(d => Skia.Path.MakeFromSVGString(d)), svg, centres, cells: cellsOf };
 }
 
 export type StrokePhase = 'start' | 'move';
@@ -218,6 +247,7 @@ export function GlassBoard({
                 centre={geo.centres[p]}
                 cell={geo.cell}
                 origin={track.origin[p]}
+                reach={geo.cells[p].reduce((far, q) => Math.max(far, Math.hypot(q.x - track.origin[p].x, q.y - track.origin[p].y)), 0) + geo.cell}
                 animate={track.animate[p]}
                 finish={finish}
                 wave={(geo.centres[p].x + geo.centres[p].y) / (size * 2)}
@@ -238,8 +268,16 @@ export function GlassBoard({
         onMoveShouldSetResponder={() => true}
         onResponderGrant={e => touch(e, 'start')}
         onResponderMove={e => touch(e, 'move')}
-        onResponderRelease={() => (lastPane.current = null)}
-        onResponderTerminate={() => (lastPane.current = null)}
+        onResponderRelease={() => {
+          // The finger's point only means anything while it is down: a hint
+          // or an undo afterwards floods from the pane's own centre.
+          lastPane.current = null;
+          touchAt.current = null;
+        }}
+        onResponderTerminate={() => {
+          lastPane.current = null;
+          touchAt.current = null;
+        }}
         accessible
         accessibilityLabel={`Window of ${puzzle.panes} panes, ${state.colors.filter(c => c === null).length} still clear`}
       />
@@ -260,7 +298,7 @@ export function GlassStill({ puzzle, colors, size, ring }: { puzzle: GlassPuzzle
     <Group>
       <Tray size={size} archH={0} />
       {geo.paths.map((path, p) =>
-        path ? <Glaze key={p} path={path} from={colors[p]} to={colors[p]} given={puzzle.given[p] !== null} centre={geo.centres[p]} cell={geo.cell} origin={geo.centres[p]} animate={false} finish={still} wave={0} /> : null,
+        path ? <Glaze key={p} path={path} from={colors[p]} to={colors[p]} given={puzzle.given[p] !== null} centre={geo.centres[p]} cell={geo.cell} origin={geo.centres[p]} reach={geo.cell * 4} animate={false} finish={still} wave={0} /> : null,
       )}
       {clashPanes.map(p => (geo.paths[p] ? <Path key={p} path={geo.paths[p]!} color={theme.colors.danger} style="stroke" strokeWidth={2} /> : null))}
       {ring !== undefined && geo.paths[ring] && <Path path={geo.paths[ring]!} color={theme.colors.accent} style="stroke" strokeWidth={2.5} />}
@@ -307,6 +345,7 @@ function Glaze({
   centre,
   cell,
   origin,
+  reach,
   animate,
   finish,
   wave,
@@ -318,6 +357,8 @@ function Glaze({
   centre: { x: number; y: number };
   cell: number;
   origin: { x: number; y: number };
+  /** How far the flood must grow from `origin` to cover the whole pane. */
+  reach: number;
   animate: boolean;
   finish: SharedValue<number>;
   /** 0 at the top left, 1 at the bottom right: when this pane's turn comes. */
@@ -331,7 +372,6 @@ function Glaze({
   const { x, y } = centre;
   const c = cell;
   const depth = c * DEPTH;
-  const reach = c * 4.5;
   const floodR = useDerivedValue(() => reach * u.value);
   const ringR = useDerivedValue(() => c * (0.2 + 0.7 * u.value));
   const ringO = useDerivedValue(() => (u.value >= 1 ? 0 : 0.55 * (1 - u.value)));
@@ -363,6 +403,7 @@ function Glaze({
   const fromFace = glassColor(from);
   const sideColor = to !== null ? shade(toFace, 0.62) : from !== null ? shade(fromFace, 0.62) : null;
   const stripe = (k: number, w: number) => `M ${x - c * 2.2 + k} ${y + c * 1.6} L ${x - c * 2.2 + k + w} ${y + c * 1.6} L ${x + c * 1.6 + k + w} ${y - c * 2.2} L ${x + c * 1.6 + k} ${y - c * 2.2} Z`;
+  const texture = useMemo(() => glassTexture(to, x, y, c * 4.5, c), [to, x, y, c]);
 
   return (
     <Group transform={lift}>
@@ -378,6 +419,7 @@ function Glaze({
         {(animate || from !== to) && <Circle cx={origin.x} cy={origin.y} r={floodR} color={toFace} />}
         {to !== null && (
           <Group opacity={glintIn}>
+            {texture && <Path path={texture.path} color={shade(toFace, 0.78)} style={texture.style} strokeWidth={1} opacity={0.55} />}
             <Path path={stripe(0, c)} color="#FFFFFF" opacity={0.16} />
             <Path path={stripe(c * 1.3, c * 0.3)} color="#FFFFFF" opacity={0.1} />
           </Group>

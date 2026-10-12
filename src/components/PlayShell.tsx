@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, gameDisplayName, GameKind, NextPuzzleOptions } from '../game/journey';
-import { isTodaysDaily } from '../game/journey/daily';
+import { isStandalonePuzzle } from '../game/journey/daily';
 import { tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { CoinBalance, useCoinPurchase } from './Coins';
@@ -264,7 +264,7 @@ export function PlayShell({
           hintsUsed={hints}
           coinsEarned={coinsEarned}
           onDone={onExit}
-          hasNext={mode.type === 'trial' ? mode.index < mode.total - 1 : nextEntry !== null && !isTodaysDaily(mode.puzzleId)}
+          hasNext={mode.type === 'trial' ? mode.index < mode.total - 1 : nextEntry !== null && !isStandalonePuzzle(mode.puzzleId)}
           onNext={mode.type === 'set' && batchCompleted.current && finishedSet.current ? () => setShowSetComplete(true) : goNext}
         />
       )}

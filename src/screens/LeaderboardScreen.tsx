@@ -22,7 +22,7 @@ import {
   saveProfile,
   setPlayerHidden,
 } from '../backend';
-import { dailyKeyOf } from '../game/journey';
+import { dailyKeyOf, getDailyEntry } from '../game/journey';
 import { triggerFeedback, useReducedMotion } from '../game/rendering';
 import { formatDuration, usePlayerProgress } from '../progression';
 import { theme, themedStyles } from '../theme';
@@ -248,6 +248,10 @@ export function LeaderboardScreen({ onExit, onPlayDaily }: LeaderboardScreenProp
     setNotice(hide ? 'Hidden. Their name and city no longer show for you.' : 'Shown again.');
   };
   const dayKey = dailyKeyOf(new Date());
+  // A player whose games are still arriving plays a Daily of their own on
+  // some days; its board is everyone who played that same one.
+  const daily = getDailyEntry();
+  const board = daily.shared ? null : daily.puzzleId;
 
   useEffect(() => {
     if (online) getProfile().then(setProfile);
@@ -260,13 +264,13 @@ export function LeaderboardScreen({ onExit, onPlayDaily }: LeaderboardScreenProp
     if (!online || needsPlace) return;
     let live = true;
     setLoad({ state: 'loading' });
-    fetchBoard(kind, scope, dayKey).then(rows => {
+    fetchBoard(kind, scope, dayKey, kind === 'daily' ? board : null).then(rows => {
       if (live) setLoad(rows ? { state: 'ready', rows } : { state: 'error' });
     });
     return () => {
       live = false;
     };
-  }, [online, kind, scope, dayKey, needsPlace, attempt, profile]);
+  }, [online, kind, scope, dayKey, needsPlace, attempt, profile, board]);
 
   const pick = useCallback(<T,>(set: (v: T) => void, value: T) => {
     triggerFeedback('uiPage');
@@ -335,8 +339,10 @@ export function LeaderboardScreen({ onExit, onPlayDaily }: LeaderboardScreenProp
 
         <Text style={styles.explain}>
           {kind === 'daily'
-            ? "Ranked by the time of each player's first solve of today's Daily, from opening it to the last move. Replays don't count."
-            : 'Ranked by experience: every star, solved puzzle, errand and streak day adds to it.'}
+            ? board
+              ? "Your games are still arriving, so today's Daily is one of your own. This board is everyone who played that same Daily, ranked by the time of their first solve."
+              : "Ranked by the time of each player's first solve of today's Daily, from opening it to the last move. Replays don't count."
+            : 'Ranked by experience: every puzzle solved, errand run and streak day adds to it.'}
         </Text>
 
         {online && profile && (

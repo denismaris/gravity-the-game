@@ -15,7 +15,6 @@ import {
   NativeSyntheticEvent,
   Pressable,
   ScrollView,
-  Share,
   StyleSheet,
   Text,
   View,
@@ -26,7 +25,6 @@ import {
   ACHIEVEMENTS,
   GRAND_COINS,
   GRAND_REWARDS,
-  buildShareMessage,
   cosmeticById,
   formatDuration,
   isGrandSolved,
@@ -49,7 +47,6 @@ import {
   usePlayerProgress,
   giftFor,
   unclaimedSets,
-  canBuild,
   gamesPlayed,
   INTRO_ORDER,
   INTRO_SOLVES,
@@ -85,27 +82,7 @@ import { RankUpCard } from '../components/RankUpCard';
 import { XpBar } from '../components/XpBar';
 import { CosmeticPreview } from '../components/CosmeticPreview';
 import { useSettings } from '../settings';
-import { TileGlyph } from '../components/TileGlyph';
-import { VillaBanner } from '../components/VillaBanner';
 import { tutorialIdForGame } from '../game/tutorials';
-
-/** A fade/rise that finishes at `endsAt` (a fraction of the shared `mount`
- * driver) - staggering several elements off one Animated.Value instead of
- * timing each separately. */
-/** "GOOD EVENING · WED 30 SEP" - the date line under the wordmark. */
-function dateLine(now: Date): string {
-  const h = now.getHours();
-  const greeting = h < 5 ? 'Good night' : h < 12 ? 'Good morning' : h < 18 ? 'Good afternoon' : 'Good evening';
-  const day = now.toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' }).replace(',', '');
-  return `${greeting} · ${day}`;
-}
-
-/** The moon's phase, 0 (new) to 1 (the next new), from a known new moon. */
-function moonPhase(now: Date): number {
-  const synodic = 29.530588853;
-  const days = (now.getTime() - Date.UTC(2000, 0, 6, 18, 14)) / 86400000;
-  return (((days / synodic) % 1) + 1) % 1;
-}
 
 /** A small trophy, drawn rather than typed: a cup on a stem and base,
  * with its two handles - the masthead's way into the leaderboards. */
@@ -124,18 +101,9 @@ function TrophyGlyph({ size }: { size: number }): React.JSX.Element {
   );
 }
 
-/** A small moon: a lit disc with the shadowed part laid over it. */
-function MoonDisc({ phase, size }: { phase: number; size: number }): React.JSX.Element {
-  // How much is lit, and from which side (waxing: right).
-  const lit = 1 - Math.abs(phase - 0.5) * 2;
-  const shadowShift = (phase < 0.5 ? -1 : 1) * size * lit;
-  return (
-    <View style={[styles.moon, { width: size, height: size, borderRadius: size / 2 }]}>
-      <View style={[styles.moonShadow, { width: size, height: size, borderRadius: size / 2, transform: [{ translateX: shadowShift }] }]} />
-    </View>
-  );
-}
-
+/** A fade/rise that finishes at `endsAt` (a fraction of the shared `mount`
+ * driver) - staggering several elements off one Animated.Value instead of
+ * timing each separately. */
 function riseIn(mount: Animated.Value, endsAt: number) {
   const start = Math.max(0, endsAt - 0.4);
   return {
@@ -173,16 +141,8 @@ export interface HomeScreenProps {
   onOpenLeaderboard: () => void;
   /** Your games: the twelve, collected one by one. */
   onOpenCollection?: () => void;
-  /** The Villa: what the puzzles build. */
-  onOpenVilla?: () => void;
-  /** TEMPORARY: opens a game being tried out (see `TRIAL_BUTTONS`). */
-  onOpenTrial?: (game: 'lilypads' | 'vanes') => void;
 }
 
-/** TEMPORARY, for trying Lily Pads and Weathervanes before either joins
- * the rotation: two buttons on Home that open them. Turn off (false)
- * before a store build. */
-export const TRIAL_BUTTONS = true;
 
 /** How tall a card gets on a phone with room to spare. Tuned to what the
  * fullest card actually holds rather than to the screen: taller than this
@@ -193,9 +153,6 @@ export const TRIAL_BUTTONS = true;
 const MAX_CARD_HEIGHT = 400;
 
 /** The Villa's window above the card: shown only with room for it. */
-const VILLA_BANNER_MAX = 124;
-const VILLA_BANNER_MIN = 72;
-const VILLA_BANNER_GAP = 12;
 
 /** The page each carousel slot is, in order - the order they are laid out
  * in below, and the order the dots read. */
@@ -238,8 +195,6 @@ export function HomeScreen({
   onOpenShop,
   onOpenLedger,
   onOpenCollection,
-  onOpenVilla,
-  onOpenTrial,
   onOpenLeaderboard,
 }: HomeScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
@@ -315,7 +270,6 @@ export function HomeScreen({
   const played = useMemo(() => gamesPlayed(progress), [progress]);
   const arriving = useMemo(() => nextGameToArrive(progress), [progress]);
   const roster = useMemo(() => unlockedGames(progress), [progress]);
-  const villaReady = canBuild(progress);
   const canSwap = roster.length > 1;
   const debut = !levelPoint.allDone && !played.has(entry.kind);
   const { hasSeenTutorial } = useSettings();
@@ -327,26 +281,10 @@ export function HomeScreen({
   // more solves than the app has puzzles to solve. See its own comment in
   // `playerProgress.ts`.
   const solved = aptitude.solved;
-  const totalStars = aptitude.stars;
   const earned = useMemo(
     () => getEarnedAchievements(progress).length,
     [progress],
   );
-
-  // `Share.share` is RN's own built-in API - no new dependency for a
-  // plain-text share, matching how deliberate this app has been about
-  // every native addition so far. Fire-and-forget: a dismissed share
-  // sheet and a sent one both resolve the same promise with nothing
-  // useful for this screen to react to either way.
-  const shareProgress = useCallback(() => {
-    const message = buildShareMessage({
-      dailyStreak,
-      totalStars,
-      solved,
-      totalPuzzles: aptitude.total,
-    });
-    Share.share({ message }).catch(() => {});
-  }, [dailyStreak, totalStars, solved, aptitude.total]);
 
   const openEntry = (): void => {
     if (gravityLevel) markLevelOpened(gravityLevel.id);
@@ -468,15 +406,9 @@ export function HomeScreen({
   // child of \`stage\`, so the two offsets add.
   const [stageY, setStageY] = useState<number | null>(null);
   const [carouselY, setCarouselY] = useState<number | null>(null);
-  const [stageHeight, setStageHeight] = useState(0);
   const onStageLayout = useCallback((e: LayoutChangeEvent) => {
     setStageY(e.nativeEvent.layout.y);
-    setStageHeight(e.nativeEvent.layout.height);
   }, []);
-  // The Villa's window above the card, in whatever room the page has left
-  // (none on a short phone - the header's tile chip still leads there).
-  const villaHeight = Math.min(VILLA_BANNER_MAX, Math.floor(stageHeight - cardHeight - DOTS_BLOCK - VILLA_BANNER_GAP * 2));
-  const showVilla = villaHeight >= VILLA_BANNER_MIN;
   const onCarouselLayout = useCallback(
     (e: LayoutChangeEvent) => setCarouselY(e.nativeEvent.layout.y),
     [],
@@ -522,7 +454,7 @@ export function HomeScreen({
           style={[StyleSheet.absoluteFill, { opacity: mount }]}
           pointerEvents="none"
         >
-          <AlmanacBackdrop width={width} height={height} card={cardRect} clearTop={showVilla} />
+          <AlmanacBackdrop width={width} height={height} card={cardRect} />
         </Animated.View>
       )}
       <PressableScale
@@ -540,17 +472,6 @@ export function HomeScreen({
             palette (Android already renders plain either way). */}
         <Icon name="settings" size={20} color={theme.colors.textSecondary} />
       </PressableScale>
-
-      {TRIAL_BUTTONS && onOpenTrial && (
-        <View style={[styles.trials, { top: insets.top + 128 }]}>
-          <PressableScale accessibilityRole="button" accessibilityLabel="Try Lily Pads" onPress={() => onOpenTrial('lilypads')} hitSlop={6} style={[styles.trial, { borderColor: theme.colors.lilyAccent }]}>
-            <Text style={[styles.trialText, { color: theme.colors.lilyAccent }]}>Try Lily Pads</Text>
-          </PressableScale>
-          <PressableScale accessibilityRole="button" accessibilityLabel="Try Weathervanes" onPress={() => onOpenTrial('vanes')} hitSlop={6} style={[styles.trial, { borderColor: theme.colors.vaneAccent }]}>
-            <Text style={[styles.trialText, { color: theme.colors.vaneAccent }]}>Try Vanes</Text>
-          </PressableScale>
-        </View>
-      )}
 
       {/* The leaderboards, one tap from anywhere on Home - opposite the
           gear, so the masthead stays symmetrical. */}
@@ -577,12 +498,6 @@ export function HomeScreen({
         </View>
         <View style={styles.rule}>
           <View style={styles.ruleLine} />
-        </View>
-        {/* The almanac's own date line: a greeting, the day, and the
-            moon - it is an almanac, after all. */}
-        <View style={styles.dateLine}>
-          <MoonDisc phase={moonPhase(new Date())} size={10} />
-          <Text style={styles.tagline}>{dateLine(new Date())}</Text>
         </View>
         {/* Loss aversion, the moment it applies: a streak already exists
             and today's Daily is still unplayed, so it is genuinely one
@@ -624,18 +539,6 @@ export function HomeScreen({
                 <Text style={styles.statusText}>{progress.insights}</Text>
               </View>
             </PressableScale>
-            {!showVilla && (
-              <>
-                <View style={styles.statusRule} />
-                <PressableScale accessibilityRole="button" accessibilityLabel={`The Villa. ${progress.tesserae} tiles${villaReady ? ', ready to build' : ''}.`} onPress={onOpenVilla} hitSlop={8}>
-                  <View style={styles.statusItem}>
-                    <TileGlyph size={12} />
-                    <Text style={styles.statusText}>{progress.tesserae}</Text>
-                    {villaReady && <View style={styles.statusDot} />}
-                  </View>
-                </PressableScale>
-              </>
-            )}
             {dailyStreak > 0 && (
               <>
                 <View style={styles.statusRule} />
@@ -668,11 +571,6 @@ export function HomeScreen({
         {/* A plain wrapper to measure: a ScrollView's own \`onLayout\` did not
             report its offset inside the centring stage, which put the whole
             backdrop one centring-gap too high. */}
-        {showVilla && (
-          <View style={[styles.villaBanner, { marginBottom: VILLA_BANNER_GAP }]}>
-            <VillaBanner width={width - theme.spacing.lg * 2} height={villaHeight} onOpen={onOpenVilla} />
-          </View>
-        )}
         <View onLayout={onCarouselLayout}>
           <Animated.ScrollView
             ref={carouselRef as never}
@@ -758,11 +656,9 @@ export function HomeScreen({
                   <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.62}>
                     {entry.name}
                   </Text>
-                  <Text style={styles.heroMeta}>
-                    {debut
-                      ? `Your first ${entry.chapter} puzzle.${lessonFirst ? ' A short lesson comes first.' : ''}`
-                      : `Puzzle ${levelPoint.batchPosition} of ${levelPoint.batchSize} in this set`}
-                  </Text>
+                  {/* Only a debut needs a line here: otherwise the set's own
+                      emblems below already say where in it this puzzle is. */}
+                  {debut && <Text style={styles.heroMeta}>{`Your first ${entry.chapter} puzzle.${lessonFirst ? ' A short lesson comes first.' : ''}`}</Text>}
 
                   {/* The middle of every card is a flexible block holding real
                     content, centred. Slack from a tall screen spreads around
@@ -786,19 +682,26 @@ export function HomeScreen({
                           // pending - otherwise a fresh set shows four faded
                           // marks and nothing on this card looks current.
                           const isCurrent = !done && completed.length === i;
+                          const tint = accentColorForKind(entryRef.kind);
                           return (
-                            <View
-                              key={`${entryRef.puzzleId}-${i}`}
-                              style={styles.setItem}
-                            >
-                              <View
-                                style={
-                                  done || isCurrent
-                                    ? undefined
-                                    : styles.setAhead
-                                }
-                              >
+                            <React.Fragment key={`${entryRef.puzzleId}-${i}`}>
+                            {/* The path between one game and the next: dots,
+                                filled once the way is walked. */}
+                            {i > 0 && (
+                              <View style={styles.setPath}>
+                                {[0, 1, 2].map(k => (
+                                  <View key={k} style={[styles.setPathDot, (done || isCurrent) && styles.setPathDotOn]} />
+                                ))}
+                              </View>
+                            )}
+                            <View style={styles.setItem}>
+                              <View style={[styles.setRing, isCurrent && { borderColor: tint }, !(done || isCurrent) && styles.setAhead]}>
                                 <GameEmblem kind={entryRef.kind} size={38} />
+                                {done && (
+                                  <View style={[styles.setCheck, { backgroundColor: tint }]}>
+                                    <Icon name="check" size={9} color={theme.colors.surfaceHi} />
+                                  </View>
+                                )}
                               </View>
                               {/* A golden puzzle wears a coin, like a seal on
                                 the corner of a page. Outside the fade, like
@@ -837,6 +740,7 @@ export function HomeScreen({
                                 {gameShortName(entryRef.kind)}
                               </Text>
                             </View>
+                            </React.Fragment>
                           );
                         })}
                       </View>
@@ -1119,9 +1023,6 @@ export function HomeScreen({
                     ) : (
                       <Text style={[styles.badge, styles.badgeDone]}>Rank {toRoman(rank.number)}</Text>
                     )}
-                    <PressableScale accessibilityRole="button" accessibilityLabel="Share your progress" onPress={shareProgress} hitSlop={10} containerStyle={styles.shareButton}>
-                      <Icon name="share" size={15} color={theme.colors.textPrimary} />
-                    </PressableScale>
                   </View>
                 </View>
 
@@ -1158,7 +1059,7 @@ export function HomeScreen({
                 <View style={styles.youLinks}>
                   {[
                     { label: 'Games', note: `${roster.length} of ${ROTATION.length} · ${solved} solved`, a11y: 'Open your games', onPress: onOpenCollection, dot: false },
-                    { label: 'Badges', note: `${earned} of ${ACHIEVEMENTS.length} · ${totalStars} \u2605`, a11y: 'Open achievements', onPress: onOpenAchievements, dot: false },
+                    { label: 'Badges', note: `${earned} of ${ACHIEVEMENTS.length}`, a11y: 'Open achievements', onPress: onOpenAchievements, dot: false },
                     { label: 'Ledger', note: stampsWaiting > 0 ? `${stampsWaiting} stamp${stampsWaiting === 1 ? '' : 's'} to claim` : aptitude.index !== null ? `Puzzle IQ ${aptitude.index}` : 'Stamps and records', a11y: `Open the ledger. ${iqLabel}`, onPress: onOpenLedger, dot: stampsWaiting > 0 },
                     { label: 'Leaderboards', note: 'Daily and all time', a11y: 'Open the leaderboards', onPress: onOpenLeaderboard, dot: false },
                   ].map(link => (
@@ -1273,8 +1174,6 @@ const MASTHEAD_BLOCK =
   theme.spacing.md +
   33 +
   theme.spacing.xs * 2 +
-  14 +
-  theme.spacing.xs +
   STREAK_SLOT_HEIGHT +
   theme.spacing.lg;
 const DOTS_BLOCK = theme.spacing.sm * 2 + 8;
@@ -1423,7 +1322,6 @@ const styles = themedStyles(() => ({
   /** Measured rather than fixed: the mark inside places itself at
    * fractions of the real width, so it keeps its rhythm on any screen. */
   rule: { marginVertical: theme.spacing.xs, height: 14, alignItems: 'center', justifyContent: 'center' },
-  tagline: { fontSize: theme.typography.sizes.caption, lineHeight: 16, color: theme.colors.textTertiary },
 
   /** One carousel slot. The card inside is centred in it, so the height
    * the cap leaves over becomes even margin rather than a gap at one end. */
@@ -1569,11 +1467,18 @@ const styles = themedStyles(() => ({
   },
   setRow: {
     flexDirection: 'row',
-    gap: theme.spacing.sm,
-  },
-  setItem: {
     alignItems: 'flex-start',
   },
+  setItem: {
+    alignItems: 'center',
+  },
+  /** Every game sits in the same ring; only the one up next shows it, in
+   * its own colour - so the row never shifts as the set moves on. */
+  setRing: { padding: 3, borderRadius: 15, borderWidth: 2, borderColor: 'transparent' },
+  setCheck: { position: 'absolute', right: -3, bottom: -3, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: theme.colors.surface },
+  setPath: { flexDirection: 'row', gap: 3, marginTop: 23, marginHorizontal: 4 },
+  setPathDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: theme.colors.borderStrong },
+  setPathDotOn: { backgroundColor: theme.colors.textTertiary },
   /** Each game named under its own mark. The marks alone were an
    * identity parade for anyone who had not yet learned them; with the
    * names the row actually answers "what is in this set". */
@@ -1699,21 +1604,6 @@ const styles = themedStyles(() => ({
   dailyStreakLabel: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary, marginTop: theme.spacing.sm, textAlign: 'center' },
 
 
-  shareButton: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: theme.colors.surfaceHi,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-  },
-  shareGlyph: {
-    fontSize: 12,
-    color: theme.colors.textSecondary,
-  },
-
   figure: {
     flex: 1,
   },
@@ -1738,7 +1628,6 @@ const styles = themedStyles(() => ({
     flex: 1,
     justifyContent: 'center',
   },
-  villaBanner: { alignItems: 'center' },
   dots: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -1773,10 +1662,4 @@ const styles = themedStyles(() => ({
   },
   insightGlyph: { fontSize: 12, color: theme.colors.accent },
   insightChipText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary, fontVariant: ['tabular-nums'] },
-  dateLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  moon: { backgroundColor: theme.colors.accent, overflow: 'hidden' },
-  moonShadow: { position: 'absolute', backgroundColor: theme.colors.background },
-  trials: { position: 'absolute', right: theme.spacing.md, zIndex: 5, flexDirection: 'row', gap: 8 },
-  trial: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: theme.radii.pill, borderWidth: 1, borderStyle: 'dashed', backgroundColor: theme.colors.background },
-  trialText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold },
 }));

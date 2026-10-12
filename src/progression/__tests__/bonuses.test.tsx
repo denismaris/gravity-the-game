@@ -27,7 +27,7 @@ function seeded(seed: number): () => number {
 
 describe('the clean-run combo', () => {
   test('steps up at two, three and five clean solves in a row', () => {
-    expect([0, 1, 2, 3, 4, 5, 9].map(cleanRunMultiplier)).toEqual([1, 1, 1.2, 1.5, 1.5, 2, 2]);
+    expect([0, 1, 2, 3, 4, 5, 9].map(cleanRunMultiplier)).toEqual([1, 1, 1.1, 1.25, 1.25, 1.5, 1.5]);
   });
 });
 
@@ -123,8 +123,8 @@ describe('through the provider', () => {
       }
     });
     expect(runs.map(r => r[0])).toEqual([1, 2, 3, 4, 5]);
-    expect(runs.map(r => r[1])).toEqual([1, 1.2, 1.5, 1.5, 2]);
-    expect(runs.map(r => r[2])).toEqual([1, 1.2, 1.5, 1.5, 2].map(m => Math.round(FIRST_SOLVE_COINS[3] * m)));
+    expect(runs.map(r => r[1])).toEqual([1, 1.1, 1.25, 1.25, 1.5]);
+    expect(runs.map(r => r[2])).toEqual([1, 1.1, 1.25, 1.25, 1.5].map(m => Math.round(FIRST_SOLVE_COINS[3] * m)));
 
     act(() => {
       const hinted = api().recordCompletion(boards[7].id, 1);

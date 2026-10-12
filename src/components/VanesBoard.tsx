@@ -353,6 +353,7 @@ function Vane({
   const tickO = useDerivedValue(() => (tick.value === 0 || tick.value === 1 ? 0 : 0.6 * (1 - tick.value)));
 
   const L = cell * 0.37;
+  const plate = cell * 0.4;
   const metal = theme.colors.vaneMetal;
   const arrow = (fill: string, tail: string) => (
     <Group>
@@ -363,18 +364,38 @@ function Vane({
   );
   return (
     <Group>
-      {/* The post: a disc on its side face. */}
-      <Circle cx={x} cy={y + cell * 0.035} r={cell * 0.165} color={inkWash(0.16)} />
-      <Circle cx={x} cy={y} r={cell * 0.16} color={theme.colors.surface} />
-      {fixed && <Circle cx={x} cy={y} r={cell * 0.16} color={theme.colors.vaneAccent} opacity={0.35} />}
-      {looped && <Circle cx={x} cy={y} r={cell * 0.2} color={theme.colors.vaneWind} opacity={0.18} />}
-      <Circle cx={x} cy={y} r={cell * 0.16} color={reached ? theme.colors.vaneWind : theme.colors.borderStrong} style="stroke" strokeWidth={reached ? 2.5 : 1.2} />
+      {looped && <Circle cx={x} cy={y} r={cell * 0.22} color={theme.colors.vaneWind} opacity={0.18} />}
+      {fixed ? (
+        <Group>
+          {/* Set from the start: bolted to a square copper plate, two
+              rivets showing, and the whole arrow cast in copper. Square
+              and solid where a turning vane is round and light, so the
+              two can never be mistaken at a glance. */}
+          <RoundedRect x={x - plate / 2} y={y - plate / 2 + cell * 0.035} width={plate} height={plate} r={cell * 0.06} color={inkWash(0.18)} />
+          <RoundedRect x={x - plate / 2} y={y - plate / 2} width={plate} height={plate} r={cell * 0.06} color={theme.colors.vaneAccent} opacity={0.3} />
+          <RoundedRect x={x - plate / 2} y={y - plate / 2} width={plate} height={plate} r={cell * 0.06} color={reached ? theme.colors.vaneWind : theme.colors.vaneAccent} style="stroke" strokeWidth={reached ? 2.5 : 1.6} />
+          {[-1, 1].map(k => (
+            <Circle key={k} cx={x + k * plate * 0.32} cy={y + k * plate * 0.32} r={cell * 0.022} color={theme.colors.vaneAccent} />
+          ))}
+        </Group>
+      ) : (
+        <Group>
+          {/* Free to turn: a round swivel post, ringed with a dashed track
+              the arrow turns along. */}
+          <Circle cx={x} cy={y + cell * 0.035} r={cell * 0.165} color={inkWash(0.16)} />
+          <Circle cx={x} cy={y} r={cell * 0.16} color={theme.colors.surface} />
+          <Circle cx={x} cy={y} r={cell * 0.16} color={reached ? theme.colors.vaneWind : theme.colors.borderStrong} style="stroke" strokeWidth={reached ? 2.5 : 1.2} />
+          <Circle cx={x} cy={y} r={cell * 0.24} color={theme.colors.borderStrong} style="stroke" strokeWidth={1} opacity={0.6}>
+            <DashPathEffect intervals={[2, 3.5]} />
+          </Circle>
+        </Group>
+      )}
       <Circle cx={x} cy={y} r={tickR} color={theme.colors.vaneAccent} style="stroke" strokeWidth={2} opacity={tickO} />
       <Group transform={shadow} opacity={0.22}>
         {arrow('#000000', '#000000')}
       </Group>
-      <Group transform={transform}>{arrow(metal, trouble ? theme.colors.danger : theme.colors.vaneAccent)}</Group>
-      <Circle cx={x} cy={y} r={cell * (fixed ? 0.065 : 0.045)} color={fixed ? theme.colors.vaneAccent : theme.colors.vaneMetalLight} />
+      <Group transform={transform}>{fixed ? arrow(theme.colors.vaneAccent, shade(theme.colors.vaneAccent, 0.7)) : arrow(metal, trouble ? theme.colors.danger : theme.colors.vaneAccent)}</Group>
+      <Circle cx={x} cy={y} r={cell * (fixed ? 0.06 : 0.045)} color={fixed ? shade(theme.colors.vaneAccent, 0.7) : theme.colors.vaneMetalLight} />
     </Group>
   );
 }

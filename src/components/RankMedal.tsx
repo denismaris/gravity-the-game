@@ -5,13 +5,24 @@ import { shade } from '../game/rendering';
 import { toRoman } from '../progression/rank';
 import { theme, themedStyles, inkWash } from '../theme';
 
-/** The metal a rank is struck in: bronze, silver, gold, then the house
- * violet with gilt for the masters. */
-export function medalMetal(rank: number): { rim: string; face: string; star: string; ink: string } {
-  if (rank <= 2) return { rim: '#8E5F36', face: '#C89160', star: '#F4DDC1', ink: '#FFF6EA' };
-  if (rank <= 4) return { rim: '#6D7784', face: '#AFB8C3', star: '#EEF2F6', ink: '#FFFFFF' };
-  if (rank <= 6) return { rim: '#8F6813', face: '#D3A43A', star: '#FFF0C4', ink: '#FFF9E8' };
-  return { rim: '#2A1540', face: theme.colors.primary, star: '#E6C36A', ink: '#F6E7BD' };
+/** The metal a rank is struck in - bronze, silver, gold, the house violet
+ * with gilt, then jade, sapphire, garnet, pearl and obsidian - two ranks
+ * to each, and a rim that grows more lobes the further up the road, so
+ * every pair of ranks earns a medal that looks new. */
+export function medalMetal(rank: number): { rim: string; face: string; star: string; ink: string; lobes: number } {
+  if (rank <= 2) return { rim: '#8E5F36', face: '#C89160', star: '#F4DDC1', ink: '#FFF6EA', lobes: 16 };
+  if (rank <= 4) return { rim: '#6D7784', face: '#AFB8C3', star: '#EEF2F6', ink: '#FFFFFF', lobes: 16 };
+  if (rank <= 6) return { rim: '#8F6813', face: '#D3A43A', star: '#FFF0C4', ink: '#FFF9E8', lobes: 18 };
+  if (rank <= 8) return { rim: '#2A1540', face: '#4B2F68', star: '#E6C36A', ink: '#F6E7BD', lobes: 18 };
+  const families = [
+    { rim: '#2F5E4E', face: '#6FA68E', star: '#E6F2EA', ink: '#F4FBF6' }, // jade
+    { rim: '#23406E', face: '#5C82BF', star: '#E3ECFA', ink: '#F5F8FF' }, // sapphire
+    { rim: '#6A1F2C', face: '#B04A5C', star: '#F8DDE2', ink: '#FFF3F5' }, // garnet
+    { rim: '#8C8170', face: '#E8E1D2', star: '#B49A5E', ink: '#5A4A2E' }, // pearl
+    { rim: '#1C1A1F', face: '#3A363F', star: '#E2BE62', ink: '#F2D48A' }, // obsidian and gold
+  ];
+  const k = Math.floor((rank - 9) / 2);
+  return { ...families[k % families.length], lobes: Math.min(26, 20 + 2 * Math.floor(k / 2)) };
 }
 
 /** A scalloped rim of `lobes` bumps round a circle of radius `r`. */
@@ -51,12 +62,12 @@ export function RankMedal({ rank, size = 88 }: { rank: number; size?: number }):
   const r = size * 0.44;
   const paths = useMemo(
     () => ({
-      rim: scallopSvg(c, c, r, 16, size * 0.028),
-      side: scallopSvg(c, c + size * 0.045, r, 16, size * 0.028),
-      shadow: scallopSvg(c + size * 0.03, c + size * 0.085, r, 16, size * 0.028),
+      rim: scallopSvg(c, c, r, metal.lobes, size * 0.028),
+      side: scallopSvg(c, c + size * 0.045, r, metal.lobes, size * 0.028),
+      shadow: scallopSvg(c + size * 0.03, c + size * 0.085, r, metal.lobes, size * 0.028),
       star: compassSvg(c, c, r * 0.74, r * 0.2),
     }),
-    [c, r, size],
+    [c, r, size, metal.lobes],
   );
   const numeral = toRoman(rank);
   return (

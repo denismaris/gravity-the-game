@@ -18,14 +18,14 @@ export interface BoardRow {
 
 /** One board, top first, with the player's own row included even when
  * they are further down. Null when it cannot be reached. */
-export async function fetchBoard(kind: BoardKind, scope: BoardScope, dayKey: string): Promise<BoardRow[] | null> {
+export async function fetchBoard(kind: BoardKind, scope: BoardScope, dayKey: string, board: string | null = null): Promise<BoardRow[] | null> {
   const api = backend();
   if (!api) return null;
   try {
     const userId = await ensureSession();
     if (!userId) return null;
     const { data, error } =
-      kind === 'daily' ? await api.rpc('daily_board', { p_day: dayKey, p_scope: scope, p_limit: 50 }) : await api.rpc('xp_board', { p_scope: scope, p_limit: 50 });
+      kind === 'daily' ? await api.rpc('daily_board', { p_day: dayKey, p_scope: scope, p_limit: 50, ...(board ? { p_board: board } : {}) }) : await api.rpc('xp_board', { p_scope: scope, p_limit: 50 });
     if (error || !Array.isArray(data)) return null;
     return data.map((row: { place: number; player: string; display_name: string; country: string | null; city: string | null; ms?: number; xp?: number; is_me: boolean }) => ({
       place: Number(row.place),

@@ -26,7 +26,7 @@ import {
   toRoman,
   usePlayerProgress,
 } from '../progression';
-import { rankAt } from '../progression/rank';
+import { rankReward, rankThreshold } from '../progression/rank';
 import { motion, theme, themedStyles } from '../theme';
 
 export interface JourneyScreenProps {
@@ -74,11 +74,11 @@ function ChapterRow({ chapter, claimed, onClaim }: { chapter: Chapter; claimed: 
       <View style={styles.chapterBody}>
         <Text style={styles.chapterName}>{chapter.name}</Text>
         <Text style={styles.chapterMeta}>
-          LEVELS {chapter.firstLevel}–{chapter.lastLevel}
+          {`Levels ${chapter.firstLevel} to ${chapter.lastLevel}`}
         </Text>
       </View>
       {claimed ? (
-        <Text style={styles.claimedText}>{'✓︎ CLAIMED'}</Text>
+        <Text style={styles.claimedText}>{'✓︎ Claimed'}</Text>
       ) : (
         <PressableScale accessibilityRole="button" accessibilityLabel={`Claim chapter ${chapter.number} reward`} onPress={claim} style={({ pressed }) => [styles.claim, pressed && styles.pressed]}>
           <Text style={styles.claimText}>Claim</Text>
@@ -112,6 +112,7 @@ export function JourneyScreen({ onExit, onOpenShop }: JourneyScreenProps): React
   });
 
   const nextTitle = rankTitle(rank.number + 1);
+  // The whole named road, and always a couple of rungs beyond where you are.
   const ladderTop = Math.max(RANKS.length, rank.number + 2);
   const pastChapters = Array.from({ length: finished }, (_v, i) => chapterAt(finished - i));
 
@@ -146,8 +147,8 @@ export function JourneyScreen({ onExit, onOpenShop }: JourneyScreenProps): React
           <View style={styles.earnTable}>
             {(
               [
-                ['A star', XP_PER_STAR],
-                ['A puzzle solved', XP_PER_PUZZLE],
+                ['A puzzle solved', XP_PER_PUZZLE + XP_PER_STAR],
+                ['Solved without a hint', XP_PER_STAR * 2],
                 ['An errand done', XP_PER_ERRAND],
                 ['A day on your streak', XP_PER_STREAK_DAY],
               ] as const
@@ -206,15 +207,21 @@ export function JourneyScreen({ onExit, onOpenShop }: JourneyScreenProps): React
             {Array.from({ length: ladderTop }, (_v, i) => i + 1).map(n => {
               const reached = n <= rank.number;
               const current = n === rank.number;
-              const at = n <= RANKS.length ? RANKS[n - 1].at : rankAt(RANKS[RANKS.length - 1].at + (n - RANKS.length) * 2000).from;
+              const at = rankThreshold(n);
+              const reward = rankReward(n);
               return (
                 <View key={n} style={[styles.rung, current && styles.rungCurrent, !reached && styles.rungAhead]}>
-                  <RankMedal rank={n} size={40} />
+                  <RankMedal rank={n} size={44} />
                   <View style={styles.rungBody}>
                     <Text style={styles.rungTitle}>{rankTitle(n)}</Text>
                     <Text style={styles.rungMeta}>{current ? 'You are here' : reached ? 'Reached' : `At ${fmt(at)} XP`}</Text>
                   </View>
-                  {reached && !current && <Text style={styles.rungTick}>{'✓︎'}</Text>}
+                  {reward > 0 && (
+                    <View style={[styles.rungReward, reached && styles.rungRewardDone]}>
+                      {reached ? <Text style={styles.rungTick}>{'✓︎'}</Text> : <CoinGlyph size={12} />}
+                      <Text style={[styles.rungRewardText, reached && styles.rungRewardTextDone]}>{reward}</Text>
+                    </View>
+                  )}
                 </View>
               );
             })}
@@ -298,4 +305,18 @@ const styles = themedStyles(() => ({
   shopButtonText: { color: theme.colors.surfaceHi, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.semibold },
   shopChevron: { color: theme.colors.surfaceHi, fontSize: 22, marginTop: -2 },
   pressed: { opacity: 0.85 },
+  rungReward: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.surfaceHi,
+    borderWidth: 1,
+    borderColor: theme.colors.border,
+  },
+  rungRewardDone: { backgroundColor: 'transparent', borderColor: 'transparent' },
+  rungRewardText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary, fontVariant: ['tabular-nums'] },
+  rungRewardTextDone: { color: theme.colors.textTertiary },
 }));

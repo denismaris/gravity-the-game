@@ -17,18 +17,18 @@ import { LUCKY_CHARM_CHARGES, MAX_LUCKY_CHARGES } from './shop';
  * tiles for the Villa (see `GIFT_EXTRAS`).
  */
 
-export const GIFT_COINS: ReadonlyArray<number> = [20, 25, 30, 40, 50, 60, 120];
+export const GIFT_COINS: ReadonlyArray<number> = [15, 20, 25, 30, 40, 50, 100];
 export const GIFT_DAYS = GIFT_COINS.length;
-/** What each day adds besides coins: Insight charges, and tiles for the
- * Villa - so the week builds toward something on both sides of the game. */
-export const GIFT_EXTRAS: ReadonlyArray<{ readonly insights: number; readonly tiles: number }> = [
-  { insights: 0, tiles: 0 },
-  { insights: 1, tiles: 0 },
-  { insights: 0, tiles: 5 },
-  { insights: 1, tiles: 0 },
-  { insights: 0, tiles: 10 },
-  { insights: 2, tiles: 0 },
-  { insights: 1, tiles: 15 },
+/** What each day adds besides coins: Insight charges, more as the week
+ * goes on. */
+export const GIFT_EXTRAS: ReadonlyArray<{ readonly insights: number }> = [
+  { insights: 0 },
+  { insights: 1 },
+  { insights: 0 },
+  { insights: 1 },
+  { insights: 1 },
+  { insights: 2 },
+  { insights: 2 },
 ];
 /** Extra coins for coming back after `WELCOME_BACK_AFTER` days away. */
 export const WELCOME_BACK_COINS = 100;
@@ -51,8 +51,6 @@ export interface Gift {
   readonly charm: boolean;
   /** Insight charges. */
   readonly insights: number;
-  /** Tiles for the Villa. */
-  readonly tiles: number;
   /** Extra coins for a player returning after a break. */
   readonly welcomeBack: number;
 }
@@ -109,7 +107,6 @@ export function claimGift(progress: PlayerProgress, dayKey: string): { progress:
       coins,
       luckyCharges,
       insights: progress.insights + gift.insights,
-      tesserae: progress.tesserae + gift.tiles,
       gift: { lastKey: dayKey, day: gift.day },
     },
     gift,

@@ -54,10 +54,10 @@ describe('the shop', () => {
   test('a purchase takes two taps - the price, then the confirm - and is worn at once', async () => {
     const { api, press, renderer } = await mount(<ShopScreen onExit={() => {}} />, { coins: 500 });
     await press('Style');
-    await press('Buy Gold Leaf for 250 coins');
+    await press('Buy Gold Leaf for 300 coins');
     expect(api().coins).toBe(500);
-    await press('Confirm buying Gold Leaf for 250 coins');
-    expect(api().coins).toBe(250);
+    await press('Confirm buying Gold Leaf for 300 coins');
+    expect(api().coins).toBe(200);
     expect(api().progress.equipped.confetti).toBe('confetti-gold');
     expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'Gold Leaf, worn').length).toBeGreaterThan(0);
     await act(async () => renderer.unmount());
@@ -66,8 +66,8 @@ describe('the shop', () => {
   test('too few coins: no confirm, no charge', async () => {
     const { api, press, renderer } = await mount(<ShopScreen onExit={() => {}} />, { coins: 20 });
     await press('Style');
-    await press('Buy Gold Leaf for 250 coins');
-    await press('Buy Gold Leaf for 250 coins');
+    await press('Buy Gold Leaf for 300 coins');
+    await press('Buy Gold Leaf for 300 coins');
     expect(api().coins).toBe(20);
     expect(api().progress.owned).toEqual([]);
     await act(async () => renderer.unmount());
@@ -76,9 +76,9 @@ describe('the shop', () => {
   test('a streak freeze is bought in one tap, up to three', async () => {
     const { api, press, renderer } = await mount(<ShopScreen onExit={() => {}} />, { coins: 1000 });
     await press('Boosts');
-    for (let i = 0; i < 3; i += 1) await press('Buy a streak freeze for 150 coins');
+    for (let i = 0; i < 3; i += 1) await press('Buy a streak freeze for 200 coins');
     expect(api().progress.streakFreezes).toBe(3);
-    expect(api().coins).toBe(1000 - 450);
+    expect(api().coins).toBe(1000 - 600);
     expect(renderer.root.findAll(node => node.props.accessibilityLabel === 'Streak freezes full').length).toBeGreaterThan(0);
     await act(async () => renderer.unmount());
   });
@@ -129,21 +129,10 @@ describe('passes', () => {
     await act(async () => renderer.unmount());
   });
 
-  test('a first solve lays tiles for the Villa: one for the puzzle, one a star', async () => {
-    const { api, renderer } = await mount(<ErrandList />, { tesserae: 0 });
-    let outcome!: ReturnType<Api['recordCompletion']>;
-    await act(async () => {
-      outcome = api().recordCompletion('bridges-easy-01', 0);
-    });
-    expect(outcome.tesseraeEarned).toBeGreaterThanOrEqual(4);
-    expect(api().progress.tesserae).toBe(outcome.tesseraeEarned);
-    await act(async () => renderer.unmount());
-  });
-
   test('a lucky charm doubles the coins of the next paying solves', async () => {
     const { api, press, renderer } = await mount(<ShopScreen onExit={() => {}} />, { coins: 1000 });
     await press('Boosts');
-    await press('Buy a lucky charm for 250 coins');
+    await press('Buy a lucky charm for 300 coins');
     expect(api().progress.luckyCharges).toBe(10);
     let outcome!: ReturnType<Api['recordCompletion']>;
     await act(async () => {
@@ -216,7 +205,7 @@ describe('the first-launch walkthrough', () => {
   test('pages through to the end and reports done', async () => {
     const done = jest.fn();
     const { press, renderer } = await mount(<IntroWalkthrough onDone={done} />, {});
-    for (let i = 0; i < 4; i += 1) await press('Next page');
+    for (let i = 0; i < 3; i += 1) await press('Next page');
     await press('Close the introduction');
     await act(async () => {
       jest.advanceTimersByTime(600);

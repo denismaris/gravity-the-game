@@ -46,10 +46,8 @@ export function mergeProgress(local: PlayerProgress, remote: PlayerProgress): Pl
     chaptersClaimed: union(primary.chaptersClaimed, other.chaptersClaimed),
     setsClaimed: union(primary.setsClaimed, other.setsClaimed),
     // Built pieces stay built; the tiles in hand are running state.
-    villa: union(primary.villa, other.villa),
     dailyDays: union(primary.dailyDays, other.dailyDays).sort().slice(-DAILY_DAYS_KEPT),
     // Collected on either phone is collected.
-    townGiftKey: primary.townGiftKey > other.townGiftKey ? primary.townGiftKey : other.townGiftKey,
     rankRewarded: Math.max(primary.rankRewarded, other.rankRewarded),
     errandsClaimed: Math.max(primary.errandsClaimed, other.errandsClaimed),
     introSeen: primary.introSeen || other.introSeen,

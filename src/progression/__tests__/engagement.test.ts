@@ -15,13 +15,17 @@ const withStars = (stars: number, puzzles = stars / 3): PlayerProgress => {
 };
 
 describe('ranks', () => {
-  test('climb through the named ranks, then numbered Grand Masters', () => {
+  test('climb through the named ranks, then numbered Luminaries', () => {
     expect(rankAt(0).title).toBe('Novice');
     expect(rankAt(RANKS[1].at).title).toBe('Apprentice');
     expect(rankAt(RANKS[1].at - 1).number).toBe(1);
     const last = RANKS[RANKS.length - 1];
-    expect(rankAt(last.at).title).toBe('Grand Master');
-    expect(rankAt(last.at + 2000).title).toBe('Grand Master II');
+    expect(rankAt(last.at).title).toBe('Luminary');
+    expect(rankAt(last.at + 6000).title).toBe('Luminary II');
+    // The first eight ranks never moved, and the ninth is where Grand
+    // Master II was, so no one's rank number changed under them.
+    expect(rankAt(4800).title).toBe('Grand Master');
+    expect(rankAt(6800).number).toBe(9);
     expect(rankAt(500).share).toBeGreaterThan(0);
     expect(rankAt(500).share).toBeLessThan(1);
   });

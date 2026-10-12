@@ -94,7 +94,7 @@ export function CoinBalance({
           {shown}
         </Text>
       </Animated.View>
-      {shortBy !== null && <Text style={styles.short}>{`${shortBy} MORE NEEDED · SOLVE PUZZLES TO EARN COINS`}</Text>}
+      {shortBy !== null && <Text style={styles.short}>{`${shortBy} more needed. Solving puzzles earns coins.`}</Text>}
     </View>
   );
 }

@@ -27,6 +27,8 @@ import { COIN_PACKS, PATRON_COINS, applyPurchase } from '../store';
 
 const ROOT = `${__dirname}/../../..`;
 const rich = (): PlayerProgress => ({ ...emptyProgress(), coins: 100000 });
+/** Rich, and far enough along the road (rank IV) to buy ad-free time. */
+const seasoned = (): PlayerProgress => ({ ...rich(), errandsClaimed: 40 });
 
 /** Claims the gift on each of `keys` in turn. */
 function claimOn(progress: PlayerProgress, keys: string[]): PlayerProgress {
@@ -217,18 +219,20 @@ describe('the store (simulated for now)', () => {
 describe('ad-free time', () => {
   it('runs from now, and buying more extends it', () => {
     const now = Date.UTC(2026, 9, 3, 12);
-    const day = buyAdFree({ ...rich(), adFreeUntil: null }, 'day', now)!;
+    const day = buyAdFree({ ...seasoned(), adFreeUntil: null }, 'day', now)!;
     expect(day.adFreeUntil).toBe(now + 24 * 3600000);
     expect(isAdFree(day, now + 3600000)).toBe(true);
     const more = buyAdFree(day, 'week', now + 3600000)!;
     expect(more.adFreeUntil).toBe(now + 24 * 3600000 + 7 * 24 * 3600000);
     expect(isAdFree(more, more.adFreeUntil! + 1)).toBe(false);
-    expect(more.coins).toBe(rich().coins - 300 - 1600);
+    expect(more.coins).toBe(rich().coins - 800 - 4500);
   });
 
   it('costs coins the player has, and survives a save', () => {
-    expect(buyAdFree({ ...rich(), coins: 100 }, 'day')).toBeNull();
-    const p = buyAdFree(rich(), 'month', 1000)!;
+    expect(buyAdFree({ ...seasoned(), coins: 100 }, 'day')).toBeNull();
+    // Coins alone are not enough: it is earned by playing, from rank IV.
+    expect(buyAdFree(rich(), 'day')).toBeNull();
+    const p = buyAdFree(seasoned(), 'month', 1000)!;
     expect(parseProgress(JSON.stringify(p)).adFreeUntil).toBe(p.adFreeUntil);
   });
 });
@@ -239,16 +243,12 @@ describe('the gift week’s extras', () => {
     let p = emptyProgress();
     const start = Date.UTC(2026, 9, 1);
     let insights = 0;
-    let tiles = 0;
     for (let i = 0; i < 7; i += 1) {
       const key = new Date(start + i * 86400000).toISOString().slice(0, 10);
       p = claim(p, key)!.progress;
       insights += extras[i].insights;
-      tiles += extras[i].tiles;
     }
     expect(insights).toBeGreaterThan(0);
-    expect(tiles).toBeGreaterThan(0);
     expect(p.insights).toBe(emptyProgress().insights + insights);
-    expect(p.tesserae).toBe(emptyProgress().tesserae + tiles);
   });
 });

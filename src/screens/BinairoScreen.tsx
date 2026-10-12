@@ -2,7 +2,7 @@ import { HintNote } from '../components/HintNote';
 import { BackLabel } from '../components/Icon';
 import { HintKind } from '../game/hints';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
-import { isTodaysDaily } from '../game/journey/daily';
+import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
@@ -388,7 +388,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
           hintsUsed={hints}
           coinsEarned={coinsEarned}
           onDone={onExit}
-          hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
+          hasNext={nextEntry !== null && !isStandalonePuzzle(puzzle.id)}
           onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
         />
       )}

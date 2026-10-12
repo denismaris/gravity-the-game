@@ -6,7 +6,7 @@ import { Icon } from './Icon';
 import { ConfettiBurst } from './ConfettiBurst';
 import { GameEmblem } from './GameEmblem';
 import { useCardEntrance } from './useCardEntrance';
-import { accentColorForKind, GameKind, gameLabelForKind } from '../game/journey';
+import { accentColorForKind, GameKind, gameShortName } from '../game/journey';
 import { motion, theme, themedStyles } from '../theme';
 import { MODAL_EXIT_MS, ModalLayer } from './ModalLayer';
 import { DialogActions, dialogStyles } from './dialog';
@@ -95,6 +95,27 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
               ]}
             >
               <Text style={styles.crestNumber}>{levelNumber}</Text>
+              {/* A bead round the medal for each game, lit in its colour as
+                  that game is counted in. */}
+              {kinds.map((kind, i) => {
+                const a = (i / kinds.length) * Math.PI * 2 - Math.PI / 2;
+                const r = CREST / 2 + 9;
+                return (
+                  <Animated.View
+                    key={`bead-${i}`}
+                    style={[
+                      styles.bead,
+                      {
+                        left: CREST / 2 + Math.cos(a) * r - 5,
+                        top: CREST / 2 + Math.sin(a) * r - 5,
+                        backgroundColor: accentColorForKind(kind),
+                        opacity: slice(places[i], 0.35, 0.6, glide, [0.15, 1], 0.15),
+                        transform: [{ scale: slice(places[i], 0.35, 0.75, settle, [0.5, 1], 0.5) }],
+                      },
+                    ]}
+                  />
+                );
+              })}
             </Animated.View>
 
             <Animated.View style={rowStyle(0)}>
@@ -104,7 +125,7 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
 
             <View style={styles.tally}>
               {kinds.map((kind, i) => (
-                <TallyRow key={`${kind}-${i}`} kind={kind} t={places[i]} />
+                <TallyTile key={`${kind}-${i}`} kind={kind} t={places[i]} />
               ))}
             </View>
 
@@ -154,28 +175,27 @@ const glide = Easing.out(Easing.cubic);
 
 /**
  * One game in the tally, counted in three beats off one clock: its emblem
- * settles into place - rising, growing, a small turn straightening - then
- * a check stamps onto its corner with a ring of the game's colour, and its
- * name glides in beside it.
+ * drops into its place in the row - falling a little, growing, a small
+ * turn straightening - then a check stamps onto its corner with a ring of
+ * the game's colour, and its name rises in underneath.
  */
-function TallyRow({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JSX.Element {
+function TallyTile({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JSX.Element {
   const accent = accentColorForKind(kind);
   return (
-    <View style={styles.tallyRow}>
+    <View style={styles.tile}>
       <View>
         <Animated.View
           style={{
-            opacity: slice(t, 0, 0.35, glide, [0, 1]),
+            opacity: slice(t, 0, 0.3, glide, [0, 1]),
             transform: [
-              { translateY: slice(t, 0, 0.55, settle, [14, 0]) },
-              { scale: slice(t, 0, 0.55, settle, [0.55, 1]) },
-              { rotate: slice(t, 0, 0.55, glide, [-8, 0]).interpolate({ inputRange: [-8, 0], outputRange: ['-8deg', '0deg'] }) },
+              { translateY: slice(t, 0, 0.55, settle, [-22, 0]) },
+              { scale: slice(t, 0, 0.55, settle, [0.6, 1]) },
+              { rotate: slice(t, 0, 0.55, glide, [-10, 0]).interpolate({ inputRange: [-10, 0], outputRange: ['-10deg', '0deg'] }) },
             ],
           }}
         >
-          <GameEmblem kind={kind} size={40} />
+          <GameEmblem kind={kind} size={50} />
         </Animated.View>
-        {/* The ring, spreading as the check lands. */}
         <Animated.View
           pointerEvents="none"
           style={[
@@ -183,7 +203,7 @@ function TallyRow({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JSX
             {
               borderColor: accent,
               opacity: slice(t, 0.5, 1, glide, [0.7, 0], 0),
-              transform: [{ scale: slice(t, 0.5, 1, glide, [0.4, 1.6]) }],
+              transform: [{ scale: slice(t, 0.5, 1, glide, [0.4, 1.7]) }],
             },
           ]}
         />
@@ -192,8 +212,8 @@ function TallyRow({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JSX
             styles.check,
             {
               backgroundColor: accent,
-              opacity: slice(t, 0.45, 0.6, glide, [0, 1]),
-              transform: [{ scale: slice(t, 0.45, 0.8, settle, [0.2, 1]) }],
+              opacity: slice(t, 0.45, 0.6, glide, [0, 1], 0),
+              transform: [{ scale: slice(t, 0.45, 0.8, settle, [0.2, 1], 0.2) }],
             },
           ]}
         >
@@ -201,16 +221,17 @@ function TallyRow({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JSX
         </Animated.View>
       </View>
       <Animated.Text
+        numberOfLines={2}
         style={[
-          styles.tallyLabel,
+          styles.tileLabel,
           {
             color: accent,
-            opacity: slice(t, 0.3, 0.75, glide, [0, 1]),
-            transform: [{ translateX: slice(t, 0.3, 0.8, glide, [-10, 0]) }],
+            opacity: slice(t, 0.35, 0.8, glide, [0, 1], 0),
+            transform: [{ translateY: slice(t, 0.35, 0.85, glide, [6, 0]) }],
           },
         ]}
       >
-        {gameLabelForKind(kind)}
+        {gameShortName(kind)}
       </Animated.Text>
     </View>
   );
@@ -267,6 +288,8 @@ const styles = themedStyles(() => ({
    * level rather than to any one game, so it takes the app's ink and ochre
    * rather than borrowing a single game's accent. */
   crest: {
+    // Room for the beads round the medal.
+    marginTop: 10,
     width: CREST,
     height: CREST,
     borderRadius: CREST / 2,
@@ -275,7 +298,7 @@ const styles = themedStyles(() => ({
     backgroundColor: theme.colors.surfaceAlt,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
   },
   crestNumber: {
     fontFamily: theme.typography.families.display,
@@ -299,17 +322,19 @@ const styles = themedStyles(() => ({
   },
   tally: {
     alignSelf: 'stretch',
-    marginBottom: theme.spacing.md,
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    columnGap: 6,
+    rowGap: theme.spacing.md,
+    marginBottom: theme.spacing.lg,
   },
+  tile: { width: 62, alignItems: 'center' },
+  tileLabel: { marginTop: 8, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, textAlign: 'center' },
+  bead: { position: 'absolute', width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: theme.colors.surface },
   cardRule: {
     alignSelf: 'stretch',
     marginBottom: theme.spacing.md,
-  },
-  tallyRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.sm,
-    marginBottom: theme.spacing.xs,
   },
   check: {
     position: 'absolute',
@@ -331,10 +356,6 @@ const styles = themedStyles(() => ({
     height: 18,
     borderRadius: 9,
     borderWidth: 2,
-  },
-  tallyLabel: {
-    fontSize: theme.typography.sizes.caption,
-    fontWeight: theme.typography.weights.bold,
   },
   closing: {
     fontSize: theme.typography.sizes.body,

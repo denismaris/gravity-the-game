@@ -1,3 +1,4 @@
+import { grandWeekOf } from './weekly';
 import { LEVELS } from '../levels';
 import { MIRROR_MAZES } from '../mirror';
 import { LILY_PONDS } from '../lilypads';
@@ -149,4 +150,13 @@ let cached: { key: string; entry: DailyEntry } | null = null;
  * as part of the level set, and so ends back at Home. */
 export function isTodaysDaily(puzzleId: string, date: Date = new Date()): boolean {
   return getDailyEntry(date).puzzleId === puzzleId;
+}
+
+/**
+ * A puzzle played on its own, outside the sets: today's Daily or a Weekly
+ * Grand. Finishing one ends there - its card offers Home, never a Next
+ * into the player's usual levels.
+ */
+export function isStandalonePuzzle(puzzleId: string, date: Date = new Date()): boolean {
+  return isTodaysDaily(puzzleId, date) || grandWeekOf(puzzleId) !== null;
 }

@@ -1,9 +1,9 @@
 /* eslint-disable react-native/no-inline-styles -- cell geometry is derived from `size` at render time */
-import React, { useMemo } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
 import { BinairoCell, BinairoPuzzle, BinairoState, constraintPartner, isConstraintViolated, isGiven } from '../game/binairo';
-import { computeBoardLayout, getCellOrigin } from '../game/rendering';
+import { computeBoardLayout, getCellOrigin, triggerFeedback } from '../game/rendering';
 import { theme } from '../theme';
 import { BinairoBoardView } from './BinairoBoardView';
 
@@ -99,6 +99,31 @@ const CellTarget = React.memo(function CellTargetImpl({
   );
 });
 
+/** The outline that shakes round a cell set from the start when tapped. */
+function LockedFlash({ x, y, size }: { x: number; y: number; size: number }): React.JSX.Element {
+  const t = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.timing(t, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+  }, [t]);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={{
+        position: 'absolute',
+        left: x + 2,
+        top: y + 2,
+        width: size - 4,
+        height: size - 4,
+        borderRadius: 10,
+        borderWidth: 2,
+        borderColor: theme.colors.textSecondary,
+        opacity: t.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1, 1, 0] }),
+        transform: [{ translateX: t.interpolate({ inputRange: [0, 0.15, 0.3, 0.45, 0.6, 1], outputRange: [0, -4, 4, -3, 2, 0] }) }],
+      }}
+    />
+  );
+}
+
 /**
  * Composes the Skia-drawn board (`BinairoBoardView`) with an
  * absolutely-positioned overlay of one `Pressable` per non-given cell on
@@ -109,6 +134,24 @@ const CellTarget = React.memo(function CellTargetImpl({
  */
 export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashCell, introKey }: BinairoBoardProps): React.JSX.Element {
   const layout = useMemo(() => computeBoardLayout(puzzle.size, size), [puzzle.size, size]);
+
+  // A tap on a cell set from the start: it cannot change, so it says so -
+  // a small shake of an outline round it and a soft refusal - rather than
+  // doing nothing, which read as the row having stopped working.
+  const [locked, setLocked] = useState<{ row: number; col: number; key: number } | null>(null);
+  const givenCells = useMemo(() => {
+    const cells: BinairoCell[] = [];
+    for (let row = 0; row < puzzle.size; row += 1) {
+      for (let col = 0; col < puzzle.size; col += 1) {
+        if (isGiven(puzzle, row, col)) cells.push({ row, col });
+      }
+    }
+    return cells;
+  }, [puzzle]);
+  const tapGiven = useCallback((row: number, col: number) => {
+    triggerFeedback('bridgesBlocked');
+    setLocked({ row, col, key: Date.now() });
+  }, []);
 
   const editableCells = useMemo(() => {
     const cells: BinairoCell[] = [];
@@ -146,6 +189,22 @@ export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashC
         <BinairoBoardView puzzle={puzzle} state={state} size={size} solved={solved} flashCell={flashCell} pressedCell={null} introKey={introKey} />
       </Canvas>
       <View style={StyleSheet.absoluteFill} pointerEvents="box-none">
+        {givenCells.map(({ row, col }) => {
+          const origin = getCellOrigin(layout, row, col);
+          return (
+            <CellTarget
+              key={`given-${row}-${col}`}
+              row={row}
+              col={col}
+              x={origin.x}
+              y={origin.y}
+              size={layout.cellSize}
+              label={`Row ${row + 1}, column ${col + 1}, ${valueLabel(state.values[row][col])}, set from the start`}
+              onToggleCell={tapGiven}
+            />
+          );
+        })}
+        {locked && <LockedFlash key={locked.key} x={getCellOrigin(layout, locked.row, locked.col).x} y={getCellOrigin(layout, locked.row, locked.col).y} size={layout.cellSize} />}
         {editableCells.map(({ row, col }) => {
           const origin = getCellOrigin(layout, row, col);
           const constraints = constraintDescriptions(puzzle, state, row, col);

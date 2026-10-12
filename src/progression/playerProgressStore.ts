@@ -1,4 +1,3 @@
-import { migrateVillaIds } from './villa';
 import { COSMETIC_SLOTS } from './shop';
 import { StorageBackend } from '../storage';
 import { StarRating } from '../game/scoring';
@@ -175,6 +174,9 @@ function parseAdFreeTimeRemainingMs(value: unknown): number | null {
  * launch is not. Older readable schema versions are migrated forward, so a
  * player never loses stars just because the app updated.
  */
+/** What one leftover town tile is worth when a save is read (see `coins`). */
+export const TILE_TO_COINS = 2;
+
 export function parseProgress(raw: string | null): PlayerProgress {
   if (!raw) return emptyProgress();
 
@@ -217,9 +219,7 @@ export function parseProgress(raw: string | null): PlayerProgress {
     gift?: unknown;
     setsClaimed?: unknown;
     tesserae?: unknown;
-    villa?: unknown;
     dailyDays?: unknown;
-    townGiftKey?: unknown;
     patron?: unknown;
     adFreeUntil?: unknown;
   };
@@ -245,7 +245,9 @@ export function parseProgress(raw: string | null): PlayerProgress {
     currentLevel: parseCurrentLevel(record.currentLevel),
     currentBatch: parseCurrentBatch(record.currentBatch),
     adFreeTimeRemainingMs: parseAdFreeTimeRemainingMs(record.adFreeTimeRemainingMs),
-    coins: parseCoins(record.coins),
+    // The town is gone (2026-10-12): any tiles a save still holds become
+    // coins, two each, once - the field is not written back.
+    coins: parseCoins(record.coins) + (typeof record.tesserae === 'number' && Number.isFinite(record.tesserae) && record.tesserae > 0 ? Math.floor(record.tesserae) * TILE_TO_COINS : 0),
     // Everything below post-dates v5 and is read without a version bump:
     // missing or malformed reads as the default.
     errands: parseErrands(record.errands),
@@ -278,13 +280,7 @@ export function parseProgress(raw: string | null): PlayerProgress {
     patron: record.patron === true,
     adFreeUntil: typeof record.adFreeUntil === 'number' && Number.isFinite(record.adFreeUntil) && record.adFreeUntil > 0 ? record.adFreeUntil : null,
     setsClaimed: Array.isArray(record.setsClaimed) ? [...new Set(record.setsClaimed.filter((id): id is string => typeof id === 'string'))] : [],
-    // A save from before the Villa starts with two tiles for every puzzle
-    // it has solved, so a long-time player arrives with something to build.
-    tesserae: parseCount(record.tesserae, Object.keys(levels).length * 2),
-    // Pieces built in the first version (one room) carry into the first villa.
-    villa: Array.isArray(record.villa) ? migrateVillaIds(record.villa.filter((id): id is string => typeof id === 'string')) : [],
     dailyDays: parseDailyDays(record.dailyDays, record.dailyTimes, record.daily),
-    townGiftKey: typeof record.townGiftKey === 'string' ? record.townGiftKey : '',
   };
 }
 

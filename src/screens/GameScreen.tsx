@@ -1,6 +1,6 @@
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { BackLabel } from '../components/Icon';
-import { isTodaysDaily } from '../game/journey/daily';
+import { isStandalonePuzzle } from '../game/journey/daily';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { AccessibilityActionEvent, AccessibilityInfo, Animated, Text, View, useWindowDimensions } from 'react-native';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
@@ -603,7 +603,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           note={String(outcome.runMoves)}
           noteLabel="moves"
           coinsEarned={outcome.coinsEarned}
-          hasNext={nextEntry !== null && !isTodaysDaily(level.id)}
+          hasNext={nextEntry !== null && !isStandalonePuzzle(level.id)}
           onNext={outcome.batchCompleted && finishedSetRef.current ? () => setShowSetComplete(true) : handleNext}
           onDone={onExit}
         />

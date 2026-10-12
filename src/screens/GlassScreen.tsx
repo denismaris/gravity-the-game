@@ -1,10 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Canvas, Circle, Path, RoundedRect } from '@shopify/react-native-skia';
+import { Canvas, Circle, Group, Path, rect, RoundedRect, rrect } from '@shopify/react-native-skia';
 import { DifficultyChip, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, renderGlassIllustration, useSolveCelebration } from '../components';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
-import { GLASS_ARCH, GlassBoard, glassColor, StrokePhase } from '../components/GlassBoard';
+import { GLASS_ARCH, GlassBoard, glassColor, glassTexture, StrokePhase } from '../components/GlassBoard';
 import { HelpHalo } from '../components/HelpHalo';
 import { HintNote } from '../components/HintNote';
 import { BackLabel, Icon } from '../components/Icon';
@@ -15,7 +15,7 @@ import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { clashes, GLASS_COLORS, GLASS_COLOR_NAMES, GlassColor, glassHint, GlassPuzzle, GlassState, initialGlassState, isGlassSolved, paint, panesLeft } from '../game/glass';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
-import { isTodaysDaily } from '../game/journey/daily';
+import { isStandalonePuzzle } from '../game/journey/daily';
 import { shade, triggerFeedback } from '../game/rendering';
 import { GLASS_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
@@ -249,7 +249,7 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
           hintsUsed={hints}
           coinsEarned={coinsEarned}
           onDone={onExit}
-          hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
+          hasNext={nextEntry !== null && !isStandalonePuzzle(puzzle.id)}
           onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
         />
       )}
@@ -273,6 +273,7 @@ function Swatch({ color, selected, onPress }: { color: GlassColor | null; select
   const size = 40;
   const depth = 3;
   const face = glassColor(color);
+  const texture = glassTexture(color, size / 2, size / 2, size, size / 2.4);
   return (
     <PressableScale accessibilityRole="button" accessibilityLabel={color === null ? 'Clear, to take a pane out' : `${GLASS_COLOR_NAMES[color]} glass`} accessibilityState={{ selected }} onPress={onPress} hitSlop={6}>
       <Animated.View style={[styles.swatch, selected && styles.swatchOn, { transform: [{ translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }] }]}>
@@ -287,6 +288,11 @@ function Swatch({ color, selected, onPress }: { color: GlassColor | null; select
             <>
               <RoundedRect x={0} y={depth} width={size} height={size} r={10} color={shade(face, 0.62)} />
               <RoundedRect x={0} y={0} width={size} height={size} r={10} color={face} />
+              {texture && (
+                <Group clip={rrect(rect(0, 0, size, size), 10, 10)}>
+                  <Path path={texture.path} color={shade(face, 0.78)} style={texture.style} strokeWidth={1} opacity={0.55} />
+                </Group>
+              )}
             </>
           )}
         </Canvas>

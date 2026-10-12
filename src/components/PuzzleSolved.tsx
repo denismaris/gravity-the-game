@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DailyStanding, reportDaily } from '../backend';
 import { useLastBonus, usePlayerProgress } from '../progression/PlayerProgressProvider';
 import { INTRO_SOLVES, nextGameToArrive } from '../progression/batches';
@@ -6,20 +6,21 @@ import { dailyKeyOf, gameDisplayName, gameShortName, getDailyEntry } from '../ga
 import { cosmeticById } from '../progression/shop';
 import { formatDuration } from '../progression/timing';
 import { CosmeticPreview } from './CosmeticPreview';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { GameEmblem } from './GameEmblem';
-import { StarRow } from './StarRow';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, encouragementTier, GameKind, pickEncouragement } from '../game/journey';
 import { motion, theme, themedStyles } from '../theme';
 import { CoinGlyph } from './Coins';
+import { GOLDEN_MULTIPLIER } from '../progression/coins';
 import { ModalLayer } from './ModalLayer';
 import { DialogActions } from './dialog';
-import { TileGlyph } from './TileGlyph';
 
 export interface PuzzleSolvedProps {
   title?: string;
-  stars: 1 | 2 | 3;
+  /** Kept for what the solve paid and praise (a hint-free solve earns a
+   * little more); never shown - the card has no stars. */
+  stars?: 1 | 2 | 3;
   hintsUsed: number;
   /** Which game was just finished. Drives the card's accent and its
    * kicker, so a Skyscrapers finish reads as a *Skyscrapers* finish rather
@@ -46,19 +47,19 @@ export interface PuzzleSolvedProps {
 }
 
 /**
- * Shared "you solved it" overlay used by every puzzle screen (Mirror Maze,
- * Tents and Trees, Skyscrapers, Binairo) - a quiet card with the star
- * result and two actions. Fades and scales in as an immediate reaction to
- * the finishing move.
+ * Shared "you solved it" card used by every puzzle screen. No stars: the
+ * point is finishing, so the card says it was solved - and, quietly,
+ * whether it took a hint - with the game's emblem stamped at the top, what
+ * the solve paid counting up, and the way on.
  */
-/** Kicker+title, stars, praise, stat line, actions - staggered in
- * that reading order. The emblem is not in this count: it runs on the
+/** Kicker and title, the praise and its note, what it paid, the way on to
+ * the next game, the actions - staggered in that reading order. The emblem is not in this count: it runs on the
  * entrance's own `hero` spring, ahead of the cascade.
  *
  * This card reports exactly one puzzle. Finishing a whole level is a
  * different, rarer occasion and gets its own card (`LevelSetComplete`) -
  * folding the two together produced one panel that did neither job well. */
-const ROW_COUNT = 6;
+const ROW_COUNT = 5;
 
 /**
  * The praise line shown on the previous solve, so the next one can avoid
@@ -71,7 +72,7 @@ let lastEncouragement: string | undefined;
 
 export function PuzzleSolved({
   title,
-  stars,
+  stars = 3,
   hintsUsed,
   kind,
   note,
@@ -95,9 +96,10 @@ export function PuzzleSolved({
   // among everyone's. Silent offline - the card simply does not say.
   const [world, setWorld] = useState<DailyStanding | null>(null);
   useEffect(() => {
-    if (!bonus?.daily || !kind || !getDailyEntry().shared) return;
+    if (!bonus?.daily || !kind) return;
     let live = true;
-    reportDaily({ dayKey: dailyKeyOf(new Date()), game: gameDisplayName(kind), ms: bonus.daily.ms, stars }).then(standing => {
+    const daily = getDailyEntry();
+    reportDaily({ dayKey: dailyKeyOf(new Date()), game: gameDisplayName(kind), ms: bonus.daily.ms, stars, board: daily.shared ? null : daily.puzzleId }).then(standing => {
       if (live) setWorld(standing);
     });
     return () => {
@@ -107,11 +109,10 @@ export function PuzzleSolved({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const paid = coinsEarned > 0;
-  const tiles = bonus?.tesserae ?? 0;
   // The multipliers behind this solve's coins, in one plain line.
   const bonusLine =
     [
-      paid && bonus?.golden ? 'Golden puzzle \u00D73' : null,
+      paid && bonus?.golden ? `Golden puzzle \u00D7${GOLDEN_MULTIPLIER}` : null,
       paid && bonus && bonus.comboMultiplier > 1 ? `Clean run of ${bonus.cleanRun} \u00D7${bonus.comboMultiplier}` : null,
       paid && bonus?.charmed ? 'Lucky charm \u00D72' : null,
       bonus?.grand ? 'Weekly Grand solved' : null,
@@ -137,10 +138,9 @@ export function PuzzleSolved({
   // A Weekly Grand milestone's exclusive, won by this very solve.
   const won = bonus?.grandCosmetic ? cosmeticById(bonus.grandCosmetic) : undefined;
 
-  // Three stars is rare enough to earn its own word - the same card
-  // otherwise reads identically whether the player scraped a single star or
-  // played it perfectly. An explicit `title` from a caller still wins.
-  const heading = title ?? (stars === 3 ? 'Perfect' : 'Solved');
+  const heading = title ?? 'Solved';
+  // In place of stars, one quiet fact about how it went.
+  const howItWent = note ? null : hintsUsed === 0 ? 'Without a hint' : hintsUsed === 1 ? 'With one hint' : `With ${hintsUsed} hints`;
   const accent = kind ? accentColorForKind(kind) : theme.colors.accent;
   const kicker = kind ? gameDisplayName(kind) : null;
 
@@ -153,7 +153,6 @@ export function PuzzleSolved({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const starsRow = rowStyle(1);
 
   return (
     <ModalLayer>
@@ -175,63 +174,44 @@ export function PuzzleSolved({
           ]}
         >
           <View style={styles.card}>
-            {kind && (
-              <Animated.View
-                style={[
-                  styles.emblem,
-                  {
-                    opacity: hero,
-                    transform: [
-                      { scale: hero },
-                      { translateY: hero.interpolate({ inputRange: [0, 1], outputRange: [-12, 0] }) },
-                    ],
-                  },
-                ]}
-              >
-                <GameEmblem kind={kind} size={58} />
-              </Animated.View>
-            )}
+            {kind && <EmblemSeal kind={kind} accent={accent} hero={hero} />}
 
             <Animated.View style={rowStyle(0)}>
               {kicker && <Text style={[styles.kicker, { color: accent }]}>{kicker}</Text>}
-              <Text style={[styles.title, stars === 3 && styles.titlePerfect]}>{heading}</Text>
+              <Text style={styles.title}>{heading}</Text>
             </Animated.View>
 
-            <Animated.View style={[styles.stars, starsRow]}>
-              <StarRow earned={3} size={46} animateIn />
+            <Animated.View style={[styles.praiseBlock, rowStyle(1)]}>
+              <Text style={styles.praise}>{praise}</Text>
+              {howItWent && (
+                <View style={[styles.how, hintsUsed === 0 && { borderColor: accent }]}>
+                  <Text style={[styles.howText, hintsUsed === 0 && { color: accent }]}>{howItWent}</Text>
+                </View>
+              )}
             </Animated.View>
-
-            <Animated.Text style={[styles.praise, rowStyle(2)]}>{praise}</Animated.Text>
 
             {/* What the solve paid: one quiet panel, a column per reward. */}
-            <Animated.View style={[styles.ledger, rowStyle(3)]}>
+            {(paid || note || bonusLine || daily || won) && (
+            <Animated.View style={[styles.ledger, rowStyle(2)]}>
               <View style={styles.ledgerRow}>
                 {paid && (
                   <View style={styles.stat}>
                     <View style={styles.statValue}>
                       <CoinGlyph size={15} />
-                      <Text style={[styles.statNumber, styles.statGold]}>{`+${coinsEarned}`}</Text>
+                      <CountUp value={coinsEarned} style={[styles.statNumber, styles.statGold]} />
                     </View>
                     <Text style={styles.statLabel}>coins</Text>
                   </View>
                 )}
-                {tiles > 0 && (
+                {note && (
                   <>
                     {paid && <View style={styles.statRule} />}
                     <View style={styles.stat}>
-                      <View style={styles.statValue}>
-                        <TileGlyph size={14} />
-                        <Text style={[styles.statNumber, styles.statTiles]}>{`+${tiles}`}</Text>
-                      </View>
-                      <Text style={styles.statLabel}>tiles</Text>
+                      <Text style={styles.statNumber}>{note}</Text>
+                      <Text style={styles.statLabel}>{noteLabel.toLowerCase()}</Text>
                     </View>
                   </>
                 )}
-                {(paid || tiles > 0) && <View style={styles.statRule} />}
-                <View style={styles.stat}>
-                  <Text style={styles.statNumber}>{note ?? String(hintsUsed)}</Text>
-                  <Text style={styles.statLabel}>{note ? noteLabel.toLowerCase() : 'Insight used'}</Text>
-                </View>
               </View>
               {bonusLine && <Text style={styles.bonusLine}>{bonusLine}</Text>}
               {daily && (
@@ -255,9 +235,10 @@ export function PuzzleSolved({
                 </View>
               )}
             </Animated.View>
+            )}
 
             {towardNext && (
-              <Animated.View style={[styles.toward, rowStyle(4)]}>
+              <Animated.View style={[styles.toward, rowStyle(3)]}>
                 <GameEmblem kind={towardNext.kind} size={30} />
                 <View style={styles.towardBody}>
                   <View style={styles.towardHead}>
@@ -273,7 +254,7 @@ export function PuzzleSolved({
 
             {/* One clear way on. Home stays a quiet second only when the
                 primary goes on to another puzzle. */}
-            <Animated.View style={[styles.actions, rowStyle(5)]}>
+            <Animated.View style={[styles.actions, rowStyle(4)]}>
               <DialogActions
                 primary={hasNext && onNext ? { label: 'Next puzzle', onPress: onNext } : { label: 'Done', onPress: onDone, accessibilityLabel: 'Back to home' }}
                 secondary={hasNext && onNext ? { label: 'Home', onPress: onDone, accessibilityLabel: 'Back to home' } : undefined}
@@ -286,7 +267,64 @@ export function PuzzleSolved({
   );
 }
 
+/**
+ * The game's emblem, stamped onto the card: it lands a little large and a
+ * touch turned, settles, and a ring of the game's colour spreads from it
+ * once - a seal pressed, not an icon faded in.
+ */
+function EmblemSeal({ kind, accent, hero }: { kind: GameKind; accent: string; hero: Animated.Value }): React.JSX.Element {
+  const ring = useRef(new Animated.Value(0)).current;
+  useEffect(() => {
+    Animated.sequence([Animated.delay(260), Animated.timing(ring, { toValue: 1, duration: 760, easing: Easing.out(Easing.cubic), useNativeDriver: true })]).start();
+  }, [ring]);
+  return (
+    <View style={styles.seal}>
+      <Animated.View
+        pointerEvents="none"
+        style={[
+          styles.sealRing,
+          {
+            borderColor: accent,
+            opacity: ring.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.6, 0] }),
+            transform: [{ scale: ring.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.9] }) }],
+          },
+        ]}
+      />
+      <View style={[styles.sealPlate, { backgroundColor: accent }]} />
+      <Animated.View
+        style={{
+          opacity: hero,
+          transform: [
+            { scale: hero.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1.35, 0.94, 1] }) },
+            { rotate: hero.interpolate({ inputRange: [0, 1], outputRange: ['-10deg', '0deg'] }) },
+          ],
+        }}
+      >
+        <GameEmblem kind={kind} size={64} />
+      </Animated.View>
+    </View>
+  );
+}
+
+/** A reward counting up to its value as it lands. */
+function CountUp({ value, style, delay = 0 }: { value: number; style: React.ComponentProps<typeof Text>['style']; delay?: number }): React.JSX.Element {
+  const [shown, setShown] = useState(0);
+  useEffect(() => {
+    const t = new Animated.Value(0);
+    const id = t.addListener(({ value: v }) => setShown(Math.round(v)));
+    Animated.sequence([Animated.delay(420 + delay), Animated.timing(t, { toValue: value, duration: 620, easing: Easing.out(Easing.cubic), useNativeDriver: false })]).start();
+    return () => t.removeListener(id);
+  }, [value, delay]);
+  return <Text style={style}>{`+${shown}`}</Text>;
+}
+
 const styles = themedStyles(() => ({
+  seal: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.xs },
+  sealRing: { position: 'absolute', width: 80, height: 80, borderRadius: 40, borderWidth: 2 },
+  sealPlate: { position: 'absolute', width: 84, height: 84, borderRadius: 42, opacity: 0.08 },
+  praiseBlock: { alignItems: 'center', gap: 10 },
+  how: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong },
+  howText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   overlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
   /** Separated from `overlay` so the dim can fade in on its own clock. */
   scrim: { ...StyleSheet.absoluteFill, backgroundColor: theme.colors.overlay },
@@ -321,8 +359,6 @@ const styles = themedStyles(() => ({
     color: theme.colors.textPrimary,
     marginBottom: theme.spacing.sm,
   },
-  titlePerfect: { color: theme.colors.accentText },
-  stars: { marginBottom: theme.spacing.sm, alignItems: 'center', justifyContent: 'center' },
   /** The line that changes every solve. */
   praise: {
     fontSize: theme.typography.sizes.body,
@@ -337,7 +373,6 @@ const styles = themedStyles(() => ({
   statValue: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   statNumber: { fontSize: theme.typography.sizes.title - 3, fontWeight: theme.typography.weights.bold, fontVariant: ['tabular-nums'], color: theme.colors.textPrimary },
   statGold: { color: theme.colors.accentText },
-  statTiles: { color: theme.colors.secondary },
   statLabel: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   statRule: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', marginVertical: 4, backgroundColor: theme.colors.borderStrong },
   bonusLine: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.accentText, textAlign: 'center' },

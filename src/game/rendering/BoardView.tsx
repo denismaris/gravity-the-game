@@ -1,4 +1,4 @@
-import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import { Circle, Group } from '@shopify/react-native-skia';
 import { Easing, runOnUI, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { GameState, StaticCellType } from '../engine';
@@ -492,15 +492,32 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
         }
 
         if (movable.destroyed) {
+          // A piece running into a hazard slides there like any other,
+          // and only breaks once it arrives - it used to be drawn broken at
+          // the hazard from the first frame, so it seemed to jump there.
+          const start = slide?.isAnimating ? slide.from.get(movable.id) : undefined;
+          if (slide && start) {
+            const from = getCellCenter(layout, start.row, start.col);
+            return (
+              <SlidingPiece
+                key={`${movable.id}@${slide.key}`}
+                fromX={from.x}
+                fromY={from.y}
+                toX={center.x}
+                toY={center.y}
+                squares={Math.abs(movable.row - start.row) + Math.abs(movable.col - start.col)}
+                slideKey={slide.key}
+                duration={slide.duration}
+                radius={movableRadius}
+                landsOnTarget={false}
+                ringColor={theme.colors.success}
+              />
+            );
+          }
           return (
-            <DestroyedPieceMark
-              key={movable.id}
-              cx={center.x}
-              cy={center.y}
-              radius={movableRadius}
-              color={theme.colors.danger}
-              markColor={theme.colors.surface}
-            />
+            <BreakIn key={`${movable.id}-broken`} cx={center.x} cy={center.y} radius={movableRadius}>
+              <DestroyedPieceMark cx={center.x} cy={center.y} radius={movableRadius} color={theme.colors.danger} markColor={theme.colors.surface} />
+            </BreakIn>
           );
         }
 
@@ -585,3 +602,27 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
   );
 }
 
+/**
+ * A piece breaking on a hazard: it gives a jolt - squashed, then a little
+ * too big - and a ring of red spreads from it, once.
+ */
+function BreakIn({ cx, cy, radius, children }: { cx: number; cy: number; radius: number; children: React.ReactNode }): React.JSX.Element {
+  const reduced = useReducedMotion();
+  const t = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    if (!reduced) t.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) });
+  }, [t, reduced]);
+  const transform = useDerivedValue(() => {
+    const k = t.value;
+    const s = k < 0.3 ? 0.7 + (k / 0.3) * 0.45 : 1.15 - ((k - 0.3) / 0.7) * 0.15;
+    return [{ translateX: cx }, { translateY: cy }, { scale: s }, { translateX: -cx }, { translateY: -cy }];
+  });
+  const ringR = useDerivedValue(() => radius * (1 + 1.2 * t.value));
+  const ringO = useDerivedValue(() => (t.value >= 1 ? 0 : 0.6 * (1 - t.value)));
+  return (
+    <Group>
+      <Circle cx={cx} cy={cy} r={ringR} color={theme.colors.danger} style="stroke" strokeWidth={2} opacity={ringO} />
+      <Group transform={transform}>{children}</Group>
+    </Group>
+  );
+}

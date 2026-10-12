@@ -1,4 +1,5 @@
 import { GameKind, dailyKeyOf } from '../game/journey';
+import { rankOf } from './rank';
 import { PlayerProgress } from './playerProgress';
 import { PATRON_SEASON_DISCOUNT } from './store';
 
@@ -35,7 +36,7 @@ export function skinSlot(game: GameKind): CosmeticSlot {
  * never out of sight. The first prices asked for 40 to 120 puzzles per
  * skin, which play-testing called far too much for what a game pays. */
 export type Rarity = 'common' | 'fine' | 'rare' | 'masterwork';
-export const RARITY_PRICES: Readonly<Record<Rarity, number>> = { common: 250, fine: 450, rare: 750, masterwork: 1500 };
+export const RARITY_PRICES: Readonly<Record<Rarity, number>> = { common: 300, fine: 600, rare: 1000, masterwork: 2000 };
 export const RARITY_NAMES: Readonly<Record<Rarity, string>> = { common: 'Common', fine: 'Fine', rare: 'Rare', masterwork: 'Masterwork' };
 
 export function rarityOf(item: Cosmetic): Rarity | null {
@@ -237,7 +238,7 @@ export function skinOverrides(progress: PlayerProgress): { light: Record<string,
   return { light, dark };
 }
 
-export const STREAK_FREEZE_PRICE = 150;
+export const STREAK_FREEZE_PRICE = 200;
 export const MAX_STREAK_FREEZES = 3;
 
 export function cosmeticById(id: string): Cosmetic | undefined {
@@ -381,7 +382,7 @@ export function reinstateGame(progress: PlayerProgress, kind: GameKind): PlayerP
 }
 
 /** The lucky charm: the next few solves that pay anything pay double. */
-export const LUCKY_CHARM_PRICE = 250;
+export const LUCKY_CHARM_PRICE = 300;
 /** Ten doubled solves give back 230 to 300 coins: a small bet on yourself
  * that only pays if the solves are clean. */
 export const LUCKY_CHARM_CHARGES = 10;
@@ -469,9 +470,9 @@ export interface AdFreeOption {
  * a treat, not a tax: a regular player can afford it now and then, and
  * a month is a real goal to save for. */
 export const AD_FREE_OPTIONS: ReadonlyArray<AdFreeOption> = [
-  { id: 'day', label: '1 day', hours: 24, price: 300 },
-  { id: 'week', label: '7 days', hours: 24 * 7, price: 1600 },
-  { id: 'month', label: '30 days', hours: 24 * 30, price: 5000 },
+  { id: 'day', label: '1 day', hours: 24, price: 800 },
+  { id: 'week', label: '7 days', hours: 24 * 7, price: 4500 },
+  { id: 'month', label: '30 days', hours: 24 * 30, price: 15000 },
 ];
 
 /** Whether ad-free time is running at `now`. */
@@ -479,9 +480,17 @@ export function isAdFree(progress: PlayerProgress, now: number = Date.now()): bo
   return progress.adFreeUntil !== null && progress.adFreeUntil > now;
 }
 
+/** Ad-free time is earned by playing, not by a first session's coins: it
+ * opens at this rank (Navigator). */
+export const AD_FREE_RANK = 4;
+
+export function canBuyAdFree(progress: PlayerProgress): boolean {
+  return rankOf(progress).number >= AD_FREE_RANK;
+}
+
 export function buyAdFree(progress: PlayerProgress, id: AdFreeOption['id'], now: number = Date.now()): PlayerProgress | null {
   const option = AD_FREE_OPTIONS.find(o => o.id === id);
-  if (!option || progress.coins < option.price) return null;
+  if (!option || progress.coins < option.price || !canBuyAdFree(progress)) return null;
   const from = Math.max(now, progress.adFreeUntil ?? 0);
   return { ...progress, coins: progress.coins - option.price, adFreeUntil: from + option.hours * 3600000 };
 }

@@ -178,8 +178,14 @@ function deal(size: number, colors: number, tiles: number, random: () => number)
  * Builds a board for `difficulty` whose target is provably reachable.
  * Deterministic from `id`.
  */
-export function generateAdjacent(id: string, name: string, difficulty: PuzzleDifficulty): AdjacentPuzzle {
-  const shape = shapeForDifficulty(difficulty);
+/**
+ * The easy boards dealt after the opening seven: the same size of tray,
+ * but fuller, with a fifth colour and a higher target - the opening seven
+ * teach the game, and the ones after them should ask for some thought.
+ */
+export const ENDLESS_EASY_SHAPE: AdjacentShape = { size: 6, colors: 5, fill: 0.55, targetScore: 550 };
+
+export function generateAdjacent(id: string, name: string, difficulty: PuzzleDifficulty, shape: AdjacentShape = shapeForDifficulty(difficulty)): AdjacentPuzzle {
   const tiles = Math.round(shape.fill * shape.size * shape.size);
   const random = mulberry32(hashId(id));
 

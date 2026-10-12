@@ -50,6 +50,10 @@ import {
   owns,
   usePlayerProgress,
   AD_FREE_OPTIONS,
+  AD_FREE_RANK,
+  canBuyAdFree,
+  rankTitle,
+  toRoman,
   isAdFree,
   COIN_PACKS,
   PATRON_COINS,
@@ -445,6 +449,8 @@ function NoAdsMark(): React.JSX.Element {
 function AdFreeCard({ onBought }: { onBought: () => void }): React.JSX.Element {
   const { progress, coins, buyAdFree } = usePlayerProgress();
   const active = isAdFree(progress);
+  // Earned by playing: the options open at a rank, not on day one.
+  const open = canBuyAdFree(progress);
   const until = progress.adFreeUntil ? new Date(progress.adFreeUntil) : null;
   const when = until
     ? `${until.toLocaleDateString('en-GB', { weekday: 'short', day: 'numeric', month: 'short' })}, ${until.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`
@@ -460,8 +466,11 @@ function AdFreeCard({ onBought }: { onBought: () => void }): React.JSX.Element {
           <Text style={styles.passText}>No ads while it runs. Buying more adds to the time you have left.</Text>
         </View>
       </View>
-      <Text style={[styles.adStatus, active && styles.adStatusOn]}>{active ? `Ad-free until ${when}` : 'Not active'}</Text>
-      <View style={styles.adOptions}>
+      <Text style={[styles.adStatus, active && styles.adStatusOn]}>
+        {active ? `Ad-free until ${when}` : open ? 'Not active' : `Opens at rank ${toRoman(AD_FREE_RANK)}, ${rankTitle(AD_FREE_RANK)}. Keep playing to reach it.`}
+      </Text>
+      {open && (
+        <View style={styles.adOptions}>
         {AD_FREE_OPTIONS.map(option => {
           const affordable = coins >= option.price;
           return (
@@ -486,7 +495,8 @@ function AdFreeCard({ onBought }: { onBought: () => void }): React.JSX.Element {
             </PressableScale>
           );
         })}
-      </View>
+        </View>
+      )}
     </View>
   );
 }

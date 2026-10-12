@@ -36,8 +36,8 @@ export function useCloudSync(): void {
         const ms = now.dailyTimes[dayKey];
         if (ms && now.daily.lastCompletedKey === dayKey) {
           const daily = getDailyEntry();
-          // A newcomer's own Daily is not the one the world is timed on.
-          if (daily.shared) await reportDaily({ dayKey, game: gameDisplayName(daily.kind), ms, stars: getLevelStars(now, daily.puzzleId) || 1 });
+          // A newcomer's own Daily goes to its own board (see `reportDaily`).
+          await reportDaily({ dayKey, game: gameDisplayName(daily.kind), ms, stars: getLevelStars(now, daily.puzzleId) || 1, board: daily.shared ? null : daily.puzzleId });
         }
       }),
     [hooks],

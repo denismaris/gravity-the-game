@@ -80,6 +80,11 @@ export function renderVanesIllustration(kind: string): React.JSX.Element {
         </Centred>
       );
     default:
-      return roof([...ROOF.start], 0);
+      // One vane set (copper, on its square plate) beside the turning ones.
+      return (
+        <Centred>
+          <VanesRoof puzzle={{ ...ROOF, fixed: [null, 2, null, null] }} state={{ dirs: [0, 2, 3, 2] }} geo={ROOF_GEO} solved={false} glow={0} />
+        </Centred>
+      );
   }
 }

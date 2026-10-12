@@ -1,6 +1,6 @@
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { BackLabel } from '../components/Icon';
-import { isTodaysDaily } from '../game/journey/daily';
+import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Text, View, useWindowDimensions } from 'react-native';
@@ -412,7 +412,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
           note={state.score.toLocaleString('en-US')}
           noteLabel="points"
           onDone={onExit}
-          hasNext={nextEntry !== null && !isTodaysDaily(puzzle.id)}
+          hasNext={nextEntry !== null && !isStandalonePuzzle(puzzle.id)}
           onNext={batchCompletedRef.current && finishedSetRef.current ? () => setShowSetComplete(true) : goNext}
         />
       )}

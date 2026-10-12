@@ -351,3 +351,14 @@ describe('loadProgress / saveProgress round-trip', () => {
     expect(raw).toContain('level-001');
   });
 });
+
+describe('the town, gone', () => {
+  test('tiles an old save still holds become coins, two each, once', () => {
+    const parsed = parseProgress(JSON.stringify({ version: 5, levels: {}, daily: { streak: 0, lastCompletedKey: null }, bestDailyStreak: 0, coins: 300, tesserae: 40, villa: ['v0-0'], townGiftKey: '2026-10-10' }));
+    expect(parsed.coins).toBe(300 + 40 * 2);
+    expect('tesserae' in parsed).toBe(false);
+    expect('villa' in parsed).toBe(false);
+    // Written back without the tiles, the coins are not paid twice.
+    expect(parseProgress(JSON.stringify(parsed)).coins).toBe(380);
+  });
+});

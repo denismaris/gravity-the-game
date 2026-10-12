@@ -7,7 +7,6 @@ import { motion, theme, themedStyles } from '../theme';
 import { CoinGlyph, CoinsEarned } from './Coins';
 import { MODAL_EXIT_MS, ModalLayer } from './ModalLayer';
 import { DialogActions, dialogStyles } from './dialog';
-import { TileGlyph } from './TileGlyph';
 
 /**
  * The day's gift, on the first visit of the day: the week of gifts as a
@@ -66,7 +65,6 @@ export function DailyGiftCard({ gift, onCollect }: { gift: Gift; onCollect: () =
                 {/* The day's extras, as marks under the coins. */}
                 <View style={[styles.ticketExtras, past && styles.ticketExtrasPast]}>
                   {GIFT_EXTRAS[i].insights > 0 && <Icon name="spark" size={9} color={today ? theme.colors.surfaceHi : theme.colors.secondary} />}
-                  {GIFT_EXTRAS[i].tiles > 0 && <TileGlyph size={8} light={today} />}
                 </View>
               </View>
             );
@@ -83,18 +81,12 @@ export function DailyGiftCard({ gift, onCollect }: { gift: Gift; onCollect: () =
         </View>
 
         <CoinsEarned amount={total} style={styles.coins} />
-        {(gift.insights > 0 || gift.tiles > 0) && (
+        {gift.insights > 0 && (
           <View style={styles.bonusRow}>
             {gift.insights > 0 && (
               <View style={styles.bonus}>
                 <Icon name="spark" size={13} color={theme.colors.secondary} />
                 <Text style={styles.bonusText}>{`+${gift.insights} Insight`}</Text>
-              </View>
-            )}
-            {gift.tiles > 0 && (
-              <View style={styles.bonus}>
-                <TileGlyph size={13} />
-                <Text style={styles.bonusText}>{`+${gift.tiles} tiles`}</Text>
               </View>
             )}
           </View>
@@ -114,7 +106,7 @@ export function DailyGiftCard({ gift, onCollect }: { gift: Gift; onCollect: () =
           primary={{
             label: 'Collect',
             onPress: onCollect,
-            accessibilityLabel: `Collect ${total} coins${gift.insights ? `, ${gift.insights} Insight` : ''}${gift.tiles ? ` and ${gift.tiles} tiles` : ''}`,
+            accessibilityLabel: `Collect ${total} coins${gift.insights ? `, ${gift.insights} Insight` : ''}`,
           }}
         />
       </Animated.View>

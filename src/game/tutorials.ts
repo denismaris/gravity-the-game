@@ -371,7 +371,7 @@ export const VANE_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     title: 'Turn the vanes',
     body: 'Tap a vane to turn it a quarter, clockwise. It points at the nearest vane that way, along its row or column.',
     illustration: 'turn',
-    tip: 'Vanes on a coloured plate are set from the start and never turn. Begin beside them.',
+    tip: 'Copper vanes on a square plate are set from the start and never turn. Begin beside them.',
   },
   {
     title: 'Follow the wind',

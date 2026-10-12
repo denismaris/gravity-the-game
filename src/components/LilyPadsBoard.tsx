@@ -1,7 +1,7 @@
 /* eslint-disable react-native/no-inline-styles -- geometry is derived from `size` at render time */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GestureResponderEvent, StyleSheet, View } from 'react-native';
-import { Canvas, Circle, Group, LinearGradient, Oval, Path, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Canvas, Circle, DashPathEffect, Group, LinearGradient, Oval, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import {
   Easing,
   runOnUI,
@@ -71,6 +71,7 @@ export function LilyPadsBoard({
   onHop,
   onRefused,
   glow,
+  trail = [],
 }: {
   puzzle: LilyPuzzle;
   state: LilyState;
@@ -86,6 +87,9 @@ export function LilyPadsBoard({
   onRefused?: () => void;
   /** A pad ringed steadily (a hint, a lesson's "here"). */
   glow?: number | null;
+  /** The pads the frog has sat on, oldest first, ending where it is: its
+   * last few hops are drawn as a faint dotted trail over the water. */
+  trail?: ReadonlyArray<number>;
 }): React.JSX.Element {
   const geo = useMemo(() => lilyGeometry(size, puzzle.size), [size, puzzle.size]);
   const reduced = useReducedMotion();
@@ -242,6 +246,7 @@ export function LilyPadsBoard({
           <Sinking key={s.key} geo={geo} pad={puzzle.pads[s.pad]} r={r} />
         ))}
         {solved && !reduced && <Ripples x={home.x} y={home.y} reach={size * 0.75} />}
+        <Trail points={trail.slice(-7).map(i => geo.centre(puzzle.pads[i].row, puzzle.pads[i].col))} lift={geo.cell * 0.35} />
         {puzzle.pads.map((p, i) => (state.afloat[i] && i !== state.at ? <Leaf key={i} geo={geo} row={p.row} col={p.col} r={r} lotus={state.lotus?.[i] ?? false} /> : null))}
         {falling.map(f => {
           const c = geo.centre(puzzle.pads[f.pad].row, puzzle.pads[f.pad].col);
@@ -433,6 +438,29 @@ function LivePad({ geo, row, col, r, dip, lotus }: { geo: LilyGeo; row: number; 
     <Group transform={transform}>
       <LeafAt x={x} y={y} r={r} turn={notchTurn(row, col)} />
       {lotus && <Lotus x={x} y={y} r={r} />}
+    </Group>
+  );
+}
+
+/**
+ * The way the frog came: an arc over the water for each of its last hops,
+ * dotted, the oldest faintest - so the route so far is plain to see.
+ */
+function Trail({ points, lift }: { points: ReadonlyArray<{ x: number; y: number }>; lift: number }): React.JSX.Element {
+  if (points.length < 2) return <Group />;
+  const n = points.length - 1;
+  return (
+    <Group>
+      {points.slice(1).map((b, i) => {
+        const a = points[i];
+        const mx = (a.x + b.x) / 2;
+        const my = (a.y + b.y) / 2 - Math.min(lift * 1.6, Math.hypot(b.x - a.x, b.y - a.y) * 0.3);
+        return (
+          <Path key={i} path={`M ${a.x} ${a.y} Q ${mx} ${my} ${b.x} ${b.y}`} color="#FFFFFF" style="stroke" strokeWidth={2} strokeCap="round" opacity={0.12 + (0.38 * (i + 1)) / n}>
+            <DashPathEffect intervals={[2, 6]} />
+          </Path>
+        );
+      })}
     </Group>
   );
 }

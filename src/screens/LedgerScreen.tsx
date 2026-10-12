@@ -71,7 +71,6 @@ function AlbumPage({
   const share = next ? (row.solved - previousStep) / (next.step - previousStep) : 1;
   const ready = stamps.filter(s => s.earned && !s.claimed);
   const stampWidth = Math.min(54, (rowWidth - 3 * 12) / 4);
-  const average = row.solved > 0 ? (row.stars / row.solved).toFixed(1) : '-';
   const perfect = row.solved > 0 ? Math.round((row.perfect / row.solved) * 100) : 0;
 
   return (
@@ -88,7 +87,7 @@ function AlbumPage({
             {collector && <Text style={styles.collector}>Collector</Text>}
           </View>
           <Text style={styles.pageStats}>
-            {row.solved > 0 ? `★ ${average} average · ${perfect}% perfect · ${row.byTier.hard} hard` : 'Not played yet'}
+            {row.solved > 0 ? `${perfect}% without a hint · ${row.byTier.hard} hard` : 'Not played yet'}
           </Text>
         </View>
         <View style={styles.pageCount}>
@@ -194,7 +193,7 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
             <View style={styles.figureRule} />
             <View style={styles.figure}>
               <Text style={styles.figureValue}>{totals.solved > 0 ? Math.round((totals.perfect / totals.solved) * 100) : 0}%</Text>
-              <Text style={styles.figureLabel}>Perfect</Text>
+              <Text style={styles.figureLabel}>No hints</Text>
             </View>
             <View style={styles.figureRule} />
             <View style={styles.figure}>

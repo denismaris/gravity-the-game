@@ -93,3 +93,22 @@ describe('endless Mosaic (baked offline)', () => {
     }
   });
 });
+
+describe('the three newest games never run out', () => {
+  test('Stained Glass, Lily Pads and Weathervanes each build endless boards at every tier', () => {
+    const { getGlassWindow } = require('../glass');
+    const { getLilyById, hop, initialLilyState, isLilySolved } = require('../lilypads');
+    const { getVanesById, solveVanes } = require('../vanes');
+    for (const tier of ['easy', 'medium', 'hard'] as const) {
+      const index = 500; // far past every curated pool
+      const glass = getGlassWindow(endlessId('glass', tier, index), { name: 'G', tier });
+      expect(glass.panes).toBeGreaterThan(0);
+      const pond = getLilyById(endlessId('lilypads', tier, index), { name: 'L', tier });
+      let s = initialLilyState(pond);
+      for (const n of pond.solution) s = hop(pond, s, n);
+      expect(isLilySolved(s)).toBe(true);
+      const roof = getVanesById(endlessId('vanes', tier, index), { name: 'V', tier });
+      expect(solveVanes(roof, roof.vanes, roof.fixed, 2)).toHaveLength(1);
+    }
+  });
+});

@@ -4,6 +4,12 @@ import { StarRating } from '../game/scoring';
  * The coin economy: every number in one place, and the one pure function
  * that decides what a solve is worth.
  *
+ * Tuned (2026-10-12) so a player who plays a good while - about fifteen
+ * puzzles, the errands and the Daily - earns around 250 coins a day, and a
+ * few puzzles earn around 100: a new look every few days of play, an
+ * Insight about two or three solves, and a day without ads about three
+ * days of play (see `AD_FREE_OPTIONS`).
+ *
  * Coins are earned by *progress*, never by repetition - a puzzle pays out
  * the first time it is solved and again only for stars it had not earned
  * before, so replaying an easy board cannot farm them. And hints already
@@ -18,7 +24,7 @@ export const STARTING_COINS = 100;
 /** One hint, in every game that has them: about one solve's pay, so a
  * hint is a real choice without ever being out of reach. (Setting this to
  * 0 makes hints free - the Hint pill then hides its price tag.) */
-export const HINT_COST = 15;
+export const HINT_COST = 20;
 /** One undo (Gravity, Fill-a-Pix, Adjacent). Deliberately cheap: an undo
  * fixes a slip, it does not solve anything. */
 /** Undo is free: taking a move back is part of thinking, not a power. */
@@ -31,13 +37,13 @@ export const STARTING_INSIGHTS = 3;
 export const INSIGHTS_PER_VIDEO = 2;
 
 /** A first solve, by the stars it earned. */
-export const FIRST_SOLVE_COINS: Readonly<Record<StarRating, number>> = { 1: 5, 2: 8, 3: 12 };
+export const FIRST_SOLVE_COINS: Readonly<Record<StarRating, number>> = { 1: 4, 2: 6, 3: 8 };
 /** Each star a replay earns that the puzzle had not had before. */
 export const STAR_UPGRADE_COINS = 3;
 /** The Daily, on top of its own solve - once per day. */
 export const DAILY_BONUS = 15;
 /** Finishing a whole level set. */
-export const SET_BONUS = 20;
+export const SET_BONUS = 15;
 /** On top of the stars, for a signposted challenge's first solve: the hard
  * ones should be worth the effort. */
 export const CHALLENGE_BONUS = 15;
@@ -61,17 +67,17 @@ export interface SolveReward {
 
 /** One dealt puzzle in this many is golden, paying `GOLDEN_MULTIPLIER`
  * times the coins on its first solve. */
-export const GOLDEN_EVERY = 8;
-export const GOLDEN_MULTIPLIER = 3;
+export const GOLDEN_EVERY = 10;
+export const GOLDEN_MULTIPLIER = 2;
 
 /**
  * The clean-run combo: consecutive solves without a hint multiply what
  * each pays, and a hint resets it - the reward for playing on your own.
  */
 export function cleanRunMultiplier(run: number): number {
-  if (run >= 5) return 2;
-  if (run >= 3) return 1.5;
-  if (run >= 2) return 1.2;
+  if (run >= 5) return 1.5;
+  if (run >= 3) return 1.25;
+  if (run >= 2) return 1.1;
   return 1;
 }
 

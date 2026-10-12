@@ -25,8 +25,11 @@ export interface RankTier {
   readonly at: number;
 }
 
-/** The named ranks, in order. Past the last, the road carries on as
- * numbered Grand Master ranks - see `rankAt`. */
+/** The named ranks, in order: a long road, every rung with a name of its
+ * own, so the next one is always something to look forward to. Past the
+ * last, it carries on as numbered Luminary ranks - see `rankAt`. The
+ * first thirteen are exactly where the ranks of those numbers always were,
+ * so no player's rank moves under them. */
 export const RANKS: ReadonlyArray<RankTier> = [
   { title: 'Novice', at: 0 },
   { title: 'Apprentice', at: 150 },
@@ -36,9 +39,27 @@ export const RANKS: ReadonlyArray<RankTier> = [
   { title: 'Almanac Keeper', at: 2200 },
   { title: 'Puzzle Sage', at: 3300 },
   { title: 'Grand Master', at: 4800 },
+  // Through rank 13 these sit exactly where the numbered Grand Masters
+  // were (every 2,000), then the steps widen.
+  { title: 'Star Reader', at: 6800 },
+  { title: 'Tide Watcher', at: 8800 },
+  { title: 'Lantern Bearer', at: 10800 },
+  { title: 'Weather Wise', at: 12800 },
+  { title: 'Keeper of Keys', at: 14800 },
+  { title: 'Loremaster', at: 17500 },
+  { title: 'Archivist', at: 21000 },
+  { title: 'Illuminator', at: 25000 },
+  { title: 'Polymath', at: 30000 },
+  { title: 'Luminary', at: 36000 },
 ];
-/** Each numbered Grand Master rank past the last named one. */
-export const GRAND_MASTER_STEP = 2000;
+/** Each numbered Luminary rank past the last named one. */
+export const GRAND_MASTER_STEP = 6000;
+
+/** Experience at which rank `n` (1-based) is reached. */
+export function rankThreshold(n: number): number {
+  if (n <= RANKS.length) return RANKS[Math.max(1, n) - 1].at;
+  return RANKS[RANKS.length - 1].at + (n - RANKS.length) * GRAND_MASTER_STEP;
+}
 
 /** Coins paid out on reaching rank `n` (1-based; rank 1 is where you
  * start and pays nothing). */

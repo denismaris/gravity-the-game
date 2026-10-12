@@ -95,7 +95,8 @@ export function errandsFor(dayKey: string, retired: ReadonlyArray<GameKind> = []
   const random = seeded(`errands:${dayKey}`);
   // A retired game is never an errand's destination.
   const allowed = ROTATION.filter(kind => !retired.includes(kind));
-  const volume: ErrandKind[] = ['solve', 'stars'];
+  // No stars any more: the volume goal is plain solving.
+  const volume: ErrandKind[] = ['solve'];
   const quality: ErrandKind[] = ['clean', 'hard', 'daily', 'set'];
   return [
     make(volume[Math.floor(random() * volume.length)], random, allowed),

@@ -131,16 +131,9 @@ export interface PlayerProgress {
   readonly patron: boolean;
   /** When bought ad-free time runs out (epoch ms), or null. See `shop.ts`. */
   readonly adFreeUntil: number | null;
-  /** Tiles held for the Villa (see `villa.ts`) - earned by solving, spent
-   * only on building. */
-  readonly tesserae: number;
-  /** Villa pieces built, in the order they were built. */
-  readonly villa: ReadonlyArray<string>;
   /** The days (`dailyKeyOf`) the Daily was solved, oldest first - for the
    * Today tab's calendar. The most recent `DAILY_DAYS_KEPT` only. */
   readonly dailyDays: ReadonlyArray<string>;
-  /** The day (`dailyKeyOf`) the town's gift was last collected, or ''. */
-  readonly townGiftKey: string;
 }
 
 export const DAILY_DAYS_KEPT = 400;
@@ -168,10 +161,7 @@ export function emptyProgress(): PlayerProgress {
     retired: [],
     luckyCharges: 0,
     insights: STARTING_INSIGHTS,
-    tesserae: 0,
-    villa: [],
     dailyDays: [],
-    townGiftKey: '',
     cleanRun: 0,
     grandsSolved: [],
     stampsClaimed: [],

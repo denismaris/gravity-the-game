@@ -209,27 +209,28 @@ export type Palette = Readonly<Record<ColorToken, string>>;
 
 export const darkColors: Palette = {
   // --- the page at night ---
-  // The ground is the violet ink itself, taken almost to black - warm,
-  // faintly plum, never a neutral grey. Surfaces step *up* in lightness
-  // (lamp-lit card on a dark desk), which keeps every "lighter = nearer"
-  // reading the light theme already relies on.
-  background: '#15101B',
-  surface: '#201927',
-  surfaceAlt: '#2C2335',
-  surfaceHi: '#282030',
+  // A desk at night: warm charcoal, the paper's own brown taken nearly to
+  // black - not violet (a plum-black ground with glowing accents is the
+  // look of every generated app) and never a cold neutral grey. Surfaces
+  // step *up* in lightness (a lamp-lit card on the desk), which keeps
+  // every "lighter = nearer" reading the light theme relies on.
+  background: '#171512',
+  surface: '#211E1A',
+  surfaceAlt: '#2C2823',
+  surfaceHi: '#27231F',
 
-  border: '#342A3E',
-  borderStrong: '#4F4259',
+  border: '#342F29',
+  borderStrong: '#4B443B',
 
-  sand: '#2A2231',
-  sandDeep: '#1D1723',
+  sand: '#29251F',
+  sandDeep: '#1C1916',
 
   // Primary inverts: a primary button is parchment with dark type on it -
   // the same "ink on paper" object, lit the other way round.
   primary: '#EFE3CC',
-  secondary: '#E08A52',
-  accent: '#D9AC4E',
-  accentText: '#D9AC4E',
+  secondary: '#D29466',
+  accent: '#D1AE62',
+  accentText: '#D1AE62',
 
   artInk: '#3A2C49',
   shadow: '#000000',
@@ -242,8 +243,8 @@ export const darkColors: Palette = {
   brandTile: '#4B2F68',
 
   highlightEdge: 'rgba(255,255,255,0.06)',
-  trayLight: '#2E2538',
-  trayDeep: '#1B1521',
+  trayLight: '#2C2823',
+  trayDeep: '#1A1815',
   inkRgb: '0,0,0',
   sheen: 'rgba(255,255,255,0.07)',
   track: 'rgba(255,255,255,0.07)',
@@ -254,18 +255,20 @@ export const darkColors: Palette = {
   iceMarkFull: '#4DB0D4',
   creamPlate: '#3A2F21',
 
-  // Each game's colour, lifted until it glows on the dark ground.
-  mirrorAccent: '#7FA9CB',
-  tentsAccent: '#6DB07E',
-  towersAccent: '#B887D0',
-  binairoAccent: '#CDB44E',
-  arukoneAccent: '#D9768E',
-  fillapixAccent: '#55B8A8',
-  lightsOutAccent: '#8E9BE0',
-  adjacentAccent: '#DA75B8',
-  bloomAccent: '#E8839A',
-  mosaicAccent: '#7B9DE6',
-  bridgesAccent: '#4DB8DA',
+  // Each game's colour by lamplight: lifted enough to read on the dark
+  // ground, but quieter than the light theme's - muted, never neon, so
+  // a row of them reads as an almanac and not as a glowing UI kit.
+  mirrorAccent: '#8CA7BD',
+  tentsAccent: '#7FA884',
+  towersAccent: '#B297BF',
+  binairoAccent: '#C4AC62',
+  arukoneAccent: '#C98892',
+  fillapixAccent: '#72AEA2',
+  lightsOutAccent: '#9DA4CC',
+  adjacentAccent: '#C48DAE',
+  bloomAccent: '#D0959F',
+  mosaicAccent: '#91A4CC',
+  bridgesAccent: '#77ADBE',
 
   lightsOutPanel: '#11142A',
   lightsOutPanelCell: '#1C2140',
@@ -274,17 +277,17 @@ export const darkColors: Palette = {
   lightsOutLitCore: '#FFF3D4',
   lightsOutDim: '#2A3154',
 
-  adjacentTray: '#241C2B',
-  adjacentTrayEdge: '#3F3349',
-  adjacentSlot: '#1B1521',
-  glassLead: '#15111B',
-  glassLeadLight: '#3A3244',
-  glassClear: '#5B5470',
-  glassClearLine: '#675F7D',
+  adjacentTray: '#221F1B',
+  adjacentTrayEdge: '#3B352E',
+  adjacentSlot: '#1A1815',
+  glassLead: '#16130F',
+  glassLeadLight: '#38322B',
+  glassClear: '#55504A',
+  glassClearLine: '#625C55',
   glassRuby: '#D24A63',
   glassCobalt: '#4C7ED0',
   glassAmber: '#EDB548',
-  glassAccent: '#D27BC4',
+  glassAccent: '#C08DB6',
   pondWater: '#1F3A44',
   pondRipple: '#2A4A55',
   lilyPad: '#4E8C3E',
@@ -293,18 +296,18 @@ export const darkColors: Palette = {
   lilyFrog: '#9CCB52',
   lilyFrogDark: '#6A9A30',
   lilyBloom: '#F0A0B4',
-  lilyAccent: '#5FBFAE',
-  vaneRoof: '#2C2433',
+  lilyAccent: '#7DB3A6',
+  vaneRoof: '#2B2722',
   vaneMetal: '#E6DCCB',
   vaneMetalLight: '#B9AEC4',
   vaneWind: '#7FB2D9',
-  vaneAccent: '#E08A4E',
+  vaneAccent: '#CF9566',
   adjacentTile0: '#E07F4C',
   adjacentTile1: '#E3B23C',
   adjacentTile2: '#52AE80',
   adjacentTile3: '#4F8FD0',
   adjacentTile4: '#A06FD8',
-  adjacentGlyph: '#1B1521',
+  adjacentGlyph: '#1A1815',
 
   towersBuilding: '#5B3B7D',
   towersBuildingRoof: '#8660A6',
@@ -323,13 +326,13 @@ export const darkColors: Palette = {
   tentLight: '#7DAA86',
   tentDark: '#507A5E',
 
-  bloomLooseInk: '#5C4E68',
+  bloomLooseInk: '#5A524A',
   mosaicSlotFill: 'rgba(255, 255, 255, 0.05)',
   // Dark slate, so the glazed pieces are the lit thing on it.
-  mosaicSocket: '#3D3348',
-  mosaicGrout: '#2E2637',
-  mosaicSlabEdge: '#0F0B13',
-  mosaicSocketWall: '#1C1622',
+  mosaicSocket: '#38322B',
+  mosaicGrout: '#2B2620',
+  mosaicSlabEdge: '#0F0D0B',
+  mosaicSocketWall: '#1C1916',
 
   binairoMarkFilled: '#D8683A',
   binairoMarkFilledLight: '#F0A273',
@@ -338,8 +341,8 @@ export const darkColors: Palette = {
   binairoMarkOutlineLight: '#5DB9A6',
   binairoMarkOutlineDark: '#16524A',
 
-  arukoneObstacle: '#0E0A12',
-  arukoneObstacleEdge: '#2E2537',
+  arukoneObstacle: '#0F0D0B',
+  arukoneObstacleEdge: '#2E2924',
   arukoneFold: 'rgba(239, 227, 204, 0.14)',
 
   mirrorPanel: '#0F0C10',
@@ -353,15 +356,15 @@ export const darkColors: Palette = {
 
   // Parchment ink. Tertiary still clears AA (>= 4.5:1) on every surface.
   textPrimary: '#F1E6D2',
-  textSecondary: '#C3B4CC',
-  textTertiary: '#A897B4',
-  textDisabled: '#5E5068',
+  textSecondary: '#C2B8A9',
+  textTertiary: '#A59A8C',
+  textDisabled: '#5A534B',
 
   success: '#8DB474',
   warning: '#D9AC4E',
   danger: '#E0654B',
 
-  overlay: 'rgba(6, 3, 10, 0.66)',
+  overlay: 'rgba(8, 6, 4, 0.66)',
   transparent: 'transparent',
 
   pieceBlue: '#7E9CDB',

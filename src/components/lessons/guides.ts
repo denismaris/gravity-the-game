@@ -27,7 +27,7 @@ export const LESSON_GUIDES: Record<GameKind, LessonGuide> = {
     recap: [
       'Swipe, and every piece slides that way at once.',
       'A piece only stops at a wall, another piece or the edge.',
-      'Put a piece on every ring. Fewer moves earn more stars.',
+      'Put a piece on every ring, in as few moves as you can.',
     ],
   },
   lightsout: {

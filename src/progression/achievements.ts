@@ -111,6 +111,12 @@ function anyFlawless(progress: PlayerProgress, pool: ReadonlyArray<{ id: string 
 }
 
 const TOTAL_STARS_POSSIBLE = ALL_PUZZLE_IDS.length * 3;
+
+/** Puzzles solved cleanly: without a hint (for Gravity, within par) - what
+ * a top score used to be called before the stars were taken off the cards. */
+function cleanSolves(progress: PlayerProgress): number {
+  return Object.values(progress.levels).filter(level => level.completed && level.stars === 3).length;
+}
 const NOT_GRAVITY = [...MIRROR_MAZES, ...LILY_PONDS, ...VANE_ROOFS, ...BINAIRO, ...ARUKONE, ...GLASS_WINDOWS, ...LIGHTS_OUT, ...ADJACENT, ...BLOOM, ...MOSAIC, ...BRIDGES];
 
 /**
@@ -144,24 +150,24 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
   everyPuzzle('game:bridges', 'bridges', 'Harbour Master', 'Connect every Bridges archipelago.', BRIDGES),
   {
     id: 'stars:100',
-    title: 'Rising Star',
-    description: 'Earn 100 stars.',
+    title: 'Steady Hand',
+    description: 'Solve 30 puzzles without a hint.',
     group: 'stars',
-    measure: progress => ({ value: getTotalStars(progress), target: 100 }),
-    isEarned: progress => getTotalStars(progress) >= 100,
+    measure: progress => ({ value: cleanSolves(progress), target: 30 }),
+    isEarned: progress => cleanSolves(progress) >= 30,
   },
   {
     id: 'stars:300',
-    title: 'Bright Sky',
-    description: 'Earn 300 stars.',
+    title: 'Clear Head',
+    description: 'Solve 100 puzzles without a hint.',
     group: 'stars',
-    measure: progress => ({ value: getTotalStars(progress), target: 300 }),
-    isEarned: progress => getTotalStars(progress) >= 300,
+    measure: progress => ({ value: cleanSolves(progress), target: 100 }),
+    isEarned: progress => cleanSolves(progress) >= 100,
   },
   {
     id: 'stars:all',
     title: 'Full Almanac',
-    description: `Earn every star, all ${TOTAL_STARS_POSSIBLE} of them.`,
+    description: `Solve every puzzle in the almanac without a hint, all ${TOTAL_STARS_POSSIBLE / 3} of them.`,
     group: 'stars',
     measure: progress => ({ value: getTotalStars(progress), target: TOTAL_STARS_POSSIBLE }),
     isEarned: progress => getTotalStars(progress) >= TOTAL_STARS_POSSIBLE,

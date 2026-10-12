@@ -1,6 +1,6 @@
 import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { endlessName, parseEndlessId } from '../endlessId';
-import { generateAdjacent, shapeForDifficulty } from './generator';
+import { ENDLESS_EASY_SHAPE, generateAdjacent, shapeForDifficulty } from './generator';
 import { AdjacentCell, AdjacentPuzzle } from './types';
 
 /**
@@ -95,7 +95,7 @@ export function getAdjacentById(id: string): AdjacentPuzzle | undefined {
   if (!endless || endless.kind !== 'adjacent') return undefined;
   const cached = endlessCache.get(id);
   if (cached) return cached;
-  const puzzle = generateAdjacent(id, endlessName(endless.index, 'adjacent'), endless.tier);
+  const puzzle = generateAdjacent(id, endlessName(endless.index, 'adjacent'), endless.tier, endless.tier === 'easy' ? ENDLESS_EASY_SHAPE : undefined);
   endlessCache.set(id, puzzle);
   return puzzle;
 }

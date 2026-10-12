@@ -1,7 +1,6 @@
 import { emptyProgress, recordDaily } from '../playerProgress';
 import { parseProgress } from '../playerProgressStore';
 import { mergeProgress } from '../../backend/merge';
-import { seasonOf } from '../../components/villa/season';
 
 describe('the Daily calendar', () => {
   test('a solved Daily adds its day, once', () => {
@@ -23,12 +22,3 @@ describe('the Daily calendar', () => {
   });
 });
 
-describe('the villa seasons', () => {
-  test('follow the northern calendar', () => {
-    expect(seasonOf(new Date(2026, 3, 10))).toBe('spring');
-    expect(seasonOf(new Date(2026, 6, 10))).toBe('summer');
-    expect(seasonOf(new Date(2026, 9, 8))).toBe('autumn');
-    expect(seasonOf(new Date(2026, 0, 10))).toBe('winter');
-    expect(seasonOf(new Date(2026, 11, 31))).toBe('winter');
-  });
-});
