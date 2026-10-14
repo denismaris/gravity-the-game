@@ -53,7 +53,7 @@ export interface MosaicPuzzle {
   readonly solution: ReadonlyArray<MosaicPlacement>;
   /** How each piece is turned in the tray when the puzzle opens. */
   readonly start: ReadonlyArray<MosaicOrientation>;
-  /** Hard boards let pieces be mirrored as well as turned. */
+  /** Whether pieces may be mirrored as well as turned. No board does. */
   readonly allowFlip: boolean;
   /** Pieces already set in the picture when it opens - clues, locked in
    * their solution place. Per piece, in `pieces` order. */

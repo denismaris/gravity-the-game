@@ -50,8 +50,8 @@ describe('the curated windows', () => {
   test('each has one answer, read out pane by pane without a guess, easy ones small', () => {
     for (const { id, difficulty } of GLASS_WINDOWS) {
       const w = getCuratedGlass(id)!;
-      expect(solveGlass(w.touching, w.given, 2)).toHaveLength(1);
-      expect(reasoned(w.touching, w.given)).toBe(w.panes);
+      expect(solveGlass(w.touching, w.given, 2, w)).toHaveLength(1);
+      expect(reasoned(w.touching, w.given, w)).toBe(w.panes);
       if (difficulty === 'easy') expect(w.rows).toBeLessThanOrEqual(7);
     }
     expect(getCuratedGlass('glass-easy-01')!.rows).toBe(5);

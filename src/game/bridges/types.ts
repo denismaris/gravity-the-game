@@ -12,6 +12,10 @@ export interface BridgesIsland {
   readonly col: number;
   /** How many bridges must end at this island, 1-8. */
   readonly need: number;
+  /** An island in fog (later boards): its number is not shown, and the
+   * player works out from everything round it how many bridges it takes.
+   * Any number at all makes it whole; `need` is only the answer's. */
+  readonly fog?: boolean;
 }
 
 export interface BridgesPuzzle {

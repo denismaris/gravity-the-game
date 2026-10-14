@@ -6,6 +6,7 @@ import {
   MirrorMazeCell,
   MirrorMazePuzzle,
   MirrorMazeState,
+  traceAll,
 } from '../game/mirror';
 import {
   BoardLayout,
@@ -287,6 +288,34 @@ const StaticMazeLayer = React.memo(function StaticMazeLayerImpl({
         );
       })}
 
+      {(puzzle.filters ?? []).map(cell => {
+        // A ruby filter: a pane of ruby glass set in the floor.
+        const o = getCellOrigin(layout, cell.row, cell.col);
+        const inset = layout.cellSize * 0.2;
+        const w = layout.cellSize - inset * 2;
+        return (
+          <Group key={`filter-${cell.row}-${cell.col}`}>
+            <RoundedRect x={o.x + inset} y={o.y + inset} width={w} height={w} r={w * 0.18} color={theme.colors.glassRuby} opacity={0.55} />
+            <RoundedRect x={o.x + inset} y={o.y + inset} width={w} height={w} r={w * 0.18} color={theme.colors.glassRuby} style="stroke" strokeWidth={1.5} />
+            <Path path={`M ${o.x + inset + w * 0.2} ${o.y + inset + w * 0.45} L ${o.x + inset + w * 0.45} ${o.y + inset + w * 0.2}`} color="#FFFFFF" style="stroke" strokeWidth={1.4} strokeCap="round" opacity={0.6} />
+          </Group>
+        );
+      })}
+
+      {(puzzle.splitters ?? []).map(cell => {
+        // A splitter: a cut crystal, a diamond within a diamond.
+        const c = getCellCenter(layout, cell.row, cell.col);
+        const k = layout.cellSize * 0.3;
+        const diamond = (r: number) => `M ${c.x} ${c.y - r} L ${c.x + r} ${c.y} L ${c.x} ${c.y + r} L ${c.x - r} ${c.y} Z`;
+        return (
+          <Group key={`split-${cell.row}-${cell.col}`}>
+            <Path path={diamond(k)} color={theme.colors.mirrorGlass} opacity={0.35} />
+            <Path path={diamond(k)} color={theme.colors.mirrorGlass} style="stroke" strokeWidth={1.6} strokeJoin="round" />
+            <Path path={diamond(k * 0.45)} color={theme.colors.mirrorBeamCore} opacity={0.85} />
+          </Group>
+        );
+      })}
+
       <TargetMarker
         cx={targetCenter.x}
         cy={targetCenter.y}
@@ -328,7 +357,7 @@ const SHIMMER_PERIOD_MS = Math.round(2 * Math.PI * 820);
  * throws a ring; lit, it rests. All of it on the UI thread - Skia reads
  * these values directly, so nothing here re-renders while it moves.
  */
-function MazeGem({ cx, cy, size, lit, index, shimmerPhase, reducedMotion }: { cx: number; cy: number; size: number; lit: boolean; index: number; shimmerPhase: SharedValue<number>; reducedMotion: boolean }): React.JSX.Element {
+function MazeGem({ cx, cy, size, lit, ruby = false, index, shimmerPhase, reducedMotion }: { cx: number; cy: number; size: number; lit: boolean; ruby?: boolean; index: number; shimmerPhase: SharedValue<number>; reducedMotion: boolean }): React.JSX.Element {
   const burst = useSharedValue(1);
   const wasLit = useRef(lit);
   useEffect(() => {
@@ -349,8 +378,10 @@ function MazeGem({ cx, cy, size, lit, index, shimmerPhase, reducedMotion }: { cx
 
   return (
     <Group>
-      {lit && <Circle cx={cx} cy={cy} r={ringR} color={theme.colors.accent} style="stroke" strokeWidth={ringWidth} opacity={ringOpacity} />}
-      {lit ? <Path path={restingPath} color={theme.colors.accent} /> : <Path path={waitingPath} color={theme.colors.mirrorGlass} opacity={waitingOpacity} />}
+      {lit && <Circle cx={cx} cy={cy} r={ringR} color={ruby ? theme.colors.glassRuby : theme.colors.accent} style="stroke" strokeWidth={ringWidth} opacity={ringOpacity} />}
+      {lit ? <Path path={restingPath} color={ruby ? theme.colors.glassRuby : theme.colors.accent} /> : <Path path={waitingPath} color={ruby ? theme.colors.glassRuby : theme.colors.mirrorGlass} opacity={waitingOpacity} />}
+      {/* A ruby gem keeps a ring of its own colour, lit or not. */}
+      {ruby && <Circle cx={cx} cy={cy} r={size * 1.7} color={theme.colors.glassRuby} style="stroke" strokeWidth={1.2} opacity={0.7} />}
     </Group>
   );
 }
@@ -426,8 +457,12 @@ export function MirrorMazeBoardView({
   const seed = useMemo(() => [...puzzle.id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0), [puzzle.id]);
   const speckle = useSpeckle(layout.boardSize, seed);
 
-  const litGemKeys = useMemo(() => new Set(path.map(cell => positionKey(cell.row, cell.col))), [path]);
-  const livePathString = useMemo(() => pathThroughCells(layout, path), [layout, path]);
+  // A board with a filter or a splitter has more than one stretch of
+  // light, and colour; a plain one is just `path`, as it always was.
+  const ruled = !!(puzzle.filters?.length || puzzle.splitters?.length || puzzle.rubyGems?.length);
+  const trace = useMemo(() => (ruled ? traceAll(puzzle, state) : null), [ruled, puzzle, state]);
+  const litGemKeys = useMemo(() => (trace ? new Set(trace.lit) : new Set(path.map(cell => positionKey(cell.row, cell.col)))), [trace, path]);
+  const pieces = useMemo(() => (trace ? trace.pieces : [{ cells: path, ruby: false }]).map(piece => ({ d: pathThroughCells(layout, piece.cells), ruby: piece.ruby })).filter(piece => piece.d !== ''), [trace, path, layout]);
   const ignitionPathString = partialPathThroughCells(layout, path, revealProgress);
 
   const flourish = useMirrorFlourish(state.mirrors);
@@ -474,11 +509,11 @@ export function MirrorMazeBoardView({
 
       {/* The live beam: a halo, a body and a core, so it reads as light with
           falloff rather than a single flat stroke. */}
-      {livePathString !== '' && (
-        <Group>
+      {pieces.map((piece, i) => (
+        <Group key={`beam-${i}`}>
           <Path
-            path={livePathString}
-            color={theme.colors.mirrorBeamGlow}
+            path={piece.d}
+            color={piece.ruby ? theme.colors.glassRuby : theme.colors.mirrorBeamGlow}
             style="stroke"
             strokeWidth={haloWidth}
             strokeCap="round"
@@ -486,17 +521,17 @@ export function MirrorMazeBoardView({
             opacity={haloOpacity}
           />
           <Path
-            path={livePathString}
-            color={theme.colors.mirrorBeamGlow}
+            path={piece.d}
+            color={piece.ruby ? theme.colors.glassRuby : theme.colors.mirrorBeamGlow}
             style="stroke"
             strokeWidth={midWidth}
             strokeCap="round"
             strokeJoin="round"
-            opacity={0.55}
+            opacity={piece.ruby ? 0.8 : 0.55}
           />
           <Path
-            path={livePathString}
-            color={theme.colors.mirrorBeamCore}
+            path={piece.d}
+            color={piece.ruby ? '#FFD9DF' : theme.colors.mirrorBeamCore}
             style="stroke"
             strokeWidth={coreWidth}
             strokeCap="round"
@@ -504,7 +539,7 @@ export function MirrorMazeBoardView({
             opacity={coreOpacity}
           />
         </Group>
-      )}
+      ))}
 
       {/* The solve ignition: the same three-layer light, in gold, sweeping
           the path from source to target. */}
@@ -555,6 +590,7 @@ export function MirrorMazeBoardView({
             cy={center.y}
             size={gemSize}
             lit={litGemKeys.has(positionKey(cell.row, cell.col))}
+            ruby={puzzle.rubyGems?.includes(i) ?? false}
             index={i}
             shimmerPhase={shimmerPhase}
             reducedMotion={reducedMotion}

@@ -47,7 +47,14 @@ export function mirrorShapeFor(tier: PuzzleDifficulty): MirrorShape {
  * (a board with six gems can still fall to two mirrors), and it is what
  * the curated pool was chosen by too.
  */
-export function generateMirrorMaze(id: string, name: string, tier: PuzzleDifficulty): MirrorMazePuzzle {
+/** What a later board brings: a ruby filter with ruby gems beyond it, and
+ * a splitter. */
+export interface MirrorRules {
+  readonly rubyGems?: number;
+  readonly splitter?: boolean;
+}
+
+export function generateMirrorMaze(id: string, name: string, tier: PuzzleDifficulty, rules: MirrorRules = {}): MirrorMazePuzzle {
   const shape = mirrorShapeFor(tier);
   const random = mulberry32(hashId(id));
   const between = ([lo, hi]: readonly [number, number]) => lo + Math.floor(random() * (hi - lo + 1));
@@ -70,7 +77,7 @@ export function generateMirrorMaze(id: string, name: string, tier: PuzzleDifficu
     const source = edge === 0 ? { row: 0, col: along } : edge === 1 ? { row: size - 1, col: along } : edge === 2 ? { row: along, col: 0 } : { row: along, col: size - 1 };
     used.add(`${source.row}:${source.col}`);
     const sourceDirection: Direction = edge === 0 ? 'down' : edge === 1 ? 'up' : edge === 2 ? 'right' : 'left';
-    const puzzle: MirrorMazePuzzle = {
+    const plain: MirrorMazePuzzle = {
       id,
       name,
       difficulty: tier,
@@ -82,10 +89,29 @@ export function generateMirrorMaze(id: string, name: string, tier: PuzzleDifficu
       gems: Array.from({ length: between(shape.gems) }, cell),
       obstacles: Array.from({ length: between(shape.obstacles) }, cell),
     };
+    // Rule pieces are drawn after everything else, so a plain board is
+    // dealt exactly as it always was.
+    const ruby = Math.min(rules.rubyGems ?? 0, plain.gems.length);
+    const puzzle: MirrorMazePuzzle = {
+      ...plain,
+      ...(ruby ? { filters: [cell()], rubyGems: Array.from({ length: ruby }, (_v, i) => i) } : {}),
+      ...(rules.splitter ? { splitters: [cell()] } : {}),
+    };
     const need = fewestMirrors(puzzle, tier === 'hard' ? 40000 : 20000);
     if (need === null) continue;
+    // A splitter has to earn its place: without it the board is harder or
+    // impossible.
+    // So does a filter: the ruby gems must cost a detour through it.
+    if (ruby) {
+      const plainNeed = fewestMirrors({ ...puzzle, filters: [], rubyGems: [] }, 20000);
+      if (plainNeed !== null && plainNeed >= need) continue;
+    }
+    if (rules.splitter) {
+      const without = fewestMirrors({ ...puzzle, splitters: [] }, 20000);
+      if (without !== null && without <= need) continue;
+    }
     if (need >= shape.mirrors[0] && need <= shape.mirrors[1]) return puzzle;
-    if (!fallback && need >= shape.mirrors[0] - 1) fallback = puzzle;
+    if (!fallback && need >= shape.mirrors[0] - 1 && !rules.splitter && !ruby) fallback = puzzle;
   }
   if (fallback) return fallback;
   throw new Error(`Mirror maze ${id}: no board found`);

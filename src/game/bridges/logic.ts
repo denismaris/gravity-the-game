@@ -121,7 +121,9 @@ export function components(puzzle: BridgesPuzzle, state: BridgesState): number[]
 
 export function isBridgesSolved(puzzle: BridgesPuzzle, state: BridgesState): boolean {
   const loads = islandLoads(puzzle, state);
-  if (puzzle.islands.some((island, i) => loads[i] !== island.need)) return false;
+  // An island in fog takes whatever the rest of the board leaves it; it
+  // only has to be joined in, which the one-network check sees to.
+  if (puzzle.islands.some((island, i) => !island.fog && loads[i] !== island.need)) return false;
   return components(puzzle, state).length === 1;
 }
 

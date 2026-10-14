@@ -1,12 +1,12 @@
 import React, { useCallback, useState } from 'react';
 import { Icon } from './Icon';
-import { Modal, Text, View } from 'react-native';
+import { Modal, Pressable, Text, View } from 'react-native';
 import Reanimated, { Easing as ReEasing, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { coinVideosLeft, watchRewardedVideo } from '../ads';
 import { triggerFeedback } from '../game/rendering';
 import { usePlayerProgress } from '../progression';
-import { HINT_COST, INSIGHTS_PER_VIDEO } from '../progression/coins';
+import { HINT_COST, INSIGHT_PACK, INSIGHTS_PER_VIDEO } from '../progression/coins';
 import { theme, themedStyles } from '../theme';
 import { CoinGlyph, useCoinPurchase } from './Coins';
 import { PressableScale } from './PressableScale';
@@ -59,6 +59,11 @@ export function useInsightPower(): { count: number; spend: (apply: () => void) =
         pending?.();
         setPending(null);
       }}
+      onPack={() => {
+        addInsights(INSIGHT_PACK.count);
+        if (spendInsightCharge()) pending?.();
+        setPending(null);
+      }}
     />
   );
 
@@ -74,7 +79,7 @@ export function InsightCount({ count }: { count: number }): React.JSX.Element {
   );
 }
 
-function InsightSheet({ visible, onClose, onEarned, onPaid }: { visible: boolean; onClose: () => void; onEarned: () => void; onPaid: () => void }): React.JSX.Element {
+function InsightSheet({ visible, onClose, onEarned, onPaid, onPack }: { visible: boolean; onClose: () => void; onEarned: () => void; onPaid: () => void; onPack: () => void }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { coins, buy } = useCoinPurchase();
   const [watching, setWatching] = useState(false);
@@ -104,9 +109,10 @@ function InsightSheet({ visible, onClose, onEarned, onPaid }: { visible: boolean
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
       <View style={styles.layer}>
-        <PressableScale accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} feedback={false} scaleTo={1} containerStyle={styles.scrim}>
-          <View style={styles.scrimFill} />
-        </PressableScale>
+        {/* The whole dimmed backdrop closes the sheet: a plain full-screen
+            pressable, so the tap area is the whole backdrop, not the size of
+            its contents. */}
+        <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={[styles.scrim, styles.scrimFill]} />
         <Reanimated.View entering={SHEET_IN} style={[styles.sheet, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
           <View style={styles.grabber} />
           <View style={styles.mark}>
@@ -148,6 +154,27 @@ function InsightSheet({ visible, onClose, onEarned, onPaid }: { visible: boolean
               <Text style={styles.optionSub}>{affordable ? 'For this move' : `You have ${coins}`}</Text>
             </PressableScale>
           </View>
+          {/* Ten at once, for a fifth off: no coming back to this sheet after
+              every hint. */}
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={`Use ${INSIGHT_PACK.cost} coins for ${INSIGHT_PACK.count} Insight`}
+            onPress={() => buy(INSIGHT_PACK.cost, onPack)}
+            containerStyle={styles.packWrap}
+            style={({ pressed }) => [styles.option, styles.pack, coins < INSIGHT_PACK.cost && styles.dim, pressed && styles.pressed]}
+          >
+            <View style={styles.packMark}>
+              <InsightMark />
+            </View>
+            <View style={styles.packText}>
+              <Text style={styles.packTitle}>{`${INSIGHT_PACK.count} Insight`}</Text>
+              <Text style={styles.optionSub}>{coins >= INSIGHT_PACK.cost ? 'A fifth off, kept for later' : `You have ${coins}`}</Text>
+            </View>
+            <View style={styles.packPrice}>
+              <CoinGlyph size={16} />
+              <Text style={styles.packCost}>{INSIGHT_PACK.cost}</Text>
+            </View>
+          </PressableScale>
           {missed && <Text style={styles.missed}>No video right now. Try again in a little while.</Text>}
 
           <PressableScale accessibilityRole="button" accessibilityLabel="Not now" onPress={onClose} hitSlop={8} containerStyle={styles.notNow}>
@@ -181,7 +208,7 @@ export function InsightButton({ count, onPress }: { count: number; onPress: () =
 }
 
 /** A small eye of light: Insight's own mark. */
-function InsightMark(): React.JSX.Element {
+export function InsightMark(): React.JSX.Element {
   return (
     <View style={styles.markInner}>
       <Icon name="spark" size={26} color={theme.colors.accent} />
@@ -241,6 +268,13 @@ const styles = themedStyles(() => ({
   optionFree: { marginTop: 6, fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.2, color: theme.colors.accentText },
   missed: { marginTop: theme.spacing.sm, textAlign: 'center', fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   dim: { opacity: 0.5 },
+  packWrap: { alignSelf: 'stretch', marginTop: theme.spacing.sm },
+  pack: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm + 2, gap: theme.spacing.md, minHeight: 0 },
+  packMark: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceAlt },
+  packText: { flex: 1 },
+  packTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  packPrice: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  packCost: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   pressed: { opacity: 0.85 },
   notNow: { marginTop: theme.spacing.md, paddingVertical: 6 },
   notNowText: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },

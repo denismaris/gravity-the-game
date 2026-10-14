@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackLabel } from '../components/Icon';
-import { Animated, Easing, KeyboardAvoidingView, Platform, ScrollView, Text, TextInput, View } from 'react-native';
+import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '../components';
 import { PageBloom } from '../components/PageBloom';
@@ -133,9 +133,7 @@ function ProfileEditor({ profile, onClose, onSaved }: { profile: Profile; onClos
 
   return (
     <View style={styles.sheetLayer}>
-      <PressableScale accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} feedback={false} scaleTo={1} containerStyle={styles.scrim}>
-        <View style={styles.scrimFill} />
-      </PressableScale>
+      <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={[styles.scrim, styles.scrimFill]} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.sheetWrap}>
         <ScrollView style={[styles.sheet, { paddingBottom: insets.bottom }]} contentContainerStyle={styles.sheetContent} keyboardShouldPersistTaps="handled">
           <Text style={styles.sheetTitle}>How you appear</Text>
@@ -435,9 +433,7 @@ export function LeaderboardScreen({ onExit, onPlayDaily }: LeaderboardScreenProp
 
       {acting && (
         <View style={styles.sheetLayer}>
-          <PressableScale accessibilityRole="button" accessibilityLabel="Close" onPress={() => setActing(null)} feedback={false} scaleTo={1} containerStyle={styles.scrim}>
-            <View style={styles.scrimFill} />
-          </PressableScale>
+          <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={() => setActing(null)} style={[styles.scrim, styles.scrimFill]} />
           <View style={[styles.sheet, styles.sheetContent, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
             <Text style={styles.sheetTitle} numberOfLines={1}>
               {hidden.has(acting.player) ? 'Hidden player' : acting.name}

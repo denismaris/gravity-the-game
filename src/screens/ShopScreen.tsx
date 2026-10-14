@@ -7,6 +7,8 @@ import { GameEmblem } from '../components/GameEmblem';
 import { GameKind, ROTATION, accentColorForKind, gameDisplayName, gameShortName } from '../game/journey';
 import { ConfettiBurst, PressableScale } from '../components';
 import { CoinBalance, CoinGlyph } from '../components/Coins';
+import { InsightMark } from '../components/InsightPower';
+import { INSIGHT_PACK } from '../progression/coins';
 import { CosmeticPreview } from '../components/CosmeticPreview';
 import { CoinPile } from '../components/CoinPile';
 import { TesseraMark } from '../components/TesseraMark';
@@ -938,7 +940,7 @@ function SetCard({ set, onClaimed }: { set: CosmeticSet; onClaimed: () => void }
  */
 export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { progress, coins, buyStreakFreeze, buyLuckyCharm } = usePlayerProgress();
+  const { progress, coins, buyStreakFreeze, buyLuckyCharm, spendCoins, addInsights } = usePlayerProgress();
   const [burst, setBurst] = useState(0);
   const [tab, setTab] = useState<Tab>('featured');
   const [game, setGame] = useState<GameKind>('gravity');
@@ -1276,6 +1278,37 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
                     <View style={styles.priceRow}>
                       <CoinGlyph size={13} />
                       <Text style={styles.actionText}>{LUCKY_CHARM_PRICE}</Text>
+                    </View>
+                  </PressableScale>
+                </View>
+              </View>
+              <View style={styles.pass}>
+                <View style={styles.charmRow}>
+                  <View style={styles.charmPlate}>
+                    <InsightMark />
+                  </View>
+                  <View style={styles.freezeBody}>
+                    <Text style={styles.passTitle}>{`${INSIGHT_PACK.count} Insight`}</Text>
+                    <Text style={styles.passText}>Ten next moves explained, kept for when you need them, for a fifth off the single price.</Text>
+                  </View>
+                </View>
+                <View style={styles.freezeFoot}>
+                  <Text style={styles.charmCount}>{`${progress.insights} Insight now`}</Text>
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel={`Buy ${INSIGHT_PACK.count} Insight for ${INSIGHT_PACK.cost} coins`}
+                    onPress={() => {
+                      if (spendCoins(INSIGHT_PACK.cost)) {
+                        addInsights(INSIGHT_PACK.count);
+                        triggerFeedback('coin');
+                        celebrate();
+                      } else triggerFeedback('tap');
+                    }}
+                    style={({ pressed }) => [styles.action, coins >= INSIGHT_PACK.cost ? styles.actionBuy : styles.actionShort, pressed && styles.pressed]}
+                  >
+                    <View style={styles.priceRow}>
+                      <CoinGlyph size={13} />
+                      <Text style={styles.actionText}>{INSIGHT_PACK.cost}</Text>
                     </View>
                   </PressableScale>
                 </View>

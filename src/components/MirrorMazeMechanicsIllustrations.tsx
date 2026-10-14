@@ -1,6 +1,7 @@
 import React from 'react';
 import { Group, Path, RoundedRect } from '@shopify/react-native-skia';
-import { arrowPath, gemPath, renderMirror } from './MirrorMazeBoardView';
+import { arrowPath, gemPath, MirrorMazeBoardView, renderMirror } from './MirrorMazeBoardView';
+import { emptyMirrorMazeState, MirrorMazePuzzle, traceBeam } from '../game/mirror';
 import { CellBackground, TargetMarker } from '../game/rendering';
 import { ILLUSTRATION_HEIGHT, ILLUSTRATION_WIDTH } from './MechanicsCarousel';
 import { theme } from '../theme';
@@ -25,9 +26,61 @@ export function renderMirrorMazeIllustration(kind: string): React.JSX.Element {
       return <GemsIllustration />;
     case 'target':
       return <TargetIllustration />;
+    case 'ruby':
+      // Wrong way round, then right: the gem only lights after the glass.
+      return <SideBySide left={RUBY_WRONG} right={RUBY} />;
+    case 'splitter':
+      return <RealBoard puzzle={SPLIT} />;
     default:
       return <Group />;
   }
+}
+
+/** Tiny boards for the later rules, drawn by the real board, already
+ * lit. A beam through a ruby filter to a ruby gem; and a splitter sending
+ * the beam up to the target and down through a gem. */
+const fixture = (id: string, extra: Partial<MirrorMazePuzzle>): MirrorMazePuzzle => ({
+  id,
+  difficulty: 'easy',
+  rows: 4,
+  cols: 4,
+  source: { row: 1, col: 0 },
+  sourceDirection: 'right',
+  target: { row: 1, col: 3 },
+  gems: [],
+  obstacles: [],
+  ...extra,
+});
+const RUBY = fixture('mirror-illustration-ruby', { filters: [{ row: 1, col: 1 }], gems: [{ row: 1, col: 2 }], rubyGems: [0] });
+const RUBY_WRONG = fixture('mirror-illustration-ruby-wrong', { filters: [{ row: 1, col: 2 }], gems: [{ row: 1, col: 1 }], rubyGems: [0] });
+
+/** Two of the little boards side by side, a gap between. */
+function SideBySide({ left, right }: { left: MirrorMazePuzzle; right: MirrorMazePuzzle }): React.JSX.Element {
+  const size = Math.min(ILLUSTRATION_HEIGHT - 8, (ILLUSTRATION_WIDTH - 24) / 2);
+  const gap = ILLUSTRATION_WIDTH - size * 2;
+  return (
+    <Group>
+      {[left, right].map((puzzle, i) => {
+        const state = emptyMirrorMazeState(puzzle);
+        return (
+          <Group key={puzzle.id} transform={[{ translateX: gap / 3 + i * (size + gap / 3) }, { translateY: (ILLUSTRATION_HEIGHT - size) / 2 }]}>
+            <MirrorMazeBoardView puzzle={puzzle} state={state} size={size} path={traceBeam(puzzle, state)} revealProgress={0} solved={false} />
+          </Group>
+        );
+      })}
+    </Group>
+  );
+}
+const SPLIT = fixture('mirror-illustration-split', { target: { row: 0, col: 2 }, splitters: [{ row: 1, col: 2 }], gems: [{ row: 3, col: 2 }] });
+
+function RealBoard({ puzzle }: { puzzle: MirrorMazePuzzle }): React.JSX.Element {
+  const size = ILLUSTRATION_HEIGHT - 8;
+  const state = emptyMirrorMazeState(puzzle);
+  return (
+    <Group transform={[{ translateX: (ILLUSTRATION_WIDTH - size) / 2 }, { translateY: 4 }]}>
+      <MirrorMazeBoardView puzzle={puzzle} state={state} size={size} path={traceBeam(puzzle, state)} revealProgress={0} solved={false} />
+    </Group>
+  );
 }
 
 const CELL = 52;

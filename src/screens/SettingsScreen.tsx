@@ -15,11 +15,15 @@ import { AppearancePicker } from '../components/AppearancePicker';
 import { copyrightLine } from '../legal/documents';
 import { privacyChoicesRequired, showPrivacyChoices } from '../ads';
 import { LegalDoc, LegalScreen } from './LegalScreen';
+import { GameKind, gameDisplayName, gameShortName } from '../game/journey';
+import { MECHANICS } from '../game/mechanics';
 
 export interface SettingsScreenProps {
   onExit: () => void;
   /** The player's account: sign in, sign out, delete. */
   onOpenAccount: () => void;
+  /** Opens one puzzle - for the Mechanics lab. */
+  onOpenPuzzle?: (kind: GameKind, puzzleId: string) => void;
 }
 
 /**
@@ -32,7 +36,7 @@ export interface SettingsScreenProps {
  * `PlayerProgressProvider` since progress is what's being reset, not a
  * settings concern itself.
  */
-export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): React.JSX.Element {
+export function SettingsScreen({ onExit, onOpenAccount, onOpenPuzzle }: SettingsScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { settings, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance, resetTutorials } = useSettings();
   const { resetProgress } = usePlayerProgress();
@@ -186,6 +190,38 @@ export function SettingsScreen({ onExit, onOpenAccount }: SettingsScreenProps): 
           </Text>
         </View>
 
+        {/* TEMPORARY: every new rule, one board each, to try before deciding
+            which stay. Remove with the rejected mechanics. */}
+        {onOpenPuzzle && (
+          <>
+            <Text style={styles.sectionLabel}>Mechanics lab</Text>
+            <View style={styles.card}>
+              {MECHANICS.map((m, i) => (
+                <React.Fragment key={m.id}>
+                  {i > 0 && <View style={styles.divider} />}
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel={`Try ${m.title} in ${gameDisplayName(m.game)}`}
+                    onPress={() => onOpenPuzzle(m.game, m.sample)}
+                    feedback={false}
+                    scaleTo={1}
+                    style={({ pressed }) => [styles.row, pressed && styles.resetRowPressed]}
+                  >
+                    <Text style={styles.rowLabel}>
+                      {m.title} <Text style={styles.labGame}>{gameShortName(m.game)}</Text>
+                    </Text>
+                    <Text style={styles.chevron}>›</Text>
+                  </PressableScale>
+                </React.Fragment>
+              ))}
+              <View style={styles.divider} />
+              <PressableScale accessibilityRole="button" accessibilityLabel="Show the new-rule cards again" onPress={resetTutorials} feedback={false} scaleTo={1} style={({ pressed }) => [styles.row, pressed && styles.resetRowPressed]}>
+                <Text style={styles.rowLabel}>Show the cards again</Text>
+              </PressableScale>
+            </View>
+          </>
+        )}
+
         <Text style={styles.sectionLabel}>Progress</Text>
         <View style={styles.card}>
           <PressableScale
@@ -297,6 +333,7 @@ const styles = themedStyles(() => ({
     padding: theme.spacing.lg,
     paddingBottom: theme.spacing.xxl,
   },
+  labGame: { color: theme.colors.textTertiary, fontWeight: theme.typography.weights.regular },
   sectionLabel: {
     fontSize: theme.typography.sizes.caption,
     color: theme.colors.textTertiary,

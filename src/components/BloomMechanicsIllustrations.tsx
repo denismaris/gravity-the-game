@@ -88,6 +88,11 @@ export function renderBloomIllustration(kind: string): React.JSX.Element {
       return <Board puzzle={KNOT} rotations={KNOT.solution} />;
     case 'bloom':
       return <Board puzzle={CIRCLE} rotations={CIRCLE.solution} solved />;
+    case 'twins': {
+      // The two corner tiles tied as twins.
+      const twins: BloomPuzzle = { ...KNOT, twins: [{ a: { row: 0, col: 1 }, b: { row: 2, col: 1 }, offset: (KNOT.solution[2][1] - KNOT.solution[0][1] + 4) % 4 }] };
+      return <Board puzzle={twins} rotations={KNOT.solution} />;
+    }
     default:
       return <Group />;
   }

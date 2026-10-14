@@ -13,7 +13,7 @@ import {
   tileCount,
 } from '../logic';
 import { assertValidAdjacent, reachesTargetWithin, replayLine, searchBestScore } from '../solver';
-import { generateAdjacent, minTapsToTargetFor, shapeForDifficulty } from '../generator';
+import { ADJACENT_RULED, generateAdjacent, minTapsToTargetFor, shapeForDifficulty, targetWithRules } from '../generator';
 import { ADJACENT, getAdjacentByDifficulty, getAdjacentById } from '../puzzles';
 import { AdjacentCell, AdjacentPuzzle } from '../types';
 
@@ -262,9 +262,10 @@ describe('the shipped pool', () => {
   test('every board matches its own tier\'s declared shape', () => {
     for (const puzzle of ADJACENT) {
       const shape = shapeForDifficulty(puzzle.difficulty);
+      const rules = ADJACENT_RULED[puzzle.id] ?? {};
       expect(puzzle.size).toBe(shape.size);
       expect(puzzle.colors).toBe(shape.colors);
-      expect(puzzle.targetScore).toBe(shape.targetScore);
+      expect(puzzle.targetScore).toBe(targetWithRules(shape.targetScore, rules));
       expect(tileCount(puzzle.initial)).toBe(Math.round(shape.fill * shape.size * shape.size));
     }
   });

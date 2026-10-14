@@ -272,7 +272,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
     screen = <CalmingInterstitialScreen onDone={finishInterstitial} />;
     routeKey = 'interstitial';
   } else if (!selected && overlayRoute === 'settings') {
-    screen = <SettingsScreen onExit={() => setOverlayRoute(null)} onOpenAccount={() => setOverlayRoute('account')} />;
+    screen = <SettingsScreen onExit={() => setOverlayRoute(null)} onOpenAccount={() => setOverlayRoute('account')} onOpenPuzzle={(kind, puzzleId) => openPuzzle(kind, puzzleId)} />;
     routeKey = 'settings';
   } else if (!selected && overlayRoute === 'journey') {
     screen = <JourneyScreen onExit={() => setOverlayRoute(null)} onOpenShop={() => openShop('journey')} />;

@@ -1,7 +1,7 @@
 import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { hasLegalMove } from './logic';
-import { reachesTargetWithin, searchBestScore } from './solver';
-import { AdjacentCell, AdjacentPuzzle } from './types';
+import { reachesTargetWithin, replayLine, searchBestScore } from './solver';
+import { AdjacentCell, AdjacentPuzzle, GOLD, STONE } from './types';
 
 /**
  * Deals a board, then refuses it unless the search in `solver.ts` can
@@ -185,9 +185,103 @@ function deal(size: number, colors: number, tiles: number, random: () => number)
  */
 export const ENDLESS_EASY_SHAPE: AdjacentShape = { size: 6, colors: 5, fill: 0.55, targetScore: 550 };
 
-export function generateAdjacent(id: string, name: string, difficulty: PuzzleDifficulty, shape: AdjacentShape = shapeForDifficulty(difficulty)): AdjacentPuzzle {
+/**
+ * What a later board brings: stones that never clear, and gold tiles that
+ * join any run and double it.
+ */
+export interface AdjacentRules {
+  readonly stones?: number;
+  readonly golds?: number;
+}
+
+/** The curated boards that bring a rule, by id (see `puzzles.ts`). */
+export const ADJACENT_RULED: Readonly<Record<string, AdjacentRules>> = {
+  'adjacent-medium-s01': { stones: 2 },
+  'adjacent-medium-s02': { stones: 2 },
+  'adjacent-medium-s03': { stones: 3 },
+  'adjacent-hard-g01': { golds: 1 },
+  'adjacent-hard-g02': { golds: 2, stones: 2 },
+  'adjacent-hard-g03': { golds: 2, stones: 3 },
+};
+
+/** A ruled board's target: the tier's own. Gold is a gift to spend well,
+ * not a reason to ask for more (raised targets made good lines too rare). */
+export function targetWithRules(target: number, _rules: AdjacentRules): number {
+  return target;
+}
+
+/**
+ * Sets the rule tiles into a dealt board: stones low in the tray but off
+ * the floor (a stone on top would just fall out of the way of nothing,
+ * one on the floor would crumble at once), gold anywhere off the bottom
+ * row - so it has neighbours on three sides to join.
+ */
+function placeRuleTiles(grid: AdjacentCell[][], rules: AdjacentRules, random: () => number): void {
+  // A plain board draws nothing more from the stream, so it stays the
+  // board it always was.
+  if (!rules.stones && !rules.golds) return;
+  const size = grid.length;
+  const filled: Array<[number, number]> = [];
+  grid.forEach((line, r) => line.forEach((c, col) => c !== null && filled.push([r, col])));
+  const shuffled = filled.sort(() => random() - 0.5);
+  let stones = rules.stones ?? 0;
+  let golds = rules.golds ?? 0;
+  const usedCols = new Set<number>();
+  for (const [r, c] of shuffled) {
+    // Low in the tray, but never on the floor: a stone there would crumble
+    // at once. It sits on a tile, to be dug out from under.
+    if (stones > 0 && r >= size - 3 && r < size - 1 && grid[r + 1][c] !== null && !usedCols.has(c)) {
+      grid[r][c] = STONE;
+      usedCols.add(c);
+      stones -= 1;
+    }
+  }
+  for (const [r, c] of shuffled) {
+    if (golds > 0 && grid[r][c]! >= 0 && r < size - 1) {
+      grid[r][c] = GOLD;
+      golds -= 1;
+    }
+  }
+}
+
+/**
+ * A proven tray with its rule tiles set in: a few placements are tried,
+ * and one is kept only if the line that proved the plain tray still plays
+ * through and still clears the target with room (gold usually adds to
+ * it), the target still takes a sequence, and two fresh searches find
+ * the target too - so it is common ground, not one lucky line.
+ */
+function withRuleTiles(
+  plain: AdjacentPuzzle,
+  line: ReadonlyArray<{ row: number; col: number }>,
+  rules: AdjacentRules,
+  difficulty: PuzzleDifficulty,
+  random: () => number,
+): AdjacentPuzzle | null {
+  for (let tries = 0; tries < 24; tries += 1) {
+    const initial = plain.initial.map(row => row.slice());
+    placeRuleTiles(initial, rules, random);
+    if (!hasLegalMove(initial)) continue;
+    const candidate: AdjacentPuzzle = { ...plain, initial };
+    const replayed = replayLine(candidate, line);
+    if (!replayed || replayed.score < plain.targetScore * HEADROOM) continue;
+    if (reachesTargetWithin(candidate, MIN_TAPS_TO_TARGET[difficulty] - 1)) continue;
+    if ([1, 2].some(k => searchBestScore(candidate, { attempts: 60, rng: mulberry32(hashId(`${plain.id}:again${k}`)) }).score < plain.targetScore)) continue;
+    return candidate;
+  }
+  return null;
+}
+
+export function generateAdjacent(
+  id: string,
+  name: string,
+  difficulty: PuzzleDifficulty,
+  shape: AdjacentShape = shapeForDifficulty(difficulty),
+  rules: AdjacentRules = ADJACENT_RULED[id] ?? {},
+): AdjacentPuzzle {
   const tiles = Math.round(shape.fill * shape.size * shape.size);
   const random = mulberry32(hashId(id));
+  const targetScore = targetWithRules(shape.targetScore, rules);
 
   for (let i = 0; i < MAX_ATTEMPTS; i += 1) {
     const initial = deal(shape.size, shape.colors, tiles, random);
@@ -200,20 +294,22 @@ export function generateAdjacent(id: string, name: string, difficulty: PuzzleDif
       size: shape.size,
       colors: shape.colors,
       initial,
-      targetScore: shape.targetScore,
+      targetScore,
     };
 
     // Seeded from the same stream the board came from, so a given id's
     // acceptance is as reproducible as the board itself.
     const best = searchBestScore(candidate, { rng: random });
-    if (best.score < shape.targetScore * HEADROOM) continue;
+    if (best.score < targetScore * HEADROOM) continue;
     // Exhaustive, unlike the score check above - see `reachesTargetWithin`.
     if (reachesTargetWithin(candidate, MIN_TAPS_TO_TARGET[difficulty] - 1)) continue;
-    return candidate;
+    if (!rules.stones && !rules.golds) return candidate;
+    const ruled = withRuleTiles(candidate, best.taps, rules, difficulty, random);
+    if (ruled) return ruled;
   }
 
   throw new Error(
-    `Adjacent ${id}: no ${difficulty} board reached ${shape.targetScore} with headroom, in at least ` +
+    `Adjacent ${id}: no ${difficulty} board reached ${targetScore} with headroom, in at least ` +
       `${MIN_TAPS_TO_TARGET[difficulty]} taps, after ${MAX_ATTEMPTS} attempts.`,
   );
 }

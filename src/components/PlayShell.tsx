@@ -22,6 +22,7 @@ import { PressableScale } from './PressableScale';
 import { PuzzleSolved } from './PuzzleSolved';
 import { StageTopGap } from './StageTopGap';
 import { MechanicsCarousel } from './MechanicsCarousel';
+import { MechanicIntro, MechanicIntroCopy } from './MechanicIntro';
 import { TutorialOverlay } from './TutorialOverlay';
 import { TutorialSlide } from '../game/tutorials';
 import { useSettings } from '../settings';
@@ -85,6 +86,7 @@ export function PlayShell({
   slides,
   renderIllustration,
   introduce,
+  intros = [],
   solved,
   hints,
   note,
@@ -105,6 +107,8 @@ export function PlayShell({
   progress: number;
   /** A rule this board brings for the first time, explained once. */
   introduce?: { id: string; title: string; body: string } | null;
+  /** Later rules this board brings, each explained once after `introduce`. */
+  intros?: ReadonlyArray<MechanicIntroCopy>;
   /** The "?" carousel: its slides and their pictures. */
   slides: ReadonlyArray<TutorialSlide>;
   renderIllustration: (kind: string) => React.ReactNode;
@@ -281,6 +285,7 @@ export function PlayShell({
           }}
         />
       )}
+      {!showIntro && !lesson && intros.length > 0 && <MechanicIntro intros={intros} accent={accent} />}
       {showHelp && <MechanicsCarousel slides={slides} renderIllustration={renderIllustration} onDone={() => setShowHelp(false)} accentColor={accent} />}
     </View>
   );

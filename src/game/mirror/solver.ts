@@ -1,5 +1,5 @@
 import { MirrorMazeCell, MirrorMazePuzzle, MirrorMazeState, MirrorKind } from './types';
-import { STEP, inBounds, isEligible, isObstacle, positionKey, reflect, setMirror, stateKey } from './logic';
+import { STEP, inBounds, isEligible, isObstacle, positionKey, reflect, setMirror, stateKey, traceBeams } from './logic';
 
 /** `undefined` = not yet decided by the search (distinct from `null`, "no
  * mirror" - a real, final answer). */
@@ -24,6 +24,11 @@ type TraceResult =
  * ever crosses a handful of them).
  */
 function traceWithDecisions(puzzle: MirrorMazePuzzle, grid: WorkingGrid): TraceResult {
+  if (puzzle.filters?.length || puzzle.splitters?.length || puzzle.rubyGems?.length) {
+    const trace = traceBeams(puzzle, (r, c) => grid[r][c]);
+    if (trace.pending) return { status: 'pending', cell: trace.pending };
+    return { status: trace.reached && puzzle.gems.every(g => trace.lit.has(positionKey(g.row, g.col))) ? 'solved' : 'failed' };
+  }
   let row = puzzle.source.row;
   let col = puzzle.source.col;
   let direction = puzzle.sourceDirection;
@@ -165,6 +170,8 @@ export function assertValidMirrorMaze(puzzle: MirrorMazePuzzle): void {
     { label: 'target', cell: target },
     ...gems.map(cell => ({ label: 'gem', cell })),
     ...obstacles.map(cell => ({ label: 'obstacle', cell })),
+    ...(puzzle.filters ?? []).map(cell => ({ label: 'filter', cell })),
+    ...(puzzle.splitters ?? []).map(cell => ({ label: 'splitter', cell })),
   ];
   const seen = new Map<string, string>();
   for (const { label, cell } of labeled) {

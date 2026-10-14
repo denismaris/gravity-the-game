@@ -104,6 +104,10 @@ export const lightColors = {
   glassRuby: '#B8324B',
   glassCobalt: '#2F5DA8',
   glassAmber: '#DFA02C',
+  glassEmerald: '#2E7D57',
+  adjacentStone: '#A39C90',
+  pondStone: '#A7A196',
+  gravitySand: '#E3D2A6',
   glassAccent: '#9A3A8C',
 
   // --- Lily Pads: the pond, the pads and the frog ---
@@ -128,12 +132,15 @@ export const lightColors = {
   adjacentTray: '#E0D4B8',
   adjacentTrayEdge: '#C8B894',
   adjacentSlot: '#D7C9A9',
-  adjacentTile0: '#D06A3A', // coral terracotta
-  adjacentTile1: '#D49E1C', // saffron
-  adjacentTile2: '#3A946A', // jade
-  adjacentTile3: '#3473B4', // cobalt
-  adjacentTile4: '#8752C0', // amethyst
+  // Glazed ceramic, not plastic: earthen tones a potter would fire,
+  // each a little muted so a full tray reads as one set of tiles.
+  adjacentTile0: '#B85D40', // terracotta
+  adjacentTile1: '#C7953D', // honey
+  adjacentTile2: '#5E9A7C', // celadon
+  adjacentTile3: '#3F5F98', // indigo
+  adjacentTile4: '#8C4F7E', // mulberry
   adjacentGlyph: '#F4EBD8',
+  adjacentGold: '#ECDCAE',
 
   // --- Skyscrapers ---
   towersBuilding: '#452963',
@@ -287,6 +294,10 @@ export const darkColors: Palette = {
   glassRuby: '#D24A63',
   glassCobalt: '#4C7ED0',
   glassAmber: '#EDB548',
+  glassEmerald: '#4FA87C',
+  adjacentStone: '#77716A',
+  pondStone: '#6E6A62',
+  gravitySand: '#6B5E44',
   glassAccent: '#C08DB6',
   pondWater: '#1F3A44',
   pondRipple: '#2A4A55',
@@ -302,12 +313,13 @@ export const darkColors: Palette = {
   vaneMetalLight: '#B9AEC4',
   vaneWind: '#7FB2D9',
   vaneAccent: '#CF9566',
-  adjacentTile0: '#E07F4C',
-  adjacentTile1: '#E3B23C',
-  adjacentTile2: '#52AE80',
-  adjacentTile3: '#4F8FD0',
-  adjacentTile4: '#A06FD8',
+  adjacentTile0: '#D47A57',
+  adjacentTile1: '#DDAE55',
+  adjacentTile2: '#7DB497',
+  adjacentTile3: '#6F8DC6',
+  adjacentTile4: '#AE749F',
   adjacentGlyph: '#1A1815',
+  adjacentGold: '#D2BC82',
 
   towersBuilding: '#5B3B7D',
   towersBuildingRoof: '#8660A6',

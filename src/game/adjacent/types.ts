@@ -34,6 +34,17 @@ import { PuzzleDifficulty } from '../puzzleDifficulty';
 export type AdjacentColor = number;
 export type AdjacentCell = AdjacentColor | null;
 
+/**
+ * Two tiles later boards bring, kept as numbers outside the palette so a
+ * grid stays a grid of numbers. A stone joins nothing and never clears in
+ * a run: it only falls - and when the player digs out everything beneath
+ * it, it lands on the floor and crumbles away for a bonus. A gold tile
+ * joins a run of any colour it touches, and a run with gold in it scores
+ * double.
+ */
+export const STONE = -1;
+export const GOLD = -2;
+
 export interface AdjacentCoord {
   readonly row: number;
   readonly col: number;
@@ -64,6 +75,8 @@ export interface AdjacentMove {
   /** The bonus band this group landed in - 1 for an ordinary pair, more
    * for a run big enough to be worth calling out ("3x"). */
   readonly multiplier: number;
+  /** Stones this tap brought down onto the floor, crumbled for a bonus. */
+  readonly crumbled?: number;
 }
 
 export interface AdjacentPuzzle {

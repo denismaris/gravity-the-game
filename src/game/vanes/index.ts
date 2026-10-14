@@ -506,6 +506,31 @@ const ENDLESS_SHAPE: Record<PuzzleDifficulty, RoofShape> = {
   hard: { size: 7, vanes: 20, chimneys: 3 },
 };
 
+/** Later roofs bringing a new rule, each dealt after the plain roof it
+ * follows (by index). None for now. */
+const RULED: Record<PuzzleDifficulty, ReadonlyArray<{ id: string; name: string; after: number; shape: RoofShape }>> = { easy: [], medium: [], hard: [] };
+
+interface RoofEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly difficulty: PuzzleDifficulty;
+  readonly shape: RoofShape;
+}
+
+const ENTRIES: Record<PuzzleDifficulty, ReadonlyArray<RoofEntry>> = (() => {
+  const out = {} as Record<PuzzleDifficulty, RoofEntry[]>;
+  for (const difficulty of ['easy', 'medium', 'hard'] as const) {
+    const list: RoofEntry[] = [];
+    ROOFS[difficulty].forEach(([name, size, vanes, chimneys], i) => {
+      list.push({ id: curatedId(difficulty, i), name, difficulty, shape: { size, vanes, chimneys } });
+      for (const r of RULED[difficulty]) if (r.after === i) list.push({ id: r.id, name: r.name, difficulty, shape: r.shape });
+    });
+    out[difficulty] = list;
+  }
+  return out;
+})();
+const ENTRY_BY_ID = new Map<string, RoofEntry>((['easy', 'medium', 'hard'] as const).flatMap(d => ENTRIES[d].map(e => [e.id, e] as const)));
+
 const cache = new Map<string, VanePuzzle>();
 
 function curatedId(difficulty: PuzzleDifficulty, index: number): string {
@@ -514,21 +539,23 @@ function curatedId(difficulty: PuzzleDifficulty, index: number): string {
 
 /** The ids of a tier's roofs, in deal order - without building them. */
 export function vaneIdsFor(difficulty: PuzzleDifficulty): ReadonlyArray<string> {
-  return ROOFS[difficulty].map((_r, i) => curatedId(difficulty, i));
+  return ENTRIES[difficulty].map(e => e.id);
 }
 
 /** Every curated roof as id, name and tier only - cheap to list. */
 export const VANE_ROOFS: ReadonlyArray<{ id: string; name: string; difficulty: PuzzleDifficulty }> = (['easy', 'medium', 'hard'] as const).flatMap(difficulty =>
-  ROOFS[difficulty].map((r, i) => ({ id: curatedId(difficulty, i), name: r[0], difficulty })),
+  ENTRIES[difficulty].map(e => ({ id: e.id, name: e.name, difficulty })),
 );
 
 /** A curated roof's name and tier, from its id alone (null otherwise). */
 export function vaneCuratedInfo(id: string): { name: string; difficulty: PuzzleDifficulty } | null {
-  const m = /^vanes-(easy|medium|hard)-(\d+)$/.exec(id);
-  if (!m) return null;
-  const difficulty = m[1] as PuzzleDifficulty;
-  const entry = ROOFS[difficulty][Number(m[2]) - 1];
-  return entry ? { name: entry[0], difficulty } : null;
+  const entry = ENTRY_BY_ID.get(id);
+  return entry ? { name: entry.name, difficulty: entry.difficulty } : null;
+}
+
+/** What an endless roof is made of. */
+function endlessShape(_id: string, tier: PuzzleDifficulty): RoofShape {
+  return ENDLESS_SHAPE[tier];
 }
 
 /** Any roof by id, built the first time it is asked for and kept; endless
@@ -536,14 +563,12 @@ export function vaneCuratedInfo(id: string): { name: string; difficulty: PuzzleD
 export function getVanesById(id: string, endless?: { name: string; tier: PuzzleDifficulty }): VanePuzzle | undefined {
   const hit = cache.get(id);
   if (hit) return hit;
-  const m = /^vanes-(easy|medium|hard)-(\d+)$/.exec(id);
+  const entry = ENTRY_BY_ID.get(id);
   let puzzle: VanePuzzle | undefined;
-  if (m) {
-    const difficulty = m[1] as PuzzleDifficulty;
-    const entry = ROOFS[difficulty][Number(m[2]) - 1];
-    if (entry) puzzle = generateVanes(id, entry[0], difficulty, { size: entry[1], vanes: entry[2], chimneys: entry[3] });
+  if (entry) {
+    puzzle = generateVanes(id, entry.name, entry.difficulty, entry.shape);
   } else if (endless) {
-    puzzle = generateVanes(id, endless.name, endless.tier, ENDLESS_SHAPE[endless.tier]);
+    puzzle = generateVanes(id, endless.name, endless.tier, endlessShape(id, endless.tier));
   }
   if (puzzle) cache.set(id, puzzle);
   return puzzle;

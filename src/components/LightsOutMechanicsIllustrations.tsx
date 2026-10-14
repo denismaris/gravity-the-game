@@ -2,6 +2,8 @@ import React from 'react';
 import { Circle, Group, Path, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
 import { ILLUSTRATION_HEIGHT, ILLUSTRATION_WIDTH } from './MechanicsCarousel';
 import { theme } from '../theme';
+import { getLightsOutById } from '../game/lightsout';
+import { LightsOutBoardView } from './LightsOutBoardView';
 
 /**
  * Lights Out's own `MechanicsCarousel` illustrations, one per
@@ -104,6 +106,17 @@ function DarkIllustration(): React.JSX.Element {
   return grid(() => ({ lit: false }));
 }
 
+/** A board with a later rule, drawn by the real board itself. */
+function RealBoard({ id }: { id: string }): React.JSX.Element {
+  const puzzle = getLightsOutById(id)!;
+  const size = ILLUSTRATION_HEIGHT - 6;
+  return (
+    <Group transform={[{ translateX: (ILLUSTRATION_WIDTH - size) / 2 }, { translateY: 3 }]}>
+      <LightsOutBoardView puzzle={puzzle} state={{ lights: puzzle.initial }} size={size} solved={false} />
+    </Group>
+  );
+}
+
 export function renderLightsOutIllustration(kind: string): React.JSX.Element {
   switch (kind) {
     case 'tap':
@@ -112,6 +125,8 @@ export function renderLightsOutIllustration(kind: string): React.JSX.Element {
       return <CrossIllustration />;
     case 'dark':
       return <DarkIllustration />;
+    case 'twins':
+      return <RealBoard id="lightsout-medium-t01" />;
     default:
       return <Group />;
   }

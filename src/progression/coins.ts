@@ -25,6 +25,8 @@ export const STARTING_COINS = 100;
  * hint is a real choice without ever being out of reach. (Setting this to
  * 0 makes hints free - the Hint pill then hides its price tag.) */
 export const HINT_COST = 20;
+/** A pack of Insight bought at once, for a fifth off the single price. */
+export const INSIGHT_PACK = { count: 10, cost: 160 } as const;
 /** One undo (Gravity, Fill-a-Pix, Adjacent). Deliberately cheap: an undo
  * fixes a slip, it does not solve anything. */
 /** Undo is free: taking a move back is part of thinking, not a power. */

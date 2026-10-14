@@ -1,4 +1,4 @@
-import { isRotatable, neighbourAcross, setRotation, tileEnds } from './logic';
+import { isRotatable, neighbourAcross, setRotation, tileEnds, twinOf } from './logic';
 import { BloomCell, BloomEdge, BloomPuzzle, BloomState } from './types';
 
 /* eslint-disable no-bitwise -- edge ends are a 4-bit mask throughout */
@@ -41,6 +41,20 @@ function propagate(puzzle: BloomPuzzle, domains: Domains): boolean {
   let changed = true;
   while (changed) {
     changed = false;
+    // Twins: each half can only be what the other allows, `offset` on.
+    for (const { a, b, offset } of puzzle.twins ?? []) {
+      const da = domains[a.row][a.col];
+      const db = domains[b.row][b.col];
+      const partnerOf = (r: number) => (r + offset) % 4;
+      const keptA = da.filter(r => db.includes(partnerOf(r)));
+      const keptB = db.filter(r => da.some(x => partnerOf(x) === r));
+      if (keptA.length === 0 || keptB.length === 0) return false;
+      if (keptA.length !== da.length || keptB.length !== db.length) {
+        domains[a.row][a.col] = keptA;
+        domains[b.row][b.col] = keptB;
+        changed = true;
+      }
+    }
     for (let row = 0; row < puzzle.rows; row += 1) {
       for (let col = 0; col < puzzle.cols; col += 1) {
         const domain = domains[row][col];
@@ -121,7 +135,10 @@ export function revealBloomHint(puzzle: BloomPuzzle, state: BloomState): { state
     for (let col = 0; col < puzzle.cols; col += 1) {
       if (!isRotatable(puzzle, row, col)) continue;
       if (state.rotations[row][col] % 4 === puzzle.solution[row][col] % 4) continue;
-      return { cell: { row, col }, state: setRotation(state, row, col, puzzle.solution[row][col]) };
+      // A twin is set with its other half, as a turn would.
+      const partner = twinOf(puzzle, row, col);
+      const next = setRotation(state, row, col, puzzle.solution[row][col]);
+      return { cell: { row, col }, state: partner ? setRotation(next, partner.row, partner.col, puzzle.solution[partner.row][partner.col]) : next };
     }
   }
   return null;

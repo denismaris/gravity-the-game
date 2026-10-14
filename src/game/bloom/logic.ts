@@ -36,11 +36,22 @@ export function initialBloomState(puzzle: BloomPuzzle): BloomState {
 /** A quarter turn clockwise. Anything that cannot turn is left alone. */
 export function rotateTile(puzzle: BloomPuzzle, state: BloomState, row: number, col: number): BloomState {
   if (!isRotatable(puzzle, row, col)) return state;
+  // A twin turns its other half with it.
+  const partner = twinOf(puzzle, row, col);
   return {
     rotations: state.rotations.map((line, r) =>
-      r === row ? line.map((value, c) => (c === col ? (value + 1) % 4 : value)) : line,
+      line.map((value, c) => ((r === row && c === col) || (partner && partner.row === r && partner.col === c) ? (value + 1) % 4 : value)),
     ),
   };
+}
+
+/** A twin tile's other half, or null. */
+export function twinOf(puzzle: BloomPuzzle, row: number, col: number): BloomCell | null {
+  for (const t of puzzle.twins ?? []) {
+    if (t.a.row === row && t.a.col === col) return t.b;
+    if (t.b.row === row && t.b.col === col) return t.a;
+  }
+  return null;
 }
 
 export function setRotation(state: BloomState, row: number, col: number, rotation: number): BloomState {

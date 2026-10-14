@@ -1,6 +1,6 @@
 import React from 'react';
 import { Group } from '@shopify/react-native-skia';
-import { BridgesPuzzle, BridgesState } from '../game/bridges';
+import { bridgeLinks, BridgesPuzzle, BridgesState, linkBetween } from '../game/bridges';
 import { BridgesBoardView, BridgesDrag } from './BridgesBoardView';
 import { ILLUSTRATION_HEIGHT, ILLUSTRATION_WIDTH } from './MechanicsCarousel';
 
@@ -41,6 +41,29 @@ const RING: BridgesPuzzle = {
   solution: [2, 0, 1, 1],
 };
 
+// ? . 3   the top left island is in fog: the rest says it takes two
+// . . .
+// 1 . 2
+const FOG_ISLANDS: BridgesPuzzle['islands'] = [
+  { row: 0, col: 0, need: 2, fog: true },
+  { row: 0, col: 2, need: 3 },
+  { row: 2, col: 0, need: 1 },
+  { row: 2, col: 2, need: 2 },
+];
+const FOG_BASE = { id: 'bridges-illustration-fog', difficulty: 'easy' as const, rows: 3, cols: 3, islands: FOG_ISLANDS };
+const FOG_BUILT = (() => {
+  const bridges = bridgeLinks(FOG_BASE).map(() => 0);
+  const set = (i: number, j: number, n: number) => {
+    const l = linkBetween({ ...FOG_BASE, solution: [] }, i, j);
+    if (l !== null) bridges[l] = n;
+  };
+  set(0, 1, 1);
+  set(0, 2, 1);
+  set(1, 3, 2);
+  return bridges;
+})();
+const FOG: BridgesPuzzle = { ...FOG_BASE, solution: FOG_BUILT };
+
 function Board({ puzzle, state, drag = null }: { puzzle: BridgesPuzzle; state: BridgesState; drag?: BridgesDrag | null }) {
   const size = ILLUSTRATION_HEIGHT - 16;
   return (
@@ -59,6 +82,8 @@ export function renderBridgesIllustration(kind: string): React.JSX.Element {
       return <Board puzzle={PAIR} state={{ bridges: [2] }} />;
     case 'network':
       return <Board puzzle={RING} state={{ bridges: RING.solution }} />;
+    case 'fog':
+      return <Board puzzle={FOG} state={{ bridges: FOG.solution }} />;
     default:
       return <Group />;
   }

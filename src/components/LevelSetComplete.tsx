@@ -94,7 +94,9 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
                 },
               ]}
             >
-              <Text style={styles.crestNumber}>{levelNumber}</Text>
+              <Text style={styles.crestNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+                {levelNumber}
+              </Text>
               {/* A bead round the medal for each game, lit in its colour as
                   that game is counted in. */}
               {kinds.map((kind, i) => {
@@ -301,8 +303,18 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.lg,
   },
   crestNumber: {
-    fontFamily: theme.typography.families.display,
-    fontSize: 30,
+    // Not the display face: Georgia's old-style figures hang a 3, 4, 5, 7
+    // or 9 below the line and lift a 6 or 8 above it, which left some
+    // level numbers sitting visibly low in the medal and others not.
+    // Lining figures all share one height, so every number sits centred.
+    fontFamily: theme.typography.families.figures,
+    fontSize: 32,
+    fontVariant: ['lining-nums', 'tabular-nums'],
+    lineHeight: 34,
+    width: CREST - 12,
+    textAlign: 'center',
+    includeFontPadding: false,
+    textAlignVertical: 'center',
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
   },

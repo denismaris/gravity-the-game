@@ -124,7 +124,12 @@ function chart(size: number, target: number, shape: BridgesShape, random: () => 
  * boards may fall to counting alone; medium and hard must need the
  * connection rules as well, so each tier asks for a new kind of thought.
  */
-export function generateBridges(id: string, name: string, difficulty: PuzzleDifficulty, salt = 0): BridgesPuzzle {
+/** What a later board brings: `fog` islands, whose numbers are hidden. */
+export interface BridgesRules {
+  readonly fog?: number;
+}
+
+export function generateBridges(id: string, name: string, difficulty: PuzzleDifficulty, salt = 0, rules: BridgesRules = {}): BridgesPuzzle {
   const shape = shapeForDifficulty(difficulty);
   const random = mulberry32(hashId(`${id}#${salt}`));
   for (let attempt = 0; attempt < 5000; attempt += 1) {
@@ -148,11 +153,33 @@ export function generateBridges(id: string, name: string, difficulty: PuzzleDiff
       const oldB = order[link.b];
       return charted.bridges.get(oldA < oldB ? `${oldA}:${oldB}` : `${oldB}:${oldA}`) ?? 0;
     });
-    const puzzle: BridgesPuzzle = { ...draft, solution };
-
-    if (!isSolvableByLogic(puzzle)) continue;
-    if (!shape.countingAlone && isSolvableByLogic(puzzle, false)) continue;
-    return puzzle;
+    const plain: BridgesPuzzle = { ...draft, solution };
+    if (!isSolvableByLogic(plain)) continue;
+    if (!shape.countingAlone && isSolvableByLogic(plain, false)) continue;
+    if (!rules.fog) return plain;
+    const foggy = withFog(plain, rules.fog, random);
+    if (foggy) return foggy;
   }
   throw new Error(`Bridges ${id}: no board found`);
+}
+
+/**
+ * `count` islands drawn into fog: their numbers hidden, one at a time,
+ * the bigger numbers first (a hidden 1 says little), and each kept only
+ * while the board still reasons out without a guess - which also keeps
+ * its answer the only one. Null if the board will not take that many.
+ */
+function withFog(puzzle: BridgesPuzzle, count: number, random: () => number): BridgesPuzzle | null {
+  let islands = puzzle.islands.slice();
+  let hidden = 0;
+  const order = islands.map((_island, i) => i).sort((a, b) => islands[b].need - islands[a].need + (random() - 0.5) * 2.5);
+  for (const i of order) {
+    if (hidden >= count) break;
+    if (islands[i].need < 2) continue;
+    const trial = islands.map((island, k) => (k === i ? { ...island, fog: true } : island));
+    if (!isSolvableByLogic({ ...puzzle, islands: trial })) continue;
+    islands = trial;
+    hidden += 1;
+  }
+  return hidden === count ? { ...puzzle, islands } : null;
 }

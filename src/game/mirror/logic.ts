@@ -58,6 +58,8 @@ export function isObstacle(puzzle: MirrorMazePuzzle, row: number, col: number): 
 export function isEligible(puzzle: MirrorMazePuzzle, row: number, col: number): boolean {
   if (row === puzzle.source.row && col === puzzle.source.col) return false;
   if (row === puzzle.target.row && col === puzzle.target.col) return false;
+  if (puzzle.filters?.some(f => f.row === row && f.col === col)) return false;
+  if (puzzle.splitters?.some(f => f.row === row && f.col === col)) return false;
   return !isObstacle(puzzle, row, col);
 }
 
@@ -97,6 +99,118 @@ export function setMirror(
   return { mirrors };
 }
 
+/** A cell's mirror as far as a trace knows: a mirror, none, or (for the
+ * solver's partial layouts) not yet decided. */
+export type DecidedMirror = MirrorKind | null | undefined;
+
+/** One stretch of beam in one colour, for drawing. */
+export interface BeamPiece {
+  readonly cells: ReadonlyArray<MirrorMazeCell>;
+  readonly ruby: boolean;
+}
+
+export interface BeamTrace {
+  /** Every stretch of light, in the order traced. */
+  readonly pieces: ReadonlyArray<BeamPiece>;
+  /** One whole path from the source: the one that reached the target if
+   * any did, else the first that ended. */
+  readonly primary: ReadonlyArray<MirrorMazeCell>;
+  /** The first undecided cell a beam reached (partial layouts only). */
+  readonly pending: MirrorMazeCell | null;
+  readonly reached: boolean;
+  /** Gems lit: crossed by the beam, and a ruby gem by a ruby beam. */
+  readonly lit: ReadonlySet<string>;
+}
+
+/**
+ * Every beam from the source, under mirrors given cell by cell. Without
+ * filters or splitters this is the one beam `traceBeam` always traced. A
+ * filter turns the beam ruby from its cell on; a splitter ends the beam
+ * there and sends two out to either side of it, traced one after the
+ * other. A beam stops at the target, the edge, an obstacle, or where it
+ * would retrace light already traced the same way in the same colour - so
+ * every trace ends.
+ */
+export function traceBeams(puzzle: MirrorMazePuzzle, mirrorAt: (row: number, col: number) => DecidedMirror): BeamTrace {
+  const filters = new Set((puzzle.filters ?? []).map(c => positionKey(c.row, c.col)));
+  const splitters = new Set((puzzle.splitters ?? []).map(c => positionKey(c.row, c.col)));
+  const gems = new Map(puzzle.gems.map((g, i) => [positionKey(g.row, g.col), puzzle.rubyGems?.includes(i) ?? false] as const));
+  const seen = new Set<string>();
+  const pieces: BeamPiece[] = [];
+  const lit = new Set<string>();
+  let reached = false;
+  let primary: MirrorMazeCell[] | null = null;
+  let firstPath: MirrorMazeCell[] | null = null;
+  interface Beam {
+    row: number;
+    col: number;
+    direction: Direction;
+    ruby: boolean;
+    path: MirrorMazeCell[];
+    piece: MirrorMazeCell[];
+    /** Just sent out of a splitter, still standing on it. */
+    fromSplit: boolean;
+  }
+  const start = { row: puzzle.source.row, col: puzzle.source.col };
+  const queue: Beam[] = [{ ...start, direction: puzzle.sourceDirection, ruby: false, path: [start], piece: [start], fromSplit: false }];
+  seen.add(stateKey(start.row, start.col, puzzle.sourceDirection));
+  while (queue.length > 0) {
+    const beam = queue.shift()!;
+    let { row, col, direction, ruby } = beam;
+    const path = [...beam.path];
+    let piece = [...beam.piece];
+    let split = false;
+    let onSplitter = beam.fromSplit;
+    for (;;) {
+      if (row === puzzle.target.row && col === puzzle.target.col) {
+        reached = true;
+        primary = primary ?? path;
+        break;
+      }
+      const key = positionKey(row, col);
+      if (filters.has(key) && !ruby) {
+        if (piece.length > 1) pieces.push({ cells: piece, ruby: false });
+        ruby = true;
+        piece = [{ row, col }];
+      }
+      if (splitters.has(key) && !onSplitter) {
+        pieces.push({ cells: piece, ruby });
+        const sideways: Direction[] = direction === 'up' || direction === 'down' ? ['left', 'right'] : ['up', 'down'];
+        for (const out of sideways) queue.push({ row, col, direction: out, ruby, path, piece: [{ row, col }], fromSplit: true });
+        split = true;
+        break;
+      }
+      const mirror = filters.has(key) || splitters.has(key) ? null : mirrorAt(row, col);
+      if (mirror === undefined) return { pieces, primary: primary ?? path, pending: { row, col }, reached, lit };
+      if (mirror) direction = reflect(direction, mirror);
+      const { dRow, dCol } = STEP[direction];
+      const nextRow = row + dRow;
+      const nextCol = col + dCol;
+      if (!inBounds(puzzle, nextRow, nextCol) || isObstacle(puzzle, nextRow, nextCol)) break;
+      const next = `${stateKey(nextRow, nextCol, direction)}:${ruby ? 'r' : 'w'}`;
+      if (seen.has(next)) break;
+      seen.add(next);
+      onSplitter = false;
+      row = nextRow;
+      col = nextCol;
+      path.push({ row, col });
+      piece.push({ row, col });
+      const gem = gems.get(positionKey(row, col));
+      if (gem !== undefined && (!gem || ruby)) lit.add(positionKey(row, col));
+    }
+    if (!split) {
+      pieces.push({ cells: piece, ruby });
+      firstPath = firstPath ?? path;
+    }
+  }
+  return { pieces, primary: primary ?? firstPath ?? [start], pending: null, reached, lit };
+}
+
+/** The whole trace under a finished layout. */
+export function traceAll(puzzle: MirrorMazePuzzle, state: MirrorMazeState): BeamTrace {
+  return traceBeams(puzzle, (r, c) => state.mirrors[r][c]);
+}
+
 /**
  * Traces the beam from `puzzle.source`/`sourceDirection` under the mirror
  * layout in `state`. Always terminates (see `stateKey`'s doc comment).
@@ -109,6 +223,7 @@ export function traceBeam(
   puzzle: MirrorMazePuzzle,
   state: MirrorMazeState,
 ): ReadonlyArray<MirrorMazeCell> {
+  if (puzzle.filters?.length || puzzle.splitters?.length) return traceAll(puzzle, state).primary;
   let row = puzzle.source.row;
   let col = puzzle.source.col;
   let direction = puzzle.sourceDirection;
@@ -144,6 +259,10 @@ export function traceBeam(
 /** Solved: the trace ends exactly on the target, having crossed every gem
  * (in any order) along the way. */
 export function isMirrorMazeSolved(puzzle: MirrorMazePuzzle, state: MirrorMazeState): boolean {
+  if (puzzle.filters?.length || puzzle.splitters?.length || puzzle.rubyGems?.length) {
+    const trace = traceAll(puzzle, state);
+    return trace.reached && puzzle.gems.every(g => trace.lit.has(positionKey(g.row, g.col)));
+  }
   const path = traceBeam(puzzle, state);
   const last = path[path.length - 1];
   if (last.row !== puzzle.target.row || last.col !== puzzle.target.col) return false;
@@ -154,6 +273,10 @@ export function isMirrorMazeSolved(puzzle: MirrorMazePuzzle, state: MirrorMazeSt
 
 /** Gems the current trace has not (yet) crossed - the "N LEFT" kicker metric. */
 export function remainingGems(puzzle: MirrorMazePuzzle, state: MirrorMazeState): number {
+  if (puzzle.filters?.length || puzzle.splitters?.length || puzzle.rubyGems?.length) {
+    const trace = traceAll(puzzle, state);
+    return puzzle.gems.filter(g => !trace.lit.has(positionKey(g.row, g.col))).length;
+  }
   const path = traceBeam(puzzle, state);
   const visited = new Set(path.map(c => positionKey(c.row, c.col)));
   return puzzle.gems.filter(g => !visited.has(positionKey(g.row, g.col))).length;

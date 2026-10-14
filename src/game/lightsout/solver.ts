@@ -1,5 +1,5 @@
-import { litCount, pressedCells } from './logic';
-import { LightsOutCell, LightsOutPuzzle, LightsOutState } from './types';
+import { effectOf, litCount } from './logic';
+import { LanternRules, LightsOutCell, LightsOutPuzzle, LightsOutState } from './types';
 
 /**
  * Lights Out is a linear system over GF(2), and solving it as one is
@@ -16,15 +16,19 @@ import { LightsOutCell, LightsOutPuzzle, LightsOutState } from './types';
  */
 
 /** Row `i` says: the presses that flip cell `i` must sum (mod 2) to
- * whether cell `i` is currently lit. Symmetric - pressing `j` flips `i`
- * exactly when pressing `i` would flip `j`. */
-function buildAugmentedSystem(size: number, state: LightsOutState): number[][] {
+ * whether cell `i` is currently lit. */
+function buildAugmentedSystem(size: number, state: LightsOutState, rules?: LanternRules): number[][] {
   const n = size * size;
+  const effects = Array.from({ length: n }, (_v, j) => effectOf(size, Math.floor(j / size), j % size, rules));
   const rows: number[][] = [];
   for (let r = 0; r < size; r += 1) {
     for (let c = 0; c < size; c += 1) {
       const row = new Array<number>(n + 1).fill(0);
-      for (const cell of pressedCells(size, r, c)) row[cell.row * size + cell.col] = 1;
+      // Column j: does pressing j switch lantern (r, c)? Under twins that
+      // is no longer symmetric, so it is asked of each press.
+      for (let j = 0; j < n; j += 1) {
+        if (effects[j].some(cell => cell.row === r && cell.col === c)) row[j] = 1;
+      }
       row[n] = state.lights[r][c] ? 1 : 0;
       rows.push(row);
     }
@@ -54,7 +58,7 @@ function buildAugmentedSystem(size: number, state: LightsOutState): number[][] {
 export function solveLightsOut(puzzle: LightsOutPuzzle, state: LightsOutState): ReadonlyArray<LightsOutCell> | null {
   const size = puzzle.size;
   const n = size * size;
-  const rows = buildAugmentedSystem(size, state);
+  const rows = buildAugmentedSystem(size, state, puzzle);
   const pivotOfCol = new Array<number>(n).fill(-1);
   let pivotRow = 0;
 
@@ -141,7 +145,7 @@ export function revealLightsOutHint(
   const solution = solveLightsOut(puzzle, state);
   if (!solution || solution.length === 0) return null;
   const cell = solution[0];
-  const flipped = new Set(pressedCells(puzzle.size, cell.row, cell.col).map(c => `${c.row}:${c.col}`));
+  const flipped = new Set(effectOf(puzzle.size, cell.row, cell.col, puzzle).map(c => `${c.row}:${c.col}`));
   return {
     cell,
     state: { lights: state.lights.map((line, r) => line.map((lit, c) => (flipped.has(`${r}:${c}`) ? !lit : lit))) },

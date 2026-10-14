@@ -24,6 +24,10 @@ export interface AdjacentPopup {
   readonly col: number;
   readonly gained: number;
   readonly multiplier: number;
+  /** The run had gold in it: its points were doubled. */
+  readonly golden?: boolean;
+  /** Stones this tap brought down to crumble. */
+  readonly crumbled?: number;
 }
 
 /**
@@ -71,7 +75,7 @@ function ScorePopup({ popup, x, y }: { popup: AdjacentPopup; x: number; y: numbe
     }).start();
   }, [rise]);
 
-  const loud = popup.multiplier > 1;
+  const loud = popup.multiplier > 1 || !!popup.golden || !!popup.crumbled;
 
   return (
     <Animated.View
@@ -89,11 +93,16 @@ function ScorePopup({ popup, x, y }: { popup: AdjacentPopup; x: number; y: numbe
         ],
       }}
     >
-      <Text style={[styles.popup, loud && styles.popupLoud]}>+{popup.gained}</Text>
-      {/* The bonus band, named only when there is one - a "1x" on every
-          ordinary pair would turn the one genuinely exciting label on
-          this board into wallpaper. */}
-      {loud && <Text style={styles.popupBonus}>{popup.multiplier}× BONUS</Text>}
+      <Text style={[styles.popup, loud && styles.popupLoud, popup.golden && styles.popupGold]}>+{popup.gained}</Text>
+      {/* What earned it, named only when it is more than an ordinary run -
+          a "1x" on every pair would turn the one genuinely exciting label
+          on this board into wallpaper. */}
+      {popup.golden ? (
+        <Text style={[styles.popupBonus, styles.popupGold]}>{popup.multiplier}× GOLD</Text>
+      ) : (
+        popup.multiplier > 1 && <Text style={styles.popupBonus}>{popup.multiplier}× BONUS</Text>
+      )}
+      {!!popup.crumbled && <Text style={[styles.popupBonus, styles.popupStone]}>{popup.crumbled === 1 ? 'STONE CRUMBLED' : `${popup.crumbled} STONES CRUMBLED`}</Text>}
     </Animated.View>
   );
 }
@@ -220,6 +229,8 @@ const styles = themedStyles(() => ({
   popupLoud: {
     color: theme.colors.adjacentAccent,
   },
+  popupGold: { color: theme.colors.gold },
+  popupStone: { color: theme.colors.textSecondary },
   popupBonus: {
     fontSize: theme.typography.sizes.caption,
     fontWeight: theme.typography.weights.bold,

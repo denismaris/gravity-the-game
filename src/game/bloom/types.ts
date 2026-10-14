@@ -43,6 +43,16 @@ export interface BloomPuzzle {
   /** Arcs shown already turned the right way and pinned, as clues. Knots
    * and empty cells are fixed by nature and are not listed here. */
   readonly pinned: ReadonlyArray<ReadonlyArray<boolean>>;
+  /** Twin tiles (later boards): two arcs that always turn together. */
+  readonly twins?: ReadonlyArray<BloomTwin>;
+}
+
+/** Two tied tiles that turn together, `b` standing `offset` quarter
+ * turns on from `a`. */
+export interface BloomTwin {
+  readonly a: BloomCell;
+  readonly b: BloomCell;
+  readonly offset: number;
 }
 
 export interface BloomState {

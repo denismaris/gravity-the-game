@@ -16,10 +16,12 @@ import {
   nextMirror,
   remainingGems,
   setMirror,
-  traceBeam, explainMirrorHint } from '../game/mirror';
+  traceAll, traceBeam, explainMirrorHint } from '../game/mirror';
 import { DifficultyChip, LevelSetComplete, MechanicsCarousel, MirrorMazeBoard, PressableScale, PuzzleSolved, renderMirrorMazeIllustration, useSolveCelebration } from '../components';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
+import { mechanic } from '../game/mechanics';
+import { MechanicIntro } from '../components/MechanicIntro';
 import { triggerFeedback, useAnimatedBeamReveal } from '../game/rendering';
 import { MIRROR_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
@@ -190,11 +192,9 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
       // The gem chime the instant this placement makes the beam newly
       // reach a gem it wasn't touching before; otherwise the glassy click
       // of a mirror turning.
-      const litBefore = new Set(traceBeam(puzzle, s).map(gemKey));
-      const litAfter = traceBeam(puzzle, next);
-      const gainedGem = puzzle.gems.some(
-        g => !litBefore.has(gemKey(g)) && litAfter.some(c => c.row === g.row && c.col === g.col),
-      );
+      const before = traceAll(puzzle, s).lit;
+      const after = traceAll(puzzle, next).lit;
+      const gainedGem = puzzle.gems.some(g => !before.has(gemKey(g)) && after.has(gemKey(g)));
       triggerFeedback(gainedGem ? 'mirrorGem' : 'mirrorPlace');
     },
     [puzzle],
@@ -333,6 +333,7 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
         />
       )}
 
+      <MechanicIntro intros={[...(puzzle.filters?.length ? [mechanic('mechanic:mirror-ruby')] : []), ...(puzzle.splitters?.length ? [mechanic('mechanic:mirror-splitter')] : [])]} accent={accentColorForKind('mirror')} />
       {showTutorial && <MechanicsCarousel slides={MIRROR_MECHANICS_SLIDES} renderIllustration={renderMirrorMazeIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('mirror')} />}
     </View>
   );

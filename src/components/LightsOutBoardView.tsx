@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Circle, Group, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Circle, Group, Path, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
 import { Easing, useDerivedValue, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { LightsOutCell, LightsOutPuzzle, LightsOutState } from '../game/lightsout';
 import { BoardLayout, computeBoardLayout, getCellOrigin, useReducedMotion } from '../game/rendering';
@@ -180,6 +180,25 @@ export function LightsOutBoardView({ puzzle, state, size, solved, flashCell }: L
       {/* The night the lamps burn against. */}
       <RoundedRect x={0} y={0} width={layout.boardSize} height={layout.boardSize} r={layout.cellSize * 0.16} color={theme.colors.lightsOutPanel} />
       <BoardTiles size={puzzle.size} layout={layout} tileSize={tileSize} />
+      {/* Twins: a thread tied from one to the other, under the lamps. */}
+      {(puzzle.twins ?? []).map(([a, b], i) => {
+        const pa = getCellOrigin(layout, a.row, a.col);
+        const pb = getCellOrigin(layout, b.row, b.col);
+        const h = layout.cellSize / 2;
+        const ax = pa.x + h;
+        const ay = pa.y + h;
+        const bx = pb.x + h;
+        const by = pb.y + h;
+        const sag = Math.min(layout.cellSize * 0.6, Math.hypot(bx - ax, by - ay) * 0.18);
+        return (
+          <Group key={`twin-${i}`}>
+            <Path path={`M ${ax} ${ay} Q ${(ax + bx) / 2} ${(ay + by) / 2 + sag} ${bx} ${by}`} color={theme.colors.lightsOutLit} style="stroke" strokeWidth={2} strokeCap="round" opacity={0.55} />
+            {[pa, pb].map((p, k) => (
+              <Circle key={k} cx={p.x + h} cy={p.y + h + tileSize * 0.36} r={2.5} color={theme.colors.lightsOutLit} opacity={0.8} />
+            ))}
+          </Group>
+        );
+      })}
 
       {state.lights.map((line, r) =>
         line.map((lit, c) => {
@@ -228,6 +247,7 @@ export function LightsOutBoardView({ puzzle, state, size, solved, flashCell }: L
     </Group>
   );
 }
+
 
 /** The empty tiles, drawn once: they never change. */
 const BoardTiles = React.memo(function BoardTilesImpl({ size, layout, tileSize }: { size: number; layout: BoardLayout; tileSize: number }) {

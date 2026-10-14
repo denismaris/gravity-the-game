@@ -9,6 +9,7 @@ import { cutOff, getLilyTrial, hop, hopsFrom, initialLilyState, isLilySolved, is
 import { triggerFeedback } from '../game/rendering';
 import { LILY_MECHANICS_SLIDES } from '../game/tutorials';
 import { theme } from '../theme';
+import { mechanic } from '../game/mechanics';
 
 const RESERVED = 300;
 
@@ -60,7 +61,8 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
   const stranded = isStranded(puzzle, state);
   const reach = useMemo(() => hopsFrom(puzzle, state), [puzzle, state]);
   const lonely = useMemo(() => cutOff(puzzle, state), [puzzle, state]);
-  const left = padsLeft(state) - 1;
+  const left = padsLeft(state) - (state.stones?.[state.at] ? 0 : 1);
+  const total = puzzle.pads.filter((_p, i) => !puzzle.stones?.[i]).length;
 
   // Sounds land with the frog, not with the finger.
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -129,8 +131,9 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
       name={puzzle.name}
       difficulty={puzzle.difficulty}
       kicker={kicker}
-      progress={(puzzle.pads.length - 1 - left) / Math.max(1, puzzle.pads.length - 1)}
+      progress={(total - 1 - left) / Math.max(1, total - 1)}
       introduce={puzzle.lotus?.some(Boolean) ? LOTUS_INTRO : null}
+      intros={puzzle.stones?.some(Boolean) ? [mechanic('mechanic:lily-stones')] : []}
       slides={LILY_MECHANICS_SLIDES}
       renderIllustration={renderLilyIllustration}
       solved={solved}

@@ -38,7 +38,9 @@ export function deduceBridges(puzzle: BridgesPuzzle, connected = true, start?: B
   const byIsland = linksByIsland(puzzle);
   const islands = puzzle.islands;
   const lo = start ? start.lo.slice() : links.map(() => 0);
-  const hi = start ? start.hi.slice() : links.map(link => Math.min(2, islands[link.a].need, islands[link.b].need));
+  // What a player can see of an island's number: none, for one in fog.
+  const shown = (i: number) => (islands[i].fog ? 8 : islands[i].need);
+  const hi = start ? start.hi.slice() : links.map(link => Math.min(2, shown(link.a), shown(link.b)));
   const fail = (): Deduction => ({ lo, hi, broken: true, complete: false });
 
   // Union-find over the islands, joined along `use` links.
@@ -59,7 +61,8 @@ export function deduceBridges(puzzle: BridgesPuzzle, connected = true, start?: B
     const size = new Map<number, number>();
     islands.forEach((island, i) => {
       const sum = byIsland[i].reduce((s, l) => s + floor[l], 0);
-      full.set(roots[i], (full.get(roots[i]) ?? true) && sum === island.need);
+      // An island in fog is never known to be full.
+      full.set(roots[i], (full.get(roots[i]) ?? true) && !island.fog && sum === island.need);
       size.set(roots[i], (size.get(roots[i]) ?? 0) + 1);
     });
     for (const [root, isFull] of full) if (isFull && (size.get(root) ?? 0) < islands.length) return true;
@@ -80,8 +83,9 @@ export function deduceBridges(puzzle: BridgesPuzzle, connected = true, start?: B
       return lo[l] <= hi[l];
     };
 
-    // Counting.
+    // Counting - of the islands whose numbers can be seen.
     for (let i = 0; i < islands.length; i += 1) {
+      if (islands[i].fog) continue;
       const lanes = byIsland[i];
       const sumLo = lanes.reduce((s, l) => s + lo[l], 0);
       const sumHi = lanes.reduce((s, l) => s + hi[l], 0);

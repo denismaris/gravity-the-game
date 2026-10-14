@@ -1,7 +1,7 @@
 import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { litCount, press } from './logic';
 import { parFor } from './solver';
-import { LightsOutPuzzle, LightsOutState } from './types';
+import { LanternRules, LightsOutCell, LightsOutPuzzle, LightsOutState } from './types';
 
 /**
  * Generation runs the puzzle backwards: start from the finished board
@@ -80,14 +80,40 @@ function allOff(size: number): LightsOutState {
   return { lights: Array.from({ length: size }, () => Array.from({ length: size }, () => false)) };
 }
 
+/**
+ * A later board's twins, from its own random stream: `twins` pairs, never
+ * side by side (a twin beside its partner would switch it twice, which is
+ * no twin at all).
+ */
+export function lanternRules(size: number, twins: number, random: () => number): LanternRules {
+  const taken = new Set<string>();
+  const pick = (): LightsOutCell => {
+    for (;;) {
+      const cell = { row: Math.floor(random() * size), col: Math.floor(random() * size) };
+      if (!taken.has(`${cell.row}:${cell.col}`)) {
+        taken.add(`${cell.row}:${cell.col}`);
+        return cell;
+      }
+    }
+  };
+  const pairs: Array<readonly [LightsOutCell, LightsOutCell]> = [];
+  while (pairs.length < twins) {
+    const a = pick();
+    let b = pick();
+    while (Math.abs(a.row - b.row) + Math.abs(a.col - b.col) < 2) b = pick();
+    pairs.push([a, b]);
+  }
+  return pairs.length ? { twins: pairs } : {};
+}
+
 /** One attempt: press `count` distinct random cells on an empty board. */
-function attempt(size: number, count: number, random: () => number): LightsOutState {
+function attempt(size: number, count: number, random: () => number, rules?: LanternRules): LightsOutState {
   const cells = new Set<number>();
   while (cells.size < count) cells.add(Math.floor(random() * size * size));
 
   let state = allOff(size);
   for (const index of cells) {
-    state = press(state, size, Math.floor(index / size), index % size);
+    state = press(state, size, Math.floor(index / size), index % size, rules);
   }
   return state;
 }
@@ -104,22 +130,23 @@ const MAX_ATTEMPTS = 4000;
  * solver rather than assumed from the number of presses used to make it.
  * Deterministic from `id`.
  */
-export function generateLightsOut(id: string, name: string, difficulty: PuzzleDifficulty, targetPar: number): LightsOutPuzzle {
+export function generateLightsOut(id: string, name: string, difficulty: PuzzleDifficulty, targetPar: number, extra?: { twins: number }): LightsOutPuzzle {
   const shape = shapeForDifficulty(difficulty);
   if (targetPar < shape.minPar || targetPar > shape.maxPar) {
     throw new Error(`Lights Out ${id}: par ${targetPar} is outside the ${difficulty} band (${shape.minPar}-${shape.maxPar}).`);
   }
   const random = mulberry32(hashId(id));
+  const rules = extra ? lanternRules(shape.size, extra.twins, random) : undefined;
 
   for (let i = 0; i < MAX_ATTEMPTS; i += 1) {
     // Seeded from a press count at or just above the target: a smaller
     // set can never reach a larger par, and too large a set usually
     // collapses back down to something much shorter.
     const presses = targetPar + Math.floor(random() * 3);
-    const state = attempt(shape.size, presses, random);
+    const state = attempt(shape.size, presses, random, rules);
     if (litCount(state) === 0) continue;
 
-    const candidate: LightsOutPuzzle = { id, name, difficulty, size: shape.size, initial: state.lights, par: targetPar };
+    const candidate: LightsOutPuzzle = { id, name, difficulty, size: shape.size, initial: state.lights, par: targetPar, ...rules };
     if (parFor(candidate) === targetPar) return candidate;
   }
 

@@ -110,6 +110,9 @@ export interface LevelDefinition {
    * portal endpoint (all rejected by `assertValidLevel`).
    */
   readonly hazards?: ReadonlyArray<GridPosition>;
+  /** Soft sand: an object sliding onto it stops there. Optional. Never on
+   * an obstacle, target, hazard, anchor or portal endpoint. */
+  readonly sand?: ReadonlyArray<GridPosition>;
   readonly difficulty: Difficulty;
   readonly metadata?: LevelMetadata;
 }
@@ -268,6 +271,19 @@ export function assertValidLevel(level: LevelDefinition): void {
     }
   }
 
+  // Sand sits on plain cells only.
+  const sand = level.sand ?? [];
+  const special = new Set<string>();
+  const plainOnly = (label: string, position: GridPosition) => {
+    checkBounds(label, position);
+    const key = keyOf(position);
+    if (obstacleKeys.has(key) || targetKeys.has(key) || hazardKeys.has(key) || anchorKeys.has(key) || portalKeys.has(key) || special.has(key)) {
+      throw new Error(`Level ${level.id}: a ${label} at (${key}) shares its cell with something else.`);
+    }
+    special.add(key);
+  };
+  sand.forEach(position => plainOnly('sand cell', position));
+
   // The gravity zone is a well-formed rectangle inside the board. It is a
   // property of the cells it covers, so it may overlap anything else.
   if (level.zone) {
@@ -331,6 +347,9 @@ export function createGameStateFromLevel(level: LevelDefinition): GameState {
   }
   for (const { row, col } of level.hazards ?? []) {
     staticGrid[row][col] = StaticCellType.Hazard;
+  }
+  for (const { row, col } of level.sand ?? []) {
+    staticGrid[row][col] = StaticCellType.Sand;
   }
 
   const movables: MovableObject[] = [

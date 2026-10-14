@@ -34,6 +34,8 @@ import {
 import { PageBloom } from '../components/PageBloom';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
+import { mechanic } from '../game/mechanics';
+import { MechanicIntro } from '../components/MechanicIntro';
 import { playHapticEvents, triggerFeedback, triggerSound } from '../game/rendering';
 import { BRIDGES_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
@@ -389,6 +391,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
         <LevelSetComplete levelNumber={finishedSetRef.current.levelNumber} kinds={finishedSetRef.current.puzzles.map(p => p.kind)} onContinue={goNext} />
       )}
 
+      <MechanicIntro intros={puzzle.islands.some(i => i.fog) ? [mechanic('mechanic:bridges-fog')] : []} accent={accentColorForKind('bridges')} />
       {showTutorial && <MechanicsCarousel slides={BRIDGES_MECHANICS_SLIDES} renderIllustration={renderBridgesIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('bridges')} />}
     </View>
   );

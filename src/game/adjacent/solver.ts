@@ -1,5 +1,5 @@
-import { applyTap, cascadeScore, groupAt, hasLegalMove, initialAdjacentState, legalMoves, tileCount } from './logic';
-import { AdjacentCell, AdjacentCoord, AdjacentPuzzle, AdjacentState } from './types';
+import { applyTap, cascadeScore, crumbling, groupAt, hasLegalMove, initialAdjacentState, legalMoves, STONE_BONUS, tileCount } from './logic';
+import { AdjacentCell, AdjacentCoord, AdjacentPuzzle, AdjacentState, GOLD, STONE } from './types';
 
 /**
  * Adjacent's answer to the question every other game in this app settles
@@ -75,6 +75,16 @@ function bySize(grid: AdjacentState['grid'], moves: ReadonlyArray<AdjacentCoord>
  * something much larger later. Neither dominates, which is exactly why
  * this searches instead of picking one and calling it optimal.
  */
+/** The biggest run without gold; gold only once it joins a run of six,
+ * or nothing else is left. */
+function holdGold(grid: AdjacentState['grid'], moves: ReadonlyArray<AdjacentCoord>): AdjacentCoord {
+  const golden = (m: AdjacentCoord) => groupAt(grid, m.row, m.col).some(c => grid[c.row][c.col] === GOLD);
+  const big = moves.filter(m => golden(m) && groupAt(grid, m.row, m.col).length >= 6);
+  if (big.length) return bySize(grid, big, true);
+  const plain = moves.filter(m => !golden(m));
+  return bySize(grid, plain.length ? plain : moves, true);
+}
+
 function playout(puzzle: AdjacentPuzzle, strategy: Strategy): AdjacentLine {
   let state = initialAdjacentState(puzzle);
   const taps: AdjacentCoord[] = [];
@@ -139,6 +149,11 @@ export function searchAdjacent(puzzle: AdjacentPuzzle, options: SearchOptions = 
   };
 
   consider(playout(puzzle, (grid, moves) => bySize(grid, moves, false)));
+  // Gold rewards patience, which neither size rule nor a random line
+  // has: one more line holds the gold back for the biggest run it can
+  // join. Only on a tray with gold, so every plain tray is searched
+  // exactly as it always was.
+  if (puzzle.initial.some(line => line.includes(GOLD))) consider(playout(puzzle, holdGold));
   for (let i = 0; i < attempts; i += 1) {
     consider(playout(puzzle, (_grid, moves) => moves[Math.floor(rng() * moves.length)]));
   }
@@ -163,15 +178,19 @@ export function searchBestScore(puzzle: AdjacentPuzzle, options: SearchOptions =
  */
 function bestSingleClearBound(grid: ReadonlyArray<ReadonlyArray<AdjacentCell>>): number {
   const counts = new Map<number, number>();
+  let golds = 0;
   for (const line of grid) {
     for (const cell of line) {
-      if (cell === null) continue;
-      counts.set(cell, (counts.get(cell) ?? 0) + 1);
+      if (cell === null || cell === STONE) continue;
+      if (cell === GOLD) golds += 1;
+      else counts.set(cell, (counts.get(cell) ?? 0) + 1);
     }
   }
   let most = 0;
   for (const count of counts.values()) most = Math.max(most, count);
-  return cascadeScore(most);
+  // Every stone still up might come down on this tap.
+  const stones = grid.reduce((n, line) => n + line.filter(cell => cell === STONE).length, 0);
+  return cascadeScore(most + golds) * (golds > 0 ? 2 : 1) + stones * STONE_BONUS;
 }
 
 /**
@@ -255,13 +274,17 @@ export function assertValidAdjacent(puzzle: AdjacentPuzzle, options: ValidationO
     for (let col = 0; col < size; col += 1) {
       const cell = initial[row][col];
       if (cell === null) continue;
-      if (!Number.isInteger(cell) || cell < 0 || cell >= colors) {
+      if (!Number.isInteger(cell) || cell < GOLD || cell >= colors) {
         throw new Error(`Adjacent ${id}: cell ${row},${col} is colour ${cell}, outside the 0-${colors - 1} palette.`);
       }
       // A floating tile would fall the instant the board was touched,
       // which means the board a player is shown is not the board they
       // get - and every `fromRow`/`toRow` the renderer animates would be
       // measured from a position that never really existed.
+      // A stone resting on the floor would crumble at the first tap.
+      if (cell === STONE && crumbling(initial).some(c => c.row === row && c.col === col)) {
+        throw new Error(`Adjacent ${id}: stone ${row},${col} already rests on the floor.`);
+      }
       if (row + 1 < size && initial[row + 1][col] === null) {
         throw new Error(`Adjacent ${id}: tile ${row},${col} is floating - the board as dealt must already be settled.`);
       }

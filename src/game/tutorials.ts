@@ -5,7 +5,7 @@ import { LevelDefinition } from './levels';
  * on the board and so earn their own one-time explainer. `gravity` /
  * `targets` / `multi-object` are covered by the Gravity game-intro tutorial
  * itself, not listed separately here. */
-export type MechanicTutorialId = 'obstacles' | 'anchored' | 'portals' | 'gravity-zone' | 'hazard';
+export type MechanicTutorialId = 'obstacles' | 'anchored' | 'portals' | 'gravity-zone' | 'hazard' | 'sand';
 
 /** A tutorial's stable id, persisted in `Settings.seenTutorials` - never
  * rename or reuse one, or a returning player would see the wrong copy (or
@@ -123,6 +123,12 @@ export const GRAVITY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     illustration: 'multi',
     tip: "Bring the hardest piece home first, then use the others as stoppers. Undo is free, and Insight shows the next swipe.",
   },
+  {
+    title: 'Soft sand',
+    body: "Later boards have patches of sand. A ball that rolls onto sand stops right there, and rolls off again on the next swipe.",
+    illustration: 'sand',
+    tip: "Sand is a stop in the open: use it to halt a ball where no wall would.",
+  },
 ];
 
 /**
@@ -155,6 +161,18 @@ export const MIRROR_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     body: "Once the beam has passed every gem and ends on the target, the puzzle is solved.",
     illustration: 'target',
     tip: "Stuck? Insight follows your own beam and fixes the first mirror that sends it astray.",
+  },
+  {
+    title: 'Ruby light',
+    body: "Gems with a red ring only light for a red beam. The beam turns red when it passes through the square of red glass, and stays red from there on.",
+    illustration: 'ruby',
+    tip: "Left, the beam reaches the ruby gem first and it stays dark. Right, it passes the red glass first, and the gem lights. Plan the route through the glass before any ruby gem.",
+  },
+  {
+    title: 'Splitters',
+    body: "A cut crystal splits the beam in two, out to either side. Either half can light gems, and one half must reach the target.",
+    illustration: 'splitter',
+    tip: "Give each half a job: one for the target, one for the gems the other cannot reach.",
   },
 ];
 
@@ -217,6 +235,12 @@ export const GLASS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     illustration: 'finish',
     tip: "Stuck? Insight sets the pane the window is readiest for, and says why.",
   },
+  {
+    title: 'Vines',
+    body: "Later windows have vines: two leaf panes joined by a green stem. Of the two, exactly one is the fourth glass, emerald, and no other pane ever is.",
+    illustration: 'leaf',
+    tip: "A leaf pane that touches emerald, or touches ruby, cobalt and amber, decides its vine: the one that can be emerald is.",
+  },
 ];
 
 /**
@@ -245,6 +269,12 @@ export const LIGHTSOUT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     illustration: 'dark',
     tip: "Work row by row: to put out a lit lantern, tap the one just below it. Stuck? Insight shows the next tap.",
   },
+  {
+    title: 'Twin lanterns',
+    body: "Two lanterns tied by a golden thread are twins. Tapping either one also switches the other, wherever it is.",
+    illustration: 'twins',
+    tip: "A twin reaches across the board: use it to fix a lantern no ordinary tap can get to.",
+  },
 ];
 
 export const BLOOM_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
@@ -265,6 +295,12 @@ export const BLOOM_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     body: "A loop that closes fills with colour. Close every loop, with no loose ends anywhere, to finish the board.",
     illustration: 'bloom',
     tip: "A loose end always points at the tile that needs turning. Stuck? Insight turns the tile closest to settled.",
+  },
+  {
+    title: 'Twin tiles',
+    body: "Two tiles with matching rings are twins. Turn one and the other turns with it, the same way.",
+    illustration: 'twins',
+    tip: "Twins come right together: find one's place and the other is set too.",
   },
 ];
 
@@ -308,6 +344,12 @@ export const BRIDGES_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     illustration: 'network',
     tip: "Never close a finished group off from the rest. Stuck? Insight builds the bridge the numbers force.",
   },
+  {
+    title: 'Islands in fog',
+    body: "Later boards hide some islands in fog. A fog island shows no number: work out how many bridges it takes from the islands round it.",
+    illustration: 'fog',
+    tip: "Solve everything round a fog island first. Whatever its neighbours still need from it is its number.",
+  },
 ];
 
 export const ADJACENT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
@@ -328,6 +370,18 @@ export const ADJACENT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     body: "Bigger groups score much more per tile. Reach the target score, or clear the whole tray, to finish.",
     illustration: 'target',
     tip: "Save your big groups until they grow. Stuck? Insight looks ahead and points at the best tap.",
+  },
+  {
+    title: 'Stones',
+    body: "Later trays hold grey stones. A stone joins no group. Clear everything beneath it and it lands on the floor and crumbles, for 200 points.",
+    illustration: 'stone',
+    tip: "Dig under a stone with your bigger groups: the run scores, and the stone pays too.",
+  },
+  {
+    title: 'Gold tiles',
+    body: "A gold tile joins a group of any colour it touches, and a group with gold in it scores double.",
+    illustration: 'gold',
+    tip: "Gold can join two colours, but only one group takes it. Spend it on the biggest.",
   },
 ];
 
@@ -362,6 +416,12 @@ export const LILY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     body: 'Visit every pad, ending on the last one, and a water lily opens under the frog.',
     illustration: 'clear',
     tip: 'Stuck? Insight finds a hop that keeps every pad in reach, going back first if it has to.',
+  },
+  {
+    title: 'Stepping stones',
+    body: 'Later ponds have grey stones. The frog can land on a stone and leave it as often as it likes. A stone never sinks and is not a pad to clear.',
+    illustration: 'stones',
+    tip: 'A stone stops a hop just like a pad, so it can get the frog to a pad no hop reaches.',
   },
 ];
 
@@ -471,6 +531,10 @@ const MECHANIC_INTROS: Record<MechanicTutorialId, TutorialCopy> = {
     title: 'Hazard',
     body: 'Careful. Sliding a piece onto one destroys it and ends the attempt. Route around it.',
   },
+  sand: {
+    title: 'Soft sand',
+    body: 'A ball that rolls onto sand sinks in and stops right there. On the next tilt it rolls off again as usual.',
+  },
 };
 
 /** The one-time id for a game's own "how to play" overlay. */
@@ -504,6 +568,7 @@ export function mechanicsOf(level: LevelDefinition): MechanicTutorialId[] {
   if (level.portals && level.portals.length > 0) mechanics.push('portals');
   if (level.zone) mechanics.push('gravity-zone');
   if (level.hazards && level.hazards.length > 0) mechanics.push('hazard');
+  if (level.sand && level.sand.length > 0) mechanics.push('sand');
   return mechanics;
 }
 

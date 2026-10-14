@@ -16,6 +16,8 @@ import {
   initialAdjacentState,
   isAdjacentSolved,
   isAdjacentStuck,
+  GOLD,
+  STONE,
 } from '../game/adjacent';
 import {
   AdjacentAnimation,
@@ -41,6 +43,8 @@ import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { HintNote } from '../components/HintNote';
+import { MechanicIntro } from '../components/MechanicIntro';
+import { mechanic } from '../game/mechanics';
 import { HintKind } from '../game/hints';
 import { UNDO_COST } from '../progression/coins';
 import { useStageEntrance } from '../components/useStageEntrance';
@@ -261,13 +265,14 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
       });
 
       popupId.current += 1;
-      const popup: AdjacentPopup = { id: popupId.current, row, col, gained: move.gained, multiplier: move.multiplier };
+      const golden = move.removed.some(cell => current.grid[cell.row][cell.col] === GOLD);
+      const popup: AdjacentPopup = { id: popupId.current, row, col, gained: move.gained, multiplier: move.multiplier, golden, crumbled: move.crumbled };
       setPopups(list => [...list, popup]);
       track(setTimeout(() => setPopups(list => list.filter(p => p.id !== popup.id)), POPUP_MS));
 
       // A run big enough to earn a bonus band gets the louder cue - the
       // one moment in a move worth marking by ear.
-      triggerFeedback(move.multiplier > 1 ? 'adjacentCombo' : 'adjacentPop');
+      triggerFeedback(move.multiplier > 1 || golden || move.crumbled ? 'adjacentCombo' : 'adjacentPop');
     },
     [solved, stuck, track],
   );
@@ -434,6 +439,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
         />
       )}
 
+      <MechanicIntro intros={introsFor(puzzle)} accent={accentColorForKind('adjacent')} />
       {showTutorial && <MechanicsCarousel slides={ADJACENT_MECHANICS_SLIDES} renderIllustration={renderAdjacentIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('adjacent')} />}
     </View>
   );
@@ -617,3 +623,9 @@ const styles = themedStyles(() => ({
   // the one labelled button, Insight - the same row on every game.
   roundKey: { width: 46, height: 46, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
 }));
+
+/** The rules this tray brings, for the one-time card. */
+function introsFor(puzzle: AdjacentPuzzle) {
+  const cells = puzzle.initial.flat();
+  return [...(cells.includes(STONE) ? [mechanic('mechanic:adjacent-stone')] : []), ...(cells.includes(GOLD) ? [mechanic('mechanic:adjacent-gold')] : [])];
+}

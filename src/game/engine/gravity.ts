@@ -52,6 +52,11 @@ function isHazard(state: GameState, row: number, col: number): boolean {
   return state.staticGrid[row][col] === StaticCellType.Hazard;
 }
 
+function isSand(state: GameState, row: number, col: number): boolean {
+  return state.staticGrid[row][col] === StaticCellType.Sand;
+}
+
+
 function positionKey(row: number, col: number): string {
   return `${row}:${col}`;
 }
@@ -210,6 +215,8 @@ export function applyGravity(state: GameState, direction: Direction): GameState 
           destroyed = true;
           break;
         }
+        // Sand holds whatever slides onto it.
+        if (isSand(state, row, col)) break;
       }
 
       occupied.add(positionKey(row, col));

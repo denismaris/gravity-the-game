@@ -1,5 +1,5 @@
-export type { LightsOutCell, LightsOutPuzzle, LightsOutState } from './types';
-export { initialLightsOutState, isLightsOutSolved, litCount, press, pressedCells } from './logic';
+export type { LanternRules, LightsOutCell, LightsOutPuzzle, LightsOutState } from './types';
+export { effectOf, initialLightsOutState, isLightsOutSolved, litCount, press, pressedCells } from './logic';
 export { assertValidLightsOut, parFor, revealLightsOutHint, solveLightsOut } from './solver';
 export { generateLightsOut, shapeForDifficulty } from './generator';
 export type { LightsOutShape } from './generator';

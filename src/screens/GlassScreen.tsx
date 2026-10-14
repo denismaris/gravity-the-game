@@ -7,14 +7,16 @@ import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { GLASS_ARCH, GlassBoard, glassColor, glassTexture, StrokePhase } from '../components/GlassBoard';
 import { HelpHalo } from '../components/HelpHalo';
 import { HintNote } from '../components/HintNote';
+import { MechanicIntro } from '../components/MechanicIntro';
 import { BackLabel, Icon } from '../components/Icon';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { PageBloom } from '../components/PageBloom';
 import { StageTopGap } from '../components/StageTopGap';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { useStageEntrance } from '../components/useStageEntrance';
-import { clashes, GLASS_COLORS, GLASS_COLOR_NAMES, GlassColor, glassHint, GlassPuzzle, GlassState, initialGlassState, isGlassSolved, paint, panesLeft } from '../game/glass';
+import { clashes, GLASS_COLOR_NAMES, glassesFor, trayOf, GlassColor, glassHint, GlassPuzzle, GlassState, initialGlassState, isGlassSolved, paint, panesLeft } from '../game/glass';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
+import { mechanic } from '../game/mechanics';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { shade, triggerFeedback } from '../game/rendering';
 import { GLASS_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
@@ -117,7 +119,8 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
     (pane: number, phase: StrokePhase) => {
       if (solved) return;
       const current = stateRef.current;
-      if (puzzle.given[pane] !== null) {
+      // A given pane, or emerald on a pane with no leaf: nothing to set.
+      if (puzzle.given[pane] !== null || (brush !== null && !glassesFor(puzzle, pane).includes(brush))) {
         if (phase === 'start') triggerFeedback('glassLift');
         return;
       }
@@ -131,7 +134,7 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
       stateRef.current = next;
       setState(next);
       const more = clashes(puzzle, next).length > clashes(puzzle, current).length;
-      triggerFeedback(color === null ? 'glassLift' : more ? 'glassClash' : (['glassRuby', 'glassCobalt', 'glassAmber'] as const)[color]);
+      triggerFeedback(color === null ? 'glassLift' : more ? 'glassClash' : (['glassRuby', 'glassCobalt', 'glassAmber', 'glassCobalt'] as const)[color]);
     },
     [puzzle, brush, solved],
   );
@@ -219,7 +222,7 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
 
         {/* The glass to set, in a tray like Mosaic's pieces. */}
         <Animated.View style={[styles.palette, controlsIn]}>
-          {[...GLASS_COLORS, null].map(color => (
+          {[...trayOf(puzzle), null].map(color => (
             <Swatch key={String(color)} color={color} selected={brush === color} onPress={() => setBrush(color)} />
           ))}
         </Animated.View>
@@ -258,6 +261,7 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
         <LevelSetComplete levelNumber={finishedSetRef.current.levelNumber} kinds={finishedSetRef.current.puzzles.map(p => p.kind)} onContinue={goNext} />
       )}
 
+      <MechanicIntro intros={puzzle.vines?.length ? [mechanic('mechanic:glass-vines')] : []} accent={accentColorForKind('glass')} />
       {showHelp && <MechanicsCarousel slides={GLASS_MECHANICS_SLIDES} renderIllustration={renderGlassIllustration} onDone={dismissHelp} accentColor={accentColorForKind('glass')} />}
     </View>
   );

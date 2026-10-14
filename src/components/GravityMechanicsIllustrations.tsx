@@ -1,6 +1,7 @@
 import React from 'react';
 import { Circle, Group, Path } from '@shopify/react-native-skia';
-import { CellBackground, MovablePiece, TargetMarker } from '../game/rendering';
+import { BoardView, CellBackground, MovablePiece, TargetMarker } from '../game/rendering';
+import { GameState, StaticCellType } from '../game/engine';
 import { ILLUSTRATION_HEIGHT, ILLUSTRATION_WIDTH } from './MechanicsCarousel';
 import { theme } from '../theme';
 
@@ -21,9 +22,35 @@ export function renderGravityIllustration(kind: string): React.JSX.Element {
       return <TargetIllustration />;
     case 'multi':
       return <MultiIllustration />;
+    case 'sand':
+      // A ball rolled right from the left edge, held by the sand halfway.
+      return <RealRow cells="..s." balls={[2]} />;
     default:
       return <Group />;
   }
+}
+
+/**
+ * One row of the real board, drawn by `BoardView` itself: `.` an empty
+ * cell and `s` sand; `balls` the columns a ball sits in.
+ */
+function RealRow({ cells, balls }: { cells: string; balls: ReadonlyArray<number> }): React.JSX.Element {
+  const kinds = [...cells].map(ch => (ch === 's' ? StaticCellType.Sand : StaticCellType.Empty));
+  const state: GameState = {
+    rows: 1,
+    cols: cells.length,
+    staticGrid: [kinds],
+    movables: balls.map(col => ({ id: `b${col}`, row: 0, col })),
+    portals: [],
+    zone: null,
+  };
+  const size = Math.min(ILLUSTRATION_WIDTH - 20, (ILLUSTRATION_HEIGHT - 20) * cells.length);
+  const cell = size / cells.length;
+  return (
+    <Group transform={[{ translateX: (ILLUSTRATION_WIDTH - size) / 2 }, { translateY: (ILLUSTRATION_HEIGHT - cell) / 2 }]}>
+      <BoardView state={state} size={size} />
+    </Group>
+  );
 }
 
 const CELL = 56;

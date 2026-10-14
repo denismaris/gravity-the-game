@@ -3,6 +3,7 @@ import { Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
 import { ILLUSTRATION_HEIGHT, ILLUSTRATION_WIDTH } from './MechanicsCarousel';
 import { adjacentTileColor } from './AdjacentBoardView';
 import { theme } from '../theme';
+import { GOLD, STONE } from '../game/adjacent';
 
 /**
  * Adjacent's own `MechanicsCarousel` illustrations, one per
@@ -56,6 +57,14 @@ function Tile({
   }
 
   const glyph = ((): React.JSX.Element => {
+    if (colour === STONE) {
+      return <Path path={`M ${cx - r * 0.8} ${cy - r * 0.3} L ${cx - r * 0.1} ${cy} L ${cx + r * 0.2} ${cy + r * 0.5} L ${cx + r * 0.75} ${cy + r * 0.6}`} color={ink} style="stroke" strokeWidth={1.4} strokeCap="round" />;
+    }
+    if (colour === GOLD) {
+      const k = r * 0.85;
+      const w = r * 0.2;
+      return <Path path={`M ${cx} ${cy - k} Q ${cx + w} ${cy - w} ${cx + k} ${cy} Q ${cx + w} ${cy + w} ${cx} ${cy + k} Q ${cx - w} ${cy + w} ${cx - k} ${cy} Q ${cx - w} ${cy - w} ${cx} ${cy - k} Z`} color={theme.colors.onGold} />;
+    }
     switch (colour % 5) {
       case 0:
         return <Circle cx={cx} cy={cy} r={r * 0.62} color={ink} />;
@@ -86,18 +95,18 @@ function Tile({
  * slot - the same shorthand the engine's own tests read in, so an
  * illustration and a test fixture describe a board the same way.
  */
-function board(rows: ReadonlyArray<string>, originX: number, originY: number, ringed?: ReadonlyArray<string>): React.JSX.Element {
+function board(rows: ReadonlyArray<string>, originX: number, originY: number, ringed?: ReadonlyArray<string>, width = GRID_W): React.JSX.Element {
   const ring = new Set(ringed ?? []);
   return (
     <Group>
-      {tray(originX - 4, originY - 4, GRID_W + 8, rows.length * CELL + 8)}
+      {tray(originX - 4, originY - 4, width + 8, rows.length * CELL + 8)}
       {rows.map((row, r) =>
         row.split('').map((ch, c) => (
           <Tile
             key={`${r}-${c}`}
             x={originX + c * CELL}
             y={originY + r * CELL}
-            colour={ch === '.' ? null : Number(ch)}
+            colour={ch === '.' ? null : ch === '#' ? STONE : ch === '*' ? GOLD : Number(ch)}
             ringed={ring.has(`${r}:${c}`)}
           />
         )),
@@ -181,6 +190,22 @@ function TargetIllustration(): React.JSX.Element {
   );
 }
 
+/** Two boards with an arrow between, the left one's ringed run cleared
+ * on the right. */
+function BeforeAfter({ before, after, ringed }: { before: ReadonlyArray<string>; after: ReadonlyArray<string>; ringed: ReadonlyArray<string> }): React.JSX.Element {
+  const w = before[0].length * CELL;
+  const y = (ILLUSTRATION_HEIGHT - before.length * CELL) / 2;
+  const mid = ILLUSTRATION_WIDTH / 2;
+  return (
+    <Group>
+      {board(before, mid - w - 26, y, ringed, w)}
+      {board(after, mid + 26, y, [], w)}
+      <Path path={`M ${mid - 14} ${y + CELL * 1.5} L ${mid + 12} ${y + CELL * 1.5}`} color={theme.colors.adjacentAccent} style="stroke" strokeWidth={2} strokeCap="round" />
+      <Path path={`M ${mid + 6} ${y + CELL * 1.5 - 5} L ${mid + 14} ${y + CELL * 1.5} L ${mid + 6} ${y + CELL * 1.5 + 5} Z`} color={theme.colors.adjacentAccent} />
+    </Group>
+  );
+}
+
 export function renderAdjacentIllustration(kind: string): React.JSX.Element {
   switch (kind) {
     case 'run':
@@ -189,6 +214,12 @@ export function renderAdjacentIllustration(kind: string): React.JSX.Element {
       return <FallIllustration />;
     case 'target':
       return <TargetIllustration />;
+    case 'stone':
+      // Everything under the stone clears: it reaches the floor and crumbles.
+      return <BeforeAfter before={['#2', '00', '00']} after={['..', '..', '.2']} ringed={['1:0', '1:1', '2:0', '2:1']} />;
+    case 'gold':
+      // Gold joins the cobalt pair into a run of four, worth double.
+      return <BeforeAfter before={['.1.', '0*1', '021']} after={['...', '0..', '02.']} ringed={['0:1', '1:1', '1:2', '2:2']} />;
     default:
       return <Group />;
   }

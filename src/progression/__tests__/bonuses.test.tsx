@@ -19,10 +19,14 @@ import { getDailyEntry } from '../../game/journey';
 
 function seeded(seed: number): () => number {
   let s = seed;
-  return () => {
+  const next = () => {
     s = (s * 16807) % 2147483647;
     return s / 2147483647;
   };
+  // A small seed's first few draws are all tiny: warm the generator up so
+  // the test measures the dealer, not the seed.
+  for (let i = 0; i < 12; i += 1) next();
+  return next;
 }
 
 describe('the clean-run combo', () => {

@@ -20,7 +20,16 @@ export interface LightsOutCell {
   readonly col: number;
 }
 
-export interface LightsOutPuzzle {
+/**
+ * The rule later boards add (absent, a board is plain Lanterns): **twin**
+ * lanterns are tied by a thread - pressing one also switches the other,
+ * wherever it is.
+ */
+export interface LanternRules {
+  readonly twins?: ReadonlyArray<readonly [LightsOutCell, LightsOutCell]>;
+}
+
+export interface LightsOutPuzzle extends LanternRules {
   readonly id: string;
   readonly name?: string;
   readonly difficulty: PuzzleDifficulty;

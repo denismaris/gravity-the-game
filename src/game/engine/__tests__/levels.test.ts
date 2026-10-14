@@ -3,7 +3,7 @@ import { assertValidLevel, createGameStateFromLevel } from '../../levels/level';
 import { LEVELS, getLevelById, getLevelByOrder } from '../../levels/levelData';
 import { isPuzzleSolved } from '../completion';
 
-const LEVEL_COUNT = 230;
+const LEVEL_COUNT = 236;
 
 /**
  * Validates the entire hand-authored level pack: structural integrity of
@@ -94,7 +94,7 @@ describe('LEVELS (the hand-authored level pack)', () => {
   });
 
   test('the pairs boards each need both balls, and stay easy or medium', () => {
-    const pairs = LEVELS.filter(level => level.order >= 195);
+    const pairs = LEVELS.filter(level => level.order >= 195 && level.order <= 230);
     expect(pairs).toHaveLength(36);
     for (const level of pairs) {
       expect(level.objects).toHaveLength(2);
@@ -152,6 +152,13 @@ describe('LEVELS (the hand-authored level pack)', () => {
         expect(level.hazards).toBeUndefined();
         expect(level.zone).toBeUndefined();
         expect(portalCount).toBe(0);
+      } else if (level.order > 230) {
+        // World 10 - Soft Sand: sand on every board.
+        expect(level.sand?.length ?? 0).toBeGreaterThanOrEqual(2);
+      } else if (level.order >= 195) {
+        // World 9 - Two of a Kind: no hazards or zones either.
+        expect(level.hazards).toBeUndefined();
+        expect(level.zone).toBeUndefined();
       } else {
         // World 8 - The Deep End: depth, not new rules. Anchors and portals
         // may return, but never a hazard or a zone - nothing here is hard

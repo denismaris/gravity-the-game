@@ -1,7 +1,8 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { Circle, Group } from '@shopify/react-native-skia';
+import { Circle, Group, RoundedRect } from '@shopify/react-native-skia';
 import { Easing, runOnUI, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { GameState, StaticCellType } from '../engine';
+import { shade } from './color';
 import { BoardLayout, computeBoardLayout, getCellCenter, getCellOrigin } from './layout';
 import {
   AnchoredPiece,
@@ -85,6 +86,31 @@ interface StaticGridLayerProps {
  * be pure waste. The zone tint is drawn on top of the cell backgrounds but
  * under obstacles/targets so those stay legible.
  */
+/**
+ * Soft sand: a low patch a little paler than the cell, with a scatter of
+ * grains - flat, so it reads as ground a ball can roll onto, unlike the
+ * raised block of an obstacle.
+ */
+function SandPatch({ x, y, size }: { x: number; y: number; size: number }): React.JSX.Element {
+  const inset = size * 0.1;
+  const grains = [
+    [0.3, 0.32, 0.035],
+    [0.62, 0.28, 0.03],
+    [0.46, 0.5, 0.04],
+    [0.28, 0.66, 0.03],
+    [0.7, 0.62, 0.035],
+    [0.52, 0.76, 0.028],
+  ];
+  return (
+    <Group>
+      <RoundedRect x={x + inset} y={y + inset} width={size - inset * 2} height={size - inset * 2} r={size * 0.2} color={theme.colors.gravitySand} />
+      {grains.map(([gx, gy, gr], i) => (
+        <Circle key={i} cx={x + size * gx} cy={y + size * gy} r={size * gr} color={shade(theme.colors.gravitySand, 0.78)} />
+      ))}
+    </Group>
+  );
+}
+
 const StaticGridLayer = React.memo(function StaticGridLayerImpl({
   staticGrid,
   portals,
@@ -171,6 +197,8 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
                   markColor={theme.colors.surface}
                 />
               )}
+              {cellType === StaticCellType.Sand && <SandPatch x={origin.x} y={origin.y} size={layout.cellSize} />}
+
             </Group>
           );
         }),

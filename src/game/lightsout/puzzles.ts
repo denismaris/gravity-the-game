@@ -119,10 +119,47 @@ function poolFor(difficulty: PuzzleDifficulty): LightsOutPuzzle[] {
   return [...generated, ...pictures].sort((a, b) => a.par - b.par || turn.get(a.id)! - turn.get(b.id)!);
 }
 
+/**
+ * Boards with twin lanterns, on ids of their own so no existing id ever
+ * changes: one pair on the middle tier, then two on the hard one. Dealt
+ * among the rest by par, so twins arrive some way into a tier rather than
+ * at its start.
+ */
+const RULED: Record<PuzzleDifficulty, ReadonlyArray<readonly [id: string, name: string, par: number, twins: number]>> = {
+  easy: [],
+  medium: [
+    ['lightsout-medium-t01', 'Twin Flames', 5, 1],
+    ['lightsout-medium-t02', 'Kindred Lights', 6, 1],
+  ],
+  hard: [
+    ['lightsout-hard-t01', 'Paired Wicks', 7, 1],
+    ['lightsout-hard-t02', 'Two by Two', 8, 2],
+    ['lightsout-hard-t03', 'The Long Thread', 8, 2],
+  ],
+};
+
+function withRuled(difficulty: PuzzleDifficulty, pool: LightsOutPuzzle[]): LightsOutPuzzle[] {
+  const ruled = RULED[difficulty].map(([id, name, par, twins]) => generateLightsOut(id, name, difficulty, par, { twins }));
+  // Each placed after the last plain board of its par, so it comes as a
+  // change once that rung is familiar.
+  const out = [...pool];
+  for (const board of ruled) {
+    let at = out.length;
+    for (let i = out.length - 1; i >= 0; i -= 1) {
+      if (out[i].par <= board.par) {
+        at = i + 1;
+        break;
+      }
+    }
+    out.splice(at, 0, board);
+  }
+  return out;
+}
+
 export const LIGHTS_OUT: ReadonlyArray<LightsOutPuzzle> = [
   ...poolFor('easy'),
-  ...poolFor('medium'),
-  ...poolFor('hard'),
+  ...withRuled('medium', poolFor('medium')),
+  ...withRuled('hard', poolFor('hard')),
 ];
 
 /**
@@ -154,7 +191,10 @@ function buildEndless(id: string, tier: PuzzleDifficulty, index: number): Lights
   const floor = shape.minPar < shape.maxPar ? shape.minPar + 1 : shape.minPar;
   const span = shape.maxPar - floor + 1;
   const par = floor + (endlessSeed(id) % span);
-  const puzzle = generateLightsOut(id, endlessName(index, 'lightsout'), tier, par);
+  // Endless boards keep twins in play: now and then on the middle tier,
+  // usually on the hard one.
+  const extra = tier === 'medium' ? (endlessSeed(id) % 3 === 0 ? { twins: 1 } : undefined) : tier === 'hard' ? { twins: 1 + (endlessSeed(id) % 2) } : undefined;
+  const puzzle = generateLightsOut(id, endlessName(index, 'lightsout'), tier, par, extra);
   endlessCache.set(id, puzzle);
   return puzzle;
 }

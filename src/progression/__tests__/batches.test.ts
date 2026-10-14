@@ -11,7 +11,7 @@ import { getMirrorMazesByDifficulty } from '../../game/mirror';
 import { GameKind, ROTATION } from '../../game/journey';
 import { lilyIdsFor } from '../../game/lilypads';
 import { vaneIdsFor } from '../../game/vanes';
-import { generateBatch, HARD_TIER_FIRST_LEVEL, INTRO_ORDER, INTRO_SOLVES, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from '../batches';
+import { generateBatch, HARD_TIER_FIRST_LEVEL, INTRO_ORDER, INTRO_SOLVES, introSolvesAt, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from '../batches';
 import { emptyProgress, PlayerProgress, recordCompletion } from '../playerProgress';
 import { endlessId } from '../../game/endlessId';
 
@@ -273,16 +273,22 @@ describe('generateBatch - randomization rules', () => {
     expect(batch.puzzles.every(p => typeof p.puzzleId === 'string' && p.puzzleId.length > 0)).toBe(true);
   });
 
-  test('the soft cross-level penalty does not prevent a game from ever appearing again', () => {
-    // A single previous batch can't hard-ban a game forever - run many
-    // draws and confirm every game in ROTATION shows up at least once.
-    const previous = generateBatch(45, experienced(INTRO_SOLVES), null, seededRng(1));
-    const seenKinds = new Set<GameKind>();
-    for (let seed = 0; seed < 50; seed += 1) {
-      const batch = generateBatch(46, experienced(INTRO_SOLVES), previous, seededRng(seed + 500));
-      for (const ref of batch.puzzles) seenKinds.add(ref.kind);
+  test('in play, every game comes round within a few sets, and never the same game twice running', () => {
+    let progress = experienced(INTRO_SOLVES);
+    let previous: ReturnType<typeof generateBatch> | null = null;
+    const rng = seededRng(500);
+    const played: GameKind[] = [];
+    for (let level = 45; level < 60; level += 1) {
+      const batch = generateBatch(level, progress, previous, rng);
+      for (const ref of batch.puzzles) {
+        played.push(ref.kind);
+        progress = complete(progress, ref.puzzleId);
+      }
+      previous = batch;
     }
-    for (const kind of ROTATION) expect(seenKinds.has(kind)).toBe(true);
+    for (let i = 1; i < played.length; i += 1) expect(played[i]).not.toBe(played[i - 1]);
+    // Any run of 24 puzzles holds every one of the twelve games.
+    for (let i = 0; i + 24 <= played.length; i += 6) expect(new Set(played.slice(i, i + 24)).size).toBe(ROTATION.length);
   });
 });
 
@@ -394,15 +400,20 @@ describe('generateBatch - shape and spread', () => {
    * wide margin, weighted by the size of its pool. */
   test('over a long run every game gets a fair share', () => {
     const tally = new Map<string, number>();
+    let progress = experienced(INTRO_SOLVES);
     let previous = null as ReturnType<typeof generateBatch> | null;
-    for (let level = 20; level < 420; level += 1) {
-      const batch = generateBatch(level, experienced(INTRO_SOLVES), previous, seededRng(level));
-      for (const ref of batch.puzzles) tally.set(ref.kind, (tally.get(ref.kind) ?? 0) + 1);
+    const rng = seededRng(20);
+    for (let level = 20; level < 140; level += 1) {
+      const batch = generateBatch(level, progress, previous, rng);
+      for (const ref of batch.puzzles) {
+        tally.set(ref.kind, (tally.get(ref.kind) ?? 0) + 1);
+        progress = complete(progress, ref.puzzleId);
+      }
       previous = batch;
     }
     expect(tally.size).toBe(ROTATION.length);
     const counts = [...tally.values()];
-    expect(Math.max(...counts) / Math.min(...counts)).toBeLessThan(2);
+    expect(Math.max(...counts) / Math.min(...counts)).toBeLessThan(1.25);
   });
 });
 
@@ -449,10 +460,12 @@ describe('games arrive one at a time', () => {
     }
   });
 
-  test('the next game waits for ten solves of the newest, then is dealt at once', () => {
-    let progress = solveFirst(INTRO_SOLVES - 1);
+  test('the next game waits for a few solves of the newest, then is dealt at once', () => {
+    const need = introSolvesAt(0);
+    expect(need).toBeLessThanOrEqual(4);
+    let progress = solveFirst(need - 1);
     expect(unlockedGames(progress)).toEqual([FIRST]);
-    expect(nextGameToArrive(progress)).toEqual({ kind: SECOND, gate: FIRST, done: INTRO_SOLVES - 1, inPuzzles: 1 });
+    expect(nextGameToArrive(progress)).toEqual({ kind: SECOND, gate: FIRST, done: need - 1, need, inPuzzles: 1 });
     progress = complete(progress, endlessId(FIRST, 'easy', 999));
     expect(unlockedGames(progress)).toEqual([FIRST, SECOND]);
     const first = generateBatch(4, progress, null, seededRng(1)).puzzles[0];
@@ -460,8 +473,8 @@ describe('games arrive one at a time', () => {
     expect(first.puzzleId).toBe(poolIdsFor(INTRO_ORDER[1], 'easy')[0]);
   });
 
-  test('the game being learned takes most of each set, but never three in a row', () => {
-    let progress = solveFirst(INTRO_SOLVES);
+  test('the game being learned comes about every other puzzle, never twice running', () => {
+    let progress = solveFirst(introSolvesAt(0));
     progress = complete(progress, poolIdsFor(SECOND, 'easy')[0]);
     let learning = 0;
     let total = 0;
@@ -469,27 +482,50 @@ describe('games arrive one at a time', () => {
       const kinds = generateBatch(5, progress, null, seededRng(seed)).puzzles.map(ref => ref.kind);
       learning += kinds.filter(kind => kind === SECOND).length;
       total += kinds.length;
-      for (let i = 2; i < kinds.length; i += 1) expect(kinds[i] === SECOND && kinds[i - 1] === SECOND && kinds[i - 2] === SECOND).toBe(false);
+      for (let i = 1; i < kinds.length; i += 1) expect(kinds[i] === SECOND && kinds[i - 1] === SECOND).toBe(false);
     }
-    expect(learning / total).toBeGreaterThan(0.5);
+    expect(learning / total).toBeGreaterThan(0.3);
+    expect(learning / total).toBeLessThanOrEqual(0.6);
   });
 
-  test('every game is in once each has had its ten, and nothing is left to come', () => {
+  test('a new player has met several games by level 10, and every game by about level 20', () => {
+    let progress = emptyProgress();
+    let previous: ReturnType<typeof generateBatch> | null = null;
+    const rng = seededRng(7);
+    let solves = 0;
+    let all = -1;
+    for (let level = 1; level <= 40; level += 1) {
+      const batch = generateBatch(level, progress, previous, rng);
+      for (const ref of batch.puzzles) {
+        progress = complete(progress, ref.puzzleId);
+        solves += 1;
+      }
+      if (level === 10) expect(unlockedGames(progress).length).toBeGreaterThanOrEqual(5);
+      if (all < 0 && nextGameToArrive(progress) === null) all = solves;
+      previous = batch;
+    }
+    expect(all).toBeGreaterThan(0);
+    expect(all).toBeLessThanOrEqual(100);
+  });
+
+  test('every game is in once each has had its few, and nothing is left to come', () => {
     let progress = emptyProgress();
     for (const kind of INTRO_ORDER) for (let i = 0; i < INTRO_SOLVES; i += 1) progress = complete(progress, endlessId(kind, 'medium', 900 + i));
     expect(unlockedGames(progress)).toHaveLength(ROTATION.length);
     expect(nextGameToArrive(progress)).toBeNull();
   });
 
-  test('nothing harder than medium is dealt until every game has arrived', () => {
+  test('no game deals a challenge before the player has solved six of its puzzles', () => {
     for (const seed of [3, 11, 29]) {
       let progress = emptyProgress();
       let previous: ReturnType<typeof generateBatch> | null = null;
       const rng = seededRng(seed);
-      for (let level = 1; level <= 60 && nextGameToArrive(progress) !== null; level += 1) {
+      const solvedOf = new Map<GameKind, number>();
+      for (let level = 1; level <= 60; level += 1) {
         const batch = generateBatch(level, progress, previous, rng);
         for (const ref of batch.puzzles) {
-          expect(ref.challenge).toBeUndefined();
+          if (ref.challenge) expect(solvedOf.get(ref.kind) ?? 0).toBeGreaterThanOrEqual(6);
+          solvedOf.set(ref.kind, (solvedOf.get(ref.kind) ?? 0) + 1);
           progress = complete(progress, ref.puzzleId);
         }
         previous = batch;

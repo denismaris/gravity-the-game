@@ -1,6 +1,6 @@
 import React, { useMemo, useRef } from 'react';
 import { Circle, Group, LinearGradient, Path, RoundedRect, vec } from '@shopify/react-native-skia';
-import { AdjacentCoord, AdjacentFall, AdjacentPuzzle, AdjacentState } from '../game/adjacent';
+import { AdjacentCoord, AdjacentFall, AdjacentPuzzle, AdjacentState, GOLD, STONE } from '../game/adjacent';
 import { shade, useAnimationClock, useReducedMotion } from '../game/rendering';
 import { theme, inkWash } from '../theme';
 
@@ -29,7 +29,7 @@ const WELL_GAP = 3;
 /** How much of a well a tile actually covers. Paper stays visible all
  * round it - that margin is the single biggest reason this reads as the
  * same hand as the rest of the app. */
-export const TILE_SCALE = 0.72;
+export const TILE_SCALE = 0.84;
 /**
  * The tile's extruded side face: a darker copy of its own glaze, pushed
  * straight down, as if lit from above.
@@ -44,10 +44,16 @@ export const TILE_SCALE = 0.72;
  */
 const SIDE_FACE_OFFSET = 0.075;
 const SIDE_FACE_SHADE = 0.58;
-/** The mark stamped into the glaze - a lighter tint of the tile's own
- * colour rather than paper white, which at five colours across a full
- * tray was the loudest thing on the board. */
+/** The mark inlaid in the glaze: a pale tint of the tile's own colour set
+ * into a shallow cut, whose upper edge shows as a darker lip - enamel in a
+ * fired tile, not a sticker on top and not a muddy stamp. */
 const GLYPH_SHADE = 1.3;
+const GLYPH_LIP_SHADE = 0.74;
+/** The fine keyline round the glaze pool, the tile's fired edge. */
+const KEYLINE_SHADE = 0.84;
+/** The raised pool of glaze on a tile's face, inset from its edge. */
+const POOL_INSET = 0.085;
+const POOL_SHADE = 1.07;
 
 /**
  * Timings, tightened after the game was reported as laggy.
@@ -64,11 +70,21 @@ const GLYPH_SHADE = 1.3;
 /** A cleared tile's whole pop, and how much later each step of distance
  * from the tapped tile starts its own - see \`clearing\`. */
 const CLEAR_MS = 300;
+/**
+ * A stone dug out from under: it drops to the floor with the rest of the
+ * fall, then cracks and breaks apart - four pieces tumbling out and down,
+ * a puff of dust - over this long. Anything above it in its column waits
+ * until it has broken, then falls into the space it leaves.
+ */
+const CRUMBLE_MS = 560;
 const CLEAR_RIPPLE_MS = 22;
 /** Share of the pop spent swelling before it bursts. */
 const CLEAR_SWELL = 0.25;
 const FALL_DELAY_MS = 90;
 const FALL_MS = 240;
+/** When the tiles above a breaking stone start to fall: once it has hit
+ * the floor and split. */
+const COLUMN_HOLD_MS = FALL_DELAY_MS + FALL_MS + Math.round(CRUMBLE_MS * 0.45);
 
 /** The finish: every tile left on the tray fades out in reading order,
  * tuned so the last one lands inside `SOLVE_CELEBRATION_MS` - the beat
@@ -123,6 +139,8 @@ const tileColors = (): ReadonlyArray<string> => [
 ];
 
 export function adjacentTileColor(colour: number): string {
+  if (colour === STONE) return theme.colors.adjacentStone;
+  if (colour === GOLD) return theme.colors.adjacentGold;
   const palette = tileColors();
   return palette[colour % palette.length];
 }
@@ -169,8 +187,24 @@ export function computeAdjacentLayout(puzzle: AdjacentPuzzle, availableWidth: nu
  * them side by side. Knocked out in the tray's own colour rather than
  * drawn in a second ink, the same rule `GameEmblem` follows.
  */
-function TileGlyph({ colour, cx, cy, r }: { colour: number; cx: number; cy: number; r: number }): React.JSX.Element {
-  const ink = shade(adjacentTileColor(colour), GLYPH_SHADE);
+function TileGlyph({ colour, cx, cy, r, ink = shade(adjacentTileColor(colour), GLYPH_SHADE) }: { colour: number; cx: number; cy: number; r: number; ink?: string }): React.JSX.Element {
+  if (colour === STONE) {
+    // A stone: a hairline crack and two flecks, cut darker than the face.
+    const dark = shade(adjacentTileColor(colour), 0.72);
+    return (
+      <Group>
+        <Path path={`M ${cx - r * 0.8} ${cy - r * 0.35} L ${cx - r * 0.2} ${cy - r * 0.05} L ${cx + r * 0.1} ${cy + r * 0.45} L ${cx + r * 0.7} ${cy + r * 0.6}`} color={dark} style="stroke" strokeWidth={Math.max(1, r * 0.13)} strokeCap="round" strokeJoin="round" />
+        <Circle cx={cx + r * 0.55} cy={cy - r * 0.5} r={r * 0.11} color={dark} />
+        <Circle cx={cx - r * 0.45} cy={cy + r * 0.55} r={r * 0.08} color={dark} />
+      </Group>
+    );
+  }
+  if (colour === GOLD) {
+    // Gold: a four-point glint, struck in the gilt's own deep tone.
+    const k = r * 0.82;
+    const w = r * 0.2;
+    return <Path path={`M ${cx} ${cy - k} Q ${cx + w} ${cy - w} ${cx + k} ${cy} Q ${cx + w} ${cy + w} ${cx} ${cy + k} Q ${cx - w} ${cy + w} ${cx - k} ${cy} Q ${cx - w} ${cy - w} ${cx} ${cy - k} Z`} color={ink} />;
+  }
   switch (colour % 5) {
     case 0:
       return <Circle cx={cx} cy={cy} r={r * 0.6} color={ink} />;
@@ -232,10 +266,18 @@ function Tile({ colour, x, y, cell, scale = 1, opacity = 1, highlighted = false 
   const size = full * scale;
   const left = x + (cell - size) / 2;
   const top = y + (cell - size) / 2;
-  const radius = size * 0.28;
+  const radius = size * 0.24;
   const base = adjacentTileColor(colour);
-  const face = highlighted ? shade(base, 1.18) : base;
+  const face = highlighted ? shade(base, 1.14) : base;
   const offset = cell * SIDE_FACE_OFFSET;
+  const pool = size * POOL_INSET;
+  const gold = colour === GOLD;
+  const rim = shade(theme.colors.goldRim, 0.78);
+  const cx = left + size / 2;
+  const cy = top + size / 2;
+  const gr = size * 0.24;
+  const lip = Math.max(1, size * 0.03);
+  const ink = gold ? shade(theme.colors.goldRim, 0.72) : shade(base, GLYPH_SHADE);
 
   return (
     <Group opacity={opacity}>
@@ -245,10 +287,26 @@ function Tile({ colour, x, y, cell, scale = 1, opacity = 1, highlighted = false 
           only, no gradient. (The face used to lean right as well, which
           read as a skewed tile.) */}
       <RoundedRect x={left} y={top + offset * 1.9} width={size} height={size} r={radius} color={inkWash(0.14)} />
-      <RoundedRect x={left} y={top + offset} width={size} height={size} r={radius} color={shade(base, SIDE_FACE_SHADE)} />
-      {/* The top face - flat, matte, one colour. */}
+      <RoundedRect x={left} y={top + offset} width={size} height={size} r={radius} color={shade(gold ? theme.colors.goldRim : base, SIDE_FACE_SHADE)} />
+      {/* The top face, and on it a raised pool of glaze a shade lighter,
+          set in from the edge - the rim that is left reads as the tile's
+          fired edge. Geometry only, no gradient. */}
       <RoundedRect x={left} y={top} width={size} height={size} r={radius} color={face} />
-      <TileGlyph colour={colour} cx={left + size / 2} cy={top + size / 2} r={size * 0.26} />
+      {colour !== STONE && (
+        <RoundedRect x={left + pool} y={top + pool} width={size - pool * 2} height={size - pool * 2} r={radius * 0.72} color={shade(face, POOL_SHADE)} />
+      )}
+      {/* Gold is gilt metal, not a sixth glaze: a double rim, like a coin's. */}
+      {gold && (
+        <>
+          <RoundedRect x={left + 1} y={top + 1} width={size - 2} height={size - 2} r={radius - 1} color={rim} style="stroke" strokeWidth={Math.max(1.5, size * 0.045)} />
+          <RoundedRect x={left + pool * 1.6} y={top + pool * 1.6} width={size - pool * 3.2} height={size - pool * 3.2} r={radius * 0.6} color={rim} style="stroke" strokeWidth={Math.max(1, size * 0.022)} opacity={0.7} />
+        </>
+      )}
+      {colour !== STONE && !gold && (
+        <RoundedRect x={left + pool} y={top + pool} width={size - pool * 2} height={size - pool * 2} r={radius * 0.72} color={shade(base, KEYLINE_SHADE)} style="stroke" strokeWidth={Math.max(1, size * 0.02)} />
+      )}
+      {colour !== STONE && <TileGlyph colour={colour} cx={cx} cy={cy - lip} r={gr} ink={gold ? shade(theme.colors.goldRim, 1.1) : shade(base, GLYPH_LIP_SHADE)} />}
+      <TileGlyph colour={colour} cx={cx} cy={cy} r={gr} ink={ink} />
       {highlighted && (
         <RoundedRect
           x={left - 2}
@@ -260,6 +318,72 @@ function Tile({ colour, x, y, cell, scale = 1, opacity = 1, highlighted = false 
           style="stroke"
           strokeWidth={2}
         />
+      )}
+    </Group>
+  );
+}
+
+/**
+ * A stone at the end of its drop. Before `t` reaches 0 it is a whole stone
+ * still falling; then a crack runs across it, it breaks into four pieces
+ * that tumble out and down with a turn each, and a low puff of dust spreads
+ * along the floor where it landed - stone, not glaze: no sparkle.
+ */
+function CrumblingStone({ x, y, cell, t }: { x: number; y: number; cell: number; t: number }): React.JSX.Element {
+  if (t <= 0) return <Tile colour={STONE} x={x} y={y} cell={cell} />;
+  const full = cell * TILE_SCALE;
+  const left = x + (cell - full) / 2;
+  const top = y + (cell - full) / 2;
+  const face = theme.colors.adjacentStone;
+  const dark = shade(face, 0.62);
+  const cx = left + full / 2;
+  const cy = top + full / 2;
+  // The crack first, then the break.
+  const crack = Math.min(1, t / 0.22);
+  const breakT = Math.max(0, (t - 0.22) / 0.78);
+  const half = full / 2;
+  const pieces: ReadonlyArray<readonly [number, number]> = [
+    [-1, -1],
+    [1, -1],
+    [-1, 1],
+    [1, 1],
+  ];
+  const dust = easeOutCubic(Math.max(0, (t - 0.18) / 0.82));
+  return (
+    <Group>
+      {/* Dust along the floor where it landed. */}
+      {dust > 0 &&
+        [-0.42, 0, 0.42].map((dx, i) => (
+          <Circle key={`d${i}`} cx={cx + dx * full * (0.6 + dust * 0.9)} cy={top + full * 0.92 - dust * full * 0.12 * (i === 1 ? 1.4 : 1)} r={full * (0.12 + dust * 0.22)} color={shade(face, 1.18)} opacity={0.55 * (1 - dust)} />
+        ))}
+      {breakT === 0 ? (
+        <Group>
+          <Tile colour={STONE} x={x} y={y} cell={cell} />
+          <Path
+            path={`M ${cx - half * 0.9} ${cy - half * 0.15} L ${cx - half * 0.2} ${cy + half * 0.08} L ${cx + half * 0.1} ${cy - half * 0.5} M ${cx - half * 0.2} ${cy + half * 0.08} L ${cx + half * 0.25} ${cy + half * 0.85} M ${cx - half * 0.2} ${cy + half * 0.08} L ${cx + half * 0.9} ${cy + half * 0.2}`}
+            color={dark}
+            style="stroke"
+            strokeWidth={Math.max(1.2, full * 0.05)}
+            strokeCap="round"
+            strokeJoin="round"
+            opacity={crack}
+          />
+        </Group>
+      ) : (
+        pieces.map(([sx, sy], i) => {
+          const out = easeOutCubic(breakT) * full * 0.45;
+          const drop = breakT * breakT * full * 0.9;
+          const px = cx + sx * (half / 2 + out);
+          const py = cy + sy * (half / 2) + drop + (sy < 0 ? -out * 0.3 : out * 0.1);
+          const turn = sx * breakT * (0.9 + i * 0.15);
+          const piece = half * (1 - breakT * 0.35);
+          return (
+            <Group key={`p${i}`} opacity={1 - breakT * breakT} transform={[{ translateX: px }, { translateY: py }, { rotate: turn }]}>
+              <RoundedRect x={-piece / 2} y={-piece / 2 + full * 0.04} width={piece} height={piece} r={piece * 0.22} color={dark} />
+              <RoundedRect x={-piece / 2} y={-piece / 2} width={piece} height={piece} r={piece * 0.22} color={face} />
+            </Group>
+          );
+        })
       )}
     </Group>
   );
@@ -391,7 +515,8 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
       CLEAR_RIPPLE_MS *
         Math.max(0, ...animation.removed.map(t => Math.abs(t.row - animation.removed[0].row) + Math.abs(t.col - animation.removed[0].col)))
     : 0;
-  const moveWindow = Math.max(FALL_DELAY_MS + FALL_MS, clearWindow);
+  const hasStones = !!animation?.removed.some(t => t.colour === STONE);
+  const moveWindow = Math.max(hasStones ? FALL_DELAY_MS + FALL_MS + CRUMBLE_MS + COLUMN_HOLD_MS : FALL_DELAY_MS + FALL_MS, clearWindow);
   const sweepWindow = SWEEP_MS + puzzle.size * puzzle.size * SWEEP_STAGGER_MS;
   const animating =
     !reducedMotion &&
@@ -420,11 +545,37 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
     const map = new Map<string, { fall: AdjacentFall; progress: number }>();
     if (!animation || reducedMotion) return map;
     const since = frame - animation.at;
-    if (since < 0 || since >= FALL_DELAY_MS + FALL_MS) return map;
-    const progress = fallEase(Math.max(0, since - FALL_DELAY_MS) / FALL_MS);
-    for (const fall of animation.falls) map.set(cellKey(fall.toRow, fall.col), { fall, progress });
+    if (since < 0) return map;
+    // A column with a stone breaking in it holds its tiles until the stone
+    // has broken - they fall into the space it leaves, not through it.
+    const holding = new Set(animation.removed.filter(t => t.colour === STONE).map(t => t.col));
+    for (const fall of animation.falls) {
+      const delay = holding.has(fall.col) ? COLUMN_HOLD_MS : FALL_DELAY_MS;
+      if (since >= delay + FALL_MS) continue;
+      map.set(cellKey(fall.toRow, fall.col), { fall, progress: fallEase(Math.max(0, since - delay) / FALL_MS) });
+    }
     return map;
   }, [animation, frame, reducedMotion]);
+
+  /** Stones on their way down and breaking up: the drop to the floor, then
+   * the crumble (see `CRUMBLE_MS`). */
+  const crumbling = useMemo(() => {
+    if (!animation || reducedMotion) return [];
+    const since = frame - animation.at;
+    if (since < 0) return [];
+    const stones = animation.removed.filter(t => t.colour === STONE);
+    return stones
+      .map(tile => {
+        // Where it comes to rest: the floor, or on the stones beneath it
+        // that are breaking too.
+        const below = stones.filter(o => o.col === tile.col && o.row > tile.row).length;
+        const floor = puzzle.size - 1 - below;
+        const fall = fallEase(Math.max(0, Math.min(1, (since - FALL_DELAY_MS) / FALL_MS)));
+        const crumble = (since - FALL_DELAY_MS - FALL_MS) / CRUMBLE_MS;
+        return { tile, y: tile.row + (floor - tile.row) * fall, crumble };
+      })
+      .filter(c => c.crumble < 1);
+  }, [animation, frame, reducedMotion, puzzle.size]);
 
   /**
    * The clear: each tile swells a little, then pops - shrinking away while
@@ -441,6 +592,7 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
     const origin = animation.removed[0];
     const out: Array<{ tile: AdjacentRemoved; opacity: number; scale: number; burst: number }> = [];
     for (const tile of animation.removed) {
+      if (tile.colour === STONE) continue;
       const distance = Math.abs(tile.row - origin.row) + Math.abs(tile.col - origin.col);
       const t = (since - distance * CLEAR_RIPPLE_MS) / CLEAR_MS;
       if (t >= 1) continue;
@@ -493,6 +645,10 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
         const y = (fall.fromRow + (fall.toRow - fall.fromRow) * progress) * cell;
         return <Tile key={`fall-${key}`} colour={colour} x={fall.col * cell} y={y} cell={cell} />;
       })}
+
+      {crumbling.map(({ tile, y, crumble }) => (
+        <CrumblingStone key={`crumble-${tile.row}-${tile.col}`} x={tile.col * cell} y={y * cell} cell={cell} t={crumble} />
+      ))}
 
       {/* Tiles on their way out: the pop, and its chips. */}
       {clearing.map(({ tile, opacity, scale, burst }) => {

@@ -11,12 +11,44 @@
  */
 import { PuzzleDifficulty } from '../puzzleDifficulty';
 
-/** 0 ruby, 1 cobalt, 2 amber. */
-export type GlassColor = 0 | 1 | 2;
+/** 0 ruby, 1 cobalt, 2 amber; 3 emerald, only in a leaf pane. */
+export type GlassColor = 0 | 1 | 2 | 3;
 export const GLASS_COLORS: ReadonlyArray<GlassColor> = [0, 1, 2];
-export const GLASS_COLOR_NAMES = ['ruby', 'cobalt', 'amber'] as const;
+export const GLASS_COLOR_NAMES = ['ruby', 'cobalt', 'amber', 'emerald'] as const;
 
-export interface GlassPuzzle {
+/**
+ * What a later window can bring besides the one rule: vines. Two leaf
+ * panes joined by a vine, and of each such pair exactly one is the fourth
+ * glass, emerald - no other pane ever is. Which one is the question: a
+ * leaf pane that touches emerald, or ruby, cobalt and amber all three,
+ * gives its partner away.
+ */
+export interface GlassRules {
+  readonly vines?: ReadonlyArray<readonly [number, number]>;
+}
+
+const WITH_EMERALD: ReadonlyArray<GlassColor> = [0, 1, 2, 3];
+
+/** The leaf pane a pane is joined to by a vine, or -1. */
+export function vineOf(rules: GlassRules, pane: number): number {
+  for (const [a, b] of rules.vines ?? []) {
+    if (a === pane) return b;
+    if (b === pane) return a;
+  }
+  return -1;
+}
+
+/** The glasses a pane may take. */
+export function glassesFor(rules: GlassRules, pane: number): ReadonlyArray<GlassColor> {
+  return vineOf(rules, pane) >= 0 ? WITH_EMERALD : GLASS_COLORS;
+}
+
+/** The glasses in the tray: emerald only for a window with vines. */
+export function trayOf(rules: GlassRules): ReadonlyArray<GlassColor> {
+  return rules.vines?.length ? WITH_EMERALD : GLASS_COLORS;
+}
+
+export interface GlassPuzzle extends GlassRules {
   readonly id: string;
   readonly name: string;
   readonly difficulty: PuzzleDifficulty;
@@ -45,21 +77,29 @@ export function initialGlassState(puzzle: GlassPuzzle): GlassState {
   return { colors: [...puzzle.given] };
 }
 
-/** Colours (or, with `null`, clears) a pane. A given pane never changes. */
+/** Colours (or, with `null`, clears) a pane. A given pane never changes,
+ * and only a leaf pane takes emerald. */
 export function paint(puzzle: GlassPuzzle, state: GlassState, pane: number, color: GlassColor | null): GlassState {
   if (puzzle.given[pane] !== null || state.colors[pane] === color) return state;
+  if (color !== null && !glassesFor(puzzle, pane).includes(color)) return state;
   const colors = [...state.colors];
   colors[pane] = color;
   return { colors };
 }
 
-/** Pairs of touching panes wearing the same colour, each once (a < b). */
+/** Pairs of touching panes wearing the same colour, and vined pairs both
+ * emerald or both glazed otherwise, each once (a < b). */
 export function clashes(puzzle: GlassPuzzle, state: GlassState): Array<readonly [number, number]> {
   const out: Array<readonly [number, number]> = [];
   for (let a = 0; a < puzzle.panes; a += 1) {
     const color = state.colors[a];
     if (color === null) continue;
     for (const b of puzzle.touching[a]) if (b > a && state.colors[b] === color) out.push([a, b]);
+  }
+  for (const [a, b] of puzzle.vines ?? []) {
+    const ca = state.colors[a];
+    const cb = state.colors[b];
+    if (ca !== null && cb !== null && (ca === 3) === (cb === 3)) out.push(a < b ? [a, b] : [b, a]);
   }
   return out;
 }
@@ -102,11 +142,17 @@ export function glassHint(puzzle: GlassPuzzle, state: GlassState): GlassHint | n
     const color = puzzle.solution[wrong];
     return { pane: wrong, color, state: paint(puzzle, state, wrong, color), reason: `This pane has to be ${GLASS_COLOR_NAMES[color]}. The colours around it leave it no other.`, kind: 'fix' };
   }
+  const step = nextReasonedStep(puzzle.touching, state.colors, puzzle);
+  if (step) {
+    const color = step.color;
+    return { pane: step.pane, color, state: paint(puzzle, state, step.pane, color), reason: step.reason, kind: 'rule', tip: step.tip };
+  }
+  // Nothing follows by the plain steps: the pane the board says most about.
   let best = -1;
   let bestSeen = -1;
   for (let p = 0; p < puzzle.panes; p += 1) {
     if (state.colors[p] !== null) continue;
-    const seen = new Set(puzzle.touching[p].map(q => state.colors[q]).filter((c): c is GlassColor => c !== null)).size;
+    const seen = new Set(puzzle.touching[p].map(q => state.colors[q]).filter(c => c !== null)).size;
     if (seen > bestSeen) {
       best = p;
       bestSeen = seen;
@@ -114,19 +160,65 @@ export function glassHint(puzzle: GlassPuzzle, state: GlassState): GlassHint | n
   }
   if (best < 0) return null;
   const color = puzzle.solution[best];
-  const around = [...new Set(puzzle.touching[best].map(q => state.colors[q]).filter((c): c is GlassColor => c !== null))];
-  const reason =
-    around.length === 2
-      ? `It touches ${GLASS_COLOR_NAMES[around[0]]} and ${GLASS_COLOR_NAMES[around[1]]}, so it can only be ${GLASS_COLOR_NAMES[color]}.`
-      : `Only ${GLASS_COLOR_NAMES[color]} lets the panes around it be finished.`;
-  return {
-    pane: best,
-    color,
-    state: paint(puzzle, state, best, color),
-    reason,
-    kind: 'rule',
-    tip: around.length === 2 ? 'A pane touching two colours always has one glass left.' : undefined,
-  };
+  return { pane: best, color, state: paint(puzzle, state, best, color), reason: `Only ${GLASS_COLOR_NAMES[color]} lets the panes around it be finished.`, kind: 'rule' };
+}
+
+/** A list of colour names: "ruby", "ruby and cobalt", "ruby, cobalt and amber". */
+function listed(colors: ReadonlyArray<GlassColor>): string {
+  const names = colors.map(c => GLASS_COLOR_NAMES[c]);
+  return names.length > 1 ? `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}` : names[0];
+}
+
+/**
+ * The glasses pane `p` can still take from `colors`, and why the others
+ * are out: what it touches, and its vine. A leaf pane cannot be emerald if
+ * its partner is, or if it touches emerald; it must be, if its partner is
+ * already glazed otherwise.
+ */
+function optionsFor(touching: ReadonlyArray<ReadonlyArray<number>>, colors: ReadonlyArray<GlassColor | null>, rules: GlassRules, p: number): GlassColor[] {
+  const seen = new Set(touching[p].map(q => colors[q]).filter((c): c is GlassColor => c !== null));
+  let options = glassesFor(rules, p).filter(c => !seen.has(c));
+  const partner = vineOf(rules, p);
+  if (partner >= 0 && colors[partner] !== null) options = colors[partner] === 3 ? options.filter(c => c !== 3) : options.filter(c => c === 3);
+  return options;
+}
+
+/**
+ * The next pane the plain steps settle, with the step in words: a pane
+ * left one glass by what it touches; a leaf pane whose partner settles it;
+ * or a leaf pane whose partner cannot be emerald, so it must be.
+ */
+function nextReasonedStep(touching: ReadonlyArray<ReadonlyArray<number>>, colors: ReadonlyArray<GlassColor | null>, rules: GlassRules): { pane: number; color: GlassColor; reason: string; tip?: string } | null {
+  for (let p = 0; p < colors.length; p += 1) {
+    if (colors[p] !== null) continue;
+    const options = optionsFor(touching, colors, rules, p);
+    if (options.length !== 1) continue;
+    const color = options[0];
+    const partner = vineOf(rules, p);
+    const around = [...new Set(touching[p].map(q => colors[q]).filter((c): c is GlassColor => c !== null))];
+    if (partner >= 0 && colors[partner] !== null) {
+      return colors[partner] === 3
+        ? { pane: p, color, reason: `Its vine partner is the emerald one, so this leaf pane is not. It touches ${listed(around)}, leaving ${GLASS_COLOR_NAMES[color]}.`, tip: 'Of two leaf panes on a vine, exactly one is emerald.' }
+        : { pane: p, color, reason: 'Its vine partner is not emerald, so this one has to be.', tip: 'Of two leaf panes on a vine, exactly one is emerald.' };
+    }
+    return partner >= 0
+      ? { pane: p, color, reason: `It touches ${listed(around)}, so even as a leaf pane it can only be ${GLASS_COLOR_NAMES[color]}.`, tip: 'A leaf pane needs three colours round it to be sure.' }
+      : { pane: p, color, reason: `It touches ${listed(around)}, so it can only be ${GLASS_COLOR_NAMES[color]}.`, tip: 'A pane touching two colours always has one glass left.' };
+  }
+  // A leaf pane that cannot be emerald hands emerald to its partner.
+  for (const [a, b] of rules.vines ?? []) {
+    for (const [p, q] of [
+      [a, b],
+      [b, a],
+    ] as const) {
+      if (colors[q] !== null || colors[p] !== null) continue;
+      if (optionsFor(touching, colors, rules, p).includes(3)) continue;
+      if (!optionsFor(touching, colors, rules, q).includes(3)) continue;
+      const why = touching[p].some(x => colors[x] === 3) ? 'touches emerald' : 'cannot be emerald';
+      return { pane: q, color: 3, reason: `Its vine partner ${why}, so this leaf pane is the emerald one.`, tip: 'Of two leaf panes on a vine, exactly one is emerald.' };
+    }
+  }
+  return null;
 }
 
 // ---------------------------------------------------------------------------
@@ -227,8 +319,22 @@ function touchingOf(paneOf: number[][], panes: number): number[][] {
 }
 
 /** Solutions of a window with `given` fixed, up to `limit` of them. */
-export function solveGlass(touching: ReadonlyArray<ReadonlyArray<number>>, given: ReadonlyArray<GlassColor | null>, limit = 2): GlassColor[][] {
+export function solveGlass(
+  touching: ReadonlyArray<ReadonlyArray<number>>,
+  given: ReadonlyArray<GlassColor | null>,
+  limit = 2,
+  rules: GlassRules = {},
+  /** Each pane's glasses in the order to try them (the generator shuffles a leaf pane's). */
+  options?: ReadonlyArray<ReadonlyArray<GlassColor>>,
+): GlassColor[][] {
   const n = touching.length;
+  // A vined pair holds exactly one emerald: once one half is set, the
+  // other must be the opposite way round.
+  const fits = (p: number, c: GlassColor) => {
+    if (touching[p].some(q => colors[q] === c)) return false;
+    const partner = vineOf(rules, p);
+    return partner < 0 || colors[partner] === null || (colors[partner] === 3) !== (c === 3);
+  };
   const colors: Array<GlassColor | null> = [...given];
   const found: GlassColor[][] = [];
   // Most-constrained panes first.
@@ -241,12 +347,12 @@ export function solveGlass(touching: ReadonlyArray<ReadonlyArray<number>>, given
     }
     const p = order[k];
     if (given[p] !== null) {
-      if (touching[p].some(q => colors[q] === given[p])) return;
+      if (!fits(p, given[p]!)) return;
       step(k + 1);
       return;
     }
-    for (const c of GLASS_COLORS) {
-      if (touching[p].some(q => colors[q] === c)) continue;
+    for (const c of options?.[p] ?? glassesFor(rules, p)) {
+      if (!fits(p, c)) continue;
       colors[p] = c;
       step(k + 1);
       colors[p] = null;
@@ -264,57 +370,114 @@ export function solveGlass(touching: ReadonlyArray<ReadonlyArray<number>>, given
  * exists, until only one answer is left. Harder windows have their spare
  * clues taken back out again.
  */
-export function generateGlass(id: string, name: string, difficulty: PuzzleDifficulty, shape: { size: number; panes: number } = SHAPES[difficulty]): GlassPuzzle {
+export function generateGlass(
+  id: string,
+  name: string,
+  difficulty: PuzzleDifficulty,
+  shape: { size: number; panes: number } = SHAPES[difficulty],
+  extra: { vines?: number } = {},
+): GlassPuzzle {
   const { size, panes } = shape;
   const random = mulberry32(hashId(id));
   for (let attempt = 0; attempt < 400; attempt += 1) {
     const paneOf = partition(size, panes, random);
     if (paneOf.some(row => row.includes(-1))) continue;
     const touching = touchingOf(paneOf, panes);
+    const vines = pickVines(paneOf, touching, extra.vines ?? 0, random);
+    if (vines === null) continue;
+    const rules: GlassRules = vines.length ? { vines } : {};
+    const leaves = vines.flat();
+    const solveGlass_ = (t: typeof touching, g: ReadonlyArray<GlassColor | null>, limit: number) => solveGlass(t, g, limit, rules);
+    const reasoned_ = (t: typeof touching, g: ReadonlyArray<GlassColor | null>) => reasoned(t, g, rules);
     const blank: Array<GlassColor | null> = Array.from({ length: panes }, () => null);
-    const any = solveGlass(touching, blank, 1);
+    // A leaf pane tries its glasses in a shuffled order, so which half of a
+    // vine is emerald is a toss-up, not always the first.
+    const shuffled = leaves.length ? Array.from({ length: panes }, (_v, p) => (leaves.includes(p) ? [...WITH_EMERALD].sort(() => random() - 0.5) : GLASS_COLORS)) : undefined;
+    const any = solveGlass(touching, blank, 1, rules, shuffled);
     if (any.length === 0) continue;
     const solution = any[0];
     const given: Array<GlassColor | null> = [...blank];
     // Pin a pane wherever a second answer disagrees, until none is left.
     for (let guard = 0; guard < panes; guard += 1) {
-      const answers = solveGlass(touching, given, 2);
+      const answers = solveGlass_(touching, given, 2);
       const other = answers.find(a => a.some((c, i) => c !== solution[i]));
       if (!other) break;
-      const differing = solution.map((c, i) => (other[i] !== c && given[i] === null ? i : -1)).filter(i => i >= 0);
+      // Never a leaf pane: a given leaf would give its vine away.
+      const differing = solution.map((c, i) => (other[i] !== c && given[i] === null && !leaves.includes(i) ? i : -1)).filter(i => i >= 0);
+      if (differing.length === 0) break;
       const pick = differing[Math.floor(random() * differing.length)];
       given[pick] = solution[pick];
     }
-    if (solveGlass(touching, given, 2).length !== 1) continue;
+    if (solveGlass_(touching, given, 2).length !== 1) continue;
     // Then enough more that the window reads out pane by pane, never a
     // guess: pin whichever pane lets the most of the rest follow.
-    for (let guard = 0; guard < panes && reasoned(touching, given) < panes; guard += 1) {
+    for (let guard = 0; guard < panes && reasoned_(touching, given) < panes; guard += 1) {
       let best = -1;
       let bestReach = -1;
       for (let p = 0; p < panes; p += 1) {
-        if (given[p] !== null) continue;
+        if (given[p] !== null || leaves.includes(p)) continue;
         given[p] = solution[p];
-        const reach = reasoned(touching, given);
+        const reach = reasoned_(touching, given);
         given[p] = null;
         if (reach > bestReach) {
           best = p;
           bestReach = reach;
         }
       }
+      if (best < 0) break;
       given[best] = solution[best];
     }
+    if (reasoned_(touching, given) < panes) continue;
     // Medium and hard: take back every clue the reasoning does not need.
     if (difficulty !== 'easy') {
       for (const p of given.map((_c, i) => i).sort(() => random() - 0.5)) {
         if (given[p] === null) continue;
         const keep = given[p];
         given[p] = null;
-        if (reasoned(touching, given) < panes) given[p] = keep;
+        if (reasoned_(touching, given) < panes) given[p] = keep;
       }
     }
-    return { id, name, difficulty, rows: size, cols: size, paneOf, panes, touching, given, solution };
+    return { id, name, difficulty, rows: size, cols: size, paneOf, panes, touching, given, solution, ...rules };
   }
   throw new Error(`Stained Glass ${id}: no window found.`);
+}
+
+/**
+ * `count` vines: pairs of leaf panes, each pane with four neighbours or
+ * more (so it can be read from what it touches), never touching each
+ * other, a little way apart, and each pane on one vine at most. Null when
+ * the window has no such pairs.
+ */
+function pickVines(paneOf: number[][], touching: ReadonlyArray<ReadonlyArray<number>>, count: number, random: () => number): Array<readonly [number, number]> | null {
+  if (count === 0) return [];
+  const panes = touching.length;
+  const centre = Array.from({ length: panes }, () => ({ r: 0, c: 0, n: 0 }));
+  paneOf.forEach((row, r) =>
+    row.forEach((p, c) => {
+      centre[p].r += r;
+      centre[p].c += c;
+      centre[p].n += 1;
+    }),
+  );
+  const at = centre.map(m => ({ r: m.r / m.n, c: m.c / m.n }));
+  const options: Array<readonly [number, number]> = [];
+  for (let a = 0; a < panes; a += 1) {
+    for (let b = a + 1; b < panes; b += 1) {
+      if (touching[a].includes(b) || touching[a].length < 4 || touching[b].length < 4) continue;
+      const d = Math.hypot(at[a].r - at[b].r, at[a].c - at[b].c);
+      if (d >= 2 && d <= 4.5) options.push([a, b]);
+    }
+  }
+  const out: Array<readonly [number, number]> = [];
+  const used = new Set<number>();
+  for (const pair of options.sort(() => random() - 0.5)) {
+    if (out.length === count) break;
+    if (used.has(pair[0]) || used.has(pair[1])) continue;
+    out.push(pair);
+    used.add(pair[0]);
+    used.add(pair[1]);
+  }
+  return out.length === count ? out : null;
 }
 
 /**
@@ -323,20 +486,16 @@ export function generateGlass(id: string, name: string, difficulty: PuzzleDiffic
  * until it gives no more. A window whose every pane follows this way is
  * solved by reading it, never by guessing.
  */
-export function reasoned(touching: ReadonlyArray<ReadonlyArray<number>>, given: ReadonlyArray<GlassColor | null>): number {
+export function reasoned(touching: ReadonlyArray<ReadonlyArray<number>>, given: ReadonlyArray<GlassColor | null>, rules: GlassRules = {}): number {
+  return reasonedColors(touching, given, rules).filter(c => c !== null).length;
+}
+
+/** The panes `reasoned` fills, and what with: the plain steps of
+ * `nextReasonedStep`, repeated until they give no more. */
+export function reasonedColors(touching: ReadonlyArray<ReadonlyArray<number>>, given: ReadonlyArray<GlassColor | null>, rules: GlassRules = {}): Array<GlassColor | null> {
   const colors = [...given];
-  for (let changed = true; changed; ) {
-    changed = false;
-    for (let p = 0; p < colors.length; p += 1) {
-      if (colors[p] !== null) continue;
-      const seen = new Set(touching[p].map(q => colors[q]).filter((c): c is GlassColor => c !== null));
-      if (seen.size === 2) {
-        colors[p] = ([0, 1, 2] as const).find(c => !seen.has(c))!;
-        changed = true;
-      }
-    }
-  }
-  return colors.filter(c => c !== null).length;
+  for (let step = nextReasonedStep(touching, colors, rules); step; step = nextReasonedStep(touching, colors, rules)) colors[step.pane] = step.color;
+  return colors;
 }
 
 // ---------------------------------------------------------------------------
@@ -419,6 +578,48 @@ const WINDOWS: Record<PuzzleDifficulty, ReadonlyArray<readonly [name: string, si
   ],
 };
 
+/**
+ * Later windows that bring vines, each dealt after the plain window it
+ * follows (by index): one vine at first, then more. Their ids are their
+ * own, so no plain window's id ever moves.
+ */
+const RULED: Record<PuzzleDifficulty, ReadonlyArray<{ id: string; name: string; size: number; panes: number; after: number; vines: number }>> = {
+  easy: [],
+  medium: [
+    { id: 'glass-medium-g01', name: 'The Green Man', size: 8, panes: 15, after: 3, vines: 1 },
+    { id: 'glass-medium-g02', name: 'Holly and Ivy', size: 8, panes: 16, after: 6, vines: 1 },
+    { id: 'glass-medium-g03', name: 'Laurel Window', size: 8, panes: 17, after: 9, vines: 2 },
+  ],
+  hard: [
+    { id: 'glass-hard-g01', name: 'Ivy Tracery', size: 9, panes: 20, after: 1, vines: 2 },
+    { id: 'glass-hard-g02', name: 'The Climbing Rose', size: 9, panes: 21, after: 4, vines: 3 },
+  ],
+};
+
+interface WindowEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly difficulty: PuzzleDifficulty;
+  readonly size: number;
+  readonly panes: number;
+  readonly vines?: number;
+}
+
+/** A tier's windows in deal order, plain and ruled. */
+const ENTRIES: Record<PuzzleDifficulty, ReadonlyArray<WindowEntry>> = (() => {
+  const out = {} as Record<PuzzleDifficulty, WindowEntry[]>;
+  for (const difficulty of ['easy', 'medium', 'hard'] as const) {
+    const list: WindowEntry[] = [];
+    WINDOWS[difficulty].forEach(([name, size, panes], i) => {
+      list.push({ id: curatedId(difficulty, i), name, difficulty, size, panes });
+      for (const r of RULED[difficulty]) if (r.after === i) list.push({ id: r.id, name: r.name, difficulty, size: r.size, panes: r.panes, vines: r.vines });
+    });
+    out[difficulty] = list;
+  }
+  return out;
+})();
+const ENTRY_BY_ID = new Map<string, WindowEntry>((['easy', 'medium', 'hard'] as const).flatMap(d => ENTRIES[d].map(e => [e.id, e] as const)));
+
 const glassCache = new Map<string, GlassPuzzle>();
 
 function curatedId(difficulty: PuzzleDifficulty, index: number): string {
@@ -427,37 +628,41 @@ function curatedId(difficulty: PuzzleDifficulty, index: number): string {
 
 /** The ids of a tier's windows, in deal order - without building them. */
 export function glassIdsFor(difficulty: PuzzleDifficulty): ReadonlyArray<string> {
-  return WINDOWS[difficulty].map((_w, i) => curatedId(difficulty, i));
+  return ENTRIES[difficulty].map(e => e.id);
 }
 
 /** Every curated window, as id, name and tier only - cheap to list (for
  * the Daily's pool, achievements, the aptitude chart) without building a
  * single one. */
 export const GLASS_WINDOWS: ReadonlyArray<{ id: string; name: string; difficulty: PuzzleDifficulty }> = (['easy', 'medium', 'hard'] as const).flatMap(difficulty =>
-  WINDOWS[difficulty].map((w, i) => ({ id: curatedId(difficulty, i), name: w[0], difficulty })),
+  ENTRIES[difficulty].map(e => ({ id: e.id, name: e.name, difficulty })),
 );
 
 /** A curated window's name, from its id alone (null for any other id). */
 export function glassCuratedInfo(id: string): { name: string; difficulty: PuzzleDifficulty } | null {
-  const m = /^glass-(easy|medium|hard)-(\d+)$/.exec(id);
-  if (!m) return null;
-  const difficulty = m[1] as PuzzleDifficulty;
-  const entry = WINDOWS[difficulty][Number(m[2]) - 1];
-  return entry ? { name: entry[0], difficulty } : null;
+  const entry = ENTRY_BY_ID.get(id);
+  return entry ? { name: entry.name, difficulty: entry.difficulty } : null;
 }
 
 /** A curated window, built the first time it is asked for and kept. */
 export function getCuratedGlass(id: string): GlassPuzzle | undefined {
   const cached = glassCache.get(id);
   if (cached) return cached;
-  const m = /^glass-(easy|medium|hard)-(\d+)$/.exec(id);
-  if (!m) return undefined;
-  const difficulty = m[1] as PuzzleDifficulty;
-  const entry = WINDOWS[difficulty][Number(m[2]) - 1];
+  const entry = ENTRY_BY_ID.get(id);
   if (!entry) return undefined;
-  const puzzle = generateGlass(id, entry[0], difficulty, { size: entry[1], panes: entry[2] });
+  const puzzle = generateGlass(id, entry.name, entry.difficulty, { size: entry.size, panes: entry.panes }, { vines: entry.vines });
   glassCache.set(id, puzzle);
   return puzzle;
+}
+
+/**
+ * What an endless window brings, chosen from its id: a vine, often.
+ */
+function endlessRules(id: string, tier: PuzzleDifficulty): { vines?: number } {
+  const roll = mulberry32(hashId(`${id}:rules`))();
+  if (tier === 'medium') return roll < 0.45 ? { vines: 1 } : {};
+  if (tier === 'hard') return roll < 0.6 ? { vines: roll < 0.3 ? 2 : 1 } : {};
+  return {};
 }
 
 /** Any window by id, endless ones included (`name` comes from the caller,
@@ -467,7 +672,8 @@ export function getGlassWindow(id: string, endless?: { name: string; tier: Puzzl
   if (curated || !endless) return curated;
   const cached = glassCache.get(id);
   if (cached) return cached;
-  const puzzle = generateGlass(id, endless.name, endless.tier);
+  const rules = endlessRules(id, endless.tier);
+  const puzzle = generateGlass(id, endless.name, endless.tier, SHAPES[endless.tier], rules);
   glassCache.set(id, puzzle);
   return puzzle;
 }

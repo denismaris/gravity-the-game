@@ -26,6 +26,9 @@ export enum StaticCellType {
    * `applyGravity`). One destroyed object means the puzzle can never be
    * solved (see `isPuzzleFailed`). */
   Hazard = 'hazard',
+  /** Soft sand: an object that slides onto it sinks in and stops there.
+   * It leaves again freely on a later move. */
+  Sand = 'sand',
 }
 
 /**

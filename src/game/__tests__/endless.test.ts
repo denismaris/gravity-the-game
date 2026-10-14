@@ -33,7 +33,7 @@ describe('endless boards', () => {
     for (const tier of TIERS) {
       const id = endlessId('glass', tier, 0);
       const w = getGlassWindow(id, { name: 'Endless', tier })!;
-      expect(solveGlass(w.touching, w.given, 2)).toHaveLength(1);
+      expect(solveGlass(w.touching, w.given, 2, w)).toHaveLength(1);
     }
   });
 
@@ -47,7 +47,7 @@ describe('endless boards', () => {
         const need = fewestMirrors(puzzle, 400000)!;
         expect(need).toBeGreaterThanOrEqual(lo - 1);
         expect(need).toBeLessThanOrEqual(hi);
-        expect(generateMirrorMaze(id, puzzle.name!, tier)).toEqual(puzzle);
+        expect(generateMirrorMaze(id, puzzle.name!, tier, { rubyGems: puzzle.rubyGems?.length, splitter: !!puzzle.splitters?.length })).toEqual(puzzle);
       }
     }
   });

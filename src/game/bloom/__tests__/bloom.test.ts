@@ -114,7 +114,7 @@ describe('play', () => {
 
 describe('the shipped pool', () => {
   test('has the expected size per tier, with unique ids', () => {
-    expect(BLOOM).toHaveLength(20);
+    expect(BLOOM).toHaveLength(24); // 20 plain, 4 that bring twin tiles
     expect(new Set(BLOOM.map(p => p.id)).size).toBe(BLOOM.length);
   });
 

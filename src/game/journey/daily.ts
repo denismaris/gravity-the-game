@@ -54,7 +54,21 @@ function buildAllPuzzles(): ReadonlyArray<PuzzleRef> {
   const mosaic: PuzzleRef[] = MOSAIC.map(puzzle => ({ kind: 'mosaic' as const, puzzleId: puzzle.id }));
   const bridges: PuzzleRef[] = BRIDGES.map(puzzle => ({ kind: 'bridges' as const, puzzleId: puzzle.id }));
   const byKind: Record<GameKind, PuzzleRef[]> = { gravity, mirror, lilypads, vanes, binairo, arukone, glass, lightsout, adjacent, bloom, mosaic, bridges };
-  return ROTATION.flatMap(kind => byKind[kind]);
+  return ROTATION.flatMap(kind => byKind[kind]).filter(ref => !bringsLaterRule(ref.puzzleId));
+}
+
+/**
+ * Boards that bring a later rule (twin lanterns, vines, sand, fog and the
+ * rest) stay out of the Daily: it is shared by everyone, newcomers
+ * included, and its pool must not shift when such boards are added - a
+ * shifted pool would hand players on two app versions two different
+ * Dailies on the same day. They all carry ids of their own: a letter
+ * before the number (`glass-medium-g01`), or a Gravity level past 230.
+ */
+export function bringsLaterRule(puzzleId: string): boolean {
+  if (/-[a-z]\d\d$/.test(puzzleId)) return true;
+  const level = /^level-(\d+)$/.exec(puzzleId);
+  return !!level && Number(level[1]) > 230;
 }
 
 /** Static - every game's pool is fixed at build time. */

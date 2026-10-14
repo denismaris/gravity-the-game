@@ -14,8 +14,8 @@ import {
   withSpring,
   withTiming,
 } from 'react-native-reanimated';
-import { DIRECTIONS, LilyPuzzle, LilyState } from '../game/lilypads';
-import { useReducedMotion } from '../game/rendering';
+import { Cell, DIRECTIONS, LilyPuzzle, LilyState, padCell } from '../game/lilypads';
+import { shade, useReducedMotion } from '../game/rendering';
 import { inkWash, theme } from '../theme';
 
 /**
@@ -94,6 +94,8 @@ export function LilyPadsBoard({
   const geo = useMemo(() => lilyGeometry(size, puzzle.size), [size, puzzle.size]);
   const reduced = useReducedMotion();
   const r = geo.cell * 0.42;
+  // Where each pad is now: drifting pads move, so never `puzzle.pads`.
+  const cellOf = (i: number) => padCell(puzzle, state, i);
 
   // Pads that just sank, kept a moment to go under.
   const before = useRef(state.afloat);
@@ -126,18 +128,23 @@ export function LilyPadsBoard({
 
   // The frog: from, to and how far along the hop; set together on the UI
   // thread, so it never shows at the new pad before the hop begins.
-  const start = geo.centre(puzzle.pads[state.at].row, puzzle.pads[state.at].col);
+  const start = geo.centre(cellOf(state.at).row, cellOf(state.at).col);
   const fromX = useSharedValue(start.x);
   const fromY = useSharedValue(start.y);
   const toX = useSharedValue(start.x);
   const toY = useSharedValue(start.y);
   const t = useSharedValue(1);
   const lastAt = useRef(state.at);
+  // Where the frog last sat, kept as a point: the pad it left may drift on.
+  const lastSpot = useRef(start);
   const [landing, setLanding] = useState<{ pad: number; key: number } | null>(null);
   useEffect(() => {
     const prev = lastAt.current;
     lastAt.current = state.at;
-    const target = geo.centre(puzzle.pads[state.at].row, puzzle.pads[state.at].col);
+    const here = padCell(puzzle, state, state.at);
+    const target = geo.centre(here.row, here.col);
+    const was = lastSpot.current;
+    lastSpot.current = target;
     if (prev === state.at) {
       // The board resized: the frog simply sits where it is.
       runOnUI((tx: number, ty: number) => {
@@ -149,7 +156,7 @@ export function LilyPadsBoard({
       })(target.x, target.y);
       return;
     }
-    const origin = prev < puzzle.pads.length ? geo.centre(puzzle.pads[prev].row, puzzle.pads[prev].col) : target;
+    const origin = prev < puzzle.pads.length ? was : target;
     runOnUI((ox: number, oy: number, tx: number, ty: number, run: boolean) => {
       'worklet';
       fromX.value = ox;
@@ -164,6 +171,7 @@ export function LilyPadsBoard({
       }
     })(origin.x, origin.y, target.x, target.y, !reduced);
     if (!reduced) setLanding({ pad: state.at, key: Date.now() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- a hop is a change of pad; drifting alone never moves the frog
   }, [state.at, puzzle, geo, reduced, fromX, fromY, toX, toY, t]);
 
   // Breathing, blinking, shaking, and a joyful hop at the end.
@@ -221,21 +229,21 @@ export function LilyPadsBoard({
     const dy = y - from.y;
     if (Math.hypot(dx, dy) > geo.cell * 0.4) {
       const d = Math.abs(dx) > Math.abs(dy) ? (dx > 0 ? 1 : 3) : dy > 0 ? 2 : 0;
-      const frog = puzzle.pads[state.at];
-      const pad = reach.find(p => Math.sign(puzzle.pads[p].row - frog.row) === DIRECTIONS[d].row && Math.sign(puzzle.pads[p].col - frog.col) === DIRECTIONS[d].col);
+      const frog = cellOf(state.at);
+      const pad = reach.find(p => Math.sign(cellOf(p).row - frog.row) === DIRECTIONS[d].row && Math.sign(cellOf(p).col - frog.col) === DIRECTIONS[d].col);
       if (pad !== undefined) onHop(pad);
       else onRefused?.();
       return;
     }
     const col = Math.floor((x - geo.inset) / geo.cell);
     const row = Math.floor((y - geo.inset) / geo.cell);
-    const pad = puzzle.pads.findIndex((p, i) => state.afloat[i] && p.row === row && p.col === col);
+    const pad = puzzle.pads.findIndex((_p, i) => state.afloat[i] && cellOf(i).row === row && cellOf(i).col === col);
     if (pad < 0 || pad === state.at) return;
     if (reach.includes(pad)) onHop(pad);
     else onRefused?.();
   };
 
-  const frogPad = puzzle.pads[state.at];
+  const frogPad = cellOf(state.at);
   const home = geo.centre(frogPad.row, frogPad.col);
 
   return (
@@ -243,25 +251,34 @@ export function LilyPadsBoard({
       <Canvas style={StyleSheet.absoluteFill}>
         <PondTray size={size} inset={geo.inset} puzzle={puzzle} geo={geo} />
         {sinking.map(s => (
-          <Sinking key={s.key} geo={geo} pad={puzzle.pads[s.pad]} r={r} />
+          <Sinking key={s.key} geo={geo} pad={cellOf(s.pad)} r={r} />
         ))}
         {solved && !reduced && <Ripples x={home.x} y={home.y} reach={size * 0.75} />}
-        <Trail points={trail.slice(-7).map(i => geo.centre(puzzle.pads[i].row, puzzle.pads[i].col))} lift={geo.cell * 0.35} />
-        {puzzle.pads.map((p, i) => (state.afloat[i] && i !== state.at ? <Leaf key={i} geo={geo} row={p.row} col={p.col} r={r} lotus={state.lotus?.[i] ?? false} /> : null))}
+        <Trail points={trail.slice(-7).map(i => geo.centre(cellOf(i).row, cellOf(i).col))} lift={geo.cell * 0.35} />
+        {puzzle.pads.map((p, i) => {
+          if (!state.afloat[i] || i === state.at) return null;
+          const c = cellOf(i);
+          if (state.stones?.[i]) return <Stone key={i} geo={geo} row={c.row} col={c.col} r={r} />;
+          return <Leaf key={i} geo={geo} row={c.row} col={c.col} r={r} lotus={state.lotus?.[i] ?? false} />;
+        })}
         {falling.map(f => {
-          const c = geo.centre(puzzle.pads[f.pad].row, puzzle.pads[f.pad].col);
+          const c = geo.centre(cellOf(f.pad).row, cellOf(f.pad).col);
           return <LotusFall key={f.key} x={c.x} y={c.y} r={r} />;
         })}
         {/* The frog's own pad dips as it lands. */}
-        <LivePad key={`live${state.at}`} geo={geo} row={frogPad.row} col={frogPad.col} r={r} dip={landing?.pad === state.at && !reduced} lotus={state.lotus?.[state.at] ?? false} />
+        {state.stones?.[state.at] ? (
+          <Stone geo={geo} row={frogPad.row} col={frogPad.col} r={r} />
+        ) : (
+          <LivePad key={`live${state.at}`} geo={geo} row={frogPad.row} col={frogPad.col} turnOf={puzzle.pads[state.at]} r={r} dip={landing?.pad === state.at && !reduced} lotus={state.lotus?.[state.at] ?? false} />
+        )}
         {landing && landing.pad === state.at && !reduced && <Splash key={landing.key} x={home.x} y={home.y} r={r} />}
-        {!solved && <ReachRings geo={geo} pads={reach.map(i => puzzle.pads[i])} r={r} reduced={reduced} />}
+        {!solved && <ReachRings geo={geo} pads={reach.map(i => cellOf(i))} r={r} reduced={reduced} />}
         {cutOff.map(i => {
-          const c = geo.centre(puzzle.pads[i].row, puzzle.pads[i].col);
+          const c = geo.centre(cellOf(i).row, cellOf(i).col);
           return <CutOffRing key={`c${i}`} x={c.x} y={c.y} r={r} reduced={reduced} />;
         })}
         {glow !== null && glow !== undefined && state.afloat[glow] && (
-          <Circle cx={geo.centre(puzzle.pads[glow].row, puzzle.pads[glow].col).x} cy={geo.centre(puzzle.pads[glow].row, puzzle.pads[glow].col).y + r * 0.07} r={r + 5} color={theme.colors.accent} style="stroke" strokeWidth={3} />
+          <Circle cx={geo.centre(cellOf(glow).row, cellOf(glow).col).x} cy={geo.centre(cellOf(glow).row, cellOf(glow).col).y + r * 0.07} r={r + 5} color={theme.colors.accent} style="stroke" strokeWidth={3} />
         )}
         {solved && <Bloom x={home.x} y={home.y} r={r} reduced={reduced} />}
         <Group transform={shadowTransform}>
@@ -425,8 +442,9 @@ function LeafAt({ x, y, r, turn }: { x: number; y: number; r: number; turn: numb
   );
 }
 
-/** The frog's pad: it dips under the landing frog and springs back. */
-function LivePad({ geo, row, col, r, dip, lotus }: { geo: LilyGeo; row: number; col: number; r: number; dip: boolean; lotus: boolean }): React.JSX.Element {
+/** The frog's pad: it dips under the landing frog and springs back. A
+ * drifting pad keeps the notch it started with (`turnOf`). */
+function LivePad({ geo, row, col, r, dip, lotus, turnOf }: { geo: LilyGeo; row: number; col: number; r: number; dip: boolean; lotus: boolean; turnOf?: Cell }): React.JSX.Element {
   const { x, y } = geo.centre(row, col);
   const s = useSharedValue(1);
   useEffect(() => {
@@ -436,8 +454,32 @@ function LivePad({ geo, row, col, r, dip, lotus }: { geo: LilyGeo; row: number; 
   const transform = useDerivedValue(() => [{ translateX: x }, { translateY: y }, { scale: s.value }, { translateX: -x }, { translateY: -y }]);
   return (
     <Group transform={transform}>
-      <LeafAt x={x} y={y} r={r} turn={notchTurn(row, col)} />
+      <LeafAt x={x} y={y} r={r} turn={notchTurn(turnOf?.row ?? row, turnOf?.col ?? col)} />
       {lotus && <Lotus x={x} y={y} r={r} />}
+    </Group>
+  );
+}
+
+/**
+ * A stepping stone: a flat grey stone sitting low in the water, standing on
+ * its own darker side, a lighter rim where the light falls and two flecks.
+ * Never sinks, so it never dips or ripples.
+ */
+export function Stone({ geo, row, col, r }: { geo: LilyGeo; row: number; col: number; r: number }): React.JSX.Element {
+  const { x, y } = geo.centre(row, col);
+  const w = r * 1.62;
+  const h = r * 1.34;
+  const depth = r * 0.16;
+  const face = theme.colors.pondStone;
+  const blob = (oy: number) =>
+    `M ${x - w * 0.5} ${y + oy} C ${x - w * 0.52} ${y + oy - h * 0.42} ${x - w * 0.1} ${y + oy - h * 0.52} ${x + w * 0.12} ${y + oy - h * 0.48} C ${x + w * 0.42} ${y + oy - h * 0.44} ${x + w * 0.54} ${y + oy - h * 0.1} ${x + w * 0.5} ${y + oy + h * 0.08} C ${x + w * 0.46} ${y + oy + h * 0.42} ${x + w * 0.06} ${y + oy + h * 0.5} ${x - w * 0.16} ${y + oy + h * 0.46} C ${x - w * 0.42} ${y + oy + h * 0.42} ${x - w * 0.5} ${y + oy + h * 0.2} ${x - w * 0.5} ${y + oy} Z`;
+  return (
+    <Group>
+      <Path path={blob(depth)} color={shade(face, 0.68)} />
+      <Path path={blob(0)} color={face} />
+      <Path path={`M ${x - w * 0.36} ${y - h * 0.22} Q ${x - w * 0.08} ${y - h * 0.44} ${x + w * 0.26} ${y - h * 0.34}`} color="#FFFFFF" style="stroke" strokeWidth={1.6} strokeCap="round" opacity={0.35} />
+      <Circle cx={x + w * 0.16} cy={y + h * 0.1} r={r * 0.06} color={shade(face, 0.75)} />
+      <Circle cx={x - w * 0.12} cy={y + h * 0.2} r={r * 0.045} color={shade(face, 0.75)} />
     </Group>
   );
 }
@@ -638,12 +680,13 @@ export function LilyStill({
 }): React.JSX.Element {
   const geo = lilyGeometry(size, puzzle.size);
   const r = geo.cell * 0.42;
-  const frog = geo.centre(puzzle.pads[state.at].row, puzzle.pads[state.at].col);
+  const cellOf = (i: number) => padCell(puzzle, state, i);
+  const frog = geo.centre(cellOf(state.at).row, cellOf(state.at).col);
   return (
     <Group>
       <PondTray size={size} inset={geo.inset} puzzle={puzzle} geo={geo} />
       {sunk.map(i => {
-        const c = geo.centre(puzzle.pads[i].row, puzzle.pads[i].col);
+        const c = geo.centre(cellOf(i).row, cellOf(i).col);
         return (
           <Group key={`s${i}`}>
             <Circle cx={c.x} cy={c.y} r={r * 0.9} color={theme.colors.pondRipple} style="stroke" strokeWidth={2} opacity={0.8} />
@@ -651,13 +694,18 @@ export function LilyStill({
           </Group>
         );
       })}
-      {puzzle.pads.map((p, i) => (state.afloat[i] ? <Leaf key={i} geo={geo} row={p.row} col={p.col} r={r} lotus={state.lotus?.[i] ?? false} /> : null))}
+      {puzzle.pads.map((p, i) => {
+        if (!state.afloat[i]) return null;
+        const c = cellOf(i);
+        if (state.stones?.[i]) return <Stone key={i} geo={geo} row={c.row} col={c.col} r={r} />;
+        return <Leaf key={i} geo={geo} row={c.row} col={c.col} r={r} lotus={state.lotus?.[i] ?? false} />;
+      })}
       {reach.map(i => {
-        const c = geo.centre(puzzle.pads[i].row, puzzle.pads[i].col);
+        const c = geo.centre(cellOf(i).row, cellOf(i).col);
         return <Circle key={`r${i}`} cx={c.x} cy={c.y + r * 0.07} r={r + 3} color="#FFFFFF" style="stroke" strokeWidth={2} opacity={0.75} />;
       })}
       {cutOff.map(i => {
-        const c = geo.centre(puzzle.pads[i].row, puzzle.pads[i].col);
+        const c = geo.centre(cellOf(i).row, cellOf(i).col);
         return <Circle key={`c${i}`} cx={c.x} cy={c.y + r * 0.07} r={r + 3} color={theme.colors.danger} style="stroke" strokeWidth={2.5} />;
       })}
       {bloom && (

@@ -31,6 +31,8 @@ import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
 import { LIGHTSOUT_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
+import { mechanic } from '../game/mechanics';
+import { MechanicIntro } from '../components/MechanicIntro';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
@@ -158,7 +160,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
     (row: number, col: number) => {
       setPresses(n => n + 1);
       setState(current => {
-        const next = press(current, puzzle.size, row, col);
+        const next = press(current, puzzle.size, row, col, puzzle);
         // The solved cue fires once from the effect above, whatever press
         // triggers it - so it is not doubled up here. Otherwise the cue
         // reports what the press *did*: going darker is progress and gets
@@ -169,7 +171,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         return next;
       });
     },
-    [puzzle.size],
+    [puzzle],
   );
 
   // Charged only when there is a hint to give, and before applying it, so
@@ -286,6 +288,10 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         />
       )}
 
+      <MechanicIntro
+        intros={puzzle.twins?.length ? [mechanic('mechanic:lantern-twins')] : []}
+        accent={accentColorForKind('lightsout')}
+      />
       {showTutorial && <MechanicsCarousel slides={LIGHTSOUT_MECHANICS_SLIDES} renderIllustration={renderLightsOutIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('lightsout')} />}
     </View>
   );

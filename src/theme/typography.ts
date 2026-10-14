@@ -13,6 +13,10 @@ import { Platform } from 'react-native';
 const serifFamily = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
 const uiFamily = Platform.select({ ios: 'System', android: 'sans-serif', default: 'System' });
 const monoFamily = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
+/** A serif whose digits all stand on the line at one height. Georgia's are
+ * old-style - a 3 or a 7 hangs below the line - which looks lovely in a
+ * sentence and lopsided alone in a circle. */
+const figureFamily = Platform.select({ ios: 'Times New Roman', android: 'serif', default: 'serif' });
 
 export const typography = {
   /** The default UI family. Prefer `families.*` in new code. */
@@ -24,6 +28,8 @@ export const typography = {
     ui: uiFamily,
     /** Numeric readouts only. */
     mono: monoFamily,
+    /** A number standing on its own in a medal or a badge. */
+    figures: figureFamily,
   },
 
   sizes: {

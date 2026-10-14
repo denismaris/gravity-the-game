@@ -49,7 +49,6 @@ import {
   unclaimedSets,
   gamesPlayed,
   INTRO_ORDER,
-  INTRO_SOLVES,
   nextGameToArrive,
   unlockedGames,
 } from '../progression';
@@ -610,6 +609,7 @@ export function HomeScreen({
                   entry.golden && !levelPoint.allDone && styles.cardGolden]}
               >
                 <>
+                  <View pointerEvents="none" style={styles.cardKeyline} />
                   {/* The chip sits beside the eyebrow rather than inside it:
                     the eyebrow is tinted with this game's identity colour,
                     and a difficulty spelled in that same colour would read
@@ -653,9 +653,15 @@ export function HomeScreen({
                   <View
                     style={[styles.headingRule, { backgroundColor: accent }]}
                   />
-                  <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.62}>
+                  {/* The name alone: the game it belongs to is already ringed
+                    in the set row below, and a second emblem here showed the
+                    same game twice. */}
+                  <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
                     {entry.name}
                   </Text>
+                  {!debut && progress.currentBatch && (
+                    <Text style={styles.heroSub}>{`Puzzle ${levelPoint.batchPosition} of ${levelPoint.batchSize} in this set`}</Text>
+                  )}
                   {/* Only a debut needs a line here: otherwise the set's own
                       emblems below already say where in it this puzzle is. */}
                   {debut && <Text style={styles.heroMeta}>{`Your first ${entry.chapter} puzzle.${lessonFirst ? ' A short lesson comes first.' : ''}`}</Text>}
@@ -672,6 +678,7 @@ export function HomeScreen({
                       what the rest of the set is, named, with a finished one
                       filled and the ones ahead faded: a preview, not a
                       mystery. */}
+                    {progress.currentBatch && <Text style={styles.setLabel}>This set</Text>}
                     {progress.currentBatch && (
                       <View style={styles.setRow}>
                         {progress.currentBatch.puzzles.map((entryRef, i) => {
@@ -696,7 +703,7 @@ export function HomeScreen({
                             )}
                             <View style={styles.setItem}>
                               <View style={[styles.setRing, isCurrent && { borderColor: tint }, !(done || isCurrent) && styles.setAhead]}>
-                                <GameEmblem kind={entryRef.kind} size={38} />
+                                <GameEmblem kind={entryRef.kind} size={44} />
                                 {done && (
                                   <View style={[styles.setCheck, { backgroundColor: tint }]}>
                                     <Icon name="check" size={9} color={theme.colors.surfaceHi} />
@@ -767,10 +774,10 @@ export function HomeScreen({
                           <View style={styles.nextBody}>
                             <View style={styles.nextHead}>
                               <Text style={styles.nextTitle} numberOfLines={1}>{`Next: ${gameShortName(arriving.kind)}`}</Text>
-                              <Text style={styles.nextCount}>{`${arriving.done}/${INTRO_SOLVES}`}</Text>
+                              <Text style={styles.nextCount}>{`${arriving.done}/${arriving.need}`}</Text>
                             </View>
                             <View style={styles.nextTrack}>
-                              <View style={[styles.nextFill, { width: `${(arriving.done / INTRO_SOLVES) * 100}%`, backgroundColor: accentColorForKind(arriving.gate) }]} />
+                              <View style={[styles.nextFill, { width: `${(arriving.done / arriving.need) * 100}%`, backgroundColor: accentColorForKind(arriving.gate) }]} />
                             </View>
                           </View>
                         </PressableScale>
@@ -857,12 +864,14 @@ export function HomeScreen({
             <View style={[styles.page, { width }]}>
               <Animated.View style={[styles.pageInner, pageMotion(1)]}>
               <View style={[styles.card, { height: cardHeight }]}>
+                <View pointerEvents="none" style={styles.cardKeyline} />
                 <View style={styles.cardHead}>
                   <Text style={styles.eyebrowMuted}>Today</Text>
                   <Text style={[styles.badge, errandsWaiting > 0 || !dailyCompletedToday ? styles.badgeLive : styles.badgeDone]}>
                     {errandsWaiting > 0 ? `${errandsWaiting} to claim` : dailyCompletedToday ? 'Daily solved' : 'Daily waiting'}
                   </Text>
                 </View>
+                <View style={[styles.headingRule, { backgroundColor: accentColorForKind(daily.kind) }]} />
 
                 <PressableScale
                   accessibilityRole="button"
@@ -873,10 +882,12 @@ export function HomeScreen({
                   style={[styles.todayDaily, tight && styles.todayDailyTight]}
                 >
                   <View style={styles.todayDailyRow}>
-                    <GameEmblem kind={daily.kind} size={46} />
+                    <View style={[styles.cardEmblem, { borderColor: accentColorForKind(daily.kind) }]}>
+                      <GameEmblem kind={daily.kind} size={44} />
+                    </View>
                     <View style={styles.dailyText}>
                       <Text style={styles.todayKicker}>The Daily</Text>
-                      <Text style={styles.todayTitle} numberOfLines={1}>
+                      <Text style={styles.todayTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         {daily.name}
                       </Text>
                       <Text style={styles.dailyChapter} numberOfLines={1}>
@@ -940,14 +951,18 @@ export function HomeScreen({
                 unstable_pressDelay={110}
                 style={[styles.card, styles.cardGrand, { height: cardHeight }]}
               >
+                <View pointerEvents="none" style={styles.cardKeyline} />
                 <View style={styles.cardHead}>
                   <Text style={[styles.eyebrowMuted, styles.grandEyebrow]}>Weekly Grand</Text>
                   <Text style={[styles.badge, grandDone ? styles.badgeDone : styles.badgeLive]}>
                     {grandDone ? 'Solved' : grand.daysLeft === 1 ? 'Last day' : `${grand.daysLeft} days left`}
                   </Text>
                 </View>
+                <View style={[styles.headingRule, styles.grandRule]} />
                 <View style={styles.dailyRow}>
-                  <GameEmblem kind={grand.kind} size={54} />
+                  <View style={[styles.cardEmblem, styles.grandEmblem]}>
+                    <GameEmblem kind={grand.kind} size={50} />
+                  </View>
                   <View style={styles.dailyText}>
                     <Text style={styles.dailyTitle} numberOfLines={2}>
                       {grand.name}
@@ -1013,6 +1028,7 @@ export function HomeScreen({
             <View style={[styles.page, { width }]}>
               <Animated.View style={[styles.pageInner, pageMotion(3)]}>
               <View style={[styles.card, { height: cardHeight }]}>
+                <View pointerEvents="none" style={styles.cardKeyline} />
                 <View style={styles.cardHead}>
                   <Text style={styles.eyebrowMuted}>You</Text>
                   <View style={styles.youHeadRight}>
@@ -1025,6 +1041,7 @@ export function HomeScreen({
                     )}
                   </View>
                 </View>
+                <View style={[styles.headingRule, { backgroundColor: theme.colors.accent }]} />
 
                 <PressableScale
                   accessibilityRole="button"
@@ -1054,18 +1071,45 @@ export function HomeScreen({
                   </View>
                 </PressableScale>
 
-                {/* Where the rest lives: four doors, two by two, each with
-                    one line of where it stands. */}
+                {/* Every game in the order they arrive: the ones you have
+                    met in colour, the rest waiting faded. The collection
+                    filling up, seen at a glance - and the door to it. A
+                    short phone keeps the plain Games door instead. */}
+                {!tight && (
+                  <PressableScale
+                    accessibilityRole="button"
+                    accessibilityLabel={`Your games: ${roster.length} of ${INTRO_ORDER.length}, ${solved} puzzles solved. Open your games`}
+                    onPress={onOpenCollection}
+                    scaleTo={0.98}
+                    unstable_pressDelay={110}
+                    containerStyle={styles.wellCentered}
+                  >
+                    <View style={styles.shelfHead}>
+                      <Text style={styles.setLabel}>Your games</Text>
+                      <Text style={styles.shelfCount}>{`${roster.length} of ${INTRO_ORDER.length} · ${solved} solved`}</Text>
+                    </View>
+                    <View style={styles.shelf}>
+                      {INTRO_ORDER.map(kind => (
+                        <View key={kind} style={[styles.shelfSlot, !roster.includes(kind) && styles.shelfAhead]}>
+                          <GameEmblem kind={kind} size={30} />
+                        </View>
+                      ))}
+                    </View>
+                  </PressableScale>
+                )}
+
+                {/* Where the rest lives: doors with one line each of where
+                    it stands. */}
                 <View style={styles.youLinks}>
                   {[
-                    { label: 'Games', note: `${roster.length} of ${ROTATION.length} · ${solved} solved`, a11y: 'Open your games', onPress: onOpenCollection, dot: false },
+                    ...(tight ? [{ label: 'Games', note: `${roster.length} of ${ROTATION.length} · ${solved} solved`, a11y: 'Open your games', onPress: onOpenCollection, dot: false }] : []),
                     { label: 'Badges', note: `${earned} of ${ACHIEVEMENTS.length}`, a11y: 'Open achievements', onPress: onOpenAchievements, dot: false },
-                    { label: 'Ledger', note: stampsWaiting > 0 ? `${stampsWaiting} stamp${stampsWaiting === 1 ? '' : 's'} to claim` : aptitude.index !== null ? `Puzzle IQ ${aptitude.index}` : 'Stamps and records', a11y: `Open the ledger. ${iqLabel}`, onPress: onOpenLedger, dot: stampsWaiting > 0 },
-                    { label: 'Leaderboards', note: 'Daily and all time', a11y: 'Open the leaderboards', onPress: onOpenLeaderboard, dot: false },
+                    { label: 'Ledger', note: stampsWaiting > 0 ? `${stampsWaiting} to claim` : aptitude.index !== null ? `Puzzle IQ ${aptitude.index}` : 'Stamps and records', a11y: `Open the ledger. ${iqLabel}`, onPress: onOpenLedger, dot: stampsWaiting > 0 },
+                    { label: 'Leaderboards', note: 'Top times', a11y: 'Open the leaderboards', onPress: onOpenLeaderboard, dot: false },
                   ].map(link => (
-                    <PressableScale key={link.label} accessibilityRole="button" accessibilityLabel={`${link.a11y}. ${link.note}`} onPress={link.onPress} scaleTo={0.97} containerStyle={styles.youLinkWrap} style={styles.youLink}>
+                    <PressableScale key={link.label} accessibilityRole="button" accessibilityLabel={`${link.a11y}. ${link.note}`} onPress={link.onPress} scaleTo={0.97} containerStyle={[styles.youLinkWrap, !tight && styles.youLinkThird]} style={[styles.youLink, !tight && styles.youLinkSnug]}>
                       <View style={styles.youLinkHead}>
-                        <Text style={styles.youLinkText} numberOfLines={1}>
+                        <Text style={styles.youLinkText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
                           {link.label}
                         </Text>
                         {link.dot && <View style={styles.youLinkDot} />}
@@ -1192,11 +1236,6 @@ const styles = themedStyles(() => ({
   streakNudgeTextDone: { color: theme.colors.textSecondary },
   todayDaily: {
     marginTop: theme.spacing.md,
-    padding: theme.spacing.md,
-    borderRadius: theme.radii.lg,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    backgroundColor: theme.colors.background,
   },
   todayDailyRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
   todayKicker: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary },
@@ -1212,9 +1251,19 @@ const styles = themedStyles(() => ({
   todayStatus: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   todaySpacer: { flex: 1, minHeight: theme.spacing.sm },
   todaySpacerTight: { minHeight: 4 },
-  todayDailyTight: { marginTop: theme.spacing.sm, paddingVertical: theme.spacing.sm },
+  todayDailyTight: { marginTop: theme.spacing.sm },
   youHeadRight: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
-  youRank: { marginTop: theme.spacing.sm, padding: theme.spacing.md, borderRadius: theme.radii.lg, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.background },
+  youRank: { marginTop: theme.spacing.sm },
+  youLinkSnug: { paddingHorizontal: 10 },
+  youLinkThird: { width: '30%', flexBasis: 'auto' },
+  shelfHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  shelfCount: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
+  shelf: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
+  shelfSlot: { width: '16.66%', alignItems: 'center' },
+  shelfAhead: { opacity: 0.22 },
+  cardEmblem: { padding: 3, borderRadius: 16, borderWidth: 2 },
+  grandEmblem: { borderColor: theme.colors.goldRim },
+  grandRule: { backgroundColor: theme.colors.gold },
   youChapter: { marginTop: theme.spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: theme.spacing.sm },
   youChapterLeft: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary },
   youFigures: { flexDirection: 'row', alignItems: 'center', marginTop: 'auto', marginBottom: 'auto' },
@@ -1439,9 +1488,14 @@ const styles = themedStyles(() => ({
     lineHeight: theme.typography.lineHeights.display,
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
-    marginTop: 8,
+    marginTop: theme.spacing.md,
   },
   heroMeta: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary, marginTop: 8 },
+  heroSub: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary, marginTop: 2 },
+  /** A fine printed rule just inside every card's edge - a plate's border,
+   * not a box: nothing sits inside it but the card's own content. */
+  cardKeyline: { position: 'absolute', top: 6, left: 6, right: 6, bottom: 6, borderRadius: 19, borderWidth: 1, borderColor: theme.colors.border, opacity: 0.8 },
+  setLabel: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.4, textTransform: 'uppercase', color: theme.colors.textTertiary, textAlign: 'center', marginBottom: theme.spacing.sm },
   track: {
     height: 4,
     borderRadius: 2,
@@ -1468,6 +1522,7 @@ const styles = themedStyles(() => ({
   setRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
+    justifyContent: 'center',
   },
   setItem: {
     alignItems: 'center',
@@ -1476,7 +1531,7 @@ const styles = themedStyles(() => ({
    * its own colour - so the row never shifts as the set moves on. */
   setRing: { padding: 3, borderRadius: 15, borderWidth: 2, borderColor: 'transparent' },
   setCheck: { position: 'absolute', right: -3, bottom: -3, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: theme.colors.surface },
-  setPath: { flexDirection: 'row', gap: 3, marginTop: 23, marginHorizontal: 4 },
+  setPath: { flexDirection: 'row', gap: 3, marginTop: 26, marginHorizontal: 4 },
   setPathDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: theme.colors.borderStrong },
   setPathDotOn: { backgroundColor: theme.colors.textTertiary },
   /** Each game named under its own mark. The marks alone were an

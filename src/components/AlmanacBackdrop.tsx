@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { useEquipped } from '../progression/PlayerProgressProvider';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
 import { Canvas, Circle, Group, Path, Rect } from '@shopify/react-native-skia';
-import { useReducedMotion } from '../game/rendering';
+import { shade, useReducedMotion } from '../game/rendering';
 import { theme, themedStyles, nightTone } from '../theme';
 
 export interface CardRect {
@@ -107,6 +107,8 @@ export function AlmanacBackdrop({ width, height, card, clearTop = false }: Alman
             still={reducedMotion}
           >
             <Path path={leaf.path} color={ink} />
+            {/* The leaf's midrib, a fine line of the page showing through. */}
+            <Path path={`M ${leaf.bx} ${leaf.by} Q ${(leaf.bx + leaf.tx) / 2 + (leaf.ty - leaf.by) * 0.06} ${(leaf.by + leaf.ty) / 2 - (leaf.tx - leaf.bx) * 0.06} ${leaf.tx} ${leaf.ty}`} color={theme.colors.background} style="stroke" strokeWidth={Math.max(1, leaf.halfWidth * 0.12)} strokeCap="round" opacity={0.5} />
           </Swaying>
         );
       })}
@@ -125,6 +127,13 @@ export function AlmanacBackdrop({ width, height, card, clearTop = false }: Alman
             still={reducedMotion}
           >
             <Path path={b.path} color={bloom} />
+            {/* The blossom's heart: a deeper disc ringed with seeds in the
+                page's own colour, the cut-paper flower's centre. */}
+            <Circle cx={b.cx} cy={b.cy} r={b.r * 0.24} color={shade(bloom, 0.78)} />
+            {Array.from({ length: 7 }, (_v, k) => {
+              const a = (k / 7) * Math.PI * 2 + i;
+              return <Circle key={k} cx={b.cx + Math.cos(a) * b.r * 0.15} cy={b.cy + Math.sin(a) * b.r * 0.15} r={b.r * 0.028} color={theme.colors.background} opacity={0.55} />;
+            })}
           </Swaying>
         );
       })}

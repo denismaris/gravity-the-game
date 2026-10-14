@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DailyStanding, reportDaily } from '../backend';
 import { useLastBonus, usePlayerProgress } from '../progression/PlayerProgressProvider';
-import { INTRO_SOLVES, nextGameToArrive } from '../progression/batches';
+import { nextGameToArrive } from '../progression/batches';
 import { dailyKeyOf, gameDisplayName, gameShortName, getDailyEntry } from '../game/journey';
 import { cosmeticById } from '../progression/shop';
 import { formatDuration } from '../progression/timing';
@@ -243,10 +243,10 @@ export function PuzzleSolved({
                 <View style={styles.towardBody}>
                   <View style={styles.towardHead}>
                     <Text style={styles.towardText} numberOfLines={1}>{`Next: ${gameShortName(towardNext.kind)}`}</Text>
-                    <Text style={styles.towardCount}>{`${towardNext.done}/${INTRO_SOLVES}`}</Text>
+                    <Text style={styles.towardCount}>{`${towardNext.done}/${towardNext.need}`}</Text>
                   </View>
                   <View style={styles.towardTrack}>
-                    <View style={[styles.towardFill, { width: `${(towardNext.done / INTRO_SOLVES) * 100}%`, backgroundColor: accent }]} />
+                    <View style={[styles.towardFill, { width: `${(towardNext.done / towardNext.need) * 100}%`, backgroundColor: accent }]} />
                   </View>
                 </View>
               </Animated.View>

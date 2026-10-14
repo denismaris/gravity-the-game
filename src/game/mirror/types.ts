@@ -42,6 +42,14 @@ export interface MirrorMazePuzzle {
   /** Fixed, permanent blockers - never player-editable. The beam stops the
    * cell before an obstacle, exactly like it stops at the board edge. */
   readonly obstacles: ReadonlyArray<MirrorMazeCell>;
+  /** Ruby filters (later boards): fixed glass that turns the beam ruby
+   * from there on. */
+  readonly filters?: ReadonlyArray<MirrorMazeCell>;
+  /** Which gems are ruby: lit only by a ruby beam. Indexes into `gems`. */
+  readonly rubyGems?: ReadonlyArray<number>;
+  /** Splitters (later boards): fixed prisms that send the beam two ways at
+   * once, out to either side. */
+  readonly splitters?: ReadonlyArray<MirrorMazeCell>;
 }
 
 /** Player-placed mirrors only. Same `rows x cols` shape as the puzzle grid;

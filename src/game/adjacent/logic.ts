@@ -1,4 +1,4 @@
-import { AdjacentCell, AdjacentCoord, AdjacentFall, AdjacentMove, AdjacentPuzzle, AdjacentState } from './types';
+import { AdjacentCell, AdjacentCoord, AdjacentFall, AdjacentMove, AdjacentPuzzle, AdjacentState, GOLD, STONE } from './types';
 
 /**
  * A tap only clears a run of **two or more**. A lone tile has nothing to
@@ -68,7 +68,19 @@ export function groupAt(
 ): ReadonlyArray<AdjacentCoord> {
   if (!inBounds(grid, row, col)) return [];
   const colour = grid[row][col];
-  if (colour === null) return [];
+  if (colour === null || colour === STONE) return [];
+  // A gold tile has no colour of its own: tapped, it clears the biggest
+  // run it can join.
+  if (colour === GOLD) {
+    let best: ReadonlyArray<AdjacentCoord> = [];
+    for (const [dr, dc] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      const c = inBounds(grid, row + dr, col + dc) ? grid[row + dr][col + dc] : null;
+      if (c === null || c < 0) continue;
+      const run = groupAt(grid, row + dr, col + dc);
+      if (run.length > best.length) best = run;
+    }
+    return best;
+  }
 
   const seen = new Set<string>([`${row}:${col}`]);
   const group: AdjacentCoord[] = [];
@@ -87,7 +99,7 @@ export function groupAt(
       const key = `${next.row}:${next.col}`;
       if (seen.has(key)) continue;
       if (!inBounds(grid, next.row, next.col)) continue;
-      if (grid[next.row][next.col] !== colour) continue;
+      if (grid[next.row][next.col] !== colour && grid[next.row][next.col] !== GOLD) continue;
       seen.add(key);
       stack.push(next);
     }
@@ -150,21 +162,63 @@ export function applyTap(state: AdjacentState, row: number, col: number): Adjace
   const cleared = state.grid.map(line => line.slice());
   for (const cell of group) cleared[cell.row][cell.col] = null;
 
+  // Stones that the clear lets down onto the floor crumble away - see
+  // `crumbling`. Removed before the board settles, so everything above
+  // them falls the whole way in one go.
+  const crumbled = crumbling(cleared);
+  for (const cell of crumbled) cleared[cell.row][cell.col] = null;
+
   const { grid, falls } = settle(cleared);
-  const gained = cascadeScore(group.length);
+  const golden = group.some(cell => state.grid[cell.row][cell.col] === GOLD);
+  const gained = cascadeScore(group.length) * (golden ? 2 : 1) + crumbled.length * STONE_BONUS;
 
   return {
     state: { grid, score: state.score + gained, cascades: state.cascades + 1 },
-    removed: group,
+    removed: [...group, ...crumbled],
     falls,
     gained,
-    multiplier: multiplierFor(group.length),
+    multiplier: multiplierFor(group.length) * (golden ? 2 : 1),
+    crumbled: crumbled.length,
   };
 }
 
-/** How many tiles are still on the board - the header's own countdown. */
+/** Points for each stone brought down to the floor. */
+export const STONE_BONUS = 200;
+
+/**
+ * The stones a settle would set on the floor: in each column, every stone
+ * with nothing but empty squares and other such stones beneath it. A
+ * stone never rests on the floor (the dealer never places one there), so
+ * any that would reach it got there by the player digging underneath -
+ * and it crumbles, for a bonus. That turns a stone from clutter into
+ * something to aim for.
+ */
+export function crumbling(grid: ReadonlyArray<ReadonlyArray<AdjacentCell>>): AdjacentCoord[] {
+  const out: AdjacentCoord[] = [];
+  for (let col = 0; col < grid[0].length; col += 1) {
+    for (let row = grid.length - 1; row >= 0; row -= 1) {
+      const cell = grid[row][col];
+      if (cell === null) continue;
+      if (cell !== STONE) break;
+      out.push({ row, col });
+    }
+  }
+  return out;
+}
+
+/** How many tiles are still on the board - the header's own countdown.
+ * Stones count: brought to the floor, they go too. */
 export function tileCount(grid: ReadonlyArray<ReadonlyArray<AdjacentCell>>): number {
   return grid.reduce((total, line) => total + line.filter(cell => cell !== null).length, 0);
+}
+
+/** Whether two side-by-side tiles make a run: the same colour, or one a
+ * colour and the other gold. */
+function pairs(a: AdjacentCell, b: AdjacentCell): boolean {
+  if (a === null || b === null || a === STONE || b === STONE) return false;
+  if (a === GOLD) return b !== GOLD;
+  if (b === GOLD) return true;
+  return a === b;
 }
 
 /**
@@ -179,8 +233,8 @@ export function hasLegalMove(grid: ReadonlyArray<ReadonlyArray<AdjacentCell>>): 
     for (let col = 0; col < grid[row].length; col += 1) {
       const cell = grid[row][col];
       if (cell === null) continue;
-      if (row + 1 < grid.length && grid[row + 1][col] === cell) return true;
-      if (col + 1 < grid[row].length && grid[row][col + 1] === cell) return true;
+      if (row + 1 < grid.length && pairs(cell, grid[row + 1][col])) return true;
+      if (col + 1 < grid[row].length && pairs(cell, grid[row][col + 1])) return true;
     }
   }
   return false;
@@ -194,9 +248,11 @@ export function legalMoves(grid: ReadonlyArray<ReadonlyArray<AdjacentCell>>): Re
 
   for (let row = 0; row < grid.length; row += 1) {
     for (let col = 0; col < grid[row].length; col += 1) {
-      if (grid[row][col] === null || claimed.has(`${row}:${col}`)) continue;
+      // Runs are named by a coloured tile: gold can belong to several.
+      const here = grid[row][col];
+      if (here === null || here < 0 || claimed.has(`${row}:${col}`)) continue;
       const group = groupAt(grid, row, col);
-      for (const cell of group) claimed.add(`${cell.row}:${cell.col}`);
+      for (const cell of group) if (grid[cell.row][cell.col] !== GOLD) claimed.add(`${cell.row}:${cell.col}`);
       if (group.length >= MIN_GROUP) moves.push({ row, col });
     }
   }

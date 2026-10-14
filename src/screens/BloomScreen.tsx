@@ -30,6 +30,8 @@ import {
 import { PageBloom } from '../components/PageBloom';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
+import { mechanic } from '../game/mechanics';
+import { MechanicIntro } from '../components/MechanicIntro';
 import { triggerFeedback } from '../game/rendering';
 import { BLOOM_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
@@ -265,6 +267,7 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
         />
       )}
 
+      <MechanicIntro intros={puzzle.twins?.length ? [mechanic('mechanic:bloom-twins')] : []} accent={accentColorForKind('bloom')} />
       {showTutorial && <MechanicsCarousel slides={BLOOM_MECHANICS_SLIDES} renderIllustration={renderBloomIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('bloom')} />}
     </View>
   );

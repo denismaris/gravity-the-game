@@ -119,6 +119,14 @@ export const WORLDS: ReadonlyArray<WorldDefinition> = [
     mechanics: ['gravity', 'targets', 'obstacles', 'multi-object', 'portals'],
     levelIds: levelIdsInOrderRange(195, 230),
   },
+  {
+    id: 'world-10',
+    order: 10,
+    name: 'Soft Sand',
+    subtitle: 'Sand that holds a ball wherever it rolls in.',
+    mechanics: ['gravity', 'targets', 'obstacles', 'multi-object', 'sand'],
+    levelIds: levelIdsInOrderRange(231, 236),
+  },
 ];
 
 WORLDS.forEach(assertValidWorld);

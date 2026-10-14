@@ -11,6 +11,10 @@ import { PuzzleDifficulty } from '../puzzleDifficulty';
  * come back to it, and while it floats it stops every hop along its row
  * and column.
  *
+ * Later ponds bring stepping stones: the frog may land on one and leave it
+ * as often as it likes; a stone never sinks and is not a pad to clear, but
+ * it stops a hop like a pad does.
+ *
  * Every pond is made by walking the frog first and laying a pad wherever
  * it lands, so there is always a way through; the thinking is in never
  * stranding a pad you can no longer reach.
@@ -30,6 +34,8 @@ export interface LilyPuzzle {
   readonly pads: ReadonlyArray<Cell>;
   /** Lotus pads: each takes two departures to sink (absent: none). */
   readonly lotus?: ReadonlyArray<boolean>;
+  /** Stepping stones, by pad index: never sink, never count. */
+  readonly stones?: ReadonlyArray<boolean>;
   /** One way through, pad indices in hop order (the generator's walk). */
   readonly solution: ReadonlyArray<number>;
 }
@@ -41,6 +47,14 @@ export interface LilyState {
   readonly afloat: ReadonlyArray<boolean>;
   /** Lotus pads not yet left: leaving one sinks only its lotus. */
   readonly lotus?: ReadonlyArray<boolean>;
+  /** Which pads are stones (copied from the pond, so the state alone can
+   * say when it is cleared). */
+  readonly stones?: ReadonlyArray<boolean>;
+}
+
+/** Where pad `i` is. */
+export function padCell(puzzle: LilyPuzzle, _state: LilyState, i: number): Cell {
+  return puzzle.pads[i];
 }
 
 export const DIRECTIONS: ReadonlyArray<Cell> = [
@@ -51,24 +65,29 @@ export const DIRECTIONS: ReadonlyArray<Cell> = [
 ];
 
 export function initialLilyState(puzzle: LilyPuzzle): LilyState {
-  return { at: 0, afloat: puzzle.pads.map(() => true), lotus: puzzle.pads.map((_p, i) => puzzle.lotus?.[i] ?? false) };
+  return {
+    at: 0,
+    afloat: puzzle.pads.map(() => true),
+    lotus: puzzle.pads.map((_p, i) => puzzle.lotus?.[i] ?? false),
+    ...(puzzle.stones?.some(Boolean) ? { stones: puzzle.stones } : {}),
+  };
 }
 
-function padAt(puzzle: LilyPuzzle, afloat: ReadonlyArray<boolean>, row: number, col: number): number {
-  return puzzle.pads.findIndex((p, i) => afloat[i] && p.row === row && p.col === col);
+function padAt(puzzle: LilyPuzzle, state: LilyState, row: number, col: number): number {
+  return puzzle.pads.findIndex((p, i) => state.afloat[i] && p.row === row && p.col === col);
 }
 
 /** Where the frog can go from here: the nearest pad afloat in each
  * direction, if any. */
 export function hopsFrom(puzzle: LilyPuzzle, state: LilyState): number[] {
-  const from = puzzle.pads[state.at];
+  const from = padCell(puzzle, state, state.at);
   const out: number[] = [];
   for (const d of DIRECTIONS) {
     for (let k = 1; k < puzzle.size; k += 1) {
       const row = from.row + d.row * k;
       const col = from.col + d.col * k;
       if (row < 0 || col < 0 || row >= puzzle.size || col >= puzzle.size) break;
-      const pad = padAt(puzzle, state.afloat, row, col);
+      const pad = padAt(puzzle, state, row, col);
       if (pad >= 0) {
         out.push(pad);
         break;
@@ -79,23 +98,34 @@ export function hopsFrom(puzzle: LilyPuzzle, state: LilyState): number[] {
 }
 
 /** The frog hops to `pad` if it can; the pad it leaves sinks - or, for a
- * lotus pad left the first time, only its lotus does. */
+ * lotus pad left the first time, only its lotus does, and a stone stays. */
 export function hop(puzzle: LilyPuzzle, state: LilyState, pad: number): LilyState {
   if (!hopsFrom(puzzle, state).includes(pad)) return state;
-  const holds = state.lotus?.[state.at] ?? false;
+  const holds = (state.lotus?.[state.at] ?? false) || (state.stones?.[state.at] ?? false);
+  const afloat = holds ? state.afloat : state.afloat.map((a, i) => (i === state.at ? false : a));
   return {
+    ...state,
     at: pad,
-    afloat: holds ? state.afloat : state.afloat.map((a, i) => (i === state.at ? false : a)),
+    afloat,
     lotus: state.lotus?.map((l, i) => (i === state.at ? false : l)),
   };
 }
 
+/** Pads still to clear, stones aside (the frog's own included). */
 export function padsLeft(state: LilyState): number {
-  return state.afloat.filter(Boolean).length;
+  return state.afloat.filter((a, i) => a && !state.stones?.[i]).length;
 }
 
+/** Cleared: no pad left but the one the frog sits on (or none, if it sits
+ * on a stone). */
 export function isLilySolved(state: LilyState): boolean {
-  return padsLeft(state) === 1;
+  return padsLeft(state) === (state.stones?.[state.at] ? 0 : 1);
+}
+
+/** A state as a string, so a search never walks the same pond twice. */
+function stateKey(state: LilyState): string {
+  const bits = (xs: ReadonlyArray<boolean> | undefined) => (xs ? xs.map(x => (x ? 1 : 0)).join('') : '');
+  return `${state.at}|${bits(state.afloat)}|${bits(state.lotus)}`;
 }
 
 /** No hop left, and pads still waiting: the frog is stranded. */
@@ -111,7 +141,7 @@ export function isStranded(puzzle: LilyPuzzle, state: LilyState): boolean {
 export function cutOff(puzzle: LilyPuzzle, state: LilyState): number[] {
   return puzzle.pads
     .map((p, i) => {
-      if (!state.afloat[i] || i === state.at) return -1;
+      if (!state.afloat[i] || i === state.at || state.stones?.[i]) return -1;
       const linked = puzzle.pads.some((q, k) => k !== i && state.afloat[k] && (q.row === p.row || q.col === p.col));
       return linked ? -1 : i;
     })
@@ -125,9 +155,15 @@ export function cutOff(puzzle: LilyPuzzle, state: LilyState): number[] {
 export function solveLily(puzzle: LilyPuzzle, state: LilyState, budget = 200000): number[] | null {
   let nodes = 0;
   const path: number[] = [];
+  // Places already found to lead nowhere (and, with stones, the way back
+  // round a loop): never searched twice.
+  const dead = new Set<string>();
   const walk = (s: LilyState): boolean => {
     if (isLilySolved(s)) return true;
     if ((nodes += 1) > budget) return false;
+    const key = stateKey(s);
+    if (dead.has(key)) return false;
+    dead.add(key);
     for (const next of hopsFrom(puzzle, s)) {
       path.push(next);
       if (walk(hop(puzzle, s, next))) return true;
@@ -190,21 +226,31 @@ export function hashId(id: string): number {
   return h >>> 0;
 }
 
-/** How many ways through a pond has, counted up to `limit`. Fewer is a
- * sharper pond: more of its hops are traps. */
-function waysThrough(puzzle: LilyPuzzle, limit: number): number {
-  let ways = 0;
-  let nodes = 0;
-  const walk = (s: LilyState) => {
-    if (ways >= limit || (nodes += 1) > 50000) return;
-    if (isLilySolved(s)) {
-      ways += 1;
-      return;
+
+/**
+ * How a pond should feel, by tier: the share of games a player hopping at
+ * random would win. Easy ponds forgive a wrong hop or two; hard ones ask
+ * for a plan. Measured, not guessed - the tightest walk the generator could
+ * find used to leave some middle ponds winnable one time in two hundred.
+ */
+const FEEL: Record<PuzzleDifficulty, number> = { easy: 0.35, medium: 0.14, hard: 0.06 };
+
+/** The share of random games that clear `pond` - the measure `FEEL`
+ * targets. Its own seeded stream, so the same pond always scores alike. */
+function clearRate(pond: LilyPuzzle, games = 160): number {
+  const random = mulberry32(hashId(`${pond.id}:feel`));
+  let won = 0;
+  for (let g = 0; g < games; g += 1) {
+    let s = initialLilyState(pond);
+    for (let step = 0; step < pond.pads.length * 3; step += 1) {
+      const options = hopsFrom(pond, s);
+      if (options.length === 0) break;
+      s = hop(pond, s, options[Math.floor(random() * options.length)]);
+      if (isLilySolved(s)) break;
     }
-    for (const next of hopsFrom(puzzle, s)) walk(hop(puzzle, s, next));
-  };
-  walk(initialLilyState(puzzle));
-  return ways;
+    if (isLilySolved(s)) won += 1;
+  }
+  return won / games;
 }
 
 export interface PondShape {
@@ -212,6 +258,8 @@ export interface PondShape {
   readonly pads: number;
   /** How many of the pads are lotus pads. */
   readonly lotus: number;
+  /** Stepping stones, besides the pads. */
+  readonly stones?: number;
 }
 
 /**
@@ -225,15 +273,19 @@ export interface PondShape {
  */
 export function generateLily(id: string, name: string, difficulty: PuzzleDifficulty, shape: PondShape): LilyPuzzle {
   const { size, pads, lotus } = shape;
+  const stones = shape.stones ?? 0;
   const random = mulberry32(hashId(id));
   const key = (c: Cell) => `${c.row},${c.col}`;
   let best: LilyPuzzle | null = null;
-  let bestWays = Infinity;
-  const tries = difficulty === 'easy' ? 6 : 14;
+  let bestMiss = Infinity;
+  const tries = difficulty === 'easy' ? 8 : 14;
+  const target = FEEL[difficulty];
   for (let attempt = 0; attempt < 1500 && (best === null || attempt < tries); attempt += 1) {
     const cells: Cell[] = [{ row: Math.floor(random() * size), col: Math.floor(random() * size) }];
     const index = new Map<string, number>([[key(cells[0]), 0]]);
     const isLotus: boolean[] = [false];
+    const isStone: boolean[] = [false];
+    const padCount = () => isStone.filter(x => !x).length;
     const afloat = new Set<number>([0]);
     // Lotus pads left once and still waiting for the frog to come back.
     const waiting = new Set<number>();
@@ -242,13 +294,16 @@ export function generateLily(id: string, name: string, difficulty: PuzzleDifficu
     let at = 0;
     let ok = true;
     for (let guard = 0; guard < pads * 3; guard += 1) {
-      const done = cells.length === pads && waiting.size === 0;
+      const done = padCount() === pads && waiting.size === 0 && !isStone[at] && isStone.filter(Boolean).length === stones;
       if (done) break;
       // Leaving: a new pad may become a lotus pad (not the first, so the
-      // opening hop is plain), which stays afloat for a second visit.
+      // opening hop is plain), which stays afloat for a second visit. A
+      // stone is simply left.
       const lotusLeft = lotus - isLotus.filter(Boolean).length;
       const firstLeave = !waiting.has(at) && !isLotus[at];
-      if (firstLeave && at !== 0 && lotusLeft > 0 && cells.length < pads && random() < 0.4) {
+      if (isStone[at]) {
+        // Stays afloat, as stones do.
+      } else if (firstLeave && at !== 0 && lotusLeft > 0 && padCount() < pads && random() < 0.4) {
         isLotus[at] = true;
         waiting.add(at);
       } else {
@@ -264,15 +319,16 @@ export function generateLily(id: string, name: string, difficulty: PuzzleDifficu
           const there = index.get(key(to));
           if (there !== undefined && afloat.has(there)) {
             // A pad afloat stops the frog: it can only be a lotus pad
-            // waiting for its second visit.
-            if (waiting.has(there)) options.push({ to, over: [...over], back: true });
+            // waiting for its second visit, or a stone.
+            if (waiting.has(there) || isStone[there]) options.push({ to, over: [...over], back: true });
             break;
           }
           if (there !== undefined) {
             over.push(to);
             continue;
           }
-          if (cells.length < pads && !flown.has(key(to))) options.push({ to, over: [...over], back: false });
+          const room = padCount() < pads || isStone.filter(Boolean).length < stones;
+          if (room && !flown.has(key(to))) options.push({ to, over: [...over], back: false });
           over.push(to);
         }
       }
@@ -298,21 +354,29 @@ export function generateLily(id: string, name: string, difficulty: PuzzleDifficu
         cells.push(choice.to);
         index.set(key(choice.to), next);
         isLotus.push(false);
+        // A new square is a stone now and then, while stones are left to
+        // lay - and always once the pads are all down.
+        const stonesLeft = stones - isStone.filter(Boolean).length;
+        isStone.push(stonesLeft > 0 && cells.length > 2 && (padCount() >= pads || random() < 0.3));
         afloat.add(next);
       }
       path.push(next);
       at = next;
     }
-    if (!ok || cells.length !== pads || waiting.size > 0 || isLotus.filter(Boolean).length !== lotus) continue;
-    const puzzle: LilyPuzzle = { id, name, difficulty, size, pads: cells, lotus: isLotus, solution: path };
+    if (!ok || padCount() !== pads || waiting.size > 0 || isLotus.filter(Boolean).length !== lotus || isStone.filter(Boolean).length !== stones || isStone[at]) continue;
+    // A stone has to earn its place: the walk must have stood on it twice.
+    if (stones > 0 && isStone.some((st, i) => st && path.filter(p => p === i).length < 2)) continue;
+    const puzzle: LilyPuzzle = { id, name, difficulty, size, pads: cells, lotus: isLotus, ...(stones ? { stones: isStone } : {}), solution: path };
     // The walk must replay exactly as laid.
     let s = initialLilyState(puzzle);
     for (const next of puzzle.solution) s = hop(puzzle, s, next);
     if (!isLilySolved(s) || s.at !== path[path.length - 1]) continue;
-    const ways = waysThrough(puzzle, 40);
-    if (ways < bestWays) {
+    // Kept by how it feels to play, not by how tight it is: the tightest
+    // walk made the middle tier the hardest in the game.
+    const miss = Math.abs(clearRate(puzzle) - target);
+    if (miss < bestMiss) {
       best = puzzle;
-      bestWays = ways;
+      bestMiss = miss;
     }
   }
   if (!best) throw new Error(`Lily Pads ${id}: no pond found.`);
@@ -375,6 +439,46 @@ const ENDLESS_SHAPE: Record<PuzzleDifficulty, PondShape> = {
   hard: { size: 7, pads: 19, lotus: 3 },
 };
 
+/**
+ * Later ponds with stepping stones, each dealt after the plain pond it
+ * follows (by index): one or two on medium, more on hard. Their ids are
+ * their own, so no plain pond's id ever moves.
+ */
+const RULED: Record<PuzzleDifficulty, ReadonlyArray<{ id: string; name: string; after: number; shape: PondShape }>> = {
+  easy: [],
+  medium: [
+    { id: 'lily-medium-s01', name: 'Stepping Stones', after: 2, shape: { size: 6, pads: 11, lotus: 0, stones: 1 } },
+    { id: 'lily-medium-s02', name: 'The Ford', after: 5, shape: { size: 6, pads: 12, lotus: 1, stones: 2 } },
+    { id: 'lily-medium-s03', name: 'Otter Crossing', after: 8, shape: { size: 7, pads: 13, lotus: 1, stones: 2 } },
+  ],
+  hard: [
+    { id: 'lily-hard-s01', name: 'Stone Causeway', after: 1, shape: { size: 7, pads: 15, lotus: 1, stones: 2 } },
+    { id: 'lily-hard-s02', name: 'The Weir', after: 4, shape: { size: 7, pads: 16, lotus: 2, stones: 3 } },
+  ],
+};
+
+interface PondEntry {
+  readonly id: string;
+  readonly name: string;
+  readonly difficulty: PuzzleDifficulty;
+  readonly shape: PondShape;
+}
+
+/** A tier's ponds in deal order, plain and ruled. */
+const ENTRIES: Record<PuzzleDifficulty, ReadonlyArray<PondEntry>> = (() => {
+  const out = {} as Record<PuzzleDifficulty, PondEntry[]>;
+  for (const difficulty of ['easy', 'medium', 'hard'] as const) {
+    const list: PondEntry[] = [];
+    PONDS[difficulty].forEach(([name, size, pads, lotus], i) => {
+      list.push({ id: curatedId(difficulty, i), name, difficulty, shape: { size, pads, lotus } });
+      for (const r of RULED[difficulty]) if (r.after === i) list.push({ id: r.id, name: r.name, difficulty, shape: r.shape });
+    });
+    out[difficulty] = list;
+  }
+  return out;
+})();
+const ENTRY_BY_ID = new Map<string, PondEntry>((['easy', 'medium', 'hard'] as const).flatMap(d => ENTRIES[d].map(e => [e.id, e] as const)));
+
 const cache = new Map<string, LilyPuzzle>();
 
 function curatedId(difficulty: PuzzleDifficulty, index: number): string {
@@ -383,21 +487,28 @@ function curatedId(difficulty: PuzzleDifficulty, index: number): string {
 
 /** The ids of a tier's ponds, in deal order - without building them. */
 export function lilyIdsFor(difficulty: PuzzleDifficulty): ReadonlyArray<string> {
-  return PONDS[difficulty].map((_p, i) => curatedId(difficulty, i));
+  return ENTRIES[difficulty].map(e => e.id);
 }
 
 /** Every curated pond as id, name and tier only - cheap to list. */
 export const LILY_PONDS: ReadonlyArray<{ id: string; name: string; difficulty: PuzzleDifficulty }> = (['easy', 'medium', 'hard'] as const).flatMap(difficulty =>
-  PONDS[difficulty].map((p, i) => ({ id: curatedId(difficulty, i), name: p[0], difficulty })),
+  ENTRIES[difficulty].map(e => ({ id: e.id, name: e.name, difficulty })),
 );
 
 /** A curated pond's name and tier, from its id alone (null otherwise). */
 export function lilyCuratedInfo(id: string): { name: string; difficulty: PuzzleDifficulty } | null {
-  const m = /^lily-(easy|medium|hard)-(\d+)$/.exec(id);
-  if (!m) return null;
-  const difficulty = m[1] as PuzzleDifficulty;
-  const entry = PONDS[difficulty][Number(m[2]) - 1];
-  return entry ? { name: entry[0], difficulty } : null;
+  const entry = ENTRY_BY_ID.get(id);
+  return entry ? { name: entry.name, difficulty: entry.difficulty } : null;
+}
+
+/** What an endless pond brings, from its id: medium and hard often have
+ * stepping stones. */
+function endlessShape(id: string, tier: PuzzleDifficulty): PondShape {
+  const roll = mulberry32(hashId(`${id}:rules`))();
+  const base = ENDLESS_SHAPE[tier];
+  if (tier === 'medium' && roll < 0.45) return { ...base, pads: base.pads - 2, stones: roll < 0.2 ? 1 : 2 };
+  if (tier === 'hard' && roll < 0.5) return { ...base, pads: base.pads - 2, stones: roll < 0.25 ? 2 : 3 };
+  return base;
 }
 
 /** Any pond by id, built the first time it is asked for and kept; endless
@@ -405,14 +516,12 @@ export function lilyCuratedInfo(id: string): { name: string; difficulty: PuzzleD
 export function getLilyById(id: string, endless?: { name: string; tier: PuzzleDifficulty }): LilyPuzzle | undefined {
   const hit = cache.get(id);
   if (hit) return hit;
-  const m = /^lily-(easy|medium|hard)-(\d+)$/.exec(id);
+  const entry = ENTRY_BY_ID.get(id);
   let puzzle: LilyPuzzle | undefined;
-  if (m) {
-    const difficulty = m[1] as PuzzleDifficulty;
-    const entry = PONDS[difficulty][Number(m[2]) - 1];
-    if (entry) puzzle = generateLily(id, entry[0], difficulty, { size: entry[1], pads: entry[2], lotus: entry[3] });
+  if (entry) {
+    puzzle = generateLily(id, entry.name, entry.difficulty, entry.shape);
   } else if (endless) {
-    puzzle = generateLily(id, endless.name, endless.tier, ENDLESS_SHAPE[endless.tier]);
+    puzzle = generateLily(id, endless.name, endless.tier, endlessShape(id, endless.tier));
   }
   if (puzzle) cache.set(id, puzzle);
   return puzzle;

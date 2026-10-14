@@ -14,7 +14,7 @@ import {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { BridgeLink, BridgesPuzzle, BridgesState, bridgeLinks, islandLoads, linksByIsland } from '../game/bridges';
-import { BoardLayout, computeBoardLayout, useReducedMotion } from '../game/rendering';
+import { BoardLayout, computeBoardLayout, shade, useReducedMotion } from '../game/rendering';
 import { getColorScheme, lightColors, theme } from '../theme';
 import { useEquipped } from '../progression/PlayerProgressProvider';
 import { DEFAULT_EQUIPPED, cosmeticById } from '../progression/shop';
@@ -58,24 +58,32 @@ const WATER_SHADOW = 'rgba(28,78,96,0.2)';
 const FOAM = 'rgba(255,255,255,0.85)';
 const BEACH = '#EBD7A5';
 const SHORE = '#C29F62';
-const INLAND = '#F6EBCB';
-const MEADOW = '#B7D487';
+/** An island's top: warm sand while it still needs bridges, and once it
+ * has them all, a lush meadow with bushes - the change you can read from
+ * across the board. */
+const INLAND = '#F3E6C3';
+const MEADOW = '#93C46A';
+/** A finished island's number tag: a solid green medallion, white figure. */
+const DONE_TAG = '#3E7A4C';
+const BUSH = '#7EA65A';
+const BUSH_LIGHT = '#9DC072';
+const BUSH_DARK = '#5E8443';
 const CORAL = '#F0B19D';
 const CORAL_SHORE = '#C77A64';
-const WOOD = '#BE8D55';
-const WOOD_ALT = '#CC9E67';
-const WOOD_SIDE = '#7B5230';
+const WOOD = '#B9844F';
+const WOOD_ALT = '#C99461';
+const WOOD_SIDE = '#6E4626';
 const WOOD_GLOW = '#FBEBC4';
-const ROPE = '#6B4A2D';
+const ROPE = '#5E3F24';
 const pennantColor = (): string => theme.colors.secondary;
 
 /** Island radius, and a single and a double bridge's width and spacing,
  * as shares of one square. */
 const ISLAND_R = 0.36;
-const SINGLE_W = 0.2;
-const DOUBLE_W = 0.15;
-const DOUBLE_GAP = 0.12;
-const PLANK_PITCH = 0.16;
+const SINGLE_W = 0.27;
+const DOUBLE_W = 0.17;
+const DOUBLE_GAP = 0.13;
+const PLANK_PITCH = 0.22;
 
 const INTRO_MS = 520;
 const FOAM_MS = 700;
@@ -245,7 +253,11 @@ interface Plank {
 function planksOf(geo: Geometry, lane: Lane, width: number): Plank[] {
   const count = Math.max(2, Math.round(lane.length / (geo.cell * PLANK_PITCH)));
   const pitch = lane.length / count;
-  return Array.from({ length: count }, (_v, k) => ({ at: (k + 0.5) / count, u: (k + 0.5) * pitch - pitch * 0.4, du: pitch * 0.8, across: width * 1.08, alt: k % 2 === 1 }));
+  // Planks with a gap of water between each, a footbridge rather than a
+  // solid deck (a solid run of thin planks read as a railway track).
+  // Hand-cut: every plank a touch longer or shorter than its neighbour.
+  const lengths = [1, 0.9, 0.96, 0.88, 1.02];
+  return Array.from({ length: count }, (_v, k) => ({ at: (k + 0.5) / count, u: (k + 0.5) * pitch - pitch * 0.34, du: pitch * 0.68, across: width * lengths[k % lengths.length], alt: k % 2 === 1 }));
 }
 
 interface LanePaths {
@@ -274,8 +286,8 @@ function lanePaths(geo: Geometry, link: BridgeLink, width: number): LanePaths {
   const key = `${geo.cell.toFixed(3)}|${lane.x1.toFixed(2)},${lane.y1.toFixed(2)},${lane.length.toFixed(2)},${lane.horizontal ? 'h' : 'v'}|${width.toFixed(3)}`;
   const hit = lanePathCache.get(key);
   if (hit) return hit;
-  const rope = Math.max(0.8, geo.cell * 0.016);
-  const post = Math.max(2, geo.cell * 0.05);
+  const rope = Math.max(0.8, geo.cell * 0.014);
+  const post = Math.max(3, geo.cell * 0.075);
   let sides = '';
   let tops = '';
   let topsAlt = '';
@@ -285,9 +297,18 @@ function lanePaths(geo: Geometry, link: BridgeLink, width: number): LanePaths {
     else tops += box;
     sides += svgBox(laneBox(lane, plank.u, -plank.across / 2 + Math.max(1, width * 0.12), plank.du, plank.across));
   }
-  let ropes = svgBox(laneBox(lane, 0, -width * 0.4 - rope / 2, lane.length, rope)) + svgBox(laneBox(lane, 0, width * 0.4 - rope / 2, lane.length, rope));
-  for (const u of [0, lane.length]) {
-    ropes += svgBox(laneBox(lane, u - post / 2, -width * 0.55 - post / 2, post, post)) + svgBox(laneBox(lane, u - post / 2, width * 0.55 - post / 2, post, post));
+  // Rope rails just outside the planks, carried on round posts down both
+  // sides - one at each end and one every so often between - so it reads
+  // as a pier walk, not a pair of rails.
+  let ropes = svgBox(laneBox(lane, 0, -width * 0.58 - rope / 2, lane.length, rope)) + svgBox(laneBox(lane, 0, width * 0.58 - rope / 2, lane.length, rope));
+  const spans = Math.max(1, Math.round(lane.length / (geo.cell * 0.55)));
+  for (let k = 0; k <= spans; k += 1) {
+    const u = post * 0.5 + ((lane.length - post) * k) / spans;
+    for (const v of [-width * 0.58, width * 0.58]) {
+      const b = laneBox(lane, u - post / 2, v - post / 2, post, post);
+      const r = post / 2;
+      ropes += `M ${(b.x + r * 2).toFixed(2)} ${(b.y + r).toFixed(2)} a ${r} ${r} 0 1 0 ${(-r * 2).toFixed(2)} 0 a ${r} ${r} 0 1 0 ${(r * 2).toFixed(2)} 0 Z `;
+    }
   }
   const shadowBox = laneBox(lane, 1.5, -width / 2 + width * 0.42, lane.length, width);
   const paths: LanePaths = { shadow: toPath(svgBox(shadowBox)), sides: toPath(sides), tops: toPath(tops), topsAlt: toPath(topsAlt), ropes: toPath(ropes) };
@@ -574,6 +595,7 @@ const IslandSprite = React.memo(function IslandSpriteImpl({
   index,
   coast,
   need,
+  fog = false,
   tone,
   introKey,
   introDelay,
@@ -588,6 +610,8 @@ const IslandSprite = React.memo(function IslandSpriteImpl({
   index: number;
   coast: SkPath | null;
   need: number;
+  /** In fog: no number, a drift of mist over the island instead. */
+  fog?: boolean;
   tone: IslandTone;
   introKey: number;
   introDelay: number;
@@ -707,11 +731,13 @@ const IslandSprite = React.memo(function IslandSpriteImpl({
   const flagTransform = useDerivedValue(() => [{ translateX: poleX }, { translateY: poleBase }, { scaleY: Math.max(0, flag.value) }]);
   const pennantTransform = useDerivedValue(() => [{ translateY: -poleHeight }, { scaleX: R * 0.62 * (0.8 + 0.2 * (1 - flutter.value)) }, { scaleY: R * 0.62 }]);
   const pennantSkew = useDerivedValue(() => [{ skewY: (flutter.value - 0.5) * 0.25 }]);
+  const bushGrow = useDerivedValue(() => [{ translateX: -R * 0.55 }, { translateY: R * 0.38 }, { scale: Math.max(0, flag.value) }, { translateX: R * 0.55 }, { translateY: -R * 0.38 }]);
 
   const beach = tone === 'over' ? CORAL : BEACH;
   const shore = tone === 'over' ? CORAL_SHORE : SHORE;
   const inland = tone === 'done' ? MEADOW : tone === 'over' ? CORAL : INLAND;
-  const digit = tone === 'over' ? theme.colors.danger : INK;
+  const digit = tone === 'open' ? INK : '#FFFFFF';
+  const tagFill = tone === 'done' ? DONE_TAG : tone === 'over' ? theme.colors.danger : PAPER;
   const depth = R * 0.2;
   const h = R;
   const path = glyph(need);
@@ -752,9 +778,21 @@ const IslandSprite = React.memo(function IslandSpriteImpl({
             </Group>
           </>
         )}
-        {path && (
-          <Group transform={[{ translateX: -0.3 * h - (tone === 'done' ? R * 0.12 : 0) }, { translateY: -0.5 * h + R * 0.02 }, { scale: h }]}>
-            <Path path={path} color={digit} style="stroke" strokeWidth={0.15} strokeCap="round" strokeJoin="round" />
+        {/* Bushes grow on an island the moment it is finished. */}
+        <Group transform={bushGrow}>
+          <Bushes R={R} index={index} />
+        </Group>
+        {fog && <Mist R={R} />}
+        {path && !fog && (
+          <Group transform={[{ translateX: -(tone === 'done' ? R * 0.1 : 0) }]}>
+            {/* The number on a round paper tag, so it stays crisp on the grass. */}
+            <Circle cx={0} cy={R * 0.05} r={R * 0.48} color={shade(tagFill, tone === 'open' ? 0.82 : 0.62)} />
+            <Circle cx={0} cy={0} r={R * 0.48} color={tagFill} />
+            {tone === 'open' && <Circle cx={0} cy={0} r={R * 0.48} color={shade(SHORE, 0.95)} style="stroke" strokeWidth={Math.max(1, R * 0.05)} opacity={0.55} />}
+            {tone === 'done' && <Circle cx={0} cy={0} r={R * 0.38} color="#FFFFFF" style="stroke" strokeWidth={Math.max(0.8, R * 0.035)} opacity={0.35} />}
+            <Group transform={[{ translateX: -0.3 * h * 0.74 }, { translateY: -0.5 * h * 0.74 }, { scale: h * 0.74 }]}>
+              <Path path={path} color={digit} style="stroke" strokeWidth={0.16} strokeCap="round" strokeJoin="round" />
+            </Group>
           </Group>
         )}
         <Group transform={flagTransform}>
@@ -767,6 +805,53 @@ const IslandSprite = React.memo(function IslandSpriteImpl({
     </Group>
   );
 });
+
+/**
+ * A bank of sea fog lying on an island that keeps its number to itself: a
+ * rounded cloud of four puffs on a flat base, standing on its own pale
+ * grey underside (depth by shape, never a gradient), and a wisp trailing
+ * off over the water.
+ */
+function Mist({ R }: { R: number }): React.JSX.Element {
+  const puffs: ReadonlyArray<readonly [number, number, number]> = [
+    [-0.42, 0.12, 0.3],
+    [-0.12, -0.12, 0.38],
+    [0.26, -0.04, 0.34],
+    [0.48, 0.16, 0.24],
+  ];
+  const cloud = (dy: number, color: string) => (
+    <Group>
+      {puffs.map(([x, y, r], i) => (
+        <Circle key={i} cx={R * x} cy={R * (y + dy)} r={R * r} color={color} />
+      ))}
+      <RoundedRect x={-R * 0.7} y={R * (0.1 + dy)} width={R * 1.4} height={R * 0.3} r={R * 0.15} color={color} />
+    </Group>
+  );
+  return (
+    <Group>
+      {cloud(0.08, '#D5DEE2')}
+      {cloud(0, '#FBFCFC')}
+      <Path path={`M ${R * 0.62} ${R * 0.52} Q ${R * 0.95} ${R * 0.42} ${R * 1.28} ${R * 0.56}`} color="#FFFFFF" style="stroke" strokeWidth={R * 0.1} strokeCap="round" opacity={0.7} />
+    </Group>
+  );
+}
+
+/** A clump of bushes on the grass at an island's lower left, away from its
+ * tag and its pennant - shifted a touch by the island's own index so no
+ * two islands look stamped from one die. */
+function Bushes({ R, index }: { R: number; index: number }): React.JSX.Element {
+  const side = -1;
+  const x = -R * (0.5 + (index % 3) * 0.04);
+  const y = R * (0.3 + (index % 2) * 0.06);
+  const blob = (dx: number, dy: number, r: number) => (
+    <Group key={`${dx}:${dy}`}>
+      <Circle cx={x + dx * R} cy={y + dy * R + R * 0.05} r={r * R} color={BUSH_DARK} />
+      <Circle cx={x + dx * R} cy={y + dy * R} r={r * R} color={BUSH} />
+      <Circle cx={x + dx * R - r * R * 0.3} cy={y + dy * R - r * R * 0.3} r={r * R * 0.45} color={BUSH_LIGHT} />
+    </Group>
+  );
+  return <Group>{[blob(0, 0, 0.17), blob(side * 0.18, 0.08, 0.13)]}</Group>;
+}
 
 // ---------------------------------------------------------------------------
 // The chart
@@ -902,7 +987,8 @@ export function BridgesBoardView({ puzzle, state, size, solved, drag = null, dra
   }, [puzzle]);
   const links = bridgeLinks(puzzle);
   const loads = useMemo(() => islandLoads(puzzle, state), [puzzle, state]);
-  const tones = useMemo(() => puzzle.islands.map((island, i) => toneOf(loads[i], island.need)), [puzzle, loads]);
+  // An island in fog never tells: it stays open until the board is done.
+  const tones = useMemo(() => puzzle.islands.map((island, i) => (island.fog ? 'open' : toneOf(loads[i], island.need))), [puzzle, loads]);
 
   // Which islands a newly laid bridge lands on, so each can take its weight.
   const landKeys = useRef<number[]>(puzzle.islands.map(() => 0));
@@ -1002,6 +1088,7 @@ export function BridgesBoardView({ puzzle, state, size, solved, drag = null, dra
           index={i}
           coast={coasts[i]}
           need={island.need}
+          fog={!!island.fog}
           tone={tones[i]}
           introKey={introKey}
           introDelay={(island.row + island.col) * introStagger}
@@ -1016,3 +1103,4 @@ export function BridgesBoardView({ puzzle, state, size, solved, drag = null, dra
     </Group>
   );
 }
+

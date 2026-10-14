@@ -14,7 +14,7 @@ import {
 } from '..';
 
 describe('WORLDS', () => {
-  test('there are nine worlds, in order', () => {
+  test('there are ten worlds, in order', () => {
     expect(WORLDS.map(w => [w.id, w.order, w.name])).toEqual([
       ['world-1', 1, 'Gravity'],
       ['world-2', 2, 'Anchors'],
@@ -25,11 +25,12 @@ describe('WORLDS', () => {
       ['world-7', 7, 'The Long Fall'],
       ['world-8', 8, 'The Deep End'],
       ['world-9', 9, 'Two of a Kind'],
+      ['world-10', 10, 'Soft Sand'],
     ]);
     expect(FIRST_WORLD).toBe(WORLDS[0]);
   });
 
-  test('worlds map to level ranges 1-20, 21-60, 61-80, 81-100, 101-140, 141-156, 157-170, 171-194, 195-230 in play order', () => {
+  test('worlds map to level ranges 1-20, 21-60, 61-80, 81-100, 101-140, 141-156, 157-170, 171-194, 195-230, 231-236 in play order', () => {
     const idsInRange = (from: number, to: number) =>
       [...LEVELS]
         .filter(l => l.order >= from && l.order <= to)
@@ -45,7 +46,8 @@ describe('WORLDS', () => {
     expect(WORLDS[6].levelIds).toEqual(idsInRange(157, 170));
     expect(WORLDS[7].levelIds).toEqual(idsInRange(171, 194));
     expect(WORLDS[8].levelIds).toEqual(idsInRange(195, 230));
-    expect(WORLDS.map(w => w.levelIds.length)).toEqual([20, 40, 20, 20, 40, 16, 14, 24, 36]);
+    expect(WORLDS[9].levelIds).toEqual(idsInRange(231, 236));
+    expect(WORLDS.map(w => w.levelIds.length)).toEqual([20, 40, 20, 20, 40, 16, 14, 24, 36, 6]);
   });
 
   test('every world level id resolves and no level belongs to two worlds', () => {
@@ -69,6 +71,7 @@ describe('WORLDS', () => {
       'portals',
       'gravity-zone',
       'hazard',
+      'sand',
     ];
     for (const world of WORLDS) {
       for (const mechanic of world.mechanics) {

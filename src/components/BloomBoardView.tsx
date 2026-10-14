@@ -228,6 +228,18 @@ const StaticTop = React.memo(function StaticTopImpl({ puzzle, layout }: { puzzle
       }
     }
   }
+  // Twin tiles wear matching marks at their hearts, one ring per pair
+  // number (one for the first pair, two for the second).
+  (puzzle.twins ?? []).forEach((t, k) =>
+    [t.a, t.b].forEach((cell, side) => {
+      const cx = (cell.col + 0.5) * layout.cellSize;
+      const cy = (cell.row + 0.5) * layout.cellSize;
+      const w = Math.max(1.5, layout.cellSize * 0.035);
+      Array.from({ length: k + 1 }, (_v, n) =>
+        pins.push(<Circle key={`t-${k}-${side}-${n}`} cx={cx} cy={cy} r={layout.cellSize * (0.1 + n * 0.07)} color={theme.colors.bloomAccent} style="stroke" strokeWidth={w} />),
+      );
+    }),
+  );
   const { boardSize } = layout;
   return (
     <Group>

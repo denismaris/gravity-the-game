@@ -1,6 +1,6 @@
 import React from 'react';
 import { Group } from '@shopify/react-native-skia';
-import { cutOff, hopsFrom, LilyState } from '../game/lilypads';
+import { cutOff, getLilyById, hopsFrom, initialLilyState, LilyState } from '../game/lilypads';
 import { Dir } from '../game/vanes';
 import { LilyStill } from './LilyPadsBoard';
 import { POND_PLAN, ROOF } from './lessons/trialLessons';
@@ -49,6 +49,16 @@ export function renderLilyIllustration(kind: string): React.JSX.Element {
           <LilyStill puzzle={POND_PLAN} state={pond(3, [false, false, false, true])} size={SIZE} bloom />
         </Centred>
       );
+    case 'stones': {
+      // The first pond that brings them, as it opens.
+      const real = getLilyById('lily-medium-s01')!;
+      const s = initialLilyState(real);
+      return (
+        <Centred>
+          <LilyStill puzzle={real} state={s} size={SIZE} reach={hopsFrom(real, s)} />
+        </Centred>
+      );
+    }
     default:
       return (
         <Centred>

@@ -249,7 +249,7 @@ function BridgesAccessibility({
             style={[styles.overlay, box]}
             accessible
             accessibilityRole="adjustable"
-            accessibilityLabel={`Water between the ${from.need} at ${place(from)} and the ${to.need} ${link.horizontal ? 'to its right' : 'below it'}`}
+            accessibilityLabel={`Water between the ${from.fog ? 'island in fog' : from.need} at ${place(from)} and the ${to.fog ? 'island in fog' : to.need} ${link.horizontal ? 'to its right' : 'below it'}`}
             accessibilityValue={{ text: crossed ? 'no bridge, crossed by another bridge' : count === 0 ? 'no bridge' : count === 1 ? 'one bridge' : 'two bridges' }}
             accessibilityState={{ disabled: solved }}
             accessibilityActions={[{ name: 'increment' }, { name: 'decrement' }, { name: 'activate' }]}
@@ -270,8 +270,8 @@ function BridgesAccessibility({
             style={[styles.overlay, { left: c.x - geo.R, top: c.y - geo.R, width: geo.R * 2, height: geo.R * 2 }]}
             accessible
             accessibilityRole="text"
-            accessibilityLabel={`Island ${island.need}, ${place(island)}`}
-            accessibilityValue={{ text: has === island.need ? `complete, ${has} bridges` : `${has} of ${island.need} bridges` }}
+            accessibilityLabel={island.fog ? `Island in fog, ${place(island)}` : `Island ${island.need}, ${place(island)}`}
+            accessibilityValue={{ text: island.fog ? `${has} bridges` : has === island.need ? `complete, ${has} bridges` : `${has} of ${island.need} bridges` }}
           />
         );
       })}

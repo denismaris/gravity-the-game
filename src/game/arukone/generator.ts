@@ -150,7 +150,7 @@ function growPath(
  * far simpler than trying to repair a bad layout in place, and at these
  * sizes attempts are cheap.
  */
-function attempt(shape: ArukoneShape, axis: ArukoneAxis, random: () => number): {
+function attempt(shape: ArukoneShape, axis: ArukoneAxis, random: () => number, crossing = 0): {
   obstacles: ArukoneCell[];
   pairs: ArukonePair[];
   solution: Record<number, ArukoneCell[]>;
@@ -172,6 +172,19 @@ function attempt(shape: ArukoneShape, axis: ArukoneAxis, random: () => number): 
   // through obstacles.
   const blocked = new Set<string>();
   const obstacles: ArukoneCell[] = [];
+  // On an odd board with a straight fold, the fold is a whole line of
+  // squares that are their own mirrors, and each path across covers just
+  // one of them - so the rest are walls: a wall down the middle with a gap
+  // for each crossing.
+  const onFold = all.filter(cell => sameCell(cell, mirrorCell(axis, size, cell)));
+  if (onFold.length > 1) {
+    const walls = onFold.length - crossing;
+    if (walls < 0 || walls > shape.obstacles) return null;
+    for (const cell of shuffled(onFold, random).slice(0, walls)) {
+      blocked.add(cellKey(cell));
+      obstacles.push(cell);
+    }
+  }
   for (const cell of shuffled(all, random)) {
     const twin = mirrorCell(axis, size, cell);
     const group = sameCell(cell, twin) ? [cell] : [cell, twin];
@@ -200,12 +213,37 @@ function attempt(shape: ArukoneShape, axis: ArukoneAxis, random: () => number): 
   const pairs: ArukonePair[] = [];
   const solution: Record<number, ArukoneCell[]> = {};
   let value = 1;
-  const freeTotal = size * size - obstacles.length;
-  // Paths come out one per pair, so the average path is this long. Capping
-  // at the average (rather than above it) is what actually lands the pair
-  // count on target - measured across tiers, a looser cap produces one
-  // greedy path that swallows the board and a pair count of one.
-  const maxLength = Math.max(4, Math.round(freeTotal / shape.pairs));
+  const mirror = (cell: ArukoneCell) => mirrorCell(axis, size, cell);
+  const maxLength = maxLengthFor(shape, obstacles.length);
+
+  // Paths across the fold, grown on purpose. A path can only cross the
+  // fold if it is its own mirror image, and left to chance the generator
+  // all but never makes one - so every board came out as mirrored pairs on
+  // either side, with at most one crossing path, always last. These are
+  // grown first: half a path out from the fold (from a square on it, or one
+  // beside its own mirror), then mirrored back the other way.
+  for (let k = 0; k < crossing; k += 1) {
+    const free = all.filter(cell => !used.has(cellKey(cell)));
+    const starts = free.filter(cell => {
+      const twin = mirror(cell);
+      return (sameCell(cell, twin) || isAdjacentCell(cell, twin)) && !used.has(cellKey(twin));
+    });
+    if (starts.length === 0) return null;
+    const start = shuffled(starts, random)[0];
+    const twin = mirror(start);
+    const onFold = sameCell(start, twin);
+    const half = growPath(size, start, onFold ? used : new Set([...used, cellKey(twin)]), Math.max(3, Math.round(maxLengthFor(shape, obstacles.length) / 2) + 1), random);
+    const halfKeys = new Set(half.map(cellKey));
+    // The half may not touch its own mirror anywhere but the fold.
+    if (half.some((cell, i) => (i > 0 || !onFold) && halfKeys.has(cellKey(mirror(cell))))) return null;
+    const mirrored = half.map(mirror).reverse();
+    const full = onFold ? [...mirrored.slice(0, -1), ...half] : [...mirrored, ...half];
+    if (full.length < 4 || full.some(cell => used.has(cellKey(cell)))) return null;
+    for (const cell of full) used.add(cellKey(cell));
+    pairs.push({ value, a: full[0], b: full[full.length - 1] });
+    solution[value] = full;
+    value += 1;
+  }
 
   while (used.size < size * size) {
     if (pairs.length >= shape.pairs) return null;
@@ -279,7 +317,27 @@ function attempt(shape: ArukoneShape, axis: ArukoneAxis, random: () => number): 
   const endpointKeys = pairs.flatMap(p => [cellKey(p.a), cellKey(p.b)]);
   if (new Set(endpointKeys).size !== endpointKeys.length) return null;
 
-  return { obstacles, pairs, solution };
+  // Numbered at random: a mirrored pair need not be 1 and 2, nor the path
+  // across the fold the highest number - the numbers should not give the
+  // board's shape away.
+  const order = shuffled(pairs.map(p => p.value), random);
+  const renumber = new Map(pairs.map((p, i) => [p.value, order[i]]));
+  const renumbered = pairs.map(p => ({ ...p, value: renumber.get(p.value)! })).sort((x, y) => x.value - y.value);
+  const resolved: Record<number, ArukoneCell[]> = {};
+  for (const [v, path] of Object.entries(solution)) resolved[renumber.get(Number(v))!] = path;
+  return { obstacles, pairs: renumbered, solution: resolved };
+}
+
+/** Paths come out one per pair, so the average path is this long. Capping
+ * at the average (rather than above it) is what actually lands the pair
+ * count on target - measured across tiers, a looser cap produces one
+ * greedy path that swallows the board and a pair count of one. */
+function maxLengthFor(shape: ArukoneShape, obstacles: number): number {
+  return Math.max(4, Math.round((shape.size * shape.size - obstacles) / shape.pairs));
+}
+
+function isAdjacentCell(a: ArukoneCell, b: ArukoneCell): boolean {
+  return Math.abs(a.row - b.row) + Math.abs(a.col - b.col) === 1;
 }
 
 const AXES: ReadonlyArray<ArukoneAxis> = ['vertical', 'horizontal', 'rotational'];
@@ -310,6 +368,10 @@ export function generateArukone(
    */
   salt = 0,
 ): ArukonePuzzle {
+  return generatePlain(id, difficulty, name, salt);
+}
+
+function generatePlain(id: string, difficulty: PuzzleDifficulty, name: string | undefined, salt: number): ArukonePuzzle {
   const shape = shapeForDifficulty(difficulty);
   const base = hashId(id) + salt * 0x7f4a7c15;
 
@@ -317,10 +379,25 @@ export function generateArukone(
   // a hundred and fifty at the hardest, and an attempt costs well under a
   // tenth of a millisecond - so the budget is set by what makes a
   // fall-through effectively impossible, not by what is usually needed.
+  // The fold is chosen per board, in turn - left to chance, the rotational
+  // one won almost every time, since it is the easiest to fill - and with
+  // it how many paths cross the fold: one or three on an odd board (one
+  // pair is left over to cross), none or two on an even one, where a path
+  // can only cross a straight fold (a turned one has no squares beside
+  // their own mirror).
+  const fold = AXES[Math.floor(base) % AXES.length];
+  const odd = shape.size % 2 === 1;
+  const wanted = odd ? (shape.pairs >= 5 && Math.floor(base / 8) % 2 === 1 ? 3 : 1) : fold === 'rotational' ? 0 : Math.floor(base / 8) % 2 === 1 ? 2 : 0;
+  // A straight fold on an odd board needs walls for the squares on the
+  // fold no path crosses, so at least that many crossings.
+  const crossings = odd && fold !== 'rotational' ? Math.max(wanted, shape.size - shape.obstacles) : wanted;
   for (let tries = 0; tries < 4000; tries += 1) {
     const random = mulberry32(base + tries * 0x9e3779b9);
-    const axis = AXES[Math.floor(random() * AXES.length)];
-    const result = attempt(shape, axis, random);
+    const late = tries >= 3000;
+    const axis = late ? AXES[Math.floor(random() * AXES.length)] : fold;
+    // An odd board always needs a path across: the squares on its fold can
+    // be covered by nothing else.
+    const result = attempt(shape, axis, random, late ? (odd ? 1 : 0) : crossings);
     if (result) {
       return { id, name, difficulty, size: shape.size, axis, obstacles: result.obstacles, pairs: result.pairs, solution: result.solution };
     }
@@ -335,7 +412,7 @@ export function generateArukone(
     // eslint-disable-next-line no-bitwise -- a different seed mix than the first pass
     const random = mulberry32(base ^ (tries * 0x85ebca6b));
     const axis = AXES[Math.floor(random() * AXES.length)];
-    const result = attempt(relaxed, axis, random);
+    const result = attempt(relaxed, axis, random, shape.size % 2 === 1 ? 1 : 0);
     if (result) {
       return { id, name, difficulty, size: relaxed.size, axis, obstacles: result.obstacles, pairs: result.pairs, solution: result.solution };
     }

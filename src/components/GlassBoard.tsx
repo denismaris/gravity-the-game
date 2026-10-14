@@ -24,14 +24,14 @@ import { inkWash, theme } from '../theme';
  * lifting as it passes, sparkles, and a glow spreading from the frame.
  */
 export function glassColor(color: GlassColor | null): string {
-  return color === null ? theme.colors.surface : [theme.colors.glassRuby, theme.colors.glassCobalt, theme.colors.glassAmber][color];
+  return color === null ? theme.colors.surface : [theme.colors.glassRuby, theme.colors.glassCobalt, theme.colors.glassAmber, theme.colors.glassEmerald][color];
 }
 
 /**
  * Each glass's own faint texture, so the three are told apart by more than
  * colour (for anyone who sees ruby and amber alike), and so they read as
  * glass with a grain: cobalt is hatched, amber is seeded with small dots,
- * ruby is clear. Returned as one path covering a square of half-side
+ * emerald is reeded (fine level ribs), ruby is clear. Returned as one path covering a square of half-side
  * `half` round (`cx`, `cy`) - the caller clips it to the pane - drawn as a
  * stroke for the hatch and a fill for the dots.
  */
@@ -50,6 +50,12 @@ export function glassTexture(color: GlassColor | null, cx: number, cy: number, h
       for (let xx = cx - half + (row % 2) * step * 0.5; xx <= cx + half; xx += step) d += `M ${xx + r} ${yy} A ${r} ${r} 0 1 0 ${xx - r} ${yy} A ${r} ${r} 0 1 0 ${xx + r} ${yy} Z `;
     }
     return { path: d, style: 'fill' };
+  }
+  if (color === 3) {
+    const step = cell * 0.16;
+    let d = '';
+    for (let yy = cy - half; yy <= cy + half; yy += step) d += `M ${cx - half} ${yy} L ${cx + half} ${yy} `;
+    return { path: d, style: 'stroke' };
   }
   return null;
 }
@@ -205,6 +211,28 @@ export function GlassBoard({
   }
   const track = panes.current;
 
+  // The opening: the window's lead and clear panes are simply there with the
+  // board; the set panes, the glazier's work, pop into place one after
+  // another - solid, never see-through - on one clock, started a moment
+  // after mount so the screen's own entrance has settled.
+  const { givenOrder, givenCount } = useMemo(() => {
+    // Top to bottom, left to right: the order a reader's eye takes.
+    const set = puzzle.given.map((g, p) => (g !== null ? p : -1)).filter(p => p >= 0);
+    set.sort((a, b) => geo.centres[a].y - geo.centres[b].y || geo.centres[a].x - geo.centres[b].x);
+    const order = puzzle.given.map(() => 0);
+    set.forEach((p, i) => (order[p] = i));
+    return { givenOrder: order, givenCount: set.length };
+  }, [puzzle, geo]);
+  const intro = useSharedValue(reduced ? 1 : 0);
+  useEffect(() => {
+    if (reduced) {
+      intro.value = 1;
+      return;
+    }
+    intro.value = 0;
+    intro.value = withDelay(INTRO_DELAY_MS, withTiming(1, { duration: introLength(givenCount), easing: Easing.linear }));
+  }, [puzzle.id, reduced, intro, givenCount]);
+
   // The finish: one clock on the UI thread drives the whole of it.
   const finish = useSharedValue(0);
   useEffect(() => {
@@ -238,6 +266,7 @@ export function GlassBoard({
         <Group transform={[{ translateY: archH }]}>
           {geo.paths.map((path, p) =>
             path ? (
+              <IntroPane key={`in:${puzzle.id}:${p}`} t={intro} centre={geo.centres[p]} order={givenOrder[p]} givens={givenCount} skip={reduced || puzzle.given[p] === null}>
               <Glaze
                 key={`${p}:${track.version[p]}`}
                 path={path}
@@ -252,9 +281,10 @@ export function GlassBoard({
                 finish={finish}
                 wave={(geo.centres[p].x + geo.centres[p].y) / (size * 2)}
               />
+              </IntroPane>
             ) : null,
           )}
-          {!reduced && <IntroFade key={puzzle.id} geo={geo} rows={puzzle.rows} />}
+          <GlassMarks puzzle={puzzle} geo={geo} colors={state.colors} />
           {clashPanes.map(p => (geo.paths[p] ? <Clash key={p} path={geo.paths[p]!} /> : null))}
           {highlight !== null && highlight !== undefined && geo.paths[highlight] && <HintRing path={geo.paths[highlight]!} />}
           {glow !== null && glow !== undefined && geo.paths[glow] && <Path path={geo.paths[glow]!} color={theme.colors.accent} style="stroke" strokeWidth={3} />}
@@ -300,8 +330,77 @@ export function GlassStill({ puzzle, colors, size, ring }: { puzzle: GlassPuzzle
       {geo.paths.map((path, p) =>
         path ? <Glaze key={p} path={path} from={colors[p]} to={colors[p]} given={puzzle.given[p] !== null} centre={geo.centres[p]} cell={geo.cell} origin={geo.centres[p]} reach={geo.cell * 4} animate={false} finish={still} wave={0} /> : null,
       )}
+      <GlassMarks puzzle={puzzle} geo={geo} colors={colors} />
       {clashPanes.map(p => (geo.paths[p] ? <Path key={p} path={geo.paths[p]!} color={theme.colors.danger} style="stroke" strokeWidth={2} /> : null))}
       {ring !== undefined && geo.paths[ring] && <Path path={geo.paths[ring]!} color={theme.colors.accent} style="stroke" strokeWidth={2.5} />}
+    </Group>
+  );
+}
+
+/**
+ * What a later window brings, drawn over its glass: vines. Each leaf pane
+ * carries a small leaf at its heart - green on clear glass, pale once
+ * glazed - and the two leaf panes of a vine are joined by a slender
+ * climbing stem, an S of green with a leaflet or two along it, lying
+ * across the lead between them.
+ */
+function GlassMarks({ puzzle, geo, colors }: { puzzle: GlassPuzzle; geo: Geometry; colors: GlassState['colors'] }): React.JSX.Element | null {
+  if (!puzzle.vines?.length) return null;
+  const k = geo.cell;
+  const leaves = puzzle.vines.flat();
+  return (
+    <Group>
+      {puzzle.vines.map(([a, b]) => {
+        const p = geo.centres[a];
+        const q = geo.centres[b];
+        const dx = q.x - p.x;
+        const dy = q.y - p.y;
+        const len = Math.hypot(dx, dy) || 1;
+        const nx = -dy / len;
+        const ny = dx / len;
+        const sway = Math.min(k * 0.55, len * 0.22);
+        // An S: the stem leans one way, then the other.
+        const c1 = { x: p.x + dx / 3 + nx * sway, y: p.y + dy / 3 + ny * sway };
+        const c2 = { x: p.x + (dx * 2) / 3 - nx * sway, y: p.y + (dy * 2) / 3 - ny * sway };
+        const d = `M ${p.x} ${p.y} C ${c1.x} ${c1.y} ${c2.x} ${c2.y} ${q.x} ${q.y}`;
+        const at = (t: number) => {
+          const u = 1 - t;
+          return {
+            x: u * u * u * p.x + 3 * u * u * t * c1.x + 3 * u * t * t * c2.x + t * t * t * q.x,
+            y: u * u * u * p.y + 3 * u * u * t * c1.y + 3 * u * t * t * c2.y + t * t * t * q.y,
+          };
+        };
+        const leaflet = (t: number, side: number) => {
+          const m = at(t);
+          const tip = { x: m.x + (nx * side + dx / len * 0.6) * k * 0.22, y: m.y + (ny * side + dy / len * 0.6) * k * 0.22 };
+          const w = k * 0.07;
+          return `M ${m.x} ${m.y} Q ${(m.x + tip.x) / 2 + ny * w} ${(m.y + tip.y) / 2 - nx * w} ${tip.x} ${tip.y} Q ${(m.x + tip.x) / 2 - ny * w} ${(m.y + tip.y) / 2 + nx * w} ${m.x} ${m.y} Z`;
+        };
+        const green = theme.colors.glassEmerald;
+        return (
+          <Group key={`${a}-${b}`} opacity={0.85}>
+            <Path path={d} color={shade(green, 0.6)} style="stroke" strokeWidth={k * 0.07} strokeCap="round" transform={[{ translateY: k * 0.02 }]} opacity={0.5} />
+            <Path path={d} color={green} style="stroke" strokeWidth={k * 0.05} strokeCap="round" />
+            <Path path={leaflet(0.36, 1)} color={green} />
+            <Path path={leaflet(0.64, -1)} color={green} />
+          </Group>
+        );
+      })}
+      {leaves.map(pane => {
+        const c = geo.centres[pane];
+        const h = k * 0.26;
+        const leaf = `M ${c.x - h * 0.75} ${c.y + h * 0.75} Q ${c.x - h * 0.9} ${c.y - h * 0.6} ${c.x + h * 0.75} ${c.y - h * 0.75} Q ${c.x + h * 0.6} ${c.y + h * 0.9} ${c.x - h * 0.75} ${c.y + h * 0.75} Z`;
+        const rib = `M ${c.x - h * 0.95} ${c.y + h * 0.95} L ${c.x + h * 0.35} ${c.y - h * 0.35}`;
+        const clear = colors[pane] === null;
+        const ink = clear ? theme.colors.glassEmerald : theme.colors.surfaceHi;
+        return (
+          <Group key={`leaf-${pane}`} opacity={clear ? 0.85 : 0.6}>
+            <Path path={leaf} color={ink} style={clear ? 'fill' : 'stroke'} strokeWidth={1.2} opacity={clear ? 0.35 : 1} />
+            <Path path={leaf} color={ink} style="stroke" strokeWidth={1.2} />
+            <Path path={rib} color={ink} style="stroke" strokeWidth={1} strokeCap="round" />
+          </Group>
+        );
+      })}
     </Group>
   );
 }
@@ -441,21 +540,34 @@ function Glaze({
 }
 
 /** Opening: the panes come in from the top, row by row. */
-function IntroFade({ geo, rows }: { geo: Geometry; rows: number }): React.JSX.Element {
-  const t = useSharedValue(0);
-  useEffect(() => {
-    t.value = withTiming(1, { duration: 700, easing: Easing.out(Easing.quad) });
-  }, [t]);
-  return (
-    <Group>
-      {geo.paths.map((path, p) => (path ? <FadePane key={p} path={path} at={(geo.centres[p].y - geo.inset) / (geo.cell * rows)} t={t} /> : null))}
-    </Group>
-  );
+/** The opening: how long after mount it starts, how far apart the set
+ * panes pop in, and how long each pop takes. */
+const INTRO_DELAY_MS = 120;
+const POP_STAGGER_MS = 70;
+const POP_MS = 360;
+function introLength(givens: number): number {
+  return Math.max(1, givens - 1) * POP_STAGGER_MS + POP_MS;
 }
 
-function FadePane({ path, at, t }: { path: SkPath; at: number; t: SharedValue<number> }): React.JSX.Element {
-  const opacity = useDerivedValue(() => 1 - Math.max(0, Math.min(1, (t.value * 1.6 - at) * 3.5)));
-  return <Path path={path} color={theme.colors.surface} opacity={opacity} />;
+/**
+ * A set pane's entrance: from nothing it springs up past its full size and
+ * settles - solid the whole way, so it never looks half-drawn - in its
+ * turn among the window's set panes. Every other pane is simply there.
+ */
+function IntroPane({ t, centre, order, givens, skip, children }: { t: SharedValue<number>; centre: { x: number; y: number }; order: number; givens: number; skip: boolean; children: React.ReactNode }): React.JSX.Element {
+  const total = introLength(givens);
+  const start = (order * POP_STAGGER_MS) / total;
+  const share = POP_MS / total;
+  const transform = useDerivedValue(() => {
+    const u = Math.max(0, Math.min(1, (t.value - start) / share));
+    if (u >= 1) return [{ translateX: 0 }];
+    // Ease out with an overshoot: back(1.9).
+    const c = 1.9;
+    const e = 1 + (c + 1) * Math.pow(u - 1, 3) + c * Math.pow(u - 1, 2);
+    return [{ translateX: centre.x }, { translateY: centre.y }, { scale: Math.max(0, e) }, { translateX: -centre.x }, { translateY: -centre.y }];
+  });
+  if (skip) return <Group>{children}</Group>;
+  return <Group transform={transform}>{children}</Group>;
 }
 
 /** Two touching panes alike, each ringed in red, breathing until fixed -

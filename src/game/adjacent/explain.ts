@@ -1,6 +1,6 @@
 import { applyTap, groupAt, legalMoves, multiplierFor } from './logic';
 import { searchAdjacent } from './solver';
-import { AdjacentCoord, AdjacentPuzzle, AdjacentState } from './types';
+import { AdjacentCoord, AdjacentPuzzle, AdjacentState, GOLD } from './types';
 
 /**
  * Insight for Adjacent - the one game here with no single right answer, so
@@ -60,7 +60,8 @@ export function explainAdjacentHint(puzzle: AdjacentPuzzle, state: AdjacentState
   const group = groupAt(state.grid, tap.row, tap.col);
   const size = group.length;
   const multiplier = multiplierFor(size);
-  const bonus = multiplier > 1 ? `, and a run this big earns \u00d7${multiplier}` : '';
+  const golden = group.some(cell => state.grid[cell.row][cell.col] === GOLD);
+  const bonus = (multiplier > 1 ? `, and a run this big earns \u00d7${multiplier}` : '') + (golden ? ', doubled by the gold in it' : '');
 
   let reason: string;
   if (!chosen.reaches) {

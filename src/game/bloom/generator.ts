@@ -1,7 +1,7 @@
 import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { traceLoops, tileEnds } from './logic';
 import { isSolvableByLogic, undecidedCells } from './solver';
-import { BloomPuzzle, BloomTileKind } from './types';
+import { BloomCell, BloomPuzzle, BloomTileKind, BloomTwin } from './types';
 
 /* eslint-disable no-bitwise -- mulberry32, FNV-1a and 4-bit edge masks */
 
@@ -106,7 +106,12 @@ const MAX_ATTEMPTS = 3000;
 
 /** `salt` re-draws the same id when its first board repeats one already
  * in the pool (see `puzzles.ts`); the id itself never changes. */
-export function generateBloom(id: string, name: string, difficulty: PuzzleDifficulty, salt = 0): BloomPuzzle {
+/** What a later board brings: pairs of twin tiles. */
+export interface BloomRules {
+  readonly twins?: number;
+}
+
+export function generateBloom(id: string, name: string, difficulty: PuzzleDifficulty, salt = 0, rules: BloomRules = {}): BloomPuzzle {
   const shape = shapeForDifficulty(difficulty);
   const random = mulberry32(hashId(salt === 0 ? id : `${id}#${salt}`));
   const { size } = shape;
@@ -115,13 +120,33 @@ export function generateBloom(id: string, name: string, difficulty: PuzzleDiffic
     const tiling = layTiling(size, shape.knotWeight, random);
     if (!tiling) continue;
 
-    const kinds = tiling.map(line => line.map(cell => cell.kind));
+    const kinds: BloomTileKind[][] = tiling.map(line => line.map(cell => cell.kind));
     const solution = tiling.map(line => line.map(cell => cell.rotation));
     const filled = kinds.flat().filter(kind => kind !== 'empty').length / (size * size);
     if (filled < shape.minFill) continue;
 
     const noPins = kinds.map(line => line.map(() => false));
-    const base: BloomPuzzle = { id, name, difficulty, rows: size, cols: size, kinds, solution, start: solution, pinned: noPins };
+    // Twins are chosen from the stream only on a ruled board, so a plain
+    // board is dealt exactly as it always was.
+    const twins: BloomTwin[] = [];
+    const wanted = rules.twins ?? 0;
+    if (wanted) {
+      const arcs: BloomCell[] = [];
+      kinds.forEach((line, r) => line.forEach((k, c) => k === 'arc' && arcs.push({ row: r, col: c })));
+      const shuffled = arcs.sort(() => random() - 0.5);
+      const used = new Set<string>();
+      for (const a of shuffled) {
+        if (twins.length === wanted) break;
+        const b = shuffled.find(o => !used.has(`${o.row}:${o.col}`) && Math.abs(o.row - a.row) + Math.abs(o.col - a.col) >= 3 && !(o.row === a.row && o.col === a.col));
+        if (!b || used.has(`${a.row}:${a.col}`)) continue;
+        used.add(`${a.row}:${a.col}`);
+        used.add(`${b.row}:${b.col}`);
+        twins.push({ a, b, offset: (solution[b.row][b.col] - solution[a.row][a.col] + 4) % 4 });
+      }
+      if (twins.length < wanted) continue;
+    }
+    const base: BloomPuzzle = { id, name, difficulty, rows: size, cols: size, kinds, solution, start: solution, pinned: noPins, ...(twins.length ? { twins } : {}) };
+    const isTwin = (cell: BloomCell) => twins.some(t => (t.a.row === cell.row && t.a.col === cell.col) || (t.b.row === cell.row && t.b.col === cell.col));
     const loops = traceLoops(base, { rotations: solution }).loops;
     if (loops.length < shape.minLoops) continue;
     if (Math.max(...loops.map(loop => loop.length)) < shape.minLargestLoop) continue;
@@ -134,7 +159,7 @@ export function generateBloom(id: string, name: string, difficulty: PuzzleDiffic
     let guard = 0;
     while (!isSolvableByLogic(puzzle) && guard < size * size) {
       guard += 1;
-      const open = undecidedCells(puzzle).filter(cell => kinds[cell.row][cell.col] === 'arc');
+      const open = undecidedCells(puzzle).filter(cell => kinds[cell.row][cell.col] === 'arc' && !isTwin(cell));
       if (open.length === 0) break;
       const cell = open[Math.floor(random() * open.length)];
       pinned[cell.row][cell.col] = true;
@@ -159,6 +184,12 @@ export function generateBloom(id: string, name: string, difficulty: PuzzleDiffic
     const start = solution.map((line, row) =>
       line.map((rotation, col) => (kinds[row][col] === 'arc' && !puzzle.pinned[row][col] ? Math.floor(random() * 4) : rotation)),
     );
+    // A twin starts `offset` on from its other half, and keeps it - and
+    // never starts already right.
+    for (const t of twins) {
+      if (start[t.a.row][t.a.col] === solution[t.a.row][t.a.col]) start[t.a.row][t.a.col] = (start[t.a.row][t.a.col] + 1) % 4;
+      start[t.b.row][t.b.col] = (start[t.a.row][t.a.col] + t.offset) % 4;
+    }
     const candidate: BloomPuzzle = { ...puzzle, start };
     if (traceLoops(candidate, { rotations: start }).looseEnds === 0) continue;
     return candidate;

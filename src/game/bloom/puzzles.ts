@@ -1,6 +1,6 @@
 import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { endlessName, parseEndlessId } from '../endlessId';
-import { generateBloom } from './generator';
+import { BloomRules, generateBloom } from './generator';
 import { bloomShapeKey } from './logic';
 import { BloomPuzzle } from './types';
 import { BAKED_BLOOM } from './pool.generated';
@@ -21,17 +21,53 @@ const BOARDS: Record<PuzzleDifficulty, ReadonlyArray<string>> = {
  * or mirrored - a board that repeats one already dealt is re-drawn with a
  * salt, the same way Arukone+ keeps its shapes new. `noDuplicatePuzzles`
  * checks the result independently. */
+/**
+ * Later boards that bring something new, each dealt after the plain board
+ * it follows (by index): one or two pairs of twins on medium, more on hard. Their
+ * ids are their own, so no plain board's id ever moves.
+ */
+const RULED: Record<PuzzleDifficulty, ReadonlyArray<{ id: string; name: string; after: number; rules: BloomRules }>> = {
+  easy: [],
+  medium: [
+    { id: 'bloom-medium-t01', name: 'Twin Buds', after: 1, rules: { twins: 1 } },
+    { id: 'bloom-medium-t02', name: 'Paired Roses', after: 4, rules: { twins: 2 } },
+  ],
+  hard: [
+    { id: 'bloom-hard-t01', name: 'Woven Garland', after: 1, rules: { twins: 2 } },
+    { id: 'bloom-hard-t02', name: 'Three Pairs', after: 4, rules: { twins: 3 } },
+  ],
+};
+
 function poolFor(difficulty: PuzzleDifficulty, shapesSeen: Set<string>): BloomPuzzle[] {
-  return BOARDS[difficulty].map((name, index) => {
-    const id = `bloom-${difficulty}-${String(index + 1).padStart(2, '0')}`;
+  const make = (id: string, name: string, rules: BloomRules = {}): BloomPuzzle => {
     for (let salt = 0; ; salt += 1) {
-      const puzzle = generateBloom(id, name, difficulty, salt);
+      const puzzle = generateBloom(id, name, difficulty, salt, rules);
       const key = bloomShapeKey(puzzle);
       if (shapesSeen.has(key) && salt < 50) continue;
       shapesSeen.add(key);
       return puzzle;
     }
+  };
+  // Plain boards first, so their salts never depend on the ruled ones.
+  const plain = BOARDS[difficulty].map((name, index) => make(`bloom-${difficulty}-${String(index + 1).padStart(2, '0')}`, name));
+  const out: BloomPuzzle[] = [];
+  plain.forEach((puzzle, index) => {
+    out.push(puzzle);
+    for (const r of RULED[difficulty]) if (r.after === index) out.push(make(r.id, r.name, r.rules));
   });
+  return out;
+}
+
+/** What an endless board brings, from its id: twin tiles, often. */
+function endlessRules(id: string, tier: PuzzleDifficulty): BloomRules {
+  /* eslint-disable no-bitwise -- FNV-1a */
+  let h = 2166136261;
+  for (let i = 0; i < id.length; i += 1) h = Math.imul(h ^ id.charCodeAt(i), 16777619);
+  const roll = (h >>> 0) % 100;
+  /* eslint-enable no-bitwise */
+  if (tier === 'medium' && roll < 40) return { twins: 1 };
+  if (tier === 'hard' && roll < 50) return { twins: roll < 25 ? 2 : 1 };
+  return {};
 }
 
 /** Builds the pool. Run once, offline, to write `pool.generated.ts`; the
@@ -39,7 +75,10 @@ function poolFor(difficulty: PuzzleDifficulty, shapesSeen: Set<string>): BloomPu
  * still agree. */
 export function buildBloomPool(): BloomPuzzle[] {
   const shapesSeen = new Set<string>();
-  return [...poolFor('easy', shapesSeen), ...poolFor('medium', shapesSeen), ...poolFor('hard', shapesSeen)];
+  const easy = poolFor('easy', shapesSeen);
+  const medium = poolFor('medium', shapesSeen);
+  const hard = poolFor('hard', shapesSeen);
+  return [...easy, ...medium, ...hard];
 }
 
 /** The shipped pool, baked - building it costs tens of milliseconds at
@@ -56,7 +95,7 @@ export function getBloomById(id: string): BloomPuzzle | undefined {
   if (!endless || endless.kind !== 'bloom') return undefined;
   const cached = endlessCache.get(id);
   if (cached) return cached;
-  const puzzle = generateBloom(id, endlessName(endless.index, 'bloom'), endless.tier);
+  const puzzle = generateBloom(id, endlessName(endless.index, 'bloom'), endless.tier, 0, endlessRules(id, endless.tier));
   endlessCache.set(id, puzzle);
   return puzzle;
 }

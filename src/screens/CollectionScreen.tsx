@@ -8,7 +8,7 @@ import { GameEmblem } from '../components/GameEmblem';
 import { PageBloom } from '../components/PageBloom';
 import { LESSON_GUIDES } from '../components/lessons/guides';
 import { accentColorForKind, gameDisplayName, GameKind } from '../game/journey';
-import { INTRO_ORDER, INTRO_SOLVES, ledgerOf, nextGameToArrive, unlockedGames, usePlayerProgress } from '../progression';
+import { INTRO_ORDER, ledgerOf, nextGameToArrive, unlockedGames, usePlayerProgress } from '../progression';
 import { theme, themedStyles } from '../theme';
 
 export interface CollectionScreenProps {
@@ -51,7 +51,7 @@ export function CollectionScreen({ onExit, onReplayLesson }: CollectionScreenPro
             {roster.length}
             <Text style={styles.countOf}>{` of ${INTRO_ORDER.length}`}</Text>
           </Text>
-          <Text style={styles.countLabel}>{roster.length === INTRO_ORDER.length ? 'Every game is yours.' : `games so far. ${INTRO_SOLVES} puzzles of the newest one bring the next.`}</Text>
+          <Text style={styles.countLabel}>{roster.length === INTRO_ORDER.length ? 'Every game is yours.' : `games so far. A few puzzles of the newest one bring the next.`}</Text>
           <View style={styles.track}>
             {INTRO_ORDER.map(kind => (
               <View key={kind} style={[styles.trackCell, roster.includes(kind) && { backgroundColor: accentColorForKind(kind) }]} />

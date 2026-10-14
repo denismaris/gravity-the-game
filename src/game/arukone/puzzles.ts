@@ -35,6 +35,7 @@ const NAMES: ReadonlyArray<[string, PuzzleDifficulty, string]> = [
   ['arukone-015', 'hard', 'Every Strand'],
 ];
 
+
 /**
  * A board's shape, folded over the eight ways it can be turned and
  * reflected - two ids share one exactly when they generate the same

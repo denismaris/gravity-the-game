@@ -128,10 +128,12 @@ function withHalf(
   state: ArukoneState,
   pair: ArukonePair,
   half: ReadonlyArray<ArukoneCell>,
+  /** Join the arms here, beside the fold (a crossing step, or a hint). */
+  close = false,
 ): ArukoneState {
   const paths: Record<number, ReadonlyArray<ArukoneCell>> = { ...state.paths };
   if (foldsFromBothEnds(puzzle, pair)) {
-    paths[pair.value] = armsMeet(puzzle, half) ? fold(puzzle, half) : half;
+    paths[pair.value] = close || armsMeet(puzzle, half) ? fold(puzzle, half) : half;
     return { paths };
   }
   paths[pair.value] = half;
@@ -233,12 +235,21 @@ export function extendDraw(
     return withHalf(puzzle, state, pair, half.slice(0, -1));
   }
   // Once a pair is joined there is nothing left to extend; the player has
-  // to drag back into it first, which the branch above handles.
-  if (isPathComplete(pair, state.paths[value] ?? [])) return state;
+  // to drag back into it first, which the branch above handles. Except a
+  // path that is its own mirror: it closes itself the moment its arms sit
+  // side by side across the fold, but a path may brush the fold and cross
+  // it further on - so drawing on from the head opens it up again and
+  // carries on (the "Winding Loop" bug: the right route could not be drawn).
+  if (isPathComplete(pair, state.paths[value] ?? []) && !foldsFromBothEnds(puzzle, pair)) return state;
   if (!isAdjacent(head, cell)) return state;
 
   if (cell.row < 0 || cell.col < 0 || cell.row >= puzzle.size || cell.col >= puzzle.size) return state;
   if (obstacleSet(puzzle).has(cellKey(cell))) return state;
+  // A path that is its own mirror: stepping across the fold onto the
+  // head's own mirror joins the two arms there.
+  if (foldsFromBothEnds(puzzle, pair) && sameCell(cell, mirrorOf(puzzle, head))) {
+    return withHalf(puzzle, state, pair, half, true);
+  }
   if (half.some(c => sameCell(c, cell))) return state;
 
   // Any endpoint other than this pair's own far end is somebody else's
@@ -256,6 +267,7 @@ export function extendDraw(
 
   const taken = blockedByOthers(puzzle, state, pair);
   if (taken.has(cellKey(cell)) || taken.has(cellKey(reflected))) return state;
+
 
   return withHalf(puzzle, state, pair, [...half, cell]);
 }
@@ -288,5 +300,5 @@ export function revealArukoneHint(puzzle: ArukonePuzzle, state: ArukoneState, va
 
   const cleared = clearPair(puzzle, next, target);
   const half = halfOf(puzzle, target, answer);
-  return withHalf(puzzle, cleared, target, half);
+  return withHalf(puzzle, cleared, target, half, true);
 }
