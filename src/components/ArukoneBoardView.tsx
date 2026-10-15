@@ -1,5 +1,5 @@
 import React, { useMemo, useRef } from 'react';
-import { Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
+import { Circle, Group, Path, rect, RoundedRect, rrect } from '@shopify/react-native-skia';
 import {
   ArukoneCell,
   ArukonePair,
@@ -174,34 +174,28 @@ const FoldGuide = React.memo(function FoldGuideImpl({ puzzle, layout }: { puzzle
   );
 });
 
-/** A blocked square: ink, with its own lit top edge so it reads as solid
- * rather than as a hole in the page. */
+/** A blocked square: its own tile, hatched with fine diagonals - the
+ * same mark Mirror Maze's stones carry, so a square nothing can pass
+ * reads the same on every board, and the grid never breaks. */
 const Obstacles = React.memo(function ObstaclesImpl({ puzzle, layout }: { puzzle: ArukonePuzzle; layout: BoardLayout }): React.JSX.Element {
-  const inset = layout.cellSize * 0.1;
+  const inset = layout.cellSize * 0.035;
   const side = layout.cellSize - inset * 2;
+  const r = layout.cellSize * 0.16;
   return (
     <Group>
       {puzzle.obstacles.map(cell => {
         const origin = getCellOrigin(layout, cell.row, cell.col);
+        const x = origin.x + inset;
+        const y = origin.y + inset;
+        const step = side / 6;
+        const lines: string[] = [];
+        for (let k = -side; k < side; k += step) lines.push(`M ${x + k} ${y + side} L ${x + k + side} ${y}`);
         return (
           <Group key={`block-${cellKey(cell)}`}>
-            <RoundedRect
-              x={origin.x + inset}
-              y={origin.y + inset}
-              width={side}
-              height={side}
-              r={layout.cellSize * 0.14}
-              color={theme.colors.arukoneObstacle}
-            />
-            <RoundedRect
-              x={origin.x + inset}
-              y={origin.y + inset}
-              width={side}
-              height={side * 0.42}
-              r={layout.cellSize * 0.14}
-              color={theme.colors.arukoneObstacleEdge}
-              opacity={0.55}
-            />
+            <Group clip={rrect(rect(x, y, side, side), r, r)}>
+              <Path path={lines.join(' ')} color={theme.colors.borderStrong} style="stroke" strokeWidth={1.2} opacity={0.75} />
+            </Group>
+            <RoundedRect x={x} y={y} width={side} height={side} r={r} color={theme.colors.borderStrong} style="stroke" strokeWidth={1} />
           </Group>
         );
       })}

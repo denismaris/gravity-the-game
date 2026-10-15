@@ -177,19 +177,23 @@ export const lightColors = {
   binairoMarkOutlineDark: '#0F3F36',
 
   // --- Arukone+ ---
-  arukoneObstacle: '#4A4038',
-  arukoneObstacleEdge: '#635749',
   arukoneFold: 'rgba(59, 31, 82, 0.16)',
 
-  // --- Mirror Maze's board (a dark panel in both themes) ---
-  mirrorPanel: '#241F1A',
-  mirrorPanelCell: '#2E2822',
-  mirrorPanelEdge: '#4A4136',
-  mirrorVoid: '#17130F',
-  mirrorSpeckle: '#9C8E79',
-  mirrorGlass: '#A8C0D4',
-  mirrorBeamGlow: '#7FA8C9',
-  mirrorBeamCore: '#FFF6E2',
+  // --- Mirror Maze's board: the same paper tray as every other board ---
+  mirrorPanel: '#FBF7EE',
+  mirrorPanelCell: '#FFFDF8',
+  mirrorPanelEdge: '#DFD3BA',
+  mirrorVoid: '#C8B894',
+  /** A stone: the same tile, hatched - a square the light cannot cross. */
+  mirrorStone: '#EFE7D5',
+  /** A ruby filter: the same tile, glazed in ruby glass. */
+  mirrorRubyPane: '#F5D5DB',
+  mirrorSpeckle: '#C8B894',
+  /** The mirrors: steel bars. */
+  mirrorGlass: '#3F6482',
+  mirrorBeamGlow: '#8DB6D6',
+  /** The beam's own line - the darkest of its three strokes on paper. */
+  mirrorBeamCore: '#2C6894',
 
   // --- type ---
   textPrimary: '#3B1F52', // violet ink
@@ -353,18 +357,18 @@ export const darkColors: Palette = {
   binairoMarkOutlineLight: '#5DB9A6',
   binairoMarkOutlineDark: '#16524A',
 
-  arukoneObstacle: '#0F0D0B',
-  arukoneObstacleEdge: '#2E2924',
   arukoneFold: 'rgba(239, 227, 204, 0.14)',
 
-  mirrorPanel: '#0F0C10',
-  mirrorPanelCell: '#1A1519',
-  mirrorPanelEdge: '#3A3138',
-  mirrorVoid: '#070507',
+  mirrorPanel: '#27231F',
+  mirrorPanelCell: '#2C2823',
+  mirrorPanelEdge: '#3E3830',
+  mirrorVoid: '#4B443B',
+  mirrorStone: '#221F1B',
+  mirrorRubyPane: '#4A2430',
   mirrorSpeckle: '#8A7C6A',
   mirrorGlass: '#B6CCDE',
   mirrorBeamGlow: '#86B0D2',
-  mirrorBeamCore: '#FFF6E2',
+  mirrorBeamCore: '#E8F2FA',
 
   // Parchment ink. Tertiary still clears AA (>= 4.5:1) on every surface.
   textPrimary: '#F1E6D2',

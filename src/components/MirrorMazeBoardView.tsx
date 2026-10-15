@@ -1,5 +1,5 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Circle, Group, Path, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Circle, Group, Path, rect, RoundedRect, rrect, vec } from '@shopify/react-native-skia';
 import {
   Direction,
   MirrorKind,
@@ -10,16 +10,13 @@ import {
 } from '../game/mirror';
 import {
   BoardLayout,
-  CellBackground,
   computeBoardLayout,
   getCellCenter,
   getCellOrigin,
-  ObstacleBlock,
   shade,
-  TargetMarker,
   useReducedMotion,
 } from '../game/rendering';
-import { theme, lightColors } from '../theme';
+import { theme } from '../theme';
 import { SkiaEntrance } from './SkiaEntrance';
 import { cancelAnimation, Easing, SharedValue, useDerivedValue, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 
@@ -34,6 +31,33 @@ const DIRECTION_VECTOR: Readonly<Record<Direction, { dRow: number; dCol: number 
   left: { dRow: 0, dCol: -1 },
   right: { dRow: 0, dCol: 1 },
 };
+
+/** The gap between two tiles, as a share of a square. */
+const TILE_GAP_SHARE = 0.1;
+
+/**
+ * The board's squares, laid out inside a margin as wide as the gap
+ * between two tiles - so the outer tiles sit as far from the frame as
+ * they do from each other. The tap layer (`MirrorMazeBoard`) uses the
+ * same numbers, which is what keeps a tap on the tile it lands on.
+ */
+export function mazeGrid(rows: number, size: number): { layout: BoardLayout; margin: number; outer: number } {
+  const outer = Math.max(0, Math.floor(size));
+  // margin + half a gap at the edge = one whole gap between tiles.
+  const margin = rows > 0 ? (outer * TILE_GAP_SHARE * 0.5) / (rows + TILE_GAP_SHARE) : 0;
+  return { layout: computeBoardLayout(rows, outer - margin * 2), margin, outer };
+}
+
+/** A stone's hatching: fine diagonals across its tile, the mark for a
+ * square nothing can pass. Clipped to the tile by its caller. */
+function hatch(x: number, y: number, size: number): string {
+  const step = size / 6;
+  const lines: string[] = [];
+  for (let k = -size; k < size; k += step) {
+    lines.push(`M ${x + k} ${y + size} L ${x + k + size} ${y}`);
+  }
+  return lines.join(' ');
+}
 
 function positionKey(row: number, col: number): string {
   return `${row}:${col}`;
@@ -71,25 +95,17 @@ export function mirrorPath(cx: number, cy: number, halfLength: number, mirror: M
   return `M ${cx - dx} ${cy - dy} L ${cx + dx} ${cy + dy}`;
 }
 
-const mirrorHalo = (): string => shade(theme.colors.mirrorGlass, 1.35);
-
 /**
- * A placed mirror, drawn as a soft halo behind a crisp core - the same
- * two-layer idiom the beam itself uses (`livePathString`'s own halo/mid/
- * core), applied here instead of a shadow: this board is a dark, lit
- * scene, not paper on a page, so a mirror reads as "catching light"
- * rather than "casting one" - a cast shadow would not even be visible
- * against a near-black panel. `mirrorGlass`'s own doc comment already
- * calls this "polished silver"; the halo is what actually makes it read
- * as polished rather than flat, without reaching for a gradient fill
- * (see this project's own standing depth-vs-flat guidance: geometry, not
- * bevels, and a mirror is not a sphere).
+ * A placed mirror: a silver bar on a dark backing a hair below it - the
+ * same small lip every tile and piece in the app stands on. Flat geometry
+ * only (see this project's standing depth-vs-flat guidance).
  */
 export function renderMirror(key: string, cx: number, cy: number, halfLength: number, mirror: MirrorKind, extraRadians: number, scale: number, strokeWidth: number): React.JSX.Element {
   const path = mirrorPath(cx, cy, halfLength, mirror, extraRadians, scale);
+  const lip = mirrorPath(cx, cy + strokeWidth * 0.35, halfLength, mirror, extraRadians, scale);
   return (
     <Group key={key}>
-      <Path path={path} color={mirrorHalo()} style="stroke" strokeWidth={strokeWidth * 2.2} strokeCap="round" opacity={0.35} />
+      <Path path={lip} color={shade(theme.colors.mirrorGlass, 0.62)} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />
       <Path path={path} color={theme.colors.mirrorGlass} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />
     </Group>
   );
@@ -100,6 +116,13 @@ export function renderMirror(key: string, cx: number, cy: number, halfLength: nu
 export function gemPath(cx: number, cy: number, size: number): string {
   'worklet';
   return `M ${cx} ${cy - size} L ${cx + size} ${cy} L ${cx} ${cy + size} L ${cx - size} ${cy} Z`;
+}
+
+/** A gem's table - the flat top facet - as a smaller diamond, nudged up
+ * toward the light. */
+export function gemTablePath(cx: number, cy: number, size: number): string {
+  'worklet';
+  return gemPath(cx, cy - size * 0.12, size * 0.46);
 }
 
 /** An open polyline through the centres of consecutive `cells`. Empty string
@@ -136,37 +159,6 @@ function partialPathThroughCells(layout: BoardLayout, cells: ReadonlyArray<Mirro
   }
 
   return points.length < 2 ? '' : points.join(' ');
-}
-
-interface Speck {
-  readonly x: number;
-  readonly y: number;
-  readonly r: number;
-  readonly opacity: number;
-}
-
-/**
- * Faint constellation dust scattered across the ink panel. Deterministic
- * (a tiny seeded LCG, seeded off the puzzle id) so the same board always
- * has the same sky - a fresh `Math.random()` per render would make the
- * whole field twinkle chaotically on every frame.
- */
-function useSpeckle(boardSize: number, seed: number): ReadonlyArray<Speck> {
-  return useMemo(() => {
-    let state = seed || 1;
-    const random = (): number => {
-      state = (state * 1664525 + 1013904223) % 4294967296;
-      return state / 4294967296;
-    };
-
-    const count = Math.max(24, Math.round(boardSize / 5));
-    return Array.from({ length: count }, (): Speck => ({
-      x: random() * boardSize,
-      y: random() * boardSize,
-      r: 0.9 + random() * 1.8,
-      opacity: 0.18 + random() * 0.42,
-    }));
-  }, [boardSize, seed]);
 }
 
 interface Flourish {
@@ -206,12 +198,11 @@ function useMirrorFlourish(mirrors: MirrorMazeState['mirrors']): Flourish | null
 interface StaticMazeLayerProps {
   puzzle: MirrorMazePuzzle;
   layout: BoardLayout;
-  speckle: ReadonlyArray<Speck>;
   flashCell?: MirrorMazeCell | null;
 }
 
 /**
- * The board itself: the ink panel, its constellation dust, the tiles, and
+ * The board itself: the tiles, and
  * every fixed marker (obstacles, target, source). None of this depends on
  * the player's mirrors, the beam, or the clock, so it is memoized away from
  * the ~60 renders/sec the animated layers above it run at - the same
@@ -221,128 +212,66 @@ interface StaticMazeLayerProps {
 const StaticMazeLayer = React.memo(function StaticMazeLayerImpl({
   puzzle,
   layout,
-  speckle,
   flashCell,
 }: StaticMazeLayerProps) {
-  const cellInset = layout.cellSize * 0.05;
-  const cellCornerRadius = layout.cellSize * 0.14;
-  const obstacleInset = layout.cellSize * 0.18;
-  const obstacleCornerRadius = layout.cellSize * 0.06;
-  const targetRadius = layout.cellSize * 0.28;
-  const targetStrokeWidth = Math.max(2, layout.cellSize * 0.075);
-
+  const cell = layout.cellSize;
   const flashKey = flashCell ? positionKey(flashCell.row, flashCell.col) : null;
   const targetCenter = getCellCenter(layout, puzzle.target.row, puzzle.target.col);
+  const inset = (cell * TILE_GAP_SHARE) / 2;
+  const tile = cell - inset * 2;
+  const tileRadius = cell * 0.16;
+  const lip = Math.max(1.5, cell * 0.035);
+  const stones = new Set(puzzle.obstacles.map(at => positionKey(at.row, at.col)));
+  const rubies = new Set((puzzle.filters ?? []).map(at => positionKey(at.row, at.col)));
 
   return (
     <Group>
-      <RoundedRect
-        x={0}
-        y={0}
-        width={layout.boardSize}
-        height={layout.boardSize}
-        r={layout.cellSize * 0.16}
-        color={theme.colors.mirrorPanel}
-      />
-
-      {speckle.map((speck, i) => (
-        <Circle key={`speck-${i}`} cx={speck.x} cy={speck.y} r={speck.r} color={theme.colors.mirrorSpeckle} opacity={speck.opacity} />
-      ))}
-
-      {/* Each cell is a flat lit-tile fill plus one hairline (`CellBackground`
-          draws nothing else - no shadow, no corner highlight), sitting on
-          the one panel above whose own shadow and frame (this component's
-          own outer `RoundedRect`s) are the only elevation this board casts
-          - the same single-elevation rule `BinairoBoardView.tsx`'s
-          `renderTileChrome` was fixed to follow, already true here without
-          needing a change. */}
+      {/* Every square the same soft tile on the same small lip - the tile
+          every other board in the app is made of. A stone and a ruby pane
+          are that same tile in another colour, so the grid never breaks. */}
       {Array.from({ length: puzzle.rows }, (_row, r) =>
         Array.from({ length: puzzle.cols }, (_col, c) => {
-          const origin = getCellOrigin(layout, r, c);
-          const flashed = flashKey === positionKey(r, c);
+          const o = getCellOrigin(layout, r, c);
+          const key = positionKey(r, c);
+          const stone = stones.has(key);
+          const ruby = rubies.has(key);
+          const face = stone ? theme.colors.mirrorStone : ruby ? theme.colors.mirrorRubyPane : theme.colors.mirrorPanelCell;
+          const edge = ruby ? theme.colors.glassRuby : stone ? theme.colors.mirrorVoid : theme.colors.mirrorPanelEdge;
+          const x = o.x + inset;
+          const y = o.y + inset;
           return (
-            <CellBackground
-              key={`bg-${r}-${c}`}
-              x={origin.x + cellInset}
-              y={origin.y + cellInset}
-              size={layout.cellSize - cellInset * 2}
-              fill={flashed ? theme.colors.accent : theme.colors.mirrorPanelCell}
-              stroke={theme.colors.mirrorPanelEdge}
-              cornerRadius={cellCornerRadius}
-            />
+            <Group key={`tile-${key}`}>
+              <RoundedRect x={x} y={y + lip} width={tile} height={tile - lip} r={tileRadius} color={theme.colors.mirrorPanelEdge} />
+              <RoundedRect x={x} y={y} width={tile} height={tile - lip} r={tileRadius} color={face} />
+              {stone && (
+                <Group clip={rrect(rect(x, y, tile, tile - lip), tileRadius, tileRadius)}>
+                  <Path path={hatch(x, y, tile)} color={theme.colors.mirrorVoid} style="stroke" strokeWidth={1.2} opacity={0.75} />
+                </Group>
+              )}
+              <RoundedRect x={x + 0.5} y={y + 0.5} width={tile - 1} height={tile - lip - 1} r={tileRadius} color={edge} style="stroke" strokeWidth={1} opacity={0.8} />
+              {ruby && <Path path={`M ${x + tile * 0.22} ${y + tile * 0.44} L ${x + tile * 0.44} ${y + tile * 0.22} M ${x + tile * 0.22} ${y + tile * 0.62} L ${x + tile * 0.62} ${y + tile * 0.22}`} color={theme.colors.glassRuby} style="stroke" strokeWidth={1.4} strokeCap="round" opacity={0.5} />}
+              {flashKey === key && <RoundedRect x={x - 2} y={y - 2} width={tile + 4} height={tile + 4} r={tileRadius + 2} color={theme.colors.accent} style="stroke" strokeWidth={2.5} />}
+            </Group>
           );
         }),
       )}
 
-      {puzzle.obstacles.map((cell, i) => {
-        const origin = getCellOrigin(layout, cell.row, cell.col);
+      {(puzzle.splitters ?? []).map(at => {
+        // A splitter: a clear crystal with a bright table.
+        const c = getCellCenter(layout, at.row, at.col);
+        const k = cell * 0.28;
         return (
-          <ObstacleBlock
-            key={`obstacle-${i}`}
-            x={origin.x + obstacleInset}
-            y={origin.y + obstacleInset}
-            size={layout.cellSize - obstacleInset * 2}
-            color={theme.colors.mirrorVoid}
-            cornerRadius={obstacleCornerRadius}
-          />
-        );
-      })}
-
-      {(puzzle.filters ?? []).map(cell => {
-        // A ruby filter: a pane of ruby glass set in the floor.
-        const o = getCellOrigin(layout, cell.row, cell.col);
-        const inset = layout.cellSize * 0.2;
-        const w = layout.cellSize - inset * 2;
-        return (
-          <Group key={`filter-${cell.row}-${cell.col}`}>
-            <RoundedRect x={o.x + inset} y={o.y + inset} width={w} height={w} r={w * 0.18} color={theme.colors.glassRuby} opacity={0.55} />
-            <RoundedRect x={o.x + inset} y={o.y + inset} width={w} height={w} r={w * 0.18} color={theme.colors.glassRuby} style="stroke" strokeWidth={1.5} />
-            <Path path={`M ${o.x + inset + w * 0.2} ${o.y + inset + w * 0.45} L ${o.x + inset + w * 0.45} ${o.y + inset + w * 0.2}`} color="#FFFFFF" style="stroke" strokeWidth={1.4} strokeCap="round" opacity={0.6} />
+          <Group key={`split-${at.row}-${at.col}`}>
+            <Path path={gemPath(c.x, c.y, k)} color={theme.colors.mirrorBeamGlow} opacity={0.35} />
+            <Path path={gemPath(c.x, c.y, k)} color={theme.colors.mirrorGlass} style="stroke" strokeWidth={1.6} strokeJoin="round" />
+            <Path path={gemTablePath(c.x, c.y, k)} color={theme.colors.mirrorGlass} opacity={0.85} />
           </Group>
         );
       })}
 
-      {(puzzle.splitters ?? []).map(cell => {
-        // A splitter: a cut crystal, a diamond within a diamond.
-        const c = getCellCenter(layout, cell.row, cell.col);
-        const k = layout.cellSize * 0.3;
-        const diamond = (r: number) => `M ${c.x} ${c.y - r} L ${c.x + r} ${c.y} L ${c.x} ${c.y + r} L ${c.x - r} ${c.y} Z`;
-        return (
-          <Group key={`split-${cell.row}-${cell.col}`}>
-            <Path path={diamond(k)} color={theme.colors.mirrorGlass} opacity={0.35} />
-            <Path path={diamond(k)} color={theme.colors.mirrorGlass} style="stroke" strokeWidth={1.6} strokeJoin="round" />
-            <Path path={diamond(k * 0.45)} color={theme.colors.mirrorBeamCore} opacity={0.85} />
-          </Group>
-        );
-      })}
-
-      <TargetMarker
-        cx={targetCenter.x}
-        cy={targetCenter.y}
-        radius={targetRadius}
-        color={theme.colors.accent}
-        strokeWidth={targetStrokeWidth}
-      />
-
-      {/* The panel's own identity-colour frame - the same move
-          `BinairoBoardView.tsx`'s `renderTray` makes for the light board
-          (giving `mirrorAccent` real presence on the board itself, not
-          just the header's kicker/track), pushed to a higher opacity than
-          that cream tray's 0.55 uses: a faint tint reads fine against
-          luminous paper but would all but vanish against this panel's
-          near-black wash. Drawn last so the rim stays a crisp, unbroken
-          ring on top of every cell, obstacle and marker inside it. */}
-      <RoundedRect
-        x={1}
-        y={1}
-        width={layout.boardSize - 2}
-        height={layout.boardSize - 2}
-        r={Math.max(0, layout.cellSize * 0.16 - 1)}
-        color={theme.colors.mirrorAccent}
-        style="stroke"
-        strokeWidth={1.75}
-        opacity={0.85}
-      />
+      {/* The target: a gold ring with a gold heart. */}
+      <Circle cx={targetCenter.x} cy={targetCenter.y} r={cell * 0.27} color={theme.colors.accent} style="stroke" strokeWidth={Math.max(2, cell * 0.065)} />
+      <Circle cx={targetCenter.x} cy={targetCenter.y} r={cell * 0.07} color={theme.colors.accent} />
     </Group>
   );
 });
@@ -371,7 +300,10 @@ function MazeGem({ cx, cy, size, lit, ruby = false, index, shimmerPhase, reduced
   const shimmer = useDerivedValue(() => (reducedMotion ? 0.5 : 0.5 + 0.5 * Math.sin(shimmerPhase.value + index * 0.9)));
   const restingPath = useMemo(() => gemPath(cx, cy, size * 1.08), [cx, cy, size]);
   const waitingPath = useDerivedValue(() => gemPath(cx, cy, size * (0.9 + 0.14 * shimmer.value)));
-  const waitingOpacity = useDerivedValue(() => 0.55 + 0.35 * shimmer.value);
+  const waitingOpacity = useDerivedValue(() => 0.7 + 0.3 * shimmer.value);
+  const waitingTable = useDerivedValue(() => gemTablePath(cx, cy, size * (0.9 + 0.14 * shimmer.value)));
+  const restingTable = useMemo(() => gemTablePath(cx, cy, size * 1.08), [cx, cy, size]);
+  const tone = ruby ? theme.colors.glassRuby : lit ? theme.colors.accent : theme.colors.mirrorGlass;
   const ringR = useDerivedValue(() => size * (1 + easeOutCubic(burst.value) * 2.2));
   const ringWidth = useDerivedValue(() => Math.max(1, size * 0.35 * (1 - burst.value)));
   const ringOpacity = useDerivedValue(() => (burst.value >= 1 ? 0 : 0.7 * (1 - burst.value)));
@@ -379,9 +311,20 @@ function MazeGem({ cx, cy, size, lit, ruby = false, index, shimmerPhase, reduced
   return (
     <Group>
       {lit && <Circle cx={cx} cy={cy} r={ringR} color={ruby ? theme.colors.glassRuby : theme.colors.accent} style="stroke" strokeWidth={ringWidth} opacity={ringOpacity} />}
-      {lit ? <Path path={restingPath} color={ruby ? theme.colors.glassRuby : theme.colors.accent} /> : <Path path={waitingPath} color={ruby ? theme.colors.glassRuby : theme.colors.mirrorGlass} opacity={waitingOpacity} />}
+      {lit ? (
+        <Group>
+          <Path path={restingPath} color={tone} />
+          <Path path={restingTable} color={shade(tone, 1.35)} />
+        </Group>
+      ) : (
+        <Group opacity={waitingOpacity}>
+          <Path path={waitingPath} color={theme.colors.mirrorPanelCell} />
+          <Path path={waitingPath} color={tone} style="stroke" strokeWidth={1.6} strokeJoin="round" />
+          <Path path={waitingTable} color={tone} opacity={0.35} />
+        </Group>
+      )}
       {/* A ruby gem keeps a ring of its own colour, lit or not. */}
-      {ruby && <Circle cx={cx} cy={cy} r={size * 1.7} color={theme.colors.glassRuby} style="stroke" strokeWidth={1.2} opacity={0.7} />}
+      {ruby && <Circle cx={cx} cy={cy} r={size * 1.7} color={theme.colors.glassRuby} style="stroke" strokeWidth={1.2} opacity={0.55} />}
     </Group>
   );
 }
@@ -432,14 +375,14 @@ export interface MirrorMazeBoardViewProps {
 
 /**
  * Renders a `MirrorMazePuzzle`/`MirrorMazeState` as a grid of Skia shapes on
- * a dark ink panel - the one board in the app that inverts, because a beam
- * drawn on cream is a line, and a beam drawn on ink is light.
+ * the same paper tray as every other board (and its dark twin in the dark
+ * theme): the same tiles, a game-colour rim, and simple pieces on top.
  *
- * The beam is three overlaid strokes (wide blue halo, mid, warm-white core)
- * rather than one flat line, breathing on a slow idle pulse while the puzzle
- * is unsolved and igniting from source to target the moment it's solved.
- * Fixed content (source, target, obstacles) is paper and gold; the player's
- * mirrors are polished silver. Pure presentation: no game logic lives here.
+ * The beam is three overlaid strokes (a wide pale glow, a body and a fine
+ * core), breathing on a slow idle pulse while the puzzle is unsolved and
+ * igniting in gold from source to target the moment it's solved. Mirrors
+ * are steel bars; gems wait hollow and fill once lit. Pure presentation:
+ * no game logic lives here.
  */
 export function MirrorMazeBoardView({
   puzzle,
@@ -450,12 +393,11 @@ export function MirrorMazeBoardView({
   solved,
   flashCell,
 }: MirrorMazeBoardViewProps): React.JSX.Element {
-  const layout = useMemo(() => computeBoardLayout(puzzle.rows, size), [puzzle.rows, size]);
+  const { layout, margin, outer } = useMemo(() => mazeGrid(puzzle.rows, size), [puzzle.rows, size]);
+  const panelRadius = 12;
   const reducedMotion = useReducedMotion();
 
 
-  const seed = useMemo(() => [...puzzle.id].reduce((sum, ch) => sum + ch.charCodeAt(0), 0), [puzzle.id]);
-  const speckle = useSpeckle(layout.boardSize, seed);
 
   // A board with a filter or a splitter has more than one stretch of
   // light, and colour; a plain one is just `path`, as it always was.
@@ -491,9 +433,9 @@ export function MirrorMazeBoardView({
 
   // Light wants to be thin and sharp with a wide, faint bloom around it -
   // a thick core just reads as a glowing rod.
-  const haloBase = Math.max(4, layout.cellSize * 0.17);
+  const haloBase = Math.max(4, layout.cellSize * 0.14);
   const haloWidth = useDerivedValue(() => haloBase * (0.85 + 0.3 * pulse.value));
-  const haloOpacity = useDerivedValue(() => 0.16 + 0.12 * pulse.value);
+  const haloOpacity = useDerivedValue(() => 0.1 + 0.08 * pulse.value);
   const coreOpacity = useDerivedValue(() => 0.85 + 0.15 * pulse.value);
   const midWidth = Math.max(1.8, layout.cellSize * 0.055);
   const coreWidth = Math.max(1, layout.cellSize * 0.026);
@@ -505,7 +447,9 @@ export function MirrorMazeBoardView({
 
   return (
     <Group>
-      <StaticMazeLayer puzzle={puzzle} layout={layout} speckle={speckle} flashCell={flashCell} />
+      <RoundedRect x={0} y={0} width={outer} height={outer} r={panelRadius} color={theme.colors.mirrorPanel} />
+      <Group transform={[{ translateX: margin }, { translateY: margin }]}>
+      <StaticMazeLayer puzzle={puzzle} layout={layout} flashCell={flashCell} />
 
       {/* The live beam: a halo, a body and a core, so it reads as light with
           falloff rather than a single flat stroke. */}
@@ -531,7 +475,7 @@ export function MirrorMazeBoardView({
           />
           <Path
             path={piece.d}
-            color={piece.ruby ? '#FFD9DF' : theme.colors.mirrorBeamCore}
+            color={piece.ruby ? theme.colors.glassRuby : theme.colors.mirrorBeamCore}
             style="stroke"
             strokeWidth={coreWidth}
             strokeCap="round"
@@ -565,7 +509,7 @@ export function MirrorMazeBoardView({
           />
           <Path
             path={ignitionPathString}
-            color={theme.colors.mirrorBeamCore}
+            color={shade(theme.colors.accent, 0.8)}
             style="stroke"
             strokeWidth={coreWidth * 1.4}
             strokeCap="round"
@@ -574,11 +518,12 @@ export function MirrorMazeBoardView({
         </Group>
       )}
 
-      {/* The emitter, drawn over the beam rather than under it - light
-          should leave the source, not swallow it. */}
+      {/* The lamp, over the beam - light leaves it, it is not drawn
+          across it: a steel disc with a paper arrow the way it shines. */}
+      <Circle cx={sourceCenter.x} cy={sourceCenter.y} r={layout.cellSize * 0.22} color={theme.colors.mirrorAccent} />
       <Path
-        path={arrowPath(sourceCenter.x, sourceCenter.y, arrowSize, puzzle.sourceDirection)}
-        color={lightColors.background}
+        path={arrowPath(sourceCenter.x, sourceCenter.y, arrowSize * 0.5, puzzle.sourceDirection)}
+        color={theme.colors.surfaceHi}
       />
 
       {puzzle.gems.map((cell, i) => {
@@ -633,6 +578,8 @@ export function MirrorMazeBoardView({
           })()}
         </Group>
       )}
+      </Group>
+      <RoundedRect x={1} y={1} width={outer - 2} height={outer - 2} r={panelRadius - 1} color={theme.colors.mirrorAccent} style="stroke" strokeWidth={1.5} opacity={0.6} />
     </Group>
   );
 }

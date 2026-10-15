@@ -2,8 +2,8 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
 import { isEligible, MirrorKind, MirrorMazeCell, MirrorMazePuzzle, MirrorMazeState } from '../game/mirror';
-import { computeBoardLayout, getCellOrigin } from '../game/rendering';
-import { MirrorMazeBoardView } from './MirrorMazeBoardView';
+import { getCellOrigin } from '../game/rendering';
+import { mazeGrid, MirrorMazeBoardView } from './MirrorMazeBoardView';
 
 export interface MirrorMazeBoardProps {
   puzzle: MirrorMazePuzzle;
@@ -31,7 +31,7 @@ function mirrorLabel(mirror: MirrorKind | null): string {
  * Composes the Skia-drawn board (`MirrorMazeBoardView`) with an
  * absolutely-positioned overlay of one `Pressable` per eligible cell on top
  * of the `<Canvas>`, so tapping a cell cycles its mirror. The overlay is
- * positioned with the exact same `computeBoardLayout`/`getCellOrigin` math
+ * positioned with the exact same `mazeGrid`/`getCellOrigin` math
  * the Skia layer itself uses, which is what keeps the two pixel-aligned -
  * there is no other precedent in this app for per-cell touch input on a
  * Skia canvas (Gravity's board takes input as a single whole-board swipe).
@@ -48,7 +48,7 @@ export function MirrorMazeBoard({
   onCycleCell,
   flashCell,
 }: MirrorMazeBoardProps): React.JSX.Element {
-  const layout = useMemo(() => computeBoardLayout(puzzle.rows, size), [puzzle.rows, size]);
+  const { layout, margin, outer } = useMemo(() => mazeGrid(puzzle.rows, size), [puzzle.rows, size]);
 
   const eligibleCells = useMemo(() => {
     const cells: MirrorMazeCell[] = [];
@@ -61,7 +61,7 @@ export function MirrorMazeBoard({
   }, [puzzle]);
 
   return (
-    <View style={{ width: layout.boardSize, height: layout.boardSize }}>
+    <View style={{ width: outer, height: outer }}>
       <Canvas style={StyleSheet.absoluteFill}>
         <MirrorMazeBoardView
           puzzle={puzzle}
@@ -84,17 +84,16 @@ export function MirrorMazeBoard({
               onPress={() => onCycleCell(row, col)}
               // Sits above the Canvas, so this tint gives the cell an
               // instant touch-down response without the Skia layer having
-              // to track press state. Light rather than ink: this is the
-              // one board on a dark panel, where only something brighter
-              // than the ground reads as "lit up".
+              // to track press state. A warm mid-tone, so it reads on the
+              // paper tray and the dark one alike.
               style={({ pressed }) => ({
                 position: 'absolute',
-                left: origin.x,
-                top: origin.y,
+                left: origin.x + margin,
+                top: origin.y + margin,
                 width: layout.cellSize,
                 height: layout.cellSize,
                 borderRadius: layout.cellSize * 0.18,
-                backgroundColor: pressed ? 'rgba(255,255,255,0.10)' : 'transparent',
+                backgroundColor: pressed ? 'rgba(120,100,70,0.12)' : 'transparent',
               })}
             />
           );

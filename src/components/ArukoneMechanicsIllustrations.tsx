@@ -1,5 +1,5 @@
 import React from 'react';
-import { Group, Path, RoundedRect } from '@shopify/react-native-skia';
+import { Group, Path, rect, RoundedRect, rrect } from '@shopify/react-native-skia';
 import { Cord, Token } from './ArukoneBoardView';
 import { ILLUSTRATION_HEIGHT, ILLUSTRATION_WIDTH } from './MechanicsCarousel';
 import { shade } from '../game/rendering';
@@ -75,25 +75,18 @@ function Grid(): React.JSX.Element {
 }
 
 function Obstacle({ row, col }: { row: number; col: number }): React.JSX.Element {
+  // Hatched, like the board's own blocked squares.
+  const x = GRID_X + col * CELL + 3;
+  const y = GRID_Y + row * CELL + 3;
+  const side = CELL - 6;
+  const lines: string[] = [];
+  for (let k = -side; k < side; k += side / 5) lines.push(`M ${x + k} ${y + side} L ${x + k + side} ${y}`);
   return (
     <Group>
-      <RoundedRect
-        x={GRID_X + col * CELL + 3}
-        y={GRID_Y + row * CELL + 3}
-        width={CELL - 6}
-        height={CELL - 6}
-        r={4}
-        color={theme.colors.arukoneObstacle}
-      />
-      <RoundedRect
-        x={GRID_X + col * CELL + 3}
-        y={GRID_Y + row * CELL + 3}
-        width={CELL - 6}
-        height={(CELL - 6) * 0.42}
-        r={4}
-        color={theme.colors.arukoneObstacleEdge}
-        opacity={0.55}
-      />
+      <Group clip={rrect(rect(x, y, side, side), 4, 4)}>
+        <Path path={lines.join(' ')} color={theme.colors.borderStrong} style="stroke" strokeWidth={1.1} opacity={0.75} />
+      </Group>
+      <RoundedRect x={x} y={y} width={side} height={side} r={4} color={theme.colors.borderStrong} style="stroke" strokeWidth={1} />
     </Group>
   );
 }
