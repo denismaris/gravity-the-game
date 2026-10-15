@@ -13,6 +13,16 @@ const SPREAD_MS = 55;
  * lamps this much after the last - over well inside `SOLVE_CELEBRATION_MS`. */
 const RIPPLE_STEP_MS = 70;
 
+/**
+ * The board's squares inside a margin of one tile gap, so the outer
+ * tiles sit as far from the frame as from each other. The tap layer
+ * (`LightsOutBoard`) uses the same numbers.
+ */
+export function lanternGrid(cells: number, size: number): { layout: BoardLayout; margin: number; outer: number } {
+  const outer = Math.max(0, Math.floor(size));
+  return { layout: computeBoardLayout(cells, outer - TILE_GAP * 2), margin: TILE_GAP, outer };
+}
+
 function cellKey(row: number, col: number): string {
   return `${row}:${col}`;
 }
@@ -169,7 +179,7 @@ export interface LightsOutBoardViewProps {
 }
 
 export function LightsOutBoardView({ puzzle, state, size, solved, flashCell }: LightsOutBoardViewProps): React.JSX.Element {
-  const layout = useMemo(() => computeBoardLayout(puzzle.size, size), [puzzle.size, size]);
+  const { layout, margin, outer } = useMemo(() => lanternGrid(puzzle.size, size), [puzzle.size, size]);
   const reducedMotion = useReducedMotion();
   const delays = useChangeDelays(state.lights);
   const tileSize = Math.max(0, layout.cellSize - TILE_GAP * 2);
@@ -178,7 +188,8 @@ export function LightsOutBoardView({ puzzle, state, size, solved, flashCell }: L
   return (
     <Group>
       {/* The night the lamps burn against. */}
-      <RoundedRect x={0} y={0} width={layout.boardSize} height={layout.boardSize} r={layout.cellSize * 0.16} color={theme.colors.lightsOutPanel} />
+      <RoundedRect x={0} y={0} width={outer} height={outer} r={layout.cellSize * 0.16} color={theme.colors.lightsOutPanel} />
+      <Group transform={[{ translateX: margin }, { translateY: margin }]}>
       <BoardTiles size={puzzle.size} layout={layout} tileSize={tileSize} />
       {/* Twins: a thread tied from one to the other, under the lamps. */}
       {(puzzle.twins ?? []).map(([a, b], i) => {
@@ -232,12 +243,14 @@ export function LightsOutBoardView({ puzzle, state, size, solved, flashCell }: L
         />
       )}
 
+      </Group>
+
       {/* The panel's own identity-colour rim. */}
       <RoundedRect
         x={1}
         y={1}
-        width={layout.boardSize - 2}
-        height={layout.boardSize - 2}
+        width={outer - 2}
+        height={outer - 2}
         r={Math.max(0, layout.cellSize * 0.16 - 1)}
         color={theme.colors.lightsOutAccent}
         style="stroke"

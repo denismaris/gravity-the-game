@@ -1,7 +1,7 @@
 /* eslint-disable react-native/no-inline-styles -- geometry is derived from `size` at render time */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GestureResponderEvent, StyleSheet, View } from 'react-native';
-import { Canvas, Circle, DashPathEffect, Group, LinearGradient, Oval, Path, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Canvas, Circle, DashPathEffect, Group, LinearGradient, Oval, Path, RoundedRect, Skia, vec } from '@shopify/react-native-skia';
 import {
   Easing,
   runOnUI,
@@ -315,7 +315,8 @@ export function LilyPadsBoard({
 export const PondTray = React.memo(function PondTrayImpl({ size, inset, puzzle, geo }: { size: number; inset: number; puzzle: LilyPuzzle; geo: LilyGeo }) {
   const r = 12;
   const w = inset * 0.5;
-  const ripple = (x: number, y: number, k: number) => `M ${x} ${y} q ${k} ${-k * 0.5} ${k * 2} 0 q ${k} ${k * 0.5} ${k * 2} 0`;
+  // Light on still water: two long, shallow strokes, one under the other.
+  const ripple = (x: number, y: number, k: number) => `M ${x} ${y} q ${k * 1.6} ${-k * 0.28} ${k * 3.2} 0 M ${x + k * 0.9} ${y + k * 0.62} q ${k} ${-k * 0.2} ${k * 2} 0`;
   const marks = useMemo(() => {
     const taken = new Set(puzzle.pads.map(p => `${p.row},${p.col}`));
     const out: Array<{ x: number; y: number }> = [];
@@ -334,7 +335,7 @@ export const PondTray = React.memo(function PondTrayImpl({ size, inset, puzzle, 
       <RoundedRect x={w} y={w} width={size - w * 2} height={size - w * 2} r={r * 0.75} color={theme.colors.pondWater} />
       <RoundedRect x={w} y={w} width={size - w * 2} height={geo.cell * 0.12} r={r * 0.75} color={theme.colors.pondRipple} opacity={0.7} />
       {marks.map((m, i) => (
-        <Path key={i} path={ripple(m.x - geo.cell * 0.28, m.y + geo.cell * 0.1, geo.cell * 0.14)} color={theme.colors.pondRipple} style="stroke" strokeWidth={2} strokeCap="round" />
+        <Path key={i} path={ripple(m.x - geo.cell * 0.3, m.y + geo.cell * 0.04, geo.cell * 0.19)} color={theme.colors.pondRipple} style="stroke" strokeWidth={1.8} strokeCap="round" />
       ))}
       {/* Reeds grow only in a corner no pad sits in. */}
       {!puzzle.pads.some(p => p.row === puzzle.size - 1 && p.col === 0) && <Reeds x={w + geo.cell * 0.12} y={size - w - 2} h={geo.cell * 0.55} />}
@@ -427,17 +428,45 @@ function LotusFall({ x, y, r }: { x: number; y: number; r: number }): React.JSX.
   );
 }
 
+/** A leaf's veins: ribs from the heart out toward the rim, each bowing
+ * gently away from the notch - mirrored either side of it, as a real
+ * leaf's are, so it reads as grown rather than ruled. */
+function veinsPath(x: number, y: number, r: number, turn: number): string {
+  const ribs = [-2.45, -1.75, -1.1, -0.6, 0.6, 1.1, 1.75, 2.45, Math.PI];
+  return ribs
+    .map(a => {
+      const ang = turn + a;
+      const end = r * (a === Math.PI ? 0.8 : 0.74);
+      const ex = x + Math.cos(ang) * end;
+      const ey = y + Math.sin(ang) * end;
+      // The bow: away from the notch, a little, at the rib's middle.
+      const bend = a === Math.PI ? 0 : r * 0.045 * Math.sign(a);
+      const mx = x + Math.cos(ang) * end * 0.5 + Math.cos(ang + Math.PI / 2) * bend;
+      const my = y + Math.sin(ang) * end * 0.5 + Math.sin(ang + Math.PI / 2) * bend;
+      return `M ${x + Math.cos(ang) * r * 0.08} ${y + Math.sin(ang) * r * 0.08} Q ${mx} ${my} ${ex} ${ey}`;
+    })
+    .join(' ');
+}
+
 function LeafAt({ x, y, r, turn }: { x: number; y: number; r: number; turn: number }): React.JSX.Element {
   const depth = r * 0.14;
+  const leafClip = useMemo(() => Skia.Path.MakeFromSVGString(leafPath(x, y, r, turn)) ?? Skia.Path.Make(), [x, y, r, turn]);
   return (
     <Group>
+      {/* Where the leaf sits on the water: a darker patch of pond just
+          beneath it, so it floats on the surface rather than over it. */}
+      <Path path={leafPath(x + r * 0.05, y + depth + r * 0.1, r * 1.02, turn)} color={shade(theme.colors.pondWater, 0.9)} />
       <Path path={leafPath(x, y + depth, r, turn)} color={theme.colors.lilyPadEdge} />
       <Path path={leafPath(x, y, r, turn)} color={theme.colors.lilyPad} />
-      {/* A lighter lip on the far side, where the light falls. */}
-      <Path path={`M ${x - r * 0.62} ${y - r * 0.55} A ${r * 0.84} ${r * 0.84} 0 0 1 ${x + r * 0.55} ${y - r * 0.62}`} color={theme.colors.lilyVein} style="stroke" strokeWidth={2} strokeCap="round" opacity={0.55} />
-      {[-1.25, -0.65, 0.65, 1.25, Math.PI].map(a => (
-        <Path key={a} path={`M ${x} ${y} L ${x + Math.cos(turn + a) * r * 0.76} ${y + Math.sin(turn + a) * r * 0.76}`} color={theme.colors.lilyVein} style="stroke" strokeWidth={1.2} strokeCap="round" />
-      ))}
+      {/* The leaf cups a little toward its heart. */}
+      <Path path={leafPath(x, y, r * 0.64, turn)} color={shade(theme.colors.lilyPad, 0.94)} />
+      {/* A lighter lip on the far side, where the light falls - kept to
+          the leaf, so it never shows across the notch. */}
+      <Group clip={leafClip}>
+        <Path path={`M ${x - r * 0.66} ${y - r * 0.52} A ${r * 0.86} ${r * 0.86} 0 0 1 ${x + r * 0.52} ${y - r * 0.66}`} color={theme.colors.lilyVein} style="stroke" strokeWidth={1.6} strokeCap="round" opacity={0.6} />
+      </Group>
+      <Path path={veinsPath(x, y, r, turn)} color={theme.colors.lilyVein} style="stroke" strokeWidth={1.1} strokeCap="round" opacity={0.75} />
+      <Circle cx={x} cy={y} r={r * 0.07} color={theme.colors.lilyVein} />
     </Group>
   );
 }
@@ -475,6 +504,7 @@ export function Stone({ geo, row, col, r }: { geo: LilyGeo; row: number; col: nu
     `M ${x - w * 0.5} ${y + oy} C ${x - w * 0.52} ${y + oy - h * 0.42} ${x - w * 0.1} ${y + oy - h * 0.52} ${x + w * 0.12} ${y + oy - h * 0.48} C ${x + w * 0.42} ${y + oy - h * 0.44} ${x + w * 0.54} ${y + oy - h * 0.1} ${x + w * 0.5} ${y + oy + h * 0.08} C ${x + w * 0.46} ${y + oy + h * 0.42} ${x + w * 0.06} ${y + oy + h * 0.5} ${x - w * 0.16} ${y + oy + h * 0.46} C ${x - w * 0.42} ${y + oy + h * 0.42} ${x - w * 0.5} ${y + oy + h * 0.2} ${x - w * 0.5} ${y + oy} Z`;
   return (
     <Group>
+      <Path path={blob(depth + r * 0.1)} color={shade(theme.colors.pondWater, 0.9)} />
       <Path path={blob(depth)} color={shade(face, 0.68)} />
       <Path path={blob(0)} color={face} />
       <Path path={`M ${x - w * 0.36} ${y - h * 0.22} Q ${x - w * 0.08} ${y - h * 0.44} ${x + w * 0.26} ${y - h * 0.34}`} color="#FFFFFF" style="stroke" strokeWidth={1.6} strokeCap="round" opacity={0.35} />

@@ -3,8 +3,8 @@ import React, { useMemo } from 'react';
 import { Pressable, StyleSheet, View } from 'react-native';
 import { Canvas } from '@shopify/react-native-skia';
 import { LightsOutCell, LightsOutPuzzle, LightsOutState } from '../game/lightsout';
-import { computeBoardLayout, getCellOrigin } from '../game/rendering';
-import { LightsOutBoardView } from './LightsOutBoardView';
+import { getCellOrigin } from '../game/rendering';
+import { lanternGrid, LightsOutBoardView } from './LightsOutBoardView';
 
 export interface LightsOutBoardProps {
   puzzle: LightsOutPuzzle;
@@ -25,13 +25,13 @@ export interface LightsOutBoardProps {
  * neighbours, which is the entire puzzle.
  */
 export function LightsOutBoard({ puzzle, state, size, solved, onPressCell, flashCell }: LightsOutBoardProps): React.JSX.Element {
-  const layout = useMemo(() => computeBoardLayout(puzzle.size, size), [puzzle.size, size]);
+  const { layout, margin, outer } = useMemo(() => lanternGrid(puzzle.size, size), [puzzle.size, size]);
 
   return (
     <View
       style={{
-        width: layout.boardSize,
-        height: layout.boardSize,
+        width: outer,
+        height: outer,
         // The one shadow this board casts against the page, offset toward
         // the same upper-left light every other board here shades from.
         shadowColor: '#1C2038',
@@ -57,8 +57,8 @@ export function LightsOutBoard({ puzzle, state, size, solved, onPressCell, flash
                 onPress={() => onPressCell(row, col)}
                 style={{
                   position: 'absolute',
-                  left: origin.x,
-                  top: origin.y,
+                  left: origin.x + margin,
+                  top: origin.y + margin,
                   width: layout.cellSize,
                   height: layout.cellSize,
                 }}

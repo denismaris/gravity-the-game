@@ -76,16 +76,6 @@ function loopSvg(layout: BoardLayout, loop: ReadonlyArray<BloomArcStep>): string
   return `M ${start.x.toFixed(2)} ${start.y.toFixed(2)} ${loop.map(step => arcTo(layout, step)).join(' ')} Z`;
 }
 
-function loopCentre(layout: BoardLayout, loop: ReadonlyArray<BloomArcStep>): { x: number; y: number } {
-  let x = 0;
-  let y = 0;
-  for (const step of loop) {
-    x += (step.col + 0.5) * layout.cellSize;
-    y += (step.row + 0.5) * layout.cellSize;
-  }
-  return { x: x / loop.length, y: y / loop.length };
-}
-
 /** A loop's identity: the set of arcs it is made of, whichever one the
  * trace happened to start from. */
 function loopKey(loop: ReadonlyArray<BloomArcStep>): string {
@@ -99,6 +89,20 @@ function loopKey(loop: ReadonlyArray<BloomArcStep>): string {
  * a transform never re-parses path text. */
 function toPath(svg: string): SkPath | null {
   return svg ? Skia.Path.MakeFromSVGString(svg) : null;
+}
+
+/** `a` moved `t` of the way toward `b`, both `#RRGGBB`. */
+function mix(a: string, b: string, t: number): string {
+  const ch = (hex: string, i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  const out = [0, 1, 2].map(i => Math.round(ch(a, i) + (ch(b, i) - ch(a, i)) * t).toString(16).padStart(2, '0'));
+  return `#${out.join('')}`;
+}
+
+/** A closed loop's colour: this game's own, softened a little toward the
+ * paper, so a large loop reads as colour laid in rather than a solid
+ * block. From `bloomAccent`, so a skin recolours it. */
+function fillTone(): string {
+  return mix(theme.colors.bloomAccent, theme.colors.surfaceHi, 0.22);
 }
 
 /** When each tile last turned, and how far it still has to swing - so a
@@ -180,7 +184,7 @@ const StaticWells = React.memo(function StaticWellsImpl({ size, layout }: { size
 });
 
 const StaticFill = React.memo(function StaticFillImpl({ path }: { path: SkPath | null }) {
-  return path ? <Path path={path} color={theme.colors.bloomAccent} fillType="evenOdd" /> : null;
+  return path ? <Path path={path} color={fillTone()} fillType="evenOdd" /> : null;
 });
 
 /** Every tile not currently mid-turn. `activeKeys` is a string so the
@@ -282,7 +286,7 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
     () =>
       loops.map(loop => {
         const svg = loopSvg(layout, loop);
-        return { key: loopKey(loop), svg, path: toPath(svg), centre: loopCentre(layout, loop) };
+        return { key: loopKey(loop), svg, path: toPath(svg) };
       }),
     [loops, layout],
   );
@@ -326,25 +330,23 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
   if (!reducedMotion) for (const [key, turn] of turns) if (now - turn.at < TURN_MS) turningKeys.push(key);
   const finishing = !reducedMotion && solvedAt !== null && now - solvedAt < loops.length * SOLVE_STAGGER_MS + SOLVE_SWELL_MS;
 
-  const movingLoops: Array<{ key: string; path: SkPath | null; centre: { x: number; y: number }; scale: number; opacity: number }> = [];
+  const movingLoops: Array<{ key: string; path: SkPath | null; opacity: number }> = [];
   const settledSvg: string[] = [];
   loopGeometry.forEach((loop, index) => {
-    let scale = 1;
+    // A loop that closes takes its colour in place - a fade, with nothing
+    // growing or moving, since the line around it stays exactly where it
+    // is. The finish passes one soft breath of colour over each in turn.
     let opacity = 1;
     if (!reducedMotion) {
       const since = now - (openedAt.get(loop.key) ?? -Infinity);
-      if (since < BLOOM_MS) {
-        const t = clamp01(since / BLOOM_MS);
-        scale = 0.25 + 0.75 * easeOutBack(t);
-        opacity = easeOutCubic(clamp01(t * 1.8));
-      }
+      if (since < BLOOM_MS) opacity = easeOutCubic(clamp01(since / BLOOM_MS));
       if (finishing) {
         const t = (now - solvedAt! - index * SOLVE_STAGGER_MS) / SOLVE_SWELL_MS;
-        if (t > 0 && t < 1) scale *= 1 + 0.07 * Math.sin(t * Math.PI);
+        if (t > 0 && t < 1) opacity *= 1 - 0.3 * Math.sin(t * Math.PI);
       }
     }
-    if (scale === 1 && opacity === 1) settledSvg.push(loop.svg);
-    else movingLoops.push({ key: loop.key, path: loop.path, centre: loop.centre, scale, opacity });
+    if (opacity === 1) settledSvg.push(loop.svg);
+    else movingLoops.push({ key: loop.key, path: loop.path, opacity });
   });
   // Joined as text, parsed only when the settled set actually changes.
   const settledKey = settledSvg.join(' ');
@@ -380,13 +382,10 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
         );
       })}
 
+
       <StaticFill path={settledPath} />
       {movingLoops.map(loop =>
-        loop.path ? (
-          <Group key={loop.key} origin={vec(loop.centre.x, loop.centre.y)} transform={[{ scale: loop.scale }]} opacity={loop.opacity}>
-            <Path path={loop.path} color={theme.colors.bloomAccent} fillType="evenOdd" />
-          </Group>
-        ) : null,
+        loop.path ? <Path key={loop.key} path={loop.path} color={fillTone()} fillType="evenOdd" opacity={loop.opacity} /> : null,
       )}
 
       {flashCell && (
