@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Group, Rect, RoundedRect } from '@shopify/react-native-skia';
 import { ConfettiBurst, GeometricRule, PageBloom, PressableScale, directionForAccessibilityAction, useSwipeGesture } from '../components';
 import { Direction } from '../game/engine';
-import { Heading, MazeShape, Point, RollPlan, RollTiming, hasOpenEdge, planRoll, pointAt, relaxBreakMazes, rollTiming } from '../game/maze';
+import { Heading, MazeShape, Point, RollPlan, RollTiming, hasOpenEdge, planRoll, relaxBreakMazes, rollTiming } from '../game/maze';
 import { playHapticEvents, shade, stopHaptics, triggerFeedback, useReducedMotion } from '../game/rendering';
 import { theme, themedStyles, inkWash } from '../theme';
 import { BreatherIntro } from './BreatherIntro';
@@ -57,9 +57,6 @@ const BALL_RADIUS = 0.38;
 const ROLL_SPEED = 30;
 const ROLL_RAMP = 0.55;
 const CELEBRATE_PAUSE_MS = 1200;
-/** How far past a square's centre a swiped turn may still be taken there,
- * as a share of a square. Past it, the turn waits for the next opening. */
-const TURN_GRACE = 0.3;
 
 type Paint = readonly [string, string, string];
 
@@ -308,8 +305,9 @@ interface ActiveRoll {
   readonly plan: RollPlan;
   readonly progress: Animated.Value;
   readonly listener: string;
-  /** A turn swiped that the path never reached - tried off the wall. */
-  readonly queued: Heading | null;
+  /** The latest swipe made while it rolled - taken the moment it meets
+   * the wall. */
+  queued: Heading | null;
   painted: number;
 }
 
@@ -373,17 +371,6 @@ const MarbleBall = React.memo(function MarbleBallImpl({
   motion: Animated.Value;
 }): React.JSX.Element {
   const size = radius * 2;
-  const period = Math.PI * radius;
-  const band = radius * 0.26;
-  const slide = (node: BallNodes['x'], offset: number) => {
-    const phase = Animated.modulo(Animated.add(node, offset * period), period);
-    return {
-      translate: phase.interpolate({ inputRange: [0, period], outputRange: [-radius * 1.2, radius * 1.2] }),
-      opacity: phase.interpolate({ inputRange: [0, period * 0.25, period * 0.5, period * 0.75, period], outputRange: [0, 0.5, 0.62, 0.5, 0] }),
-    };
-  };
-  const across = slide(nodes.x, 0.3);
-  const down = slide(nodes.y, 0.72);
   const circle = (d: number) => ({ width: d, height: d, borderRadius: d / 2 });
   const raised = lift.interpolate({ inputRange: [0, 1], outputRange: [0, -radius * 3] });
 
@@ -431,12 +418,12 @@ const MarbleBall = React.memo(function MarbleBallImpl({
             },
           ]}
         >
-          <View style={[circle(size), styles.ballClip, { backgroundColor: paint[0] }]}>
-            <View style={[styles.layer, circle(size), { left: -radius * 0.08, top: -radius * 0.08, backgroundColor: marble[0] ?? mazeColors.ball }]} />
-            <View style={[styles.layer, circle(size * 0.84), { left: radius * 0.02, top: radius * 0.0, backgroundColor: marble[1] ?? shade(mazeColors.ball, 1.5) }]} />
-            <View style={[styles.layer, circle(size * 0.5), { left: radius * 0.22, top: radius * 0.18, backgroundColor: marble[2] ?? shade(mazeColors.ball, 1.95) }]} />
-            <Animated.View style={[styles.layer, styles.bandAcross, { left: radius - band / 2, width: band, height: size, backgroundColor: paint[0], opacity: across.opacity, transform: [{ translateX: across.translate }] }]} />
-            <Animated.View style={[styles.layer, styles.bandDown, { top: radius - band / 2, height: band, width: size, backgroundColor: paint[0], opacity: down.opacity, transform: [{ translateY: down.translate }] }]} />
+          {/* One body colour, and one lighter cap toward the light: a clean
+              marble. It used to stack three off-centre discs over a rim
+              of paint colour, with two paint stripes sliding across it -
+              which read as smudges, not as a turning sphere. */}
+          <View style={[circle(size), styles.ballClip, { backgroundColor: marble[0] ?? mazeColors.ball }]}>
+            <View style={[styles.layer, circle(size * 0.78), { left: radius * 0.06, top: radius * 0.04, backgroundColor: marble[1] ?? shade(mazeColors.ball, 1.45) }, styles.ballCap]} />
           </View>
           <View style={[styles.layer, styles.ballGloss, { width: radius * 0.66, height: radius * 0.4, borderRadius: radius * 0.2, left: radius * 0.34, top: radius * 0.36 }]} />
           <View style={[styles.layer, styles.ballSpecular, circle(radius * 0.2), { left: radius * 0.5, top: radius * 0.46 }]} />
@@ -623,6 +610,12 @@ function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>;
       paintKey(roll.plan.entries[roll.painted].key);
       roll.painted += 1;
     }
+    // Every tile painted: the maze is done now, while the ball is still
+    // rolling to its wall - no more swipes, none kept for the landing.
+    if (paintedRef.current.size >= mazeRef.current.active.size) {
+      readyRef.current = false;
+      roll.queued = null;
+    }
   };
 
   const endRoll = (roll: ActiveRoll): void => {
@@ -651,8 +644,7 @@ function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>;
       return;
     }
 
-    // A turn swiped on the way in that the path never reached: taken off
-    // the wall, as soon as the ball lands.
+    // A swipe made while it rolled: taken off the wall, as it lands.
     const queued = roll.queued;
     if (queued && (queued.dc !== plan.heading.dc || queued.dr !== plan.heading.dr)) {
       const at = plan.end;
@@ -666,7 +658,9 @@ function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>;
 
   /** Sets the ball off along a planned path. */
   const rollFrom = (from: Point, heading: Heading, queued: Heading | null, fromRest: boolean): void => {
-    const plan = planRoll(mazeRef.current, from, heading, queued, BALL_RADIUS);
+    // Always to the wall: a swipe made on the way is kept for the landing
+    // (`swipe`), never taken partway down a run.
+    const plan = planRoll(mazeRef.current, from, heading, null, BALL_RADIUS);
     if (plan.length < 0.02) {
       // Blocked where it stands: a small nudge against the wall, felt.
       restRef.current = plan.end;
@@ -704,7 +698,10 @@ function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>;
     playHapticEvents(rollHaptics(plan, timing));
   };
 
-  /** A swipe: set off from rest, or - mid-roll - reverse, or turn. */
+  /** A swipe: from rest the ball sets off at once. While it rolls, the
+   * swipe is kept and taken the moment it meets the wall - a ball stops
+   * only at walls, so turning back or off partway down a run (which it
+   * used to) gave a way through the maze no rolling ball could take. */
   const swipe = (heading: Heading): void => {
     if (!readyRef.current) return;
     const live = rollRef.current;
@@ -712,40 +709,7 @@ function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>;
       rollFrom(restRef.current, heading, null, true);
       return;
     }
-
-    live.progress.stopAnimation(distance => {
-      if (rollRef.current !== live) return;
-      paintUpTo(live, distance);
-      // Which way it is going right now: the path segment it is on.
-      const { points, distances } = live.plan;
-      const i = Math.max(1, distances.findIndex(d => d >= distance));
-      const a = points[i - 1];
-      const b = points[Math.min(i, points.length - 1)];
-      const current: Heading = { dc: Math.sign(b.x - a.x), dr: Math.sign(b.y - a.y) };
-      const here = pointAt(live.plan, distance);
-      rollRef.current = null;
-      live.progress.removeListener(live.listener);
-      stopHaptics();
-      if (current.dc === heading.dc && current.dr === heading.dr) {
-        // Same way: carry on, at speed, from here.
-        rollFrom(here, heading, live.queued, false);
-        return;
-      }
-      if (current.dc === -heading.dc && current.dr === -heading.dr) {
-        rollFrom(here, heading, null, true);
-        return;
-      }
-      // A turn: right here if the ball is at, or only just past, this
-      // square's centre; otherwise at the next square that opens that way.
-      const col = Math.floor(here.x);
-      const row = Math.floor(here.y);
-      const past = current.dc !== 0 ? (here.x - (col + 0.5)) * current.dc : (here.y - (row + 0.5)) * current.dr;
-      if (past >= 0 && past <= TURN_GRACE && hasOpenEdge(mazeRef.current, { col, row }, heading.dc, heading.dr)) {
-        rollFrom({ x: col + 0.5, y: row + 0.5 }, heading, null, false);
-        return;
-      }
-      rollFrom(here, current, heading, false);
-    });
+    live.queued = heading;
   };
 
   const handleDirection = (direction: Direction): void => {
@@ -1003,6 +967,7 @@ const styles = themedStyles(() => ({
     position: 'absolute',
     backgroundColor: inkWash(0.2),
   },
+  ballCap: { opacity: 0.9 },
   ballClip: {
     overflow: 'hidden',
   },
@@ -1016,8 +981,6 @@ const styles = themedStyles(() => ({
   ballSpecular: {
     backgroundColor: 'rgba(255,255,255,0.95)',
   },
-  bandAcross: { top: 0 },
-  bandDown: { left: 0 },
   fleck: {
     position: 'absolute',
   },

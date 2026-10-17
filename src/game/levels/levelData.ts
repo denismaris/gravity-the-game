@@ -2754,10 +2754,12 @@ export const LEVELS: ReadonlyArray<LevelDefinition> = [
     name: 'Still Water',
     rows: 5,
     cols: 5,
-    objects: [{ row: 3, col: 0 }, { row: 1, col: 1 }],
-    targets: [{ row: 3, col: 4 }, { row: 1, col: 4 }],
-    obstacles: [{ row: 0, col: 0 }, { row: 2, col: 2 }],
-    portals: [[{ row: 1, col: 0 }, { row: 3, col: 2 }]],
+    // Rebuilt: the first version's only way through put both balls on one
+    // square, which the engine no longer allows.
+    objects: [{ row: 3, col: 3 }, { row: 2, col: 0 }],
+    targets: [{ row: 1, col: 4 }, { row: 4, col: 1 }],
+    obstacles: [{ row: 2, col: 2 }, { row: 3, col: 2 }, { row: 1, col: 1 }],
+    portals: [[{ row: 4, col: 0 }, { row: 4, col: 3 }]],
     difficulty: 'expert',
     metadata: { minMoves: 10, stars: { two: 15, three: 10 }, tags: ['planning', 'portals'] },
   },
@@ -3025,7 +3027,7 @@ export const LEVELS: ReadonlyArray<LevelDefinition> = [
     obstacles: [{ row: 1, col: 4 }, { row: 3, col: 2 }, { row: 4, col: 2 }, { row: 2, col: 0 }],
     portals: [[{ row: 2, col: 1 }, { row: 2, col: 3 }]],
     difficulty: 'easy',
-    metadata: { minMoves: 3, stars: { two: 5, three: 3 }, tags: ['pairs', 'portals'] },
+    metadata: { minMoves: 2, stars: { two: 4, three: 2 }, tags: ['pairs', 'portals'] },
   },
   {
     id: 'level-210',
@@ -3217,11 +3219,13 @@ export const LEVELS: ReadonlyArray<LevelDefinition> = [
     rows: 6,
     cols: 6,
     objects: [{ row: 4, col: 0 }, { row: 5, col: 5 }],
-    targets: [{ row: 2, col: 2 }, { row: 2, col: 3 }],
+    // The second target moved: the first version's only way through put
+    // both balls on one square, which the engine no longer allows.
+    targets: [{ row: 2, col: 2 }, { row: 0, col: 1 }],
     obstacles: [{ row: 2, col: 1 }, { row: 2, col: 5 }, { row: 3, col: 4 }, { row: 1, col: 2 }, { row: 0, col: 5 }],
     portals: [[{ row: 5, col: 2 }, { row: 3, col: 0 }]],
     difficulty: 'medium',
-    metadata: { minMoves: 7, stars: { two: 10, three: 7 }, tags: ['pairs', 'portals'] },
+    metadata: { minMoves: 8, stars: { two: 11, three: 8 }, tags: ['pairs', 'portals'] },
   },
   {
     id: 'level-226',

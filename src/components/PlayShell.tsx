@@ -119,7 +119,9 @@ export function PlayShell({
   canUndo: boolean;
   onExit: () => void;
   /** Called with Insight already paid for. */
-  onHint: () => void;
+  /** Shows the next move; returns `false` when there is none (then no
+   * Insight is spent). */
+  onHint: () => boolean | void;
   onUndo: () => void;
   onRestart: () => void;
   children: React.ReactNode;

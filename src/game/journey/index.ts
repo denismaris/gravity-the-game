@@ -1,5 +1,6 @@
 export type { GameKind, NextPuzzleOptions } from './gameKind';
 export { gameDisplayName, gameShortName, puzzleDisplayInfo, puzzleKindOf, ROTATION } from './gameKind';
+export { buildPuzzle, usePrepareUpcoming } from './prepare';
 export type { DailyEntry } from './daily';
 export { dailyKeyOf, getDailyEntry, isTodaysDaily, setDailyRoster } from './daily';
 export type { WeeklyGrand } from './weekly';

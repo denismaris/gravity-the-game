@@ -28,8 +28,14 @@ async function mount(save: object) {
       </SafeAreaProvider>,
     );
   });
-  const use = async () => {
-    await act(async () => power.spend(() => (applied += 1)));
+  const use = async (found = true) => {
+    await act(async () =>
+      power.spend(() => {
+        if (!found) return false;
+        applied += 1;
+        return true;
+      }),
+    );
   };
   const press = async (label: string) => {
     const [button] = renderer.root.findAll(node => node.props.accessibilityLabel === label && typeof node.props.onPress === 'function');
@@ -63,6 +69,24 @@ describe('Insight, the superpower', () => {
     expect(h.applied()).toBe(1);
     expect(h.api().coins).toBe(100 - HINT_COST);
     expect(h.power().sheet.props.visible).toBe(false);
+    await act(async () => h.renderer.unmount());
+  });
+
+  test('taps faster than the board can answer are charged once', async () => {
+    const h = await mount({ insights: 5, coins: 0 });
+    await h.use();
+    await h.use();
+    await h.use();
+    expect(h.applied()).toBe(1);
+    expect(h.api().progress.insights).toBe(4);
+    await act(async () => h.renderer.unmount());
+  });
+
+  test('no move to show: nothing is charged', async () => {
+    const h = await mount({ insights: 3, coins: 0 });
+    await h.use(false);
+    expect(h.applied()).toBe(0);
+    expect(h.api().progress.insights).toBe(3);
     await act(async () => h.renderer.unmount());
   });
 

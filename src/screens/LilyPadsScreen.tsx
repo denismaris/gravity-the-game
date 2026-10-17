@@ -100,19 +100,30 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
 
   const useHint = useCallback(() => {
     const h = lilyHint(puzzle, history, state);
-    if (!h) return;
+    if (!h) return false;
+    // Back to where the way is still open, if it is not, and then the hop
+    // itself: the frog makes the move, not just points at it.
     let s = state;
     let past = history;
     for (let k = 0; k < h.back; k += 1) {
       s = past[past.length - 1];
       past = past.slice(0, -1);
     }
-    setHistory(past);
-    setState(s);
-    setGlow(h.pad);
+    const next = hop(puzzle, s, h.pad);
+    if (next === s) {
+      setHistory(past);
+      setState(s);
+      setGlow(h.pad);
+    } else {
+      setHistory([...past, s]);
+      setState(next);
+      setGlow(null);
+      if (isLilySolved(next)) later(() => triggerFeedback('lilySolve'), HOP_MS + 120);
+    }
     setHints(n => n + 1);
     setNote({ reason: h.reason, kind: h.back > 0 ? 'fix' : 'rule', id: Date.now() });
-    triggerFeedback('targetReached');
+    triggerFeedback('lilyHop');
+    return true;
   }, [puzzle, history, state]);
 
   const boardSize = Math.max(0, Math.min(width - theme.spacing.lg * 2 - theme.spacing.sm * 2, height - insets.top - insets.bottom - RESERVED));

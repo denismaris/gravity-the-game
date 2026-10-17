@@ -224,7 +224,38 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
   );
 });
 
+/** A route as points with the distance walked to each one - what a piece
+ * follows when its slide bends (a zone's corner, a portal's run in). */
+interface Route {
+  readonly points: ReadonlyArray<{ x: number; y: number }>;
+  readonly lengths: ReadonlyArray<number>;
+}
+
+function routeThrough(points: ReadonlyArray<{ x: number; y: number }>): Route {
+  const lengths = [0];
+  for (let i = 1; i < points.length; i += 1) lengths.push(lengths[i - 1] + Math.hypot(points[i].x - points[i - 1].x, points[i].y - points[i - 1].y));
+  return { points, lengths };
+}
+
+/** The point `f` (0..1) of the way along a route. */
+function pointAlong(route: Route, f: number): { x: number; y: number } {
+  'worklet';
+  const { points, lengths } = route;
+  const total = lengths[lengths.length - 1];
+  if (total <= 0 || f <= 0) return points[0];
+  if (f >= 1) return points[points.length - 1];
+  const d = f * total;
+  let i = 1;
+  while (i < lengths.length - 1 && lengths[i] < d) i += 1;
+  const span = lengths[i] - lengths[i - 1];
+  const u = span > 0 ? (d - lengths[i - 1]) / span : 1;
+  return { x: points[i - 1].x + (points[i].x - points[i - 1].x) * u, y: points[i - 1].y + (points[i].y - points[i - 1].y) * u };
+}
+
 interface SlidingPieceProps {
+  /** The way it went, when a zone bent it: followed instead of the straight
+   * line from `from` to `to`. */
+  route?: Route;
   fromX: number;
   fromY: number;
   toX: number;
@@ -255,9 +286,21 @@ const FALL_SHARE = 0.84;
  * Landing, it squashes a little and settles. A piece landing on a target
  * turns green as it lands and sends a ring out.
  */
-function SlidingPiece({ fromX, fromY, toX, toY, squares, slideKey, duration, radius, landsOnTarget, ringColor }: SlidingPieceProps) {
+function SlidingPiece({ route, fromX, fromY, toX, toY, squares, slideKey, duration, radius, landsOnTarget, ringColor }: SlidingPieceProps) {
   const moving = duration > 0 && (fromX !== toX || fromY !== toY);
-  const geometry = { fx: fromX, fy: fromY, tx: toX, ty: toY, squares, moving, horizontal: Math.abs(toX - fromX) > Math.abs(toY - fromY), lands: landsOnTarget };
+  // The squash is against the last wall it met, so it follows the last leg.
+  const last = route && route.points.length > 1 ? route.points[route.points.length - 2] : { x: fromX, y: fromY };
+  const geometry = {
+    fx: fromX,
+    fy: fromY,
+    tx: toX,
+    ty: toY,
+    squares,
+    moving,
+    horizontal: Math.abs(toX - last.x) > Math.abs(toY - last.y),
+    lands: landsOnTarget,
+    route: route ?? null,
+  };
   // The slide lives entirely on the UI thread: where it runs from and to,
   // and how far along it is, are shared values written together, in one
   // step. Drawing from React's props instead let a frame pair a new move's
@@ -293,9 +336,10 @@ function SlidingPiece({ fromX, fromY, toX, toY, squares, slideKey, duration, rad
     if (m.moving && t > FALL_SHARE && t < 1) k = Math.sin(((t - FALL_SHARE) / (1 - FALL_SHARE)) * Math.PI);
     const flat = 1 - 0.12 * k;
     const wide = 1 + 0.07 * k;
+    const at = m.route ? pointAlong(m.route, along) : { x: m.fx + (m.tx - m.fx) * along, y: m.fy + (m.ty - m.fy) * along };
     return [
-      { translateX: m.fx + (m.tx - m.fx) * along },
-      { translateY: m.fy + (m.ty - m.fy) * along },
+      { translateX: at.x },
+      { translateY: at.y },
       { scaleX: m.horizontal ? flat : wide },
       { scaleY: m.horizontal ? wide : flat },
     ];
@@ -331,6 +375,10 @@ type Point = { x: number; y: number };
 const PORTAL_COLORS: ReadonlyArray<() => string> = [() => theme.colors.secondary, () => theme.colors.accent, () => theme.colors.success];
 
 interface TeleportingPieceProps {
+  /** The runs in and on, when they bend: followed instead of straight
+   * lines from `from` to `enter` and from `exit` to `to`. */
+  approach?: Route;
+  onward?: Route;
   from: Point;
   enter: Point;
   exit: Point;
@@ -352,7 +400,9 @@ interface TeleportingPieceProps {
  * and runs on to where it stops. One shared value on the UI thread drives
  * every part, timed in milliseconds.
  */
-function TeleportingPiece({ from, enter, exit, to, squaresAfter, timing, slideKey, radius, ringRadius, color, ringColor }: TeleportingPieceProps) {
+function TeleportingPiece({ approach, onward, from, enter, exit, to, squaresAfter, timing, slideKey, radius, ringRadius, color, ringColor }: TeleportingPieceProps) {
+  const runIn = approach ?? routeThrough([from, enter]);
+  const runOn = onward ?? routeThrough([exit, to]);
   // Starts at 0, not finished: a piece mounted for its teleport must be
   // drawn where it starts from its very first frame.
   const clock = useSharedValue(0);
@@ -375,8 +425,9 @@ function TeleportingPiece({ from, enter, exit, to, squaresAfter, timing, slideKe
       const u = sinkAt > 0 ? t / sinkAt : 1;
       // Leaves at speed, like every slide (see `easeInFall`).
       const along = 0.45 * u + 0.55 * u * u;
-      x = from.x + (enter.x - from.x) * along;
-      y = from.y + (enter.y - from.y) * along;
+      const at = pointAlong(runIn, along);
+      x = at.x;
+      y = at.y;
     } else if (t < goneAt) {
       const u = (t - sinkAt) / timing.sink;
       x = enter.x;
@@ -397,8 +448,9 @@ function TeleportingPiece({ from, enter, exit, to, squaresAfter, timing, slideKe
     } else {
       const u = timing.onward > 0 ? Math.min(1, (t - onwardAt) / timing.onward) : 1;
       const along = landingCurve(u, squaresAfter);
-      x = exit.x + (to.x - exit.x) * along;
-      y = exit.y + (to.y - exit.y) * along;
+      const at = pointAlong(runOn, along);
+      x = at.x;
+      y = at.y;
     }
     return [{ translateX: x }, { translateY: y }, { scale: Math.max(0.001, scale) }];
   });
@@ -564,11 +616,13 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
               // is - never from the last teleport's finished clock.
               <TeleportingPiece
                 key={`${movable.id}@${slide.key}`}
+                approach={teleport.route.before ? routeThrough(teleport.route.before.map(c => getCellCenter(layout, c.row, c.col))) : undefined}
+                onward={teleport.route.after ? routeThrough(teleport.route.after.map(c => getCellCenter(layout, c.row, c.col))) : undefined}
                 from={from}
                 enter={enter}
                 exit={exit}
                 to={center}
-                squaresAfter={Math.abs(movable.row - teleport.route.exit.row) + Math.abs(movable.col - teleport.route.exit.col)}
+                squaresAfter={teleport.route.after ? teleport.route.after.length - 1 : Math.abs(movable.row - teleport.route.exit.row) + Math.abs(movable.col - teleport.route.exit.col)}
                 timing={teleport.timing}
                 slideKey={slide.key}
                 radius={movableRadius}
@@ -578,14 +632,16 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
               />
             );
           }
+          const bend = slide.bends.get(movable.id);
           return (
             <SlidingPiece
               key={movable.id}
+              route={bend ? routeThrough(bend.map(c => getCellCenter(layout, c.row, c.col))) : undefined}
               fromX={from.x}
               fromY={from.y}
               toX={center.x}
               toY={center.y}
-              squares={start ? Math.abs(movable.row - start.row) + Math.abs(movable.col - start.col) : 0}
+              squares={bend ? bend.length - 1 : start ? Math.abs(movable.row - start.row) + Math.abs(movable.col - start.col) : 0}
               slideKey={slide.key}
               duration={slide.duration}
               radius={movableRadius}

@@ -35,17 +35,17 @@ const ADJ: AdjacentPuzzle = {
 };
 const ADJ_STEPS: ReadonlyArray<LessonStepCopy & { readonly from: Cell }> = [
   {
-    title: 'Tap a run',
-    say: 'Tap any tile touching another of its own colour, and the whole connected run clears. Start with the pair in the bottom left.',
+    title: 'Tap a group',
+    say: 'Tap a tile that touches another tile of the same colour. The whole group disappears. Start with the pair at the bottom left.',
     hint: 'Tap a glowing tile.',
-    praise: 'Cleared, and the tiles above fell straight down into the gap.',
+    praise: 'Gone! The tiles above fell down into the gap.',
     from: { row: 3, col: 0 },
   },
   {
-    title: 'Big runs score big',
-    say: 'Look what fell together: four of one colour in a row. Bigger runs are worth far more per tile, so it pays to build them.',
-    hint: 'Tap the glowing run of four.',
-    praise: 'A run of four scores much more than two pairs would.',
+    title: 'Big groups score big',
+    say: 'Look, four of the same colour are together now. Big groups give you lots more points.',
+    hint: 'Tap the glowing group of four.',
+    praise: 'Four together scores much more than two pairs.',
     from: { row: 3, col: 0 },
   },
 ];
@@ -123,17 +123,17 @@ const BRIDGES: BridgesPuzzle = {
 const BRIDGE_STEPS: ReadonlyArray<LessonStepCopy & { readonly link: number; readonly count: number }> = [
   {
     title: 'Build a bridge',
-    say: 'Islands join with straight bridges. Tap the water between two islands to build one. The 1 needs exactly one bridge.',
+    say: 'Bridges join islands in straight lines. Tap the water between two islands to build one. The 1 needs one bridge.',
     hint: 'Tap the glowing water between the two top islands.',
-    praise: 'The 1 has its bridge, and raises its flag.',
+    praise: 'The 1 has its bridge, so it raises a flag.',
     link: TOP,
     count: 1,
   },
   {
     title: 'Doubles count twice',
-    say: 'Two islands can share two bridges. The 2 below has only one neighbour, so it needs a double bridge to it.',
-    hint: 'Tap the glowing water twice for a double bridge.',
-    praise: 'Every number met and every island joined. Solved.',
+    say: 'Two islands can share two bridges. The 2 has only one neighbour, so both its bridges go there.',
+    hint: 'Tap the glowing water two times.',
+    praise: 'Every island has its bridges, and they are all joined. You did it!',
     link: SIDE,
     count: 2,
   },
@@ -203,16 +203,16 @@ const TWIN: ArukonePuzzle = {
 const TWIN_STEPS: ReadonlyArray<LessonStepCopy & { readonly value: number }> = [
   {
     title: 'Draw, and it mirrors',
-    say: 'Join each pair of matching numbers with a path. The board is folded down the middle, so whatever you draw on one side is drawn on the other for you.',
+    say: 'Join each pair of matching numbers with a path. The board is a mirror, so when you draw on one side, the other side copies it.',
     hint: 'Drag from the top 1 down to the other 1.',
-    praise: 'One path drawn, two on the board. The 2s joined themselves.',
+    praise: 'You drew one path and got two. The 2s joined by themselves.',
     value: 1,
   },
   {
     title: 'Meet in the middle',
-    say: 'The two 3s mirror each other, so you only draw half: reach the fold and the reflection closes the path. Solved means every square is filled.',
+    say: 'The two 3s copy each other, so you only draw half. Reach the middle and the path joins up. Every square must be filled.',
     hint: 'Drag from the top left 3 down the side and along the bottom.',
-    praise: 'Every pair joined and every square filled. Solved.',
+    praise: 'Every pair joined and every square filled. You did it!',
     value: 3,
   },
 ];
@@ -223,7 +223,7 @@ export function TwinpathLesson({ onDone }: { onDone: () => void }): React.JSX.El
   const flow = useLessonFlow(TWIN_STEPS.length, () => setShort(false));
   const step = TWIN_STEPS[flow.index];
   const steps = useMemo(
-    () => TWIN_STEPS.map((s, i) => (i === flow.index && short ? { ...s, hint: 'Joined, but squares are still empty. Drag back and go round the outside.' } : s)),
+    () => TWIN_STEPS.map((s, i) => (i === flow.index && short ? { ...s, hint: 'Joined, but some squares are still empty. Go back and go around the outside.' } : s)),
     [flow.index, short],
   );
 
@@ -292,23 +292,23 @@ const goalCells = (index: number) => placedCells(MOSAIC_LESSON, index, MOSAIC_LE
 const MOSAIC_STEPS: ReadonlyArray<LessonStepCopy & { readonly piece: number }> = [
   {
     title: 'Fill the picture',
-    say: 'Every picture is a set of empty squares, and the pieces in the tray fill it exactly. Drag a piece up and let it go where it fits.',
+    say: 'Fill the empty squares of the picture with the pieces from the tray. Drag a piece up and let go where it fits.',
     hint: 'Drag the square into the glowing corner.',
-    praise: 'It snaps in place. One piece down.',
+    praise: 'It clicks into place. One piece done.',
     piece: 0,
   },
   {
     title: 'Turn to fit',
-    say: 'Pieces can turn. Tap one in the tray for a quarter turn, as often as you like, then drag it in.',
+    say: 'You can turn pieces. Tap a piece in the tray to turn it, then drag it in.',
     hint: 'Tap the long piece to stand it up, then drag it to the glowing column.',
     praise: 'Turned, and in.',
     piece: 1,
   },
   {
     title: 'The last gap',
-    say: 'When only one piece is left there is only one place for it. Fill every square and the picture is finished.',
+    say: 'Only one piece is left, so there is only one place for it. Fill every square to finish.',
     hint: 'Drag the last piece into the gap.',
-    praise: 'Every square filled. Solved.',
+    praise: 'Every square filled. You did it!',
     piece: 2,
   },
 ];
@@ -385,25 +385,25 @@ function gravityBoard(rows: ReadonlyArray<string>): GameState {
 const GRAVITY_STEPS: ReadonlyArray<LessonStepCopy & { readonly board: GameState; readonly direction: Direction }> = [
   {
     title: 'Swipe to tilt',
-    say: 'Swipe the board and gravity pulls that way. Pieces slide until something stops them. Bring the piece home to its ring.',
+    say: 'Swipe the board and the ball rolls that way. It keeps rolling until something stops it. Roll the ball onto its ring.',
     hint: 'Swipe down anywhere on the board.',
-    praise: 'Down it went, all the way to the ring.',
+    praise: 'Down it rolled, right onto the ring.',
     board: gravityBoard(['..o..', '.....', '.....', '.....', '..x..']),
     direction: 'down',
   },
   {
     title: 'Walls stop a slide',
-    say: 'A piece never stops halfway on its own. It slides to the edge, or until a wall gets in the way. Here the wall is what parks it on the ring.',
+    say: 'A ball never stops by itself. It rolls to the edge, or until it hits a wall. Here, the wall stops it right on the ring.',
     hint: 'Swipe right.',
-    praise: 'The wall caught it, right on the ring.',
+    praise: 'The wall stopped it right on the ring.',
     board: gravityBoard(['.....', '.....', 'o..x#', '.....', '.....']),
     direction: 'right',
   },
   {
-    title: 'Everything falls at once',
-    say: 'Every swipe moves every piece. Each one stops at whatever is in its own way, so plan for all of them together.',
-    hint: 'Swipe down and watch both pieces.',
-    praise: 'One swipe, two pieces home. That is the whole game.',
+    title: 'Everything rolls at once',
+    say: 'One swipe moves every ball. Each ball stops at whatever is in its way. Think about all of them together.',
+    hint: 'Swipe down and watch both balls.',
+    praise: 'One swipe, two balls home. That is the whole game!',
     board: gravityBoard(['.o.o.', '.....', '...x.', '...#.', '.x...']),
     direction: 'down',
   },

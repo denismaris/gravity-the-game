@@ -578,3 +578,60 @@ describe('gravityChangesState', () => {
     expect(positionsOf(result)).toEqual(positionsOf(state));
   });
 });
+
+describe('applyGravity never puts two objects on one cell', () => {
+  test('a portal carrying an object onto a cell another lane has not cleared yet', () => {
+    // `a` (row 0) is resolved first and is carried by the portal into row 2,
+    // where `b` sits against a wall. It used to slide straight onto `b`.
+    const state = createState(
+      3,
+      5,
+      [
+        { id: 'a', row: 0, col: 0 },
+        { id: 'b', row: 2, col: 3 },
+      ],
+      [{ row: 2, col: 4 }],
+      [[{ row: 0, col: 1 }, { row: 2, col: 0 }]],
+    );
+
+    expect(positionsOf(applyGravity(state, 'right'))).toEqual([
+      { id: 'a', row: 2, col: 2 },
+      { id: 'b', row: 2, col: 3 },
+    ]);
+  });
+
+  test('random boards with portals and a zone: never two objects on one cell', () => {
+    let seed = 7;
+    const random = (): number => {
+      seed = (seed * 1103515245 + 12345) % 2147483648;
+      return seed / 2147483648;
+    };
+    const directions = ['up', 'down', 'left', 'right'] as const;
+    const pick = (n: number) => Math.floor(random() * n);
+    for (let round = 0; round < 3000; round += 1) {
+      const size = 4 + pick(3);
+      const taken = new Set<string>();
+      const free = (): { row: number; col: number } => {
+        for (;;) {
+          const cell = { row: pick(size), col: pick(size) };
+          const key = `${cell.row}:${cell.col}`;
+          if (!taken.has(key)) {
+            taken.add(key);
+            return cell;
+          }
+        }
+      };
+      const movables = Array.from({ length: 2 + pick(3) }, (_v, i) => ({ id: `m${i}`, ...free() }));
+      const obstacles = Array.from({ length: pick(4) }, free);
+      const portals: PortalPair[] = random() < 0.7 ? [[free(), free()]] : [];
+      const zone: GravityZone | null =
+        random() < 0.4 ? { minRow: 0, maxRow: pick(size), minCol: 0, maxCol: pick(size), direction: directions[pick(4)] } : null;
+      let state = createState(size, size, movables, obstacles, portals, zone);
+      for (let move = 0; move < 4; move += 1) {
+        state = applyGravity(state, directions[pick(4)]);
+        const cells = state.movables.map(m => `${m.row}:${m.col}`);
+        expect(new Set(cells).size).toBe(cells.length);
+      }
+    }
+  });
+});

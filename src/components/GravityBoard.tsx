@@ -50,7 +50,7 @@ export const GravityBoard = React.memo(function GravityBoardImpl({
   // cell (that's real game state, not decoration), they just get there in
   // one frame instead of an animated slide.
   const reducedMotion = useReducedMotion();
-  const slide = useSlidePlan(state.movables, instant || reducedMotion, state.portals);
+  const slide = useSlidePlan(state.movables, instant || reducedMotion, state.portals, state);
 
   useEffect(() => {
     onAnimatingChange(slide.isAnimating);

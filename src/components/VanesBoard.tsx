@@ -140,7 +140,7 @@ export function VanesRoof({
 
   return (
     <Group>
-      <RoofTray size={geo.size} inset={geo.inset} cell={cell} cells={puzzle.size} />
+      <RoofTray size={geo.size} />
       {/* A dot where no vane stands. */}
       {Array.from({ length: puzzle.size * puzzle.size }, (_v, k) => {
         const row = Math.floor(k / puzzle.size);
@@ -209,10 +209,12 @@ function Wind({ a, b, cell, kind, flow }: { a: { x: number; y: number }; b: { x:
   return (
     <Group>
       {kind === 'closed' && <Line p1={vec(from.x, from.y)} p2={vec(to.x, to.y)} color={color} strokeWidth={6} opacity={0.18} strokeCap="round" />}
-      <Path path={`M ${from.x} ${from.y} L ${to.x} ${to.y}`} color={color} style="stroke" strokeWidth={kind === 'closed' ? 3 : 2.2} strokeCap="round" opacity={kind === 'open' || kind === 'quiet' ? 0.5 : 0.9}>
-        {kind === 'closed' ? <DashPathEffect intervals={[12, 6]} phase={flow} /> : <DashPathEffect intervals={[5, 7]} />}
+      {/* Solid, so where each vane points can be read at a glance - the
+          whole puzzle is reading it. Only a closed loop's wind moves. */}
+      <Path path={`M ${from.x} ${from.y} L ${to.x} ${to.y}`} color={color} style="stroke" strokeWidth={kind === 'closed' ? 3 : kind === 'quiet' ? 1.6 : 2.2} strokeCap="round" opacity={kind === 'quiet' ? 0.55 : kind === 'open' ? 0.8 : 0.95}>
+        {kind === 'closed' && <DashPathEffect intervals={[12, 6]} phase={flow} />}
       </Path>
-      <Path path={chevron} color={color} style="stroke" strokeWidth={2} strokeCap="round" strokeJoin="round" opacity={kind === 'open' || kind === 'quiet' ? 0.6 : 0.9} />
+      <Path path={chevron} color={color} style="stroke" strokeWidth={kind === 'quiet' ? 1.6 : 2.2} strokeCap="round" strokeJoin="round" opacity={kind === 'quiet' ? 0.6 : 0.95} />
     </Group>
   );
 }
@@ -273,17 +275,15 @@ function LoopGlow({ points, cell }: { points: ReadonlyArray<{ x: number; y: numb
   );
 }
 
-/** Twos' paper tray with faint slate courses, its rim in this game's colour. */
-const RoofTray = React.memo(function RoofTrayImpl({ size, inset, cell, cells }: { size: number; inset: number; cell: number; cells: number }) {
+/** Twos' paper tray, its rim in this game's colour - plain, so the vanes and
+ * their wind are the only lines on it. */
+const RoofTray = React.memo(function RoofTrayImpl({ size }: { size: number }) {
   const r = 12;
   return (
     <Group>
       <RoundedRect x={0} y={0} width={size} height={size} r={r}>
         <LinearGradient start={vec(0, 0)} end={vec(size, size)} colors={[theme.colors.trayLight, theme.colors.surfaceHi, theme.colors.trayDeep]} positions={[0, 0.55, 1]} />
       </RoundedRect>
-      {Array.from({ length: cells - 1 }, (_v, k) => (
-        <Line key={k} p1={vec(inset * 0.6, inset + (k + 1) * cell)} p2={vec(size - inset * 0.6, inset + (k + 1) * cell)} color={theme.colors.borderStrong} strokeWidth={1} opacity={0.35} />
-      ))}
       <Path path={`M ${size - 1.5} ${r} L ${size - 1.5} ${size - r} Q ${size - 1.5} ${size - 1.5} ${size - r} ${size - 1.5} L ${r} ${size - 1.5}`} color={inkWash(0.16)} style="stroke" strokeWidth={1.5} strokeCap="round" />
       <RoundedRect x={1} y={1} width={size - 2} height={size - 2} r={r} color={theme.colors.vaneAccent} style="stroke" strokeWidth={1.5} opacity={0.55} />
     </Group>
@@ -355,11 +355,14 @@ function Vane({
   const L = cell * 0.37;
   const plate = cell * 0.4;
   const metal = theme.colors.vaneMetal;
-  const arrow = (fill: string, tail: string) => (
+  // One clear head; the tail is a small open fork in the shaft's own
+  // colour. A filled tail in a second colour read as a second head, so
+  // vanes looked like double arrows and which way they pointed was a guess.
+  const arrow = (fill: string) => (
     <Group>
-      <Path path={`M 0 ${L * 0.6} L 0 ${-L * 0.62}`} color={fill} style="stroke" strokeWidth={cell * 0.05} strokeCap="round" />
-      <Path path={`M 0 ${-L} L ${L * 0.27} ${-L * 0.55} L 0 ${-L * 0.66} L ${-L * 0.27} ${-L * 0.55} Z`} color={fill} />
-      <Path path={`M 0 ${L * 0.34} L ${L * 0.32} ${L * 0.84} L 0 ${L * 0.7} L ${-L * 0.32} ${L * 0.84} Z`} color={tail} />
+      <Path path={`M 0 ${L * 0.62} L 0 ${-L * 0.62}`} color={fill} style="stroke" strokeWidth={cell * 0.05} strokeCap="round" />
+      <Path path={`M 0 ${-L * 1.05} L ${L * 0.34} ${-L * 0.5} L 0 ${-L * 0.64} L ${-L * 0.34} ${-L * 0.5} Z`} color={fill} />
+      <Path path={`M ${-L * 0.2} ${L * 0.82} L 0 ${L * 0.6} L ${L * 0.2} ${L * 0.82}`} color={fill} style="stroke" strokeWidth={cell * 0.035} strokeCap="round" strokeJoin="round" opacity={0.7} />
     </Group>
   );
   return (
@@ -380,21 +383,18 @@ function Vane({
         </Group>
       ) : (
         <Group>
-          {/* Free to turn: a round swivel post, ringed with a dashed track
-              the arrow turns along. */}
+          {/* Free to turn: a round swivel post. */}
           <Circle cx={x} cy={y + cell * 0.035} r={cell * 0.165} color={inkWash(0.16)} />
           <Circle cx={x} cy={y} r={cell * 0.16} color={theme.colors.surface} />
           <Circle cx={x} cy={y} r={cell * 0.16} color={reached ? theme.colors.vaneWind : theme.colors.borderStrong} style="stroke" strokeWidth={reached ? 2.5 : 1.2} />
-          <Circle cx={x} cy={y} r={cell * 0.24} color={theme.colors.borderStrong} style="stroke" strokeWidth={1} opacity={0.6}>
-            <DashPathEffect intervals={[2, 3.5]} />
-          </Circle>
         </Group>
       )}
       <Circle cx={x} cy={y} r={tickR} color={theme.colors.vaneAccent} style="stroke" strokeWidth={2} opacity={tickO} />
       <Group transform={shadow} opacity={0.22}>
-        {arrow('#000000', '#000000')}
+        {arrow('#000000')}
       </Group>
-      <Group transform={transform}>{fixed ? arrow(theme.colors.vaneAccent, shade(theme.colors.vaneAccent, 0.7)) : arrow(metal, trouble ? theme.colors.danger : theme.colors.vaneAccent)}</Group>
+      {/* In trouble, the whole arrow says so - not just its tail. */}
+      <Group transform={transform}>{arrow(fixed ? theme.colors.vaneAccent : trouble ? theme.colors.danger : metal)}</Group>
       <Circle cx={x} cy={y} r={cell * (fixed ? 0.06 : 0.045)} color={fixed ? shade(theme.colors.vaneAccent, 0.7) : theme.colors.vaneMetalLight} />
     </Group>
   );

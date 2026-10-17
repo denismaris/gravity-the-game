@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { MovableObject, PortalPair } from '../engine';
+import { ALL_DIRECTIONS, applyGravity, GameState, MovableObject, PortalPair, traceGravity } from '../engine';
 
 /**
  * How long a slide takes, by how far the furthest piece travels.
@@ -89,6 +89,11 @@ type Cell = { readonly row: number; readonly col: number };
 export interface PortalRoute {
   readonly enter: Cell;
   readonly exit: Cell;
+  /** The cells walked to the portal (start first, `enter` last) and on
+   * from it (`exit` first) - when the engine reported them. Without them
+   * both runs are straight lines. */
+  readonly before?: ReadonlyArray<Cell>;
+  readonly after?: ReadonlyArray<Cell>;
 }
 
 /** The parts of a teleport, in milliseconds: the run to the portal, the
@@ -107,8 +112,8 @@ export interface TeleportTiming {
 }
 
 export function teleportTiming(route: PortalRoute, start: Cell, end: Cell): TeleportTiming {
-  const before = Math.abs(route.enter.row - start.row) + Math.abs(route.enter.col - start.col);
-  const after = Math.abs(end.row - route.exit.row) + Math.abs(end.col - route.exit.col);
+  const before = route.before ? route.before.length - 1 : Math.abs(route.enter.row - start.row) + Math.abs(route.enter.col - start.col);
+  const after = route.after ? route.after.length - 1 : Math.abs(end.row - route.exit.row) + Math.abs(end.col - route.exit.col);
   // The run in has no landing (it ends in the portal), so it is a little
   // quicker than a slide of the same length.
   const approach = Math.round(slideDurationFor(before) * 0.85);
@@ -165,24 +170,32 @@ export interface SlidePlan {
   readonly duration: number;
   /** Pieces that went through a portal, by id, with their own timing. */
   readonly teleports: ReadonlyMap<string, { readonly route: PortalRoute; readonly timing: TeleportTiming }>;
+  /** Pieces a gravity zone turned, by id: every cell they passed, so they
+   * slide round the corner instead of cutting across it. */
+  readonly bends: ReadonlyMap<string, ReadonlyArray<Cell>>;
   readonly isAnimating: boolean;
 }
 
 const NO_TELEPORTS: SlidePlan['teleports'] = new Map();
-const STILL: SlidePlan = { from: new Map(), key: 0, duration: 0, teleports: NO_TELEPORTS, isAnimating: false };
+const NO_BENDS: SlidePlan['bends'] = new Map();
+const STILL: SlidePlan = { from: new Map(), key: 0, duration: 0, teleports: NO_TELEPORTS, bends: NO_BENDS, isAnimating: false };
 
-export function useSlidePlan(target: ReadonlyArray<MovableObject>, instant: boolean, portals: ReadonlyArray<PortalPair> = []): SlidePlan {
+/** `state`, when given, is the whole board: with it the slide follows the
+ * way each piece really went (see `tracedRoutes`). */
+export function useSlidePlan(target: ReadonlyArray<MovableObject>, instant: boolean, portals: ReadonlyArray<PortalPair> = [], state?: GameState): SlidePlan {
   // Planned during the render that brings the move, not in an effect after
   // it: an effect runs once that render has painted, so for one frame every
   // moving piece stood at its destination before jumping back to slide -
   // the "teleport" seen on a busy phone. Now the first frame of a move
   // already starts each piece where it was.
   const fromRef = useRef(target);
+  const boardRef = useRef(state);
   const planRef = useRef<SlidePlan>(STILL);
   if (fromRef.current !== target) {
-    planRef.current = planMove(fromRef.current, target, instant, portals, planRef.current.key + 1);
+    planRef.current = planMove(fromRef.current, target, instant, portals, planRef.current.key + 1, boardRef.current);
     fromRef.current = target;
   }
+  boardRef.current = state;
   const plan = planRef.current;
 
   // When the longest piece has landed.
@@ -199,7 +212,29 @@ export function useSlidePlan(target: ReadonlyArray<MovableObject>, instant: bool
 
 /** The slide from `before` to `after`: which pieces move, from where, and
  * for how long. */
-function planMove(before: ReadonlyArray<MovableObject>, after: ReadonlyArray<MovableObject>, instant: boolean, portals: ReadonlyArray<PortalPair>, key: number): SlidePlan {
+/**
+ * The way every piece really went, from the engine: the move is found by
+ * trying each direction on the board as it was and keeping the one that
+ * lands every piece where it now is. Only worth it where a path can bend
+ * or jump - a zone or a portal; null otherwise, or for a change no single
+ * move explains (undo, restart).
+ */
+function tracedRoutes(board: GameState | undefined, after: ReadonlyArray<MovableObject>): ReturnType<typeof traceGravity>['traces'] | null {
+  if (!board || (!board.zone && board.portals.length === 0)) return null;
+  const at = new Map(after.map(m => [m.id, m]));
+  for (const direction of ALL_DIRECTIONS) {
+    const next = applyGravity(board, direction).movables;
+    if (next.length === after.length && next.every(m => at.get(m.id)?.row === m.row && at.get(m.id)?.col === m.col)) return traceGravity(board, direction).traces;
+  }
+  return null;
+}
+
+/** Whether a walk of cells keeps to one straight line. */
+function isStraight(cells: ReadonlyArray<Cell>): boolean {
+  return cells.every(c => c.row === cells[0].row) || cells.every(c => c.col === cells[0].col);
+}
+
+function planMove(before: ReadonlyArray<MovableObject>, after: ReadonlyArray<MovableObject>, instant: boolean, portals: ReadonlyArray<PortalPair>, key: number, board?: GameState): SlidePlan {
   const previous = new Map(before.map(movable => [movable.id, movable]));
   // Only a piece already on the board can slide; one new to it (a
   // different board swapped in) simply appears where it is.
@@ -207,19 +242,42 @@ function planMove(before: ReadonlyArray<MovableObject>, after: ReadonlyArray<Mov
     const start = previous.get(movable.id);
     return start !== undefined && (start.row !== movable.row || start.col !== movable.col);
   });
-  if (instant || moved.length === 0) return { from: new Map(), key, duration: 0, teleports: NO_TELEPORTS, isAnimating: false };
+  if (instant || moved.length === 0) return { from: new Map(), key, duration: 0, teleports: NO_TELEPORTS, bends: NO_BENDS, isAnimating: false };
   const from = new Map(moved.map(movable => [movable.id, previous.get(movable.id)!]));
   const travelled = moved.reduce((max, movable) => {
     const start = from.get(movable.id)!;
     return Math.max(max, Math.abs(movable.row - start.row) + Math.abs(movable.col - start.col));
   }, 0);
   const teleports = new Map<string, { route: PortalRoute; timing: TeleportTiming }>();
-  if (portals.length > 0) {
-    for (const movable of moved) {
-      const start = from.get(movable.id)!;
+  const bends = new Map<string, ReadonlyArray<Cell>>();
+  const traces = tracedRoutes(board, after);
+  let longest = travelled;
+  for (const movable of moved) {
+    const start = from.get(movable.id)!;
+    const trace = traces?.get(movable.id);
+    if (trace && trace.portal > 0 && trace.enter) {
+      // In along the way it went, into the portal, and on from the exit.
+      const route: PortalRoute = {
+        enter: trace.enter,
+        exit: trace.cells[trace.portal],
+        before: [...trace.cells.slice(0, trace.portal), trace.enter],
+        after: trace.cells.slice(trace.portal),
+      };
+      teleports.set(movable.id, { route, timing: teleportTiming(route, start, movable) });
+    } else if (trace && !isStraight(trace.cells)) {
+      bends.set(movable.id, trace.cells);
+      longest = Math.max(longest, trace.cells.length - 1);
+    } else if (!trace && portals.length > 0) {
       const route = portalRoute(start, movable, portals);
       if (route) teleports.set(movable.id, { route, timing: teleportTiming(route, start, movable) });
     }
   }
-  return { from, key, duration: slideDurationFor(travelled), teleports: teleports.size > 0 ? teleports : NO_TELEPORTS, isAnimating: true };
+  return {
+    from,
+    key,
+    duration: slideDurationFor(longest),
+    teleports: teleports.size > 0 ? teleports : NO_TELEPORTS,
+    bends: bends.size > 0 ? bends : NO_BENDS,
+    isAnimating: true,
+  };
 }

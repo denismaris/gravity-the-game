@@ -595,8 +595,9 @@ function HintRing({ path }: { path: SkPath }): React.JSX.Element {
 /**
  * The finished window. Light comes through: a broad band of it - three
  * stripes, soft to bright, drawn flat - sweeps across the glass from the
- * top left, each pane lifting and flashing as it passes (see `Glaze`);
- * then sparkles open and close on a few panes.
+ * top left, each pane lifting and flashing as it passes (see `Glaze`),
+ * and the lead round each pane catches it in gold as it goes by - the
+ * window lit from behind, the way a real one is when the sun comes round.
  */
 function FinishLight({ size, geo, t }: { size: number; geo: Geometry; t: SharedValue<number> }): React.JSX.Element {
   const glass = useMemo(() => Skia.Path.MakeFromSVGString(geo.svg.join(' ')), [geo]);
@@ -607,11 +608,6 @@ function FinishLight({ size, geo, t }: { size: number; geo: Geometry; t: SharedV
   });
   const bandO = useDerivedValue(() => (t.value <= 0 || t.value >= 0.62 ? 0 : 1));
   const stripe = (offset: number, w: number) => `M ${-size + offset} ${size} L ${-size + offset + w} ${size} L ${size + offset + w} ${-size} L ${size + offset} ${-size} Z`;
-  // Sparkles on a few panes spread over the window, the largest first.
-  const spots = useMemo(() => {
-    const order = geo.centres.map((p, i) => ({ p, i })).sort((a, b) => ((a.i * 7919) % 13) - ((b.i * 7919) % 13));
-    return order.slice(0, Math.min(6, order.length)).map(o => o.p);
-  }, [geo]);
   if (!glass) return <Group />;
   return (
     <Group>
@@ -622,27 +618,22 @@ function FinishLight({ size, geo, t }: { size: number; geo: Geometry; t: SharedV
           <Path path={stripe(size * 0.56, size * 0.06)} color="#FFFFFF" opacity={0.3} />
         </Group>
       </Group>
-      {spots.map((p, i) => (
-        <Sparkle key={i} x={p.x} y={p.y} r={geo.cell * 0.34} t={t} at={0.28 + i * 0.06} />
-      ))}
+      {geo.paths.map((path, i) =>
+        path ? <LeadGlow key={i} path={path} t={t} wave={(geo.centres[i].x + geo.centres[i].y) / (size * 2)} /> : null,
+      )}
     </Group>
   );
 }
 
-/** A four-pointed star of light that opens, turns a little and closes. */
-function Sparkle({ x, y, r, t, at }: { x: number; y: number; r: number; t: SharedValue<number>; at: number }): React.JSX.Element {
-  const transform = useDerivedValue(() => {
-    const k = Math.max(0, Math.min(1, (t.value - at) / 0.32));
-    const s = Math.sin(Math.PI * k);
-    return [{ translateX: x }, { translateY: y }, { rotate: k * 0.9 }, { scale: Math.max(0.001, s) }];
+/** One pane's lead catching the light: a gold line round it that
+ * brightens as the band passes over and fades again - on the same wave
+ * the pane itself lifts on (`Glaze`). */
+function LeadGlow({ path, t, wave }: { path: SkPath; t: SharedValue<number>; wave: number }): React.JSX.Element {
+  const o = useDerivedValue(() => {
+    const k = Math.max(0, Math.min(1, (t.value - wave * 0.38) / 0.42));
+    return 0.95 * Math.sin(Math.PI * k);
   });
-  const star = `M 0 ${-r} Q ${r * 0.12} ${-r * 0.12} ${r} 0 Q ${r * 0.12} ${r * 0.12} 0 ${r} Q ${-r * 0.12} ${r * 0.12} ${-r} 0 Q ${-r * 0.12} ${-r * 0.12} 0 ${-r} Z`;
-  return (
-    <Group transform={transform}>
-      <Path path={star} color="#FFFFFF" opacity={0.95} />
-      <Circle cx={0} cy={0} r={r * 0.16} color="#FFF4C8" />
-    </Group>
-  );
+  return <Path path={path} color={theme.colors.accent} style="stroke" strokeWidth={2.2} strokeJoin="round" opacity={o} />;
 }
 
 /** The frame's glow as the window finishes: a ring in the game's colour

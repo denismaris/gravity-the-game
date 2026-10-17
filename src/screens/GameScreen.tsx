@@ -41,7 +41,6 @@ import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { useInsightPower } from '../components/InsightPower';
 import { UNDO_COST } from '../progression/coins';
-import { GravityHintArrow } from '../components/GravityHintArrow';
 import { findShortestSolution } from '../game/engine';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { HelpHalo } from '../components/HelpHalo';
@@ -253,7 +252,6 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   // re-run (and re-announce targets) every time a hint is taken.
   const hintsUsedRef = useRef(hintsUsed);
   hintsUsedRef.current = hintsUsed;
-  const [hintDirection, setHintDirection] = useState<Direction | null>(null);
   const { coins, shortBy, buy } = useCoinPurchase();
   // Insight, the superpower: charges first, then a video or coins.
   const insight = useInsightPower();
@@ -416,26 +414,24 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     queuedDirectionRef.current = null;
     lastActionRef.current = 'restart';
     setHintsUsed(0);
-    setHintDirection(null);
     dispatch({ type: 'restart' });
   }, []);
 
-  // A hint shows the next move of a shortest solution *from here* - it
-  // never makes it; the swipe stays the player's. Using one caps the solve
-  // at two stars (see the completion effect), since following hints plays
-  // the optimal line and would otherwise earn a free three.
+  // A hint makes the next move of a shortest solution *from here*: the
+  // ball rolls, so the player sees the move rather than reading an arrow.
+  // Using one caps the solve at two stars (see the completion effect),
+  // since following hints plays the optimal line and would otherwise earn
+  // a free three.
   const handleHint = useCallback(() => {
     if (movePendingRef.current || isAnimatingRef.current || solvedRef.current || failedRef.current) return;
     const path = findShortestSolution(gameStateRef.current, 16);
     if (!path || path.length === 0) return;
     spendInsight(() => {
       setHintsUsed(n => n + 1);
-      setHintDirection(path[0]);
-      triggerFeedback('targetReached');
-      AccessibilityInfo.announceForAccessibility(`Insight: pull ${path[0]}.`);
+      handleDirection(path[0]);
+      AccessibilityInfo.announceForAccessibility(`Insight: pulled ${path[0]}.`);
     });
-  }, [spendInsight]);
-  const clearHint = useCallback(() => setHintDirection(null), []);
+  }, [spendInsight, handleDirection]);
 
   const handleNext = useCallback(() => {
     if (!nextEntry) return;
@@ -563,7 +559,6 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
             solved={solved && !isAnimating}
             onAnimatingChange={setIsAnimating}
           />
-          {hintDirection && <GravityHintArrow key={`${hintsUsed}`} size={boardSize} direction={hintDirection} onDone={clearHint} />}
         </Animated.View>
       </Animated.View>
 

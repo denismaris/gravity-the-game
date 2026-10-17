@@ -21,7 +21,11 @@ export function availableProviders(): Provider[] {
   if (!backendConfigured()) return [];
   const out: Provider[] = [];
   if (Platform.OS === 'ios' && APPLE_SIGN_IN_ENABLED) out.push('apple');
-  if (GOOGLE_SIGN_IN.webClientId && (Platform.OS !== 'ios' || GOOGLE_SIGN_IN.iosClientId)) out.push('google');
+  // On iOS, Google only alongside Apple: App Review (guideline 4.8) turns
+  // away an app that offers a third-party sign-in without Sign in with
+  // Apple next to it. Until Apple is on, iPhone players simply play
+  // anonymously.
+  if (GOOGLE_SIGN_IN.webClientId && (Platform.OS !== 'ios' || (GOOGLE_SIGN_IN.iosClientId && APPLE_SIGN_IN_ENABLED))) out.push('google');
   return out;
 }
 
@@ -80,7 +84,7 @@ export async function applyAccountName(name: string): Promise<boolean> {
 
 /** Asks Apple or Google who the player is: an ID token, and the nonce it
  * was made with (Apple). Null when the player closes the sheet. */
-async function identityToken(provider: Provider): Promise<{ token: string; nonce?: string } | null> {
+async function identityToken(provider: Provider): Promise<{ token: string; nonce?: string; fullName?: string } | null> {
   if (provider === 'google') {
     const { GoogleSignin } = require('@react-native-google-signin/google-signin') as typeof import('@react-native-google-signin/google-signin');
     GoogleSignin.configure({ webClientId: GOOGLE_SIGN_IN.webClientId, iosClientId: GOOGLE_SIGN_IN.iosClientId || undefined });
@@ -95,9 +99,12 @@ async function identityToken(provider: Provider): Promise<{ token: string; nonce
     requestedScopes: [appleAuth.Scope.EMAIL, appleAuth.Scope.FULL_NAME],
   });
   if (!response.identityToken) return null;
+  // Apple tells the app the player's name only on their very first sign-in,
+  // and never inside the token - so it is kept here, or it is gone.
+  const fullName = [response.fullName?.givenName, response.fullName?.familyName].filter(Boolean).join(' ');
   // The library sends Apple the nonce's SHA-256 and hands back the original,
   // which is what Supabase checks the token against.
-  return { token: response.identityToken, nonce: response.nonce };
+  return { token: response.identityToken, nonce: response.nonce, fullName: fullName || undefined };
 }
 
 function cancelled(error: unknown): boolean {
@@ -122,16 +129,25 @@ export async function signIn(provider: Provider): Promise<SignInResult> {
     const identity = await identityToken(provider);
     if (!identity) return { ok: false, cancelled: true, message: '' };
     const credentials = { provider, token: identity.token, nonce: identity.nonce };
+    // Apple's one-time name, saved onto the account so it can be offered
+    // for the leaderboards later (`accountNameSuggestion`). Best effort.
+    const keepName = async (): Promise<void> => {
+      if (identity.fullName) await api.auth.updateUser({ data: { full_name: identity.fullName } }).catch(() => undefined);
+    };
     const { data } = await api.auth.getSession();
     if (data.session?.user.is_anonymous) {
       const linked = await api.auth.linkIdentity(credentials);
-      if (!linked.error) return { ok: true, switched: false };
+      if (!linked.error) {
+        await keepName();
+        return { ok: true, switched: false };
+      }
     }
     const { error } = await api.auth.signInWithIdToken(credentials);
     if (error) {
       console.warn(`[sign-in] ${provider}: ${error.message}`);
       return { ok: false, cancelled: false, message: error.message };
     }
+    await keepName();
     // Another account: forget this phone's agreed revision, so the next
     // sync reads that account's save and merges this phone's into it.
     await forgetCloudRevision();

@@ -133,6 +133,28 @@ function isInZone(zone: GravityZone | null, row: number, col: number): boolean {
  *   obstacle, or an anchored object, and never leave the board.
  */
 export function applyGravity(state: GameState, direction: Direction): GameState {
+  return runGravity(state, direction, null);
+}
+
+/** The way one object went in a move: every cell it passed through, in
+ * order, from where it started to where it stopped. A portal is entered
+ * from `cells[portal - 1]` into the endpoint `enter`, and left at
+ * `cells[portal]`; `portal` is -1 for a slide that took none. */
+export interface SlideTrace {
+  readonly cells: ReadonlyArray<{ row: number; col: number }>;
+  readonly portal: number;
+  readonly enter: { row: number; col: number } | null;
+}
+
+/** `applyGravity`, also reporting the way each object went (by id) - for
+ * the board to animate a slide along it, round a zone's corner and in and
+ * out of a portal, rather than straight from start to end. */
+export function traceGravity(state: GameState, direction: Direction): { state: GameState; traces: ReadonlyMap<string, SlideTrace> } {
+  const traces = new Map<string, SlideTrace>();
+  return { state: runGravity(state, direction, traces), traces };
+}
+
+function runGravity(state: GameState, direction: Direction, traces: Map<string, SlideTrace> | null): GameState {
   const globalStep = stepFor(direction);
   const zoneStep = state.zone ? stepFor(state.zone.direction) : globalStep;
 
@@ -163,65 +185,106 @@ export function applyGravity(state: GameState, direction: Direction): GameState 
     }
   }
 
-  for (const lane of lanes.values()) {
-    const ordered = [...lane].sort(compare);
+  // Where every object still waiting to slide sits right now. A slide that
+  // reaches one of these cells lets that object slide first (see
+  // `resolve`): a portal or a zone can carry an object out of its own lane
+  // and onto a cell another lane has not cleared yet, and walking into it
+  // unchecked left two objects on one cell.
+  const waitingAt = new Map<string, MovableObject>();
+  for (const movable of state.movables) {
+    if (!movable.anchored && !movable.destroyed) waitingAt.set(positionKey(movable.row, movable.col), movable);
+  }
+  const resolving = new Set<string>();
 
-    for (const movable of ordered) {
-      let { row, col } = movable;
-      let teleported = false;
-      let destroyed = false;
-      const visited = new Set<string>([positionKey(row, col)]);
+  /** Slides one object to rest, first sliding any waiting object whose
+   * cell it would enter. An object already mid-slide that is reached again
+   * (two objects each waiting on the other) simply counts as a wall. */
+  const resolve = (movable: MovableObject): void => {
+    if (resolvedById.has(movable.id)) return;
+    // Its own cell stays held until it is at rest, so an object it makes
+    // slide first cannot take that cell from under it.
+    resolving.add(movable.id);
+    // Clears the way into `key` if a waiting object holds it; true when the
+    // cell is still held afterwards by an object caught mid-slide.
+    const heldBy = (key: string): boolean => {
+      const holder = waitingAt.get(key);
+      if (!holder) return false;
+      if (resolving.has(holder.id)) return true;
+      resolve(holder);
+      return false;
+    };
 
-      while (true) {
-        // The pull is re-decided from the current cell every step.
-        const { dRow, dCol } = isInZone(state.zone, row, col) ? zoneStep : globalStep;
-        const nextRow = row + dRow;
-        const nextCol = col + dCol;
+    let { row, col } = movable;
+    let teleported = false;
+    let destroyed = false;
+    const visited = new Set<string>([positionKey(row, col)]);
+    const cells = traces ? [{ row, col }] : null;
+    let portal = -1;
+    let enter: { row: number; col: number } | null = null;
 
-        if (!isInsideBoard(state, nextRow, nextCol)) break;
-        if (isObstacle(state, nextRow, nextCol)) break;
-        if (occupied.has(positionKey(nextRow, nextCol))) break;
+    while (true) {
+      // The pull is re-decided from the current cell every step.
+      const { dRow, dCol } = isInZone(state.zone, row, col) ? zoneStep : globalStep;
+      const nextRow = row + dRow;
+      const nextCol = col + dCol;
 
-        // Entering a portal endpoint (only the first time this slide).
-        if (!teleported) {
-          const exit = portalMap.get(positionKey(nextRow, nextCol));
-          if (exit) {
-            const exitKey = positionKey(exit.row, exit.col);
-            // Exit blocked, or already walked over this slide -> stop here.
-            if (occupied.has(exitKey) || visited.has(exitKey)) break;
-            row = exit.row;
-            col = exit.col;
-            teleported = true;
-            visited.add(exitKey);
-            // Keep sliding from the exit. Any further portal endpoint is an
-            // ordinary cell for the rest of this slide (no chaining).
-            continue;
+      if (!isInsideBoard(state, nextRow, nextCol)) break;
+      if (isObstacle(state, nextRow, nextCol)) break;
+      if (heldBy(positionKey(nextRow, nextCol))) break;
+      if (occupied.has(positionKey(nextRow, nextCol))) break;
+
+      // Entering a portal endpoint (only the first time this slide).
+      if (!teleported) {
+        const exit = portalMap.get(positionKey(nextRow, nextCol));
+        if (exit) {
+          const exitKey = positionKey(exit.row, exit.col);
+          // Exit blocked, or already walked over this slide -> stop here.
+          if (heldBy(exitKey) || occupied.has(exitKey) || visited.has(exitKey)) break;
+          if (cells) {
+            enter = { row: nextRow, col: nextCol };
+            portal = cells.length;
+            cells.push({ row: exit.row, col: exit.col });
           }
+          row = exit.row;
+          col = exit.col;
+          teleported = true;
+          visited.add(exitKey);
+          // Keep sliding from the exit. Any further portal endpoint is an
+          // ordinary cell for the rest of this slide (no chaining).
+          continue;
         }
-
-        // Re-entering a cell already walked this slide means the zone is
-        // pushing back the way we came - stop at the boundary rather than
-        // oscillate.
-        const nextKey = positionKey(nextRow, nextCol);
-        if (visited.has(nextKey)) break;
-
-        row = nextRow;
-        col = nextCol;
-        visited.add(nextKey);
-
-        // A hazard is always the last cell an object visits - it stops here
-        // destroyed, even if the slide could otherwise have continued.
-        if (isHazard(state, row, col)) {
-          destroyed = true;
-          break;
-        }
-        // Sand holds whatever slides onto it.
-        if (isSand(state, row, col)) break;
       }
 
-      occupied.add(positionKey(row, col));
-      resolvedById.set(movable.id, destroyed ? { ...movable, row, col, destroyed: true } : { ...movable, row, col });
+      // Re-entering a cell already walked this slide means the zone is
+      // pushing back the way we came - stop at the boundary rather than
+      // oscillate.
+      const nextKey = positionKey(nextRow, nextCol);
+      if (visited.has(nextKey)) break;
+
+      row = nextRow;
+      col = nextCol;
+      visited.add(nextKey);
+      cells?.push({ row, col });
+
+      // A hazard is always the last cell an object visits - it stops here
+      // destroyed, even if the slide could otherwise have continued.
+      if (isHazard(state, row, col)) {
+        destroyed = true;
+        break;
+      }
+      // Sand holds whatever slides onto it.
+      if (isSand(state, row, col)) break;
     }
+
+    occupied.add(positionKey(row, col));
+    if (cells && traces) traces.set(movable.id, { cells, portal, enter });
+    waitingAt.delete(positionKey(movable.row, movable.col));
+    resolving.delete(movable.id);
+    resolvedById.set(movable.id, destroyed ? { ...movable, row, col, destroyed: true } : { ...movable, row, col });
+  };
+
+  for (const lane of lanes.values()) {
+    for (const movable of [...lane].sort(compare)) resolve(movable);
   }
 
   // Preserve original ordering so output is stable/deterministic and easy

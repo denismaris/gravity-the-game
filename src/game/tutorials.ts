@@ -49,45 +49,45 @@ export interface TutorialSlide {
 export const BINAIRO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap to fill',
-    body: "Tap a square to cycle it: empty, then a square, then a circle, then empty again. Every square on the board gets one of the two shapes.",
+    body: "Tap a square to fill it. Tap once for a square, twice for a circle, and three times to empty it again.",
     illustration: 'toggle',
-    tip: "Fill the squares you are sure of first. A wrong guess early on makes everything after it harder.",
+    tip: "Only fill a square when you are sure. A guess now makes everything harder later.",
   },
   {
     title: 'No three in a row',
-    body: "Three of the same shape side by side in a row or column is never allowed. If it happens, a red outline appears around them.",
+    body: "Never put three of the same shape next to each other, across or down. If you do, they turn red.",
     illustration: 'triple',
-    tip: "Two alike side by side? The squares at both ends must be the other shape. A gap between two alike is always the other shape too.",
+    tip: "See two the same side by side? The squares at both ends must be the other shape.",
   },
   {
     title: 'Keep it even',
-    body: "Every row and column holds exactly as many circles as squares. A line with more than half of one shape turns red straight away.",
+    body: "Every row and every column has the same number of circles and squares.",
     illustration: 'balance',
-    tip: "Count as you go: once a line has half of one shape, every empty square left in it is the other.",
+    tip: "When a line has all the circles it needs, fill the rest of it with squares.",
   },
   {
     title: 'Equal badges',
-    body: "An = sign between two squares means they hold the same shape.",
+    body: "An = sign between two squares means they are the same shape.",
     illustration: 'equal',
-    tip: "One known square settles its partner, and that can start a chain across the board.",
+    tip: "Know one of them? Then you know the other one too.",
   },
   {
     title: 'Different badges',
-    body: "A × sign between two squares means they hold different shapes.",
+    body: "A × sign between two squares means they are different shapes.",
     illustration: 'different',
-    tip: "One known square settles its partner, and that can start a chain across the board.",
+    tip: "Know one of them? Then the other one is the opposite shape.",
   },
   {
     title: 'Twin cells',
-    body: "A small dot marks a pair of twin squares, mirror opposites across the centre of the board. Twins always hold the same shape.",
+    body: "Two squares with a small dot are twins. Twins are always the same shape.",
     illustration: 'twin',
-    tip: "Solve one twin and you get the other for free, on the far side of the board.",
+    tip: "Fill one twin and you know the other one too.",
   },
   {
     title: 'Counting clues',
-    body: "A number counts the circles directly above, below, left and right of it. Exactly that many, no more and no less.",
+    body: "A number tells you how many circles touch it: above, below, left and right.",
     illustration: 'count',
-    tip: "A 0 makes all four neighbours squares. Stuck anywhere? Insight shows your next move and explains which rule it uses.",
+    tip: "A 0 means all four squares around it are squares. Stuck? Insight shows your next move.",
   },
 ];
 
@@ -107,27 +107,27 @@ export const BINAIRO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const GRAVITY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Swipe to pull',
-    body: "Swipe in any direction and every piece slides that way at once, until it meets a wall or another piece.",
+    body: "Swipe the board. Every ball rolls that way until it hits a wall or another ball.",
     illustration: 'swipe',
-    tip: "Pieces never stop halfway. Look for walls and blockers that stop a piece exactly where you need it.",
+    tip: "A ball never stops by itself. Look for walls that stop it in just the right spot.",
   },
   {
     title: 'Land on target',
-    body: "Every piece has to finish on its ringed target, all at the same time, to solve the board.",
+    body: "Get every ball onto a ring at the same time. Then you win.",
     illustration: 'target',
-    tip: "Work backwards: from which side can each piece slide into its target and stop there?",
+    tip: "Think backwards: from which side can a ball roll into its ring and stop there?",
   },
   {
     title: 'Move together',
-    body: "One swipe moves every piece. A move that helps one piece can push another out of place.",
+    body: "One swipe moves all the balls at once. A good move for one ball can be a bad move for another.",
     illustration: 'multi',
-    tip: "Bring the hardest piece home first, then use the others as stoppers. Undo is free, and Insight shows the next swipe.",
+    tip: "Get the trickiest ball home first. Stuck? Insight makes the next move for you.",
   },
   {
     title: 'Soft sand',
-    body: "Later boards have patches of sand. A ball that rolls onto sand stops right there, and rolls off again on the next swipe.",
+    body: "Some boards have sand. A ball that rolls onto sand stops there. Swipe again and it rolls on.",
     illustration: 'sand',
-    tip: "Sand is a stop in the open: use it to halt a ball where no wall would.",
+    tip: "Use sand to stop a ball where there is no wall.",
   },
 ];
 
@@ -140,39 +140,39 @@ export const GRAVITY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const MIRROR_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap to place',
-    body: "Tap a square to cycle it: no mirror, a / mirror, a \\ mirror, then empty again.",
+    body: "Tap a square to put a mirror there. Tap again to tilt it the other way. Tap once more to take it away.",
     illustration: 'place',
-    tip: "You only need a mirror where the beam has to turn. Keep the rest of the board empty.",
+    tip: "Only put a mirror where the light needs to turn.",
   },
   {
     title: 'Mirrors bend the beam',
-    body: "The beam runs straight from its source until it meets a mirror, which turns it a quarter turn.",
+    body: "The light goes in a straight line. When it hits a mirror, it turns.",
     illustration: 'reflect',
-    tip: "Trace the beam with your finger from the source to see where it goes next.",
+    tip: "Follow the light with your finger to see where it goes.",
   },
   {
     title: 'Light every gem',
-    body: "The beam must pass through every gem on the board on its way.",
+    body: "The light has to pass through every gem.",
     illustration: 'gems',
-    tip: "Plan the route through the gems first, then decide where each turn goes.",
+    tip: "First find a path through all the gems. Then add the mirrors.",
   },
   {
     title: 'Reach the target',
-    body: "Once the beam has passed every gem and ends on the target, the puzzle is solved.",
+    body: "When the light has touched every gem and ends in the gold ring, you win.",
     illustration: 'target',
-    tip: "Stuck? Insight follows your own beam and fixes the first mirror that sends it astray.",
+    tip: "Stuck? Insight fixes the first mirror that sends the light the wrong way.",
   },
   {
     title: 'Ruby light',
-    body: "Gems with a red ring only light for a red beam. The beam turns red when it passes through the square of red glass, and stays red from there on.",
+    body: "Gems with a red ring only light up with red light. The light turns red when it goes through the square of red glass.",
     illustration: 'ruby',
-    tip: "Left, the beam reaches the ruby gem first and it stays dark. Right, it passes the red glass first, and the gem lights. Plan the route through the glass before any ruby gem.",
+    tip: "Left: the light reaches the red gem first, so the gem stays dark. Right: the light goes through the red glass first, so the gem lights up.",
   },
   {
     title: 'Splitters',
-    body: "A cut crystal splits the beam in two, out to either side. Either half can light gems, and one half must reach the target.",
+    body: "A crystal splits the light in two. Both parts can light gems. One part must reach the gold ring.",
     illustration: 'splitter',
-    tip: "Give each half a job: one for the target, one for the gems the other cannot reach.",
+    tip: "Give each part a job: one goes to the ring, the other lights the gems.",
   },
 ];
 
@@ -193,21 +193,21 @@ export const MIRROR_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const ARUKONE_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Join the pairs',
-    body: "Connect each pair of matching numbers with a path. Touch a number and drag through the squares next to it.",
+    body: "Draw a path to join each pair of matching numbers. Start on a number and drag.",
     illustration: 'connect',
-    tip: "Start with the pairs closest together. They have the fewest ways to join.",
+    tip: "Start with the pairs that are close together.",
   },
   {
     title: 'The board folds',
-    body: "Paths are mirror images across the middle of the board. Draw one side and the other side draws itself.",
+    body: "The board is like a mirror. When you draw on one side, the same path appears on the other side.",
     illustration: 'symmetry',
-    tip: "Plan on one half only: whatever fits there fits on the other side too.",
+    tip: "Just think about one half. The other half copies it.",
   },
   {
     title: 'Fill every square',
-    body: "Paths may not cross, and every square must belong to exactly one path, with none left empty.",
+    body: "Paths cannot cross. Every square must be part of a path.",
     illustration: 'crossing',
-    tip: "Hug the walls: a path along the edge blocks the fewest other pairs. Stuck? Insight joins the next pair for you.",
+    tip: "Paths along the edges get in the way less. Stuck? Insight joins the next pair for you.",
   },
 ];
 
@@ -219,27 +219,27 @@ export const ARUKONE_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const GLASS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Glaze the panes',
-    body: "Pick a glass from the tray under the window, then tap a pane to set it. Draw across several panes to glaze them in one stroke.",
+    body: "Pick a colour from the tray. Then tap a piece of glass to colour it. You can also drag across several pieces.",
     illustration: 'colour',
-    tip: "Tap a pane again in the same glass to take it out, or pick the clear slot and draw.",
+    tip: "Tap a piece again to take its colour off.",
   },
   {
     title: 'Touching panes differ',
-    body: "Two panes that share a strip of lead can never be the same colour. If they are, both are ringed in red until one changes.",
+    body: "Two pieces of glass that touch along a side cannot be the same colour. If they are, they glow red.",
     illustration: 'clash',
-    tip: "Panes that only meet at a corner may match. Start with a pane that already touches two colours: it has one glass left.",
+    tip: "Pieces that only touch at a corner can match. Start with a piece that already touches two colours.",
   },
   {
     title: 'Let the light through',
-    body: "Glaze every pane with no two neighbours alike and the window is finished. There is only ever one way to do it.",
+    body: "Colour every piece so no two touching pieces match. Then the window is done.",
     illustration: 'finish',
-    tip: "Stuck? Insight sets the pane the window is readiest for, and says why.",
+    tip: "Stuck? Insight colours the next piece and tells you why.",
   },
   {
     title: 'Vines',
-    body: "Later windows have vines: two leaf panes joined by a green stem. Of the two, exactly one is the fourth glass, emerald, and no other pane ever is.",
+    body: "Some windows have a vine joining two leaf pieces. One of them is green and the other is not. No other piece is ever green.",
     illustration: 'leaf',
-    tip: "A leaf pane that touches emerald, or touches ruby, cobalt and amber, decides its vine: the one that can be emerald is.",
+    tip: "A leaf next to green cannot be green. A leaf next to red, blue and yellow must be green.",
   },
 ];
 
@@ -253,135 +253,135 @@ export const GLASS_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const LIGHTSOUT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap to toggle',
-    body: "Tap a lantern to switch it on or off.",
+    body: "Tap a lantern to turn it on or off.",
     illustration: 'tap',
-    tip: "Tapping the same lantern twice undoes it, so each lantern is tapped once or not at all.",
+    tip: "Tapping the same lantern twice puts it back. So tap each one once, or not at all.",
   },
   {
     title: 'Neighbours flip too',
-    body: "Every tap also flips the four lanterns directly above, below, left and right of it. Diagonals stay as they are.",
+    body: "A tap also switches the lanterns right above, below, left and right of it. The corners stay the same.",
     illustration: 'cross',
-    tip: "The order of your taps never matters, only which lanterns you tap.",
+    tip: "The order you tap in does not matter.",
   },
   {
     title: 'Turn them all off',
-    body: "The puzzle is solved the moment every lantern is dark.",
+    body: "Turn off every lantern to win.",
     illustration: 'dark',
-    tip: "Work row by row: to put out a lit lantern, tap the one just below it. Stuck? Insight shows the next tap.",
+    tip: "Go row by row. To turn off a lit lantern, tap the one just under it. Stuck? Insight shows the next tap.",
   },
   {
     title: 'Twin lanterns',
-    body: "Two lanterns tied by a golden thread are twins. Tapping either one also switches the other, wherever it is.",
+    body: "Two lanterns joined by a gold thread are twins. Tap one and the other one switches too.",
     illustration: 'twins',
-    tip: "A twin reaches across the board: use it to fix a lantern no ordinary tap can get to.",
+    tip: "Use a twin to reach a lantern far away.",
   },
 ];
 
 export const BLOOM_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap to turn',
-    body: "Tap a tile to turn it a quarter. Every line on a tile must meet a line from its neighbour. None may end in the open or run off the edge.",
+    body: "Tap a tile to turn it. Every line must join the line on the next tile. No line can stop in the middle or run off the edge.",
     illustration: 'turn',
-    tip: "Start at the edges and corners: a line can never point off the board, so those tiles have few ways to turn.",
+    tip: "Start at the edges and corners. Tiles there have fewer ways to turn.",
   },
   {
     title: 'Pins never turn',
-    body: "A tile with an ochre pin is fixed in place, and so is every knot (a tile with two arcs). They are your starting points.",
+    body: "Tiles with a gold dot never turn. Use them as your starting point.",
     illustration: 'knot',
-    tip: "Read outwards from the pins: each fixed line tells its neighbour which way to face.",
+    tip: "Look at the tiles next to a fixed one. Its lines show which way they must face.",
   },
   {
     title: 'Closed loops bloom',
-    body: "A loop that closes fills with colour. Close every loop, with no loose ends anywhere, to finish the board.",
+    body: "When a line goes all the way round and joins itself, it fills with colour. Close every loop to win.",
     illustration: 'bloom',
-    tip: "A loose end always points at the tile that needs turning. Stuck? Insight turns the tile closest to settled.",
+    tip: "A loose end points at the tile you need to turn. Stuck? Insight turns a tile for you.",
   },
   {
     title: 'Twin tiles',
-    body: "Two tiles with matching rings are twins. Turn one and the other turns with it, the same way.",
+    body: "Two tiles with matching rings are twins. When you turn one, the other turns too.",
     illustration: 'twins',
-    tip: "Twins come right together: find one's place and the other is set too.",
+    tip: "Get one twin right and the other is right too.",
   },
 ];
 
 export const MOSAIC_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Drag into the picture',
-    body: "Lift a piece from the tray and drop it onto the picture. A shadow shows where it will land. The flat pieces are already set to start you off.",
+    body: "Drag a piece from the tray onto the picture. A shadow shows where it will land. Some pieces are already in place to help you.",
     illustration: 'drag',
-    tip: "Begin with the corners and narrow gaps: only a few pieces fit there.",
+    tip: "Start with corners and small gaps. Only a few pieces fit there.",
   },
   {
     title: 'Tap to turn',
-    body: "Tap a piece in the tray to turn it a quarter. Drag a placed piece back out at any time.",
+    body: "Tap a piece in the tray to turn it. You can drag a piece back out at any time.",
     illustration: 'turn',
-    tip: "Turn a piece before you lift it, so you can see whether it matches the gap.",
+    tip: "Turn a piece first, to see if it matches the gap.",
   },
   {
     title: 'Fill every square',
-    body: "Every piece fits in exactly one place, and together they cover every square of the picture.",
+    body: "Every piece has one right spot. Together they fill the whole picture.",
     illustration: 'fill',
-    tip: "Place the awkward shapes early while there is still room. Stuck? Insight places the piece the picture is readiest for.",
+    tip: "Place the odd shapes early, while there is still room. Stuck? Insight places a piece for you.",
   },
 ];
 
 export const BRIDGES_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Drag or tap to build',
-    body: "Drag from one island towards another, or tap the water between them, to build a bridge. Bridges run straight: up, down, left or right.",
+    body: "Drag from one island to another, or tap the water between them, to build a bridge. Bridges go straight: up, down, left or right.",
     illustration: 'drag',
-    tip: "Tap the same bridge again for a double bridge, and once more to take it away.",
+    tip: "Tap a bridge again to make it double. Tap once more to take it away.",
   },
   {
     title: 'Meet every number',
-    body: "Each number says how many bridges that island needs. When it has them all, it raises a flag. Two islands can share one bridge or two.",
+    body: "The number on an island says how many bridges it needs. When it has them all, it raises a flag. Two islands can share one or two bridges.",
     illustration: 'double',
-    tip: "An island whose number is twice its neighbours needs a double bridge to every one of them.",
+    tip: "If an island has only one neighbour, all its bridges go to that neighbour.",
   },
   {
-    title: 'One archipelago',
-    body: "Bridges never cross each other, and in the end every island must be joined into one network.",
+    title: 'Join them all',
+    body: "Bridges cannot cross. In the end, all the islands must be joined together.",
     illustration: 'network',
-    tip: "Never close a finished group off from the rest. Stuck? Insight builds the bridge the numbers force.",
+    tip: "Do not cut a group of islands off from the rest. Stuck? Insight builds the next bridge.",
   },
   {
     title: 'Islands in fog',
-    body: "Later boards hide some islands in fog. A fog island shows no number: work out how many bridges it takes from the islands round it.",
+    body: "Some islands hide in fog, so you cannot see their number. Work it out from the islands around them.",
     illustration: 'fog',
-    tip: "Solve everything round a fog island first. Whatever its neighbours still need from it is its number.",
+    tip: "Finish the islands around the fog first. What they still need is the fog island's number.",
   },
 ];
 
 export const ADJACENT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Tap a tile',
-    body: "Tap any tile that touches another of its own colour, and the whole connected group clears at once.",
+    body: "Tap a tile that touches another tile of the same colour. The whole group disappears.",
     illustration: 'run',
-    tip: "Press and hold to preview a group before it clears.",
+    tip: "Press and hold to see the group before it goes.",
   },
   {
     title: 'The tray falls in',
-    body: "Tiles above a gap fall straight down to fill it. Columns never slide sideways, so what is in a column stays in it.",
+    body: "Tiles above an empty space fall down to fill it. They never slide sideways.",
     illustration: 'fall',
-    tip: "Clearing a small group can drop two bigger ones together into one large group.",
+    tip: "Clearing a small group can bring two big groups together.",
   },
   {
     title: 'Reach the target',
-    body: "Bigger groups score much more per tile. Reach the target score, or clear the whole tray, to finish.",
+    body: "Bigger groups give you many more points. Reach the target score, or clear every tile, to win.",
     illustration: 'target',
-    tip: "Save your big groups until they grow. Stuck? Insight looks ahead and points at the best tap.",
+    tip: "Let groups grow before you tap them. Stuck? Insight shows the best tap.",
   },
   {
     title: 'Stones',
-    body: "Later trays hold grey stones. A stone joins no group. Clear everything beneath it and it lands on the floor and crumbles, for 200 points.",
+    body: "Grey stones never join a group. Clear all the tiles under a stone and it falls and breaks, for 200 points.",
     illustration: 'stone',
-    tip: "Dig under a stone with your bigger groups: the run scores, and the stone pays too.",
+    tip: "Dig under stones with big groups. You get points for both.",
   },
   {
     title: 'Gold tiles',
-    body: "A gold tile joins a group of any colour it touches, and a group with gold in it scores double.",
+    body: "A gold tile joins any colour group it touches. A group with gold scores double.",
     illustration: 'gold',
-    tip: "Gold can join two colours, but only one group takes it. Spend it on the biggest.",
+    tip: "Gold can only join one group. Use it on the biggest.",
   },
 ];
 
@@ -389,39 +389,39 @@ export const ADJACENT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const LILY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Hop in a line',
-    body: 'Tap a pad in line with the frog, or swipe toward it. The frog hops to the nearest pad that way, clean over open water.',
+    body: 'Tap a pad in a straight line from the frog, or swipe toward it. The frog jumps to the nearest pad that way.',
     illustration: 'hop',
-    tip: 'Pale rings show every pad the frog can reach from where it sits.',
+    tip: 'Pale rings show the pads the frog can jump to.',
   },
   {
     title: 'The pad behind sinks',
-    body: 'Each pad the frog leaves goes under, so there is no hopping back. Every hop uses a pad up for good.',
+    body: 'When the frog jumps off a pad, the pad sinks. The frog cannot go back to it.',
     illustration: 'sink',
-    tip: 'Undo takes a hop back whenever you like.',
+    tip: 'Made a mistake? Undo takes a jump back.',
   },
   {
     title: 'Lotus pads',
-    body: 'A pad with a lotus survives the first visit: when the frog leaves, only the lotus sinks. Come back to it later, and then it sinks for good.',
+    body: 'A pad with a flower does not sink the first time. When the frog leaves, only the flower sinks. The frog can come back to it once more.',
     illustration: 'lotus',
-    tip: 'While a lotus pad floats it stops every hop along its row and column. Use it as a stepping stone.',
+    tip: 'While it floats, a flower pad stops jumps like any pad. Use it as a stepping stone.',
   },
   {
     title: 'Leave no pad behind',
-    body: 'A pad with nothing left in its row or its column can never be reached. It is ringed in red the moment that happens.',
+    body: 'If a pad has no other pad left in its row or column, the frog can never reach it. It gets a red ring.',
     illustration: 'cutoff',
-    tip: 'Visit pads at the ends of rows and in corners early, while a way back is still open.',
+    tip: 'Visit the pads at the ends and in the corners early.',
   },
   {
     title: 'Clear the pond',
-    body: 'Visit every pad, ending on the last one, and a water lily opens under the frog.',
+    body: 'Visit every pad. When the frog lands on the last one, a flower opens. You did it!',
     illustration: 'clear',
-    tip: 'Stuck? Insight finds a hop that keeps every pad in reach, going back first if it has to.',
+    tip: 'Stuck? Insight finds a safe jump for you.',
   },
   {
     title: 'Stepping stones',
-    body: 'Later ponds have grey stones. The frog can land on a stone and leave it as often as it likes. A stone never sinks and is not a pad to clear.',
+    body: 'Some ponds have grey stones. The frog can land on a stone as often as it likes. Stones never sink, and you do not have to visit them.',
     illustration: 'stones',
-    tip: 'A stone stops a hop just like a pad, so it can get the frog to a pad no hop reaches.',
+    tip: 'A stone stops a jump like a pad, so it can help the frog reach far pads.',
   },
 ];
 
@@ -429,111 +429,111 @@ export const LILY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
 export const VANE_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Turn the vanes',
-    body: 'Tap a vane to turn it a quarter, clockwise. It points at the nearest vane that way, along its row or column.',
+    body: 'Tap a vane to turn it. It points at the nearest vane in that direction.',
     illustration: 'turn',
-    tip: 'Copper vanes on a square plate are set from the start and never turn. Begin beside them.',
+    tip: 'Copper vanes on a square plate never turn. Start next to them.',
   },
   {
     title: 'Follow the wind',
-    body: 'A dashed line shows where each vane sends its wind. A vane the wind reaches wears a blue ring.',
+    body: 'A line shows where each vane blows its wind. A vane that gets wind gets a blue ring.',
     illustration: 'wind',
-    tip: 'Every vane needs exactly one wind arriving: no more, no fewer.',
+    tip: 'Each vane must get wind from exactly one other vane.',
   },
   {
     title: 'Three things go wrong',
-    body: 'Wind blowing into open air, two vanes pointing at each other, or two winds into the same vane. Each one turns red.',
+    body: 'Three things are not allowed: wind blowing off the roof, two vanes pointing at each other, and two vanes blowing at the same vane. Each one turns red.',
     illustration: 'trouble',
-    tip: 'A vane in a corner has only two ways to point. Start there.',
+    tip: 'A vane in a corner can only point two ways. Start there.',
   },
   {
     title: 'Chimneys',
-    body: 'Wind does not pass a chimney. A vane pointing at one points into open air.',
+    body: 'Wind cannot go through a chimney. A vane pointing at a chimney blows its wind away.',
     illustration: 'chimney',
-    tip: 'A chimney between two vanes takes a way away from both. Start beside it.',
+    tip: 'A chimney blocks a direction for the vanes next to it. Start there.',
   },
   {
     title: 'Close the loops',
-    body: 'When the wind runs round in closed loops through every vane, the roof is set. A loop turns solid the moment it closes.',
+    body: 'When the wind goes round and round through every vane, you win. Each finished loop lights up.',
     illustration: 'loop',
-    tip: 'Stuck? Insight turns the vane the others already force, and says why.',
+    tip: 'Stuck? Insight turns the next vane and tells you why.',
   },
 ];
 
 const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   gravity: {
     title: 'Gravity',
-    body: 'Swipe any direction to pull every piece that way. Land each one on its ringed target to solve the board.',
+    body: 'Swipe to roll every ball that way. Get each ball onto a ring to win.',
   },
   mirror: {
     title: 'Mirror Maze',
-    body: 'Tap a cell to place a mirror, tap again to rotate it, and once more to remove it. Route the beam through every gem to the target to solve it.',
+    body: 'Tap a square to add a mirror. Tap again to tilt it, and again to take it away. Bend the light through every gem and into the gold ring.',
   },
   lilypads: {
     title: 'Lily Pads',
-    body: 'Tap a pad in line with the frog, or swipe toward it, and the frog hops to the nearest pad that way. The pad it leaves sinks. A lotus pad sinks only its lotus the first time, so the frog must come back to it. Visit every pad to clear the pond.',
+    body: 'Tap a pad in line with the frog to jump there. The pad it leaves sinks. A flower pad only loses its flower the first time, so come back to it. Visit every pad to clear the pond.',
   },
   vanes: {
     title: 'Weathervanes',
-    body: 'Tap a vane to turn it a quarter. Each points at the nearest vane that way, and wind does not pass a chimney. Every vane must point at another, be reached by exactly one, and never point straight back. Then the wind runs round in loops.',
+    body: 'Tap a vane to turn it. Each vane points at the nearest vane that way. Every vane must point at another one and get wind from just one. Two vanes may not point at each other. Then the wind goes round in loops.',
   },
   binairo: {
     title: 'Twos',
-    body: 'Tap a square to cycle it: a square shape, a circle, then empty. Never three of the same side by side, and every row and column splits evenly between the two shapes.',
+    body: 'Tap a square to fill it with a square or a circle. Never put three the same in a row. Every row and column has the same number of each.',
   },
   arukone: {
     title: 'Twinpath',
-    body: 'Drag from a number to its twin to join them, routing around the blocked squares. The board is folded down the middle: draw one side and the other side draws itself. Join every pair without two paths crossing, and fill every square, to solve it.',
+    body: 'Drag from a number to the matching number to join them. The board is a mirror: draw on one side and the other side copies it. Paths cannot cross, and every square must be filled.',
   },
   glass: {
     title: 'Stained Glass',
-    body: 'Pick a glass from the tray, then tap a pane or draw across several to set it. Two panes that share lead can never be the same colour. Glaze every pane to finish the window.',
+    body: 'Pick a colour, then tap or drag over the glass. Pieces that touch cannot be the same colour. Colour every piece to finish the window.',
   },
   lightsout: {
     title: 'Lanterns',
-    body: 'Tap a lantern to switch it, and the four lanterns directly above, below and beside it switch with it. Diagonals stay as they are. Put every lantern out to solve the board.',
+    body: 'Tap a lantern. It switches, and so do the lanterns right above, below, left and right of it. Turn them all off to win.',
   },
   adjacent: {
     title: 'Adjacent',
-    body: 'Tap any tile touching another of its own colour to clear the whole run, and whatever sat above it falls in. Bigger runs score far more per tile. Reach the target score, or clear the tray, to finish.',
+    body: 'Tap a tile that touches the same colour. The whole group disappears and the tiles above fall down. Bigger groups score more. Reach the target score to win.',
   },
   bloom: {
     title: 'Bloom',
-    body: 'Tap a tile to turn it a quarter. Every line must meet another line. None may end in the open or run off the edge. Pinned knots never turn: read outward from them and from the rim. A loop that closes blooms; close them all to finish.',
+    body: 'Tap a tile to turn it. Every line must join another line, with no loose ends. Tiles with a gold dot never turn. A loop that closes fills with colour. Close them all to win.',
   },
   bridges: {
     title: 'Bridges',
-    body: 'Drag from one island toward another, or tap the water between them, to lay a bridge. Each number is how many bridges that island needs. One or two may join any pair. Bridges never cross, and every island must end up connected into one network.',
+    body: 'Drag from one island to another to build a bridge. The number says how many bridges an island needs. Bridges cannot cross, and all the islands must be joined.',
   },
   mosaic: {
     title: 'Mosaic',
-    body: 'Drag the pieces from the tray into the picture. Tap a piece in the tray to turn it. Some pieces are already set, flush in the picture, to start you off. Cover every square. There is only one way it all fits. Narrow places first.',
+    body: 'Drag the pieces into the picture. Tap a piece to turn it. Fill every square to finish. Start with the small gaps.',
   },
 };
 
 const MECHANIC_INTROS: Record<MechanicTutorialId, TutorialCopy> = {
   obstacles: {
     title: 'Obstacles',
-    body: 'Solid blocks. Nothing can slide through or land on one. Plan a route around them.',
+    body: 'Blocks are solid. A ball stops when it hits one.',
   },
   anchored: {
-    title: 'Anchored Pieces',
-    body: 'This piece never moves. It blocks anything that slides into it, exactly like a wall.',
+    title: 'Fixed balls',
+    body: 'This ball never moves. Other balls stop when they hit it, just like a wall.',
   },
   portals: {
     title: 'Portals',
-    body: 'Slide into a ringed cell and come out the linked one, still moving the same direction.',
+    body: 'Roll a ball into a ring and it comes out of the matching ring, still rolling the same way.',
   },
   'gravity-zone': {
-    title: 'Gravity Zone',
-    body: 'Inside the tinted area, gravity always pulls the way the arrows point, no matter which way you swipe.',
+    title: 'Gravity zone',
+    body: 'Inside the coloured area, balls always roll the way the arrows point, whichever way you swipe.',
   },
   hazard: {
     title: 'Hazard',
-    body: 'Careful. Sliding a piece onto one destroys it and ends the attempt. Route around it.',
+    body: 'Careful! A ball that rolls onto this breaks, and you have to try again.',
   },
   sand: {
     title: 'Soft sand',
-    body: 'A ball that rolls onto sand sinks in and stops right there. On the next tilt it rolls off again as usual.',
+    body: 'A ball that rolls onto sand stops there. Swipe again and it rolls on.',
   },
 };
 

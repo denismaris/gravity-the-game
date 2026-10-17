@@ -1,5 +1,5 @@
 /* eslint-disable react-native/no-inline-styles -- every position here is derived from the board's own geometry at render time */
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing as RNEasing, PanResponder, StyleSheet, View } from 'react-native';
 import { Easing, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Canvas, Group, RoundedRect } from '@shopify/react-native-skia';
@@ -448,21 +448,26 @@ function TrayPiece({
   rotation: number;
   reducedMotion: boolean;
 }): React.JSX.Element {
+  // `cells` is the piece unturned (flipped, if it is): the drawing never
+  // changes on a tap, only the angle it is turned to, on the UI thread.
+  // Redrawing the turned shape and then swinging it back from the old
+  // angle showed the new facing for a frame before the turn - a snap and
+  // then a swing, which read as lag.
   const { w, h } = extent(cells);
-  const angle = useSharedValue(0);
+  const turns = useRef(rotation);
+  const angle = useSharedValue((rotation * Math.PI) / 2);
   const scale = useSharedValue(reducedMotion ? 1 : 0.9);
-  const lastRotation = useRef(rotation);
   useEffect(() => {
     // Arriving home: a small give, as it settles into the slot.
     if (!reducedMotion) scale.value = withTiming(1, { duration: SETTLE_MS, easing: Easing.out(Easing.back(2)) });
   }, [scale, reducedMotion]);
-  useEffect(() => {
-    if (lastRotation.current === rotation) return;
-    lastRotation.current = rotation;
-    if (reducedMotion) return;
-    // The new facing is drawn at once; it swings in from the old one.
-    angle.value = -Math.PI / 2;
-    angle.value = withTiming(0, { duration: TURN_MS, easing: Easing.out(Easing.back(1.3)) });
+  useLayoutEffect(() => {
+    // Always onward, a quarter at a time, however the count wraps.
+    const step = (((rotation - turns.current) % 4) + 4) % 4;
+    if (step === 0) return;
+    turns.current += step;
+    const to = (turns.current * Math.PI) / 2;
+    angle.value = reducedMotion ? to : withTiming(to, { duration: TURN_MS, easing: Easing.out(Easing.back(1.3)) });
   }, [rotation, angle, reducedMotion]);
   const transform = useDerivedValue(() => [
     { translateX: cx },
@@ -536,7 +541,7 @@ const Tray = React.memo(function TrayImpl({
               <RoundedRect x={o.x + 0.5} y={o.y + 0.5} width={slot - 1} height={slot - 1} r={12} color={theme.colors.border} style="stroke" strokeWidth={1} />
               {home(index) && (
                 <TrayPiece
-                  cells={orient(puzzle.pieces[index].cells, pieces[index])}
+                  cells={orient(puzzle.pieces[index].cells, { ...pieces[index], rotation: 0 })}
                   color={pieceColor(puzzle, index)}
                   seed={index}
                   trayCell={trayCell}

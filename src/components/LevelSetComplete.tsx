@@ -94,7 +94,10 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
                 },
               ]}
             >
-              <Text style={styles.crestNumber} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
+              {/* Sized by its digits, never shrunk to fit: iOS measured the
+                  fit against the line height and shrank even a short
+                  number to the minimum. */}
+              <Text style={[styles.crestNumber, String(levelNumber).length >= 3 && styles.crestNumberLong]} numberOfLines={1}>
                 {levelNumber}
               </Text>
               {/* A bead round the medal for each game, lit in its colour as
@@ -310,7 +313,7 @@ const styles = themedStyles(() => ({
     fontFamily: theme.typography.families.figures,
     fontSize: 32,
     fontVariant: ['lining-nums', 'tabular-nums'],
-    lineHeight: 34,
+    lineHeight: 38,
     width: CREST - 12,
     textAlign: 'center',
     includeFontPadding: false,
@@ -318,6 +321,7 @@ const styles = themedStyles(() => ({
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
   },
+  crestNumberLong: { fontSize: 25, lineHeight: 30 },
   eyebrow: {
     fontSize: theme.typography.sizes.caption,
     fontWeight: theme.typography.weights.bold,

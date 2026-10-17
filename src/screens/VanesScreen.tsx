@@ -112,7 +112,7 @@ function Roof({ puzzle, mode, onExit }: { puzzle: VanePuzzle; mode: TrialMode | 
 
   const useHint = useCallback(() => {
     const h = vaneHint(puzzle, state);
-    if (!h) return;
+    if (!h) return false;
     setHistory(past => [...past, state]);
     setState(h.state);
     setGlow(h.vane);

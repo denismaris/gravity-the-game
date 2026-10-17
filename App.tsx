@@ -52,7 +52,7 @@ import { getAdjacentById } from './src/game/adjacent';
 import { getBloomById } from './src/game/bloom';
 import { getMosaicById } from './src/game/mosaic';
 import { getBridgesById } from './src/game/bridges';
-import { GameKind, NextPuzzleOptions, getDailyEntry } from './src/game/journey';
+import { GameKind, NextPuzzleOptions, getDailyEntry, usePrepareUpcoming } from './src/game/journey';
 import { CalmingInterstitialScreen } from './src/interstitial';
 import { PlayerProgressProvider, gamesPlayed, isAdFree, notePuzzleOpened, usePlayerProgress } from './src/progression';
 import { learnedTutorials } from './src/progression/learnedTutorials';
@@ -185,6 +185,25 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
   useEffect(() => {
     if (selected) notePuzzleOpened(selected.puzzleId);
   }, [selected]);
+
+  // The puzzles coming up, built ahead while nothing is moving (see
+  // `usePrepareUpcoming`): on Home, or once a new set has been dealt -
+  // which happens as a set's last puzzle is solved, with its card up.
+  // Never during a puzzle.
+  const batch = progress.currentBatch;
+  const upcoming = useMemo(() => {
+    const list = (batch?.puzzles ?? []).filter(p => !batch?.completedPuzzleIds.includes(p.puzzleId)).map(p => ({ kind: p.kind, puzzleId: p.puzzleId }));
+    const daily = getDailyEntry();
+    return [...list, { kind: daily.kind, puzzleId: daily.puzzleId }];
+  }, [batch]);
+  const setKey = (batch?.puzzles ?? []).map(p => p.puzzleId).join(',');
+  const setAtOpen = useRef(setKey);
+  useEffect(() => {
+    setAtOpen.current = setKey;
+    // Only when a puzzle opens or closes: the set it was opened under.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selected]);
+  usePrepareUpcoming(upcoming, progressReady && (!selected || setKey !== setAtOpen.current));
   const openFromHome = useCallback((target: Selected) => {
     setHandoff(target.kind);
     setSelected(target);

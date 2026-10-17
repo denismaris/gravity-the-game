@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { Icon } from './Icon';
 import { Modal, Pressable, Text, View } from 'react-native';
 import Reanimated, { Easing as ReEasing, SlideInDown } from 'react-native-reanimated';
@@ -27,20 +27,36 @@ const SHEET_IN = SlideInDown.duration(320).easing(ReEasing.out(ReEasing.cubic));
  *   <InsightCount count={insight.count} />  // on the button
  *   {insight.sheet}                        // anywhere in the tree
  */
-export function useInsightPower(): { count: number; spend: (apply: () => void) => void; sheet: React.JSX.Element } {
+/** After a hint, how long further taps on Insight are ignored. A screen
+ * works its hint out from the board as it last rendered, so taps faster
+ * than a render all found the same move: each one was charged, and the
+ * board showed one. */
+const HINT_LOCK_MS = 800;
+
+/** A hint to apply: returns `false` when there was nothing to show, and
+ * then nothing is charged. */
+export type ApplyHint = () => boolean | void;
+
+export function useInsightPower(): { count: number; spend: (apply: ApplyHint) => void; sheet: React.JSX.Element } {
   const { progress, spendInsightCharge, addInsights } = usePlayerProgress();
-  const [pending, setPending] = useState<(() => void) | null>(null);
+  const [pending, setPending] = useState<ApplyHint | null>(null);
+  const lastHint = useRef(0);
 
   const spend = useCallback(
-    (apply: () => void) => {
-      if (spendInsightCharge()) {
-        apply();
+    (apply: ApplyHint) => {
+      const now = Date.now();
+      if (now - lastHint.current < HINT_LOCK_MS) return;
+      if (progress.insights > 0) {
+        // The hint first, the charge after - only for a hint that showed.
+        if (apply() === false) return;
+        lastHint.current = now;
+        spendInsightCharge();
         return;
       }
       triggerFeedback('tap');
       setPending(() => apply);
     },
-    [spendInsightCharge],
+    [progress.insights, spendInsightCharge],
   );
 
   const close = useCallback(() => setPending(null), []);
@@ -161,18 +177,20 @@ function InsightSheet({ visible, onClose, onEarned, onPaid, onPack }: { visible:
             accessibilityLabel={`Use ${INSIGHT_PACK.cost} coins for ${INSIGHT_PACK.count} Insight`}
             onPress={() => buy(INSIGHT_PACK.cost, onPack)}
             containerStyle={styles.packWrap}
-            style={({ pressed }) => [styles.option, styles.pack, coins < INSIGHT_PACK.cost && styles.dim, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.option, styles.pack, pressed && styles.pressed]}
           >
             <View style={styles.packMark}>
-              <InsightMark />
+              <Icon name="spark" size={18} color={theme.colors.accent} />
             </View>
             <View style={styles.packText}>
               <Text style={styles.packTitle}>{`${INSIGHT_PACK.count} Insight`}</Text>
-              <Text style={styles.optionSub}>{coins >= INSIGHT_PACK.cost ? 'A fifth off, kept for later' : `You have ${coins}`}</Text>
+              {/* Short of coins, it says by how much - the row stays
+                  readable rather than fading out. */}
+              <Text style={styles.packSub}>{coins >= INSIGHT_PACK.cost ? 'A fifth off, kept for later' : `${INSIGHT_PACK.cost - coins} more coins needed`}</Text>
             </View>
-            <View style={styles.packPrice}>
-              <CoinGlyph size={16} />
-              <Text style={styles.packCost}>{INSIGHT_PACK.cost}</Text>
+            <View style={[styles.packPrice, coins < INSIGHT_PACK.cost && styles.packPriceShort]}>
+              <CoinGlyph size={14} />
+              <Text style={[styles.packCost, coins < INSIGHT_PACK.cost && styles.packCostShort]}>{INSIGHT_PACK.cost}</Text>
             </View>
           </PressableScale>
           {missed && <Text style={styles.missed}>No video right now. Try again in a little while.</Text>}
@@ -271,9 +289,12 @@ const styles = themedStyles(() => ({
   packWrap: { alignSelf: 'stretch', marginTop: theme.spacing.sm },
   pack: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: theme.spacing.md, paddingVertical: theme.spacing.sm + 2, gap: theme.spacing.md, minHeight: 0 },
   packMark: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceAlt },
-  packText: { flex: 1 },
+  packText: { flex: 1, alignItems: 'flex-start' },
+  packSub: { marginTop: 1, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
+  packPriceShort: { opacity: 0.55 },
+  packCostShort: { color: theme.colors.textSecondary },
   packTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  packPrice: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  packPrice: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: theme.radii.pill, backgroundColor: theme.colors.surfaceAlt },
   packCost: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   pressed: { opacity: 0.85 },
   notNow: { marginTop: theme.spacing.md, paddingVertical: 6 },
