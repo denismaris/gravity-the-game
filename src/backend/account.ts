@@ -14,36 +14,50 @@ export interface Account {
   readonly name: string | null;
 }
 
-export type SignInResult = { ok: true; switched: boolean } | { ok: false; cancelled: boolean; message: string };
+export type SignInResult = { ok: true; switched: boolean } | { ok: false; cancelled: boolean; message: string; comingSoon?: boolean };
 
 /** Which sign-in buttons this build can offer. */
 export function availableProviders(): Provider[] {
   if (!backendConfigured()) return [];
   const out: Provider[] = [];
-  if (Platform.OS === 'ios' && APPLE_SIGN_IN_ENABLED) out.push('apple');
-  // On iOS, Google only alongside Apple: App Review (guideline 4.8) turns
-  // away an app that offers a third-party sign-in without Sign in with
-  // Apple next to it. Until Apple is on, iPhone players simply play
-  // anonymously.
-  if (GOOGLE_SIGN_IN.webClientId && (Platform.OS !== 'ios' || (GOOGLE_SIGN_IN.iosClientId && APPLE_SIGN_IN_ENABLED))) out.push('google');
+  // Apple's button is always shown on iOS, next to Google's - App Review
+  // (guideline 4.8) wants it there. Until `APPLE_SIGN_IN_ENABLED` is on
+  // (it needs the paid developer account) a tap on it only says it is
+  // coming soon: see `signIn`.
+  if (Platform.OS === 'ios') out.push('apple');
+  if (GOOGLE_SIGN_IN.webClientId && (Platform.OS !== 'ios' || GOOGLE_SIGN_IN.iosClientId)) out.push('google');
   return out;
 }
 
 /** The account on this phone, or null offline. */
+/** The account as last read - kept so a screen can show it at once, while
+ * `currentAccount` asks the server again (which made the name in Settings
+ * appear a beat late on every visit). */
+let lastAccount: Account | null = null;
+
+/** The account as last read this session, or null before the first read. */
+export function knownAccount(): Account | null {
+  return lastAccount;
+}
+
 export async function currentAccount(): Promise<Account | null> {
   const api = backend();
   if (!api) return null;
   if (!(await ensureSession())) return null;
   const { data } = await api.auth.getUser();
   const user = data.user;
-  if (!user) return null;
+  if (!user) {
+    lastAccount = null;
+    return null;
+  }
   const linked = (user.identities ?? []).map(i => i.provider).find((p): p is Provider => p === 'apple' || p === 'google');
   const meta = user.user_metadata ?? {};
-  return {
+  lastAccount = {
     kind: user.is_anonymous || !linked ? 'anonymous' : linked,
     email: user.email ?? null,
     name: (meta.full_name as string | undefined) ?? (meta.name as string | undefined) ?? null,
   };
+  return lastAccount;
 }
 
 /**
@@ -123,6 +137,7 @@ function cancelled(error: unknown): boolean {
  * switches to that one instead, and the next sync merges the two saves.
  */
 export async function signIn(provider: Provider): Promise<SignInResult> {
+  if (provider === 'apple' && !APPLE_SIGN_IN_ENABLED) return { ok: false, cancelled: false, comingSoon: true, message: '' };
   const api = backend();
   if (!api) return { ok: false, cancelled: false, message: 'Not connected.' };
   try {
@@ -165,6 +180,7 @@ export async function signIn(provider: Provider): Promise<SignInResult> {
  * AccountScreen); play then carries on, saved to a fresh silent account
  * from the next sync. */
 export async function signOut(): Promise<void> {
+  lastAccount = null;
   const api = backend();
   if (!api) return;
   try {

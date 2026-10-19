@@ -1,5 +1,6 @@
 import React, { useMemo, useRef } from 'react';
-import { Group, Path, RoundedRect } from '@shopify/react-native-skia';
+import { Group, Path, RoundedRect, vec } from '@shopify/react-native-skia';
+import { SharedValue, useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import { MosaicCell, MosaicPuzzle, MosaicState, MosaicTheme, orient } from '../game/mosaic';
 import { shade, useAnimationClock, useReducedMotion } from '../game/rendering';
 import { darkColors, getColorScheme, inkWash, lightColors, theme } from '../theme';
@@ -67,6 +68,14 @@ export interface TesseraeProps {
   readonly set?: boolean;
   /** Cast a flat shadow on the grout (tiles standing on the board). */
   readonly shadow?: boolean;
+  /** Drawn small, off the board (the tray): the tiles sit almost edge to
+   * edge, so a piece reads as one shape rather than loose squares. */
+  readonly tight?: boolean;
+  /** The angle (radians) the group holding this piece is turned to - the
+   * tray turns a piece whole. Its thickness is counter-turned, so it always
+   * shows straight below on screen, as on the board, rather than turning
+   * round onto the piece's side or top with it. */
+  readonly turn?: SharedValue<number>;
   /** Draw only one layer of a raised piece. A board draws every piece's
    * shadow, then every piece's sides, then every top - otherwise a piece
    * drawn later lays its shadow (or its bottom face, which reaches a few
@@ -80,8 +89,8 @@ export interface TesseraeProps {
  * the hard way): a raised tile shows its thickness as one darker face
  * straight below, as if lit from above.
  */
-export function Tesserae({ cells, color, cellSize, seed, opacity = 1, set = false, shadow = false, part = 'all' }: TesseraeProps): React.JSX.Element {
-  const gap = cellSize * GROUT_GAP;
+export function Tesserae({ cells, color, cellSize, seed, opacity = 1, set = false, shadow = false, part = 'all', tight = false, turn }: TesseraeProps): React.JSX.Element {
+  const gap = cellSize * (tight ? 0.025 : GROUT_GAP);
   const size = cellSize - gap * 2;
   const r = size * 0.2;
 
@@ -105,10 +114,13 @@ export function Tesserae({ cells, color, cellSize, seed, opacity = 1, set = fals
         ))}
       {/* Its thickness: one darker face straight below. A right-hand face
           as well made every tile lean, and the board read as skewed. */}
-      {show('sides') &&
-        cells.map(c => (
-        <RoundedRect key={`b-${c.row}-${c.col}`} x={c.col * cellSize + gap} y={c.row * cellSize + gap + depth} width={size} height={size} r={r} color={bottom} />
-      ))}
+      {show('sides') && (
+        <LipTurn turn={turn} depth={depth}>
+          {cells.map(c => (
+            <RoundedRect key={`b-${c.row}-${c.col}`} x={c.col * cellSize + gap} y={c.row * cellSize + gap + depth} width={size} height={size} r={r} color={bottom} />
+          ))}
+        </LipTurn>
+      )}
       {show('tops') &&
         cells.map(c => (
         <RoundedRect key={`t-${c.row}-${c.col}`} x={c.col * cellSize + gap} y={c.row * cellSize + gap} width={size} height={size} r={r} color={tileTone(color, c.row, c.col, seed)} />
@@ -127,6 +139,18 @@ export function Tesserae({ cells, color, cellSize, seed, opacity = 1, set = fals
         })}
     </Group>
   );
+}
+
+/** The sides of a turned piece, moved so they hang straight down on
+ * screen: in the turned group, "down" is the screen's down turned back. */
+function LipTurn({ turn, depth, children }: { turn?: SharedValue<number>; depth: number; children: React.ReactNode }): React.JSX.Element {
+  const zero = useSharedValue(0);
+  const angle = turn ?? zero;
+  const transform = useDerivedValue(() => [
+    { translateX: depth * Math.sin(angle.value) },
+    { translateY: depth * Math.cos(angle.value) - depth },
+  ]);
+  return turn ? <Group transform={transform}>{children}</Group> : <>{children}</>;
 }
 
 /** A piece's colour in its puzzle's glaze. */
@@ -289,7 +313,7 @@ export interface MosaicBoardViewProps {
 }
 
 /** How long a freshly set piece glints. */
-const LANDED_MS = 320;
+const LANDED_MS = 380;
 
 export function MosaicBoardView({ puzzle, state, geometry, hiddenIndex = null, ghost = null, solved, flashCells = null, landed = null }: MosaicBoardViewProps): React.JSX.Element {
   const reducedMotion = useReducedMotion();
@@ -303,6 +327,22 @@ export function MosaicBoardView({ puzzle, state, geometry, hiddenIndex = null, g
   const waving = !reducedMotion && solvedAtRef.current !== null && now - solvedAtRef.current < WAVE_MS + WAVE_TILE_MS;
   const glinting = !reducedMotion && landed !== null && now - landed.at < LANDED_MS;
   useAnimationClock(waving || glinting, 60);
+
+  // The piece just set presses home: it arrives a touch proud of the
+  // board, sinks a hair past flush into its sockets, and settles - a tile
+  // pressed into wet grout, not a sticker appearing.
+  const pressing = useMemo(() => {
+    if (!glinting || !landed || reducedMotion) return null;
+    const piece = state.pieces[landed.index];
+    if (!piece?.at) return null;
+    const cells = orient(puzzle.pieces[landed.index].cells, piece).map(c => ({ row: c.row + piece.at!.row, col: c.col + piece.at!.col }));
+    const cx = ((Math.min(...cells.map(c => c.col)) + Math.max(...cells.map(c => c.col)) + 1) / 2) * cellSize;
+    const cy = ((Math.min(...cells.map(c => c.row)) + Math.max(...cells.map(c => c.row)) + 1) / 2) * cellSize;
+    const t = Math.min(1, (now - landed.at) / LANDED_MS);
+    const scale = t < 0.45 ? 1.06 - 0.09 * Math.sin(((t / 0.45) * Math.PI) / 2) : 0.97 + 0.03 * Math.sin((((t - 0.45) / 0.55) * Math.PI) / 2);
+    return { index: landed.index, cells, color: pieceColor(puzzle, landed.index), cx, cy, scale };
+    // `now` drives it frame by frame while it plays.
+  }, [glinting, landed, now, state, puzzle, cellSize, reducedMotion]);
 
   // A band of light crossing the piece that has just been set, left to
   // right - the glaze catching the light as it presses into the grout.
@@ -390,7 +430,16 @@ export function MosaicBoardView({ puzzle, state, geometry, hiddenIndex = null, g
           ))}
         </Group>
       )}
-      <Placed puzzle={puzzle} state={state} geometry={geometry} hiddenIndex={hiddenIndex} />
+      <Placed puzzle={puzzle} state={state} geometry={geometry} hiddenIndex={pressing ? pressing.index : hiddenIndex} />
+      {pressing && (
+        <Group transform={[{ translateX: pad }, { translateY: pad }]}>
+          <Group origin={vec(pressing.cx, pressing.cy)} transform={[{ scale: pressing.scale }]}>
+            {(['shadow', 'sides', 'tops'] as const).map(part => (
+              <Tesserae key={part} cells={pressing.cells} color={pressing.color} cellSize={cellSize} seed={pressing.index} shadow set={false} part={part} />
+            ))}
+          </Group>
+        </Group>
+      )}
       {flashCells && (
         <Group transform={[{ translateX: pad }, { translateY: pad }]}>
           {flashCells.map(c => (

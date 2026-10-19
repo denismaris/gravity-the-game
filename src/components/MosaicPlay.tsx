@@ -41,6 +41,8 @@ const SHADOW_X = 3;
 const SHADOW_Y = 7;
 /** A piece flying home to the tray. */
 const RETURN_MS = 260;
+/** The glide from the hand into its squares. */
+const PLACE_MS = 170;
 
 interface Drag {
   readonly index: number;
@@ -325,9 +327,13 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
     if (target) {
       // Into place: a short, firm spring to the exact square, then it is set.
       const to = { x: bx + geo.pad + target.col * geo.cellSize - m, y: by + geo.pad + target.row * geo.cellSize - m };
+      // A firm glide, set the instant it lands: a spring only reported done
+      // once its last wobble died away, so the piece sat visibly in place
+      // for a moment before it counted - the lag. The board's own press
+      // (`MosaicBoardView`'s `pressing`) gives it its give.
       Animated.parallel([
-        Animated.spring(base, { toValue: to, useNativeDriver: true, speed: still ? 100 : 30, bounciness: 4 }),
-        Animated.spring(scale, { toValue: 1, useNativeDriver: true, speed: still ? 100 : 30, bounciness: 6 }),
+        Animated.timing(base, { toValue: to, duration: still ? 0 : PLACE_MS, easing: RNEasing.out(RNEasing.cubic), useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1, duration: still ? 0 : PLACE_MS, easing: RNEasing.out(RNEasing.cubic), useNativeDriver: true }),
       ]).start(() => {
         live.current.onPlace(carried.index, target.row, target.col);
         live.current.onFeedback?.('place');
@@ -357,7 +363,13 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
   }, [drag, ghost]);
 
   const hiddenIndex = drag?.from === 'board' ? drag.index : null;
-  const carriedExtent = drag ? extent(drag.cells) : { w: 0, h: 0 };
+  // The carried piece's canvas is made once and kept, showing the last
+  // piece held when nothing is: a fresh canvas for every pick-up cost a
+  // beat right as the finger moved.
+  const lastDrag = useRef<Drag | null>(null);
+  if (drag) lastDrag.current = drag;
+  const held = drag ?? lastDrag.current;
+  const carriedExtent = held ? extent(held.cells) : { w: 1, h: 1 };
 
   return (
     <View style={{ width, height }} {...responder.panHandlers}>
@@ -390,32 +402,31 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
         reducedMotion={reducedMotion}
       />
 
-      {drag && (
-        <Animated.View
-          pointerEvents="none"
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: 0,
-            width: carriedExtent.w * cellSize + margin * 2,
-            height: carriedExtent.h * cellSize + margin * 2,
-            transform: [{ translateX }, { translateY }, { scale }],
-          }}
-        >
-          <Canvas style={StyleSheet.absoluteFill}>
-            <Group transform={[{ translateX: margin }, { translateY: margin }]}>
-              {/* A flat shadow on the paper below the lifted piece - the
-                  piece is off the board, and the shadow says how far. */}
-              <Group transform={[{ translateX: SHADOW_X }, { translateY: SHADOW_Y }]} opacity={0.16}>
-                {drag.cells.map(c => (
-                  <RoundedRect key={`sh-${c.row}-${c.col}`} x={c.col * cellSize + 2} y={c.row * cellSize + 2} width={cellSize - 4} height={cellSize - 4} r={cellSize * 0.2} color={theme.colors.primary} />
-                ))}
-              </Group>
-              <Tesserae cells={drag.cells} color={drag.color} cellSize={cellSize} seed={drag.index} />
+      <Animated.View
+        pointerEvents="none"
+        style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          width: carriedExtent.w * cellSize + margin * 2,
+          height: carriedExtent.h * cellSize + margin * 2,
+          opacity: drag ? 1 : 0,
+          transform: [{ translateX }, { translateY }, { scale }],
+        }}
+      >
+        <Canvas style={StyleSheet.absoluteFill}>
+          <Group transform={[{ translateX: margin }, { translateY: margin }]}>
+            {/* A flat shadow on the paper below the lifted piece - the
+                piece is off the board, and the shadow says how far. */}
+            <Group transform={[{ translateX: SHADOW_X }, { translateY: SHADOW_Y }]} opacity={0.16}>
+              {(held?.cells ?? []).map(c => (
+                <RoundedRect key={`sh-${c.row}-${c.col}`} x={c.col * cellSize + 2} y={c.row * cellSize + 2} width={cellSize - 4} height={cellSize - 4} r={cellSize * 0.2} color={theme.colors.primary} />
+              ))}
             </Group>
-          </Canvas>
-        </Animated.View>
-      )}
+            {held && <Tesserae cells={held.cells} color={held.color} cellSize={cellSize} seed={held.index} />}
+          </Group>
+        </Canvas>
+      </Animated.View>
     </View>
   );
 }
@@ -479,7 +490,7 @@ function TrayPiece({
   ]);
   return (
     <Group transform={transform}>
-      <Tesserae cells={cells} color={color} cellSize={trayCell} seed={seed} />
+      <Tesserae cells={cells} color={color} cellSize={trayCell} seed={seed} tight turn={angle} />
     </Group>
   );
 }

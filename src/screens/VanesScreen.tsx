@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { renderVanesIllustration } from '../components/TrialIllustrations';
-import { PlayShell, SetMode, TrialMode, TrialNote } from '../components/PlayShell';
+import { PlayShell, SetMode, TrialMode } from '../components/PlayShell';
 import { GameKind, NextPuzzleOptions } from '../game/journey';
 import { VanesBoard } from '../components/VanesBoard';
 import { getVaneTrial, initialVaneState, isVaneSolved, loops, troubles, turn, unreached, VANE_TRIAL_IDS, vaneHint, VanePuzzle, VaneState } from '../game/vanes';
@@ -15,7 +15,7 @@ const RESERVED = 300;
 const CHIMNEY_INTRO = {
   id: 'mechanic:chimney',
   title: 'Chimneys',
-  body: 'Wind does not pass a chimney. A vane pointing at one is pointing into open air, so it has one way fewer to turn.',
+  body: 'Wind cannot go through a chimney. A vane pointing at a chimney blows its wind away, so it has one less way to point.',
 };
 
 export interface VanesScreenProps {
@@ -54,7 +54,6 @@ function Roof({ puzzle, mode, onExit }: { puzzle: VanePuzzle; mode: TrialMode | 
   const [history, setHistory] = useState<VaneState[]>([]);
   const [hints, setHints] = useState(0);
   const [glow, setGlow] = useState<number | null>(null);
-  const [note, setNote] = useState<TrialNote | null>(null);
 
   const solved = useMemo(() => isVaneSolved(puzzle, state), [puzzle, state]);
   const trouble = useMemo(() => troubles(puzzle, state).filter((t, i) => t !== null && touched[i]).length, [puzzle, state, touched]);
@@ -118,7 +117,6 @@ function Roof({ puzzle, mode, onExit }: { puzzle: VanePuzzle; mode: TrialMode | 
     setGlow(h.vane);
     setTouched(t => t.map((v, i) => v || i === h.vane));
     setHints(n => n + 1);
-    setNote({ reason: h.reason, kind: troubles(puzzle, state)[h.vane] !== null ? 'fix' : 'rule', id: Date.now() });
     triggerFeedback('targetReached');
   }, [puzzle, state]);
 
@@ -138,15 +136,16 @@ function Roof({ puzzle, mode, onExit }: { puzzle: VanePuzzle; mode: TrialMode | 
       renderIllustration={renderVanesIllustration}
       solved={solved}
       hints={hints}
-      note={note}
-      onClearNote={() => setNote(null)}
       canUndo={history.length > 0}
       onExit={onExit}
       onHint={useHint}
       onUndo={undo}
       onRestart={restart}
     >
-      <VanesBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onTurn={onTurn} glow={glow} touched={touched} />
+      {/* Finished: the board takes no more touches. */}
+      <View pointerEvents={solved ? 'none' : 'auto'}>
+        <VanesBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onTurn={onTurn} glow={glow} touched={touched} />
+      </View>
     </PlayShell>
   );
 }

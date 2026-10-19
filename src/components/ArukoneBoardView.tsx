@@ -216,25 +216,24 @@ export function Cord({
   faded: boolean;
 }): React.JSX.Element | null {
   if (!path) return null;
+  // Neon: a tube of the pair's colour lit from within - a wide soft glow,
+  // a brighter glow close in, the tube itself, and a hot near-white core.
+  const core = towardWhite(tone, 0.72);
   return (
     <Group opacity={faded ? 0.42 : 1}>
-      <Group transform={[{ translateY: Math.max(1, width * 0.12) }]}>
-        <Path path={path} color={theme.colors.towersShadow} style="stroke" strokeWidth={width} strokeCap="round" strokeJoin="round" />
-      </Group>
-      <Path path={path} color={tone} style="stroke" strokeWidth={width} strokeCap="round" strokeJoin="round" />
-      <Group transform={[{ translateY: -width * 0.16 }]}>
-        <Path
-          path={path}
-          color={shade(tone, 1.3)}
-          opacity={0.5}
-          style="stroke"
-          strokeWidth={width * 0.26}
-          strokeCap="round"
-          strokeJoin="round"
-        />
-      </Group>
+      <Path path={path} color={tone} style="stroke" strokeWidth={width * 2.3} strokeCap="round" strokeJoin="round" opacity={0.14} />
+      <Path path={path} color={tone} style="stroke" strokeWidth={width * 1.45} strokeCap="round" strokeJoin="round" opacity={0.32} />
+      <Path path={path} color={tone} style="stroke" strokeWidth={width * 0.78} strokeCap="round" strokeJoin="round" />
+      <Path path={path} color={core} style="stroke" strokeWidth={width * 0.3} strokeCap="round" strokeJoin="round" opacity={0.95} />
     </Group>
   );
+}
+
+/** `hex` moved `t` of the way toward white. */
+function towardWhite(hex: string, t: number): string {
+  if (!/^#[0-9a-fA-F]{6}$/.test(hex)) return hex;
+  const ch = (i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  return `#${[0, 1, 2].map(i => Math.round(ch(i) + (255 - ch(i)) * t).toString(16).padStart(2, '0')).join('')}`;
 }
 
 /** A number's own cell: a raised token the cord runs into. */
@@ -274,13 +273,24 @@ export function Token({
 function useCompletionFlashes(puzzle: ArukonePuzzle, state: ArukoneState, now: number): ReadonlyMap<number, number> {
   const joinedRef = useRef<ReadonlySet<number>>(new Set());
   const flashRef = useRef<Map<number, number>>(new Map());
+  const flashedRef = useRef<Set<number>>(new Set());
 
   const joined = new Set<number>();
   for (const pair of puzzle.pairs) {
     if (isPathComplete(pair, state.paths[pair.value] ?? [])) joined.add(pair.value);
   }
+  // Once per joining, not every time a drag brushes the last square: a
+  // finger moving back and forth there joined and parted the pair over
+  // and over, and the path kept lighting up. It may light again only once
+  // its path has been cleared.
   for (const value of joined) {
-    if (!joinedRef.current.has(value)) flashRef.current.set(value, now);
+    if (!joinedRef.current.has(value) && !flashedRef.current.has(value)) {
+      flashRef.current.set(value, now);
+      flashedRef.current.add(value);
+    }
+  }
+  for (const pair of puzzle.pairs) {
+    if ((state.paths[pair.value] ?? []).length <= 1) flashedRef.current.delete(pair.value);
   }
   for (const value of flashRef.current.keys()) {
     if (!joined.has(value)) flashRef.current.delete(value);

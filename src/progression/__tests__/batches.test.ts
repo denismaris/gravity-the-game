@@ -11,7 +11,7 @@ import { getMirrorMazesByDifficulty } from '../../game/mirror';
 import { GameKind, ROTATION } from '../../game/journey';
 import { lilyIdsFor } from '../../game/lilypads';
 import { vaneIdsFor } from '../../game/vanes';
-import { generateBatch, HARD_TIER_FIRST_LEVEL, INTRO_ORDER, INTRO_SOLVES, introSolvesAt, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from '../batches';
+import { GAME_EASY_ONLY, generateBatch, HARD_TIER_FIRST_LEVEL, INTRO_ORDER, INTRO_SOLVES, introSolvesAt, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from '../batches';
 import { emptyProgress, PlayerProgress, recordCompletion } from '../playerProgress';
 import { endlessId } from '../../game/endlessId';
 
@@ -102,27 +102,27 @@ function experienced(count: number): PlayerProgress {
 }
 
 describe('tier curve (levels 1-40 explicit, 41+ a permanent plateau)', () => {
-  test('level 1 is pure easy, batch size 3', () => {
+  test('level 1 is pure easy, four puzzles', () => {
     const rng = seededRng(1);
     const batch = generateBatch(1, emptyProgress(), null, rng);
-    expect(batch.puzzles).toHaveLength(3);
+    expect(batch.puzzles).toHaveLength(4);
   });
 
-  test('batch size grows to 4 by level 6, and to 5 by level 19', () => {
-    expect(generateBatch(5, emptyProgress(), null, seededRng(2)).puzzles).toHaveLength(3);
-    expect(generateBatch(6, emptyProgress(), null, seededRng(3)).puzzles).toHaveLength(4);
-    expect(generateBatch(18, emptyProgress(), null, seededRng(4)).puzzles).toHaveLength(4);
-    expect(generateBatch(19, emptyProgress(), null, seededRng(5)).puzzles).toHaveLength(5);
+  test('levels hold an even number - 4, then 6 from level 6, then 8 from level 19 - so their games line up in equal rows', () => {
+    expect(generateBatch(5, emptyProgress(), null, seededRng(2)).puzzles).toHaveLength(4);
+    expect(generateBatch(6, emptyProgress(), null, seededRng(3)).puzzles).toHaveLength(6);
+    expect(generateBatch(18, emptyProgress(), null, seededRng(4)).puzzles).toHaveLength(6);
+    expect(generateBatch(19, emptyProgress(), null, seededRng(5)).puzzles).toHaveLength(8);
   });
 
   test('the plateau is genuinely permanent - level 41 and level 5000 draw from the same distribution', () => {
     // Not a proof of identical distributions, but both should be able to
     // produce a batch at all (no crash / no empty pool) and both should be
-    // capped at batch size 5 - the concrete, testable half of "identical".
+    // capped at batch size 8 - the concrete, testable half of "identical".
     const at41 = generateBatch(41, emptyProgress(), null, seededRng(6));
     const at5000 = generateBatch(5000, emptyProgress(), null, seededRng(7));
-    expect(at41.puzzles).toHaveLength(5);
-    expect(at5000.puzzles).toHaveLength(5);
+    expect(at41.puzzles).toHaveLength(8);
+    expect(at5000.puzzles).toHaveLength(8);
   });
 
   test('never draws a hard-tier puzzle before the curve allows one', () => {
@@ -269,7 +269,7 @@ describe('generateBatch - randomization rules', () => {
     // Must still produce a full, well-formed batch - falling back to
     // repeats, not crashing or stalling with an empty candidate pool.
     const batch = generateBatch(1, progress, null, seededRng(99));
-    expect(batch.puzzles).toHaveLength(3);
+    expect(batch.puzzles).toHaveLength(4);
     expect(batch.puzzles.every(p => typeof p.puzzleId === 'string' && p.puzzleId.length > 0)).toBe(true);
   });
 
@@ -301,13 +301,18 @@ describe('generateBatch - shape and spread', () => {
   const MEDIUM_IDS = new Set<string>(ROTATION.flatMap(kind => poolIdsFor(kind, 'medium')));
   const rank = (id: string) => (EASY_IDS.has(id) ? 0 : MEDIUM_IDS.has(id) ? 1 : 2);
 
-  test('ordinary puzzles in a level run easier to harder - every level warms up and builds', () => {
+  test('every level warms up and builds: it opens on its easiest board and never ends easier than it began', () => {
     for (let seed = 0; seed < 40; seed += 1) {
       for (const level of [4, 8, 14, 30]) {
-        const ranks = generateBatch(level, emptyProgress(), null, seededRng(seed * 97 + level))
-          .puzzles.filter(ref => !ref.challenge)
+        // A game on its first boards is dealt easy whatever else is in
+        // the level - that is its own ramp - so those are left out.
+        const ordinary = generateBatch(level, emptyProgress(), null, seededRng(seed * 97 + level)).puzzles.filter(ref => !ref.challenge);
+        const ranks = ordinary
+          .filter((ref, i) => ordinary.slice(0, i).filter(other => other.kind === ref.kind).length >= GAME_EASY_ONLY)
           .map(ref => rank(ref.puzzleId));
-        expect(ranks).toEqual([...ranks].sort((a, b) => a - b));
+        if (ranks.length < 2) continue;
+        expect(ranks[0]).toBe(Math.min(...ranks));
+        expect(ranks[ranks.length - 1]).toBeGreaterThanOrEqual(ranks[0]);
       }
     }
   });

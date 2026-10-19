@@ -17,7 +17,7 @@ import { LUCKY_CHARM_CHARGES, MAX_LUCKY_CHARGES } from './shop';
  * tiles for the Villa (see `GIFT_EXTRAS`).
  */
 
-export const GIFT_COINS: ReadonlyArray<number> = [15, 20, 25, 30, 40, 50, 100];
+export const GIFT_COINS: ReadonlyArray<number> = [10, 12, 15, 18, 22, 28, 50];
 export const GIFT_DAYS = GIFT_COINS.length;
 /** What each day adds besides coins: Insight charges, more as the week
  * goes on. */

@@ -54,8 +54,8 @@ export interface BoardViewProps {
  * completion card waits out - at four targets the last opens at 210ms
  * and is gone by 590ms.
  */
-const TARGET_FLARE_STAGGER_MS = 70;
-const TARGET_FLARE_MS = 380;
+const TARGET_FLARE_STAGGER_MS = 150;
+const TARGET_FLARE_MS = 640;
 
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 
@@ -662,24 +662,30 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
         );
       })}
 
-      {/* The finish flare - a ring opening off each target in turn. */}
+      {/* The finish, target by target: the ball on it hops - swells, goes
+          over the top and settles with a glint - while two rings open off
+          the target, gold and then green. */}
       {flaring &&
         targets.map((cell, index) => {
           const t = (now - solvedAt! - index * TARGET_FLARE_STAGGER_MS) / TARGET_FLARE_MS;
           if (t < 0 || t >= 1) return null;
           const center = getCellCenter(layout, cell.row, cell.col);
           const eased = 1 - (1 - t) ** 3;
+          const late = Math.max(0, Math.min(1, (t - 0.18) / 0.82));
+          const lateEased = 1 - (1 - late) ** 3;
+          const hop = t < 0.6 ? Math.sin((t / 0.6) * Math.PI) : -0.15 * Math.sin(((t - 0.6) / 0.4) * Math.PI);
+          const occupied = state.movables.some(m => !m.destroyed && m.row === cell.row && m.col === cell.col);
           return (
-            <Circle
-              key={`flare-${cell.row}-${cell.col}`}
-              cx={center.x}
-              cy={center.y}
-              r={targetRadius * (1 + eased * 1.6)}
-              color={theme.colors.accent}
-              style="stroke"
-              strokeWidth={targetStrokeWidth * (1 - eased * 0.55)}
-              opacity={1 - eased}
-            />
+            <Group key={`flare-${cell.row}-${cell.col}`}>
+              <Circle cx={center.x} cy={center.y} r={targetRadius * (1 + eased * 1.7)} color={theme.colors.accent} style="stroke" strokeWidth={targetStrokeWidth * (1 - eased * 0.55)} opacity={1 - eased} />
+              {late > 0 && <Circle cx={center.x} cy={center.y} r={targetRadius * (1 + lateEased * 1.25)} color={theme.colors.success} style="stroke" strokeWidth={targetStrokeWidth * 0.8 * (1 - lateEased * 0.5)} opacity={(1 - lateEased) * 0.85} />}
+              {occupied && (
+                <Group>
+                  <MovablePiece cx={center.x} cy={center.y - hop * movableRadius * 0.35} radius={movableRadius * (1 + hop * 0.2)} color={theme.colors.success} />
+                  <Circle cx={center.x - movableRadius * 0.32} cy={center.y - movableRadius * 0.38 - hop * movableRadius * 0.35} r={movableRadius * 0.18} color="#FFFFFF" opacity={0.75 * Math.max(0, hop)} />
+                </Group>
+              )}
+            </Group>
           );
         })}
     </Group>

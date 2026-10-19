@@ -808,14 +808,16 @@ function ItemCard({ item, onBought, featured = false, wide = false, style }: { i
   const hint = locked ? (
     <Text style={[styles.hint, styles.hintReady]}>{lockedNote}</Text>
   ) : short ? (
-    <Text style={styles.hint}>{`${price - coins} more · hold the picture to save up`}</Text>
+    <Text style={styles.hint} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{`${price - coins} more · hold the picture to save up`}</Text>
   ) : chapter ? (
     <Text style={[styles.hint, chapterDone && styles.hintReady]}>{chapterDone ? 'Free in your Almanac' : `Or finish chapter ${chapter}`}</Text>
   ) : item.season && !own ? (
     <Text style={[styles.hint, styles.hintSeason]} accessibilityLabel={`${SEASON_NAMES[item.season]} only, ${seasonDaysLeft()} days left`}>{`Only ${seasonDaysLeft()} days left`}</Text>
   ) : set ? (
     <Text style={styles.hint} numberOfLines={1}>{`Part of ${set.name}`}</Text>
-  ) : wide ? null : (
+  ) : (
+    // The line is always there, empty or not: today's piece grew taller
+    // the moment a tap said how many coins were still to come.
     <View style={styles.hintSpacer} />
   );
   const shine = <Shimmer seed={item.id} strength={rarity === 'masterwork' ? 0.95 : rarity === 'rare' ? 0.75 : 0.55} />;
@@ -1576,7 +1578,7 @@ const styles = themedStyles(() => ({
   actionWornText: { fontSize: theme.typography.sizes.caption, color: theme.colors.success, fontWeight: theme.typography.weights.semibold },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   pressed: { opacity: 0.85 },
-  hint: { marginTop: 6, fontSize: 11.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
+  hint: { marginTop: 6, fontSize: 11.5, lineHeight: 15, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   hintReady: { color: theme.colors.accentText },
   pass: {
     padding: theme.spacing.md,
@@ -1605,5 +1607,7 @@ const styles = themedStyles(() => ({
   retirePromptText: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary, fontStyle: 'italic' },
   retireBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: theme.spacing.sm, paddingLeft: theme.spacing.sm },
   retireBarText: { flex: 1, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  hintSpacer: { height: 17 },
+  /** Exactly one hint line's room (its margin and its line), so a card is
+   * the same height with a hint or without. */
+  hintSpacer: { height: 21 },
 }));

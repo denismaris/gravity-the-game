@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useWindowDimensions } from 'react-native';
+import { useWindowDimensions, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { HOP_MS, LilyPadsBoard } from '../components/LilyPadsBoard';
 import { renderLilyIllustration } from '../components/TrialIllustrations';
-import { PlayShell, SetMode, TrialMode, TrialNote } from '../components/PlayShell';
+import { PlayShell, SetMode, TrialMode } from '../components/PlayShell';
 import { GameKind, NextPuzzleOptions } from '../game/journey';
 import { cutOff, getLilyTrial, hop, hopsFrom, initialLilyState, isLilySolved, isStranded, LILY_TRIAL_IDS, LilyPuzzle, LilyState, lilyHint, padsLeft } from '../game/lilypads';
 import { triggerFeedback } from '../game/rendering';
@@ -16,7 +16,7 @@ const RESERVED = 300;
 const LOTUS_INTRO = {
   id: 'mechanic:lotus',
   title: 'Lotus pads',
-  body: 'A pad with a lotus survives the frog\'s first visit: when the frog leaves, only the lotus sinks. The frog must come back to it later. While it floats, it stops every hop along its row and column.',
+  body: 'A pad with a flower does not sink the first time. When the frog leaves, only the flower sinks. Come back to it later. While it floats, it stops jumps like any pad.',
 };
 
 export interface LilyPadsScreenProps {
@@ -55,7 +55,6 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
   const [history, setHistory] = useState<LilyState[]>([]);
   const [hints, setHints] = useState(0);
   const [glow, setGlow] = useState<number | null>(null);
-  const [note, setNote] = useState<TrialNote | null>(null);
 
   const solved = isLilySolved(state);
   const stranded = isStranded(puzzle, state);
@@ -121,7 +120,6 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
       if (isLilySolved(next)) later(() => triggerFeedback('lilySolve'), HOP_MS + 120);
     }
     setHints(n => n + 1);
-    setNote({ reason: h.reason, kind: h.back > 0 ? 'fix' : 'rule', id: Date.now() });
     triggerFeedback('lilyHop');
     return true;
   }, [puzzle, history, state]);
@@ -149,27 +147,28 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
       renderIllustration={renderLilyIllustration}
       solved={solved}
       hints={hints}
-      note={note}
-      onClearNote={() => setNote(null)}
       canUndo={history.length > 0}
       onExit={onExit}
       onHint={useHint}
       onUndo={undo}
       onRestart={restart}
     >
-      <LilyPadsBoard
-        puzzle={puzzle}
-        state={state}
-        size={boardSize}
-        solved={solved}
-        reach={reach}
-        cutOff={lonely}
-        stranded={stranded}
-        onHop={onHop}
-        onRefused={() => triggerFeedback('bridgesBlocked')}
-        glow={glow}
-        trail={[...history.map(h => h.at), state.at]}
-      />
+      {/* Finished: the board takes no more touches. */}
+      <View pointerEvents={solved ? 'none' : 'auto'}>
+        <LilyPadsBoard
+          puzzle={puzzle}
+          state={state}
+          size={boardSize}
+          solved={solved}
+          reach={reach}
+          cutOff={lonely}
+          stranded={stranded}
+          onHop={onHop}
+          onRefused={() => triggerFeedback('bridgesBlocked')}
+          glow={glow}
+          trail={[...history.map(h => h.at), state.at]}
+        />
+      </View>
     </PlayShell>
   );
 }

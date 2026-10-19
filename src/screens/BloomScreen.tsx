@@ -1,6 +1,4 @@
-import { HintNote } from '../components/HintNote';
 import { BackLabel } from '../components/Icon';
-import { HintKind } from '../game/hints';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
@@ -156,14 +154,11 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
   );
 
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
-  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const result = explainBloomHint(puzzle, stateRef.current);
     if (!result) return;
     // Charged only when there is a hint to give, and before applying it.
     spendInsight(() => {
-      setNote({ reason: result.reason, tip: result.tip, kind: result.kind, id: Date.now() });
       stateRef.current = result.state;
       setState(result.state);
       setHints(n => n + 1);
@@ -224,7 +219,10 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <BloomBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onTurn={onTurn} flashCell={flashCell} />
+          {/* Finished: the board takes no more touches. */}
+          <View pointerEvents={solved ? 'none' : 'auto'}>
+            <BloomBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onTurn={onTurn} flashCell={flashCell} />
+          </View>
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
@@ -244,7 +242,6 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
-        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('bloom')} onGone={clearNote} />}
       </View>
 
       {showSolvedCard && stars && !showSetComplete && (

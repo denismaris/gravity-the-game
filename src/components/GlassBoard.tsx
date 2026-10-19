@@ -245,14 +245,29 @@ export function GlassBoard({
 
   // The finger: one stroke can colour several panes.
   const lastPane = useRef<number | null>(null);
+  const strokeStart = useRef<{ x: number; y: number } | null>(null);
   const touch = (e: GestureResponderEvent, phase: StrokePhase) => {
     const x = e.nativeEvent.locationX;
     const y = e.nativeEvent.locationY;
-    const c = Math.floor((x - geo.inset) / geo.cell);
-    const r = Math.floor((y - geo.inset) / geo.cell);
+    if (phase === 'start') strokeStart.current = { x, y };
+    // A tap that wobbles is still a tap: a stroke begins only once the
+    // finger has really travelled. A pane brushed by a resting finger used
+    // to be glazed with the one tapped.
+    if (phase === 'move' && strokeStart.current && Math.hypot(x - strokeStart.current.x, y - strokeStart.current.y) < geo.cell * 0.35) return;
+    const fx = (x - geo.inset) / geo.cell;
+    const fy = (y - geo.inset) / geo.cell;
+    const c = Math.floor(fx);
+    const r = Math.floor(fy);
     if (r < 0 || c < 0 || r >= puzzle.rows || c >= puzzle.cols) return;
     const pane = puzzle.paneOf[r][c];
     if (phase === 'move' && pane === lastPane.current) return;
+    // Mid-stroke, a new pane is taken only once the finger is well inside
+    // it - not as it grazes the lead along its edge.
+    if (phase === 'move') {
+      const inX = fx - c;
+      const inY = fy - r;
+      if (inX < 0.2 || inX > 0.8 || inY < 0.2 || inY > 0.8) return;
+    }
     lastPane.current = pane;
     touchAt.current = { x, y };
     onStroke(pane, phase);
@@ -579,7 +594,17 @@ function Clash({ path }: { path: SkPath }): React.JSX.Element {
       t.value = withRepeat(withSequence(withTiming(0.45, { duration: 800 }), withTiming(1, { duration: 800 })), -1, false);
     });
   }, [t]);
-  return <Path path={path} color={theme.colors.danger} style="stroke" strokeWidth={2.5} opacity={t} />;
+  // Seen on any glass: a pale halo under a solid red line (so it shows on
+  // ruby and amber alike), and a red wash over the pane itself. A thin red
+  // line alone all but vanished against coloured glass.
+  const wash = useDerivedValue(() => 0.22 * t.value);
+  return (
+    <Group>
+      <Path path={path} color={theme.colors.danger} opacity={wash} />
+      <Path path={path} color={theme.colors.surfaceHi} style="stroke" strokeWidth={6} strokeJoin="round" opacity={t} />
+      <Path path={path} color={theme.colors.danger} style="stroke" strokeWidth={3.5} strokeJoin="round" opacity={t} />
+    </Group>
+  );
 }
 
 /** A ring round the hinted pane, fading. */

@@ -12,11 +12,14 @@ import { Platform } from 'react-native';
  */
 const serifFamily = Platform.select({ ios: 'Georgia', android: 'serif', default: 'serif' });
 const uiFamily = Platform.select({ ios: 'System', android: 'sans-serif', default: 'System' });
-const monoFamily = Platform.select({ ios: 'Menlo', android: 'monospace', default: 'monospace' });
-/** A serif whose digits all stand on the line at one height. Georgia's are
- * old-style - a 3 or a 7 hangs below the line - which looks lovely in a
- * sentence and lopsided alone in a circle. */
-const figureFamily = Platform.select({ ios: 'Times New Roman', android: 'serif', default: 'serif' });
+/** Every number in the game, in one face: Avenir Next, whose figures are
+ * crisp, even and all one height. Counts used to be set in Menlo, a
+ * programmer's monospace, and medal numbers in Times - two faces, and the
+ * first looked like a terminal. Pair with `fontVariant: ['tabular-nums']`
+ * where a count changes in place, so it does not jiggle. */
+const numberFamily = Platform.select({ ios: 'Avenir Next', android: 'sans-serif-medium', default: 'System' });
+const monoFamily = numberFamily;
+const figureFamily = numberFamily;
 
 export const typography = {
   /** The default UI family. Prefer `families.*` in new code. */

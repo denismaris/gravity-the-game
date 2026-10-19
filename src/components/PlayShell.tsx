@@ -14,7 +14,6 @@ import { PuzzleProgressMark } from './PuzzleProgressMark';
 import { theme, themedStyles } from '../theme';
 import { DifficultyChip } from './DifficultyChip';
 import { HelpHalo } from './HelpHalo';
-import { HintNote } from './HintNote';
 import { BackLabel, Icon } from './Icon';
 import { InsightButton, useInsightPower } from './InsightPower';
 import { PageBloom } from './PageBloom';
@@ -60,12 +59,6 @@ export interface SetMode {
   readonly onNextPuzzle: (kind: GameKind, puzzleId: string, options?: NextPuzzleOptions) => void;
 }
 
-export interface TrialNote {
-  readonly reason: string;
-  readonly kind: 'fix' | 'rule' | 'nudge';
-  readonly id: number;
-}
-
 /**
  * The frame Lily Pads and Weathervanes are played in, laid out exactly as
  * the other game screens are: header with name, tier, kicker, progress
@@ -89,8 +82,6 @@ export function PlayShell({
   intros = [],
   solved,
   hints,
-  note,
-  onClearNote,
   canUndo,
   onExit,
   onHint,
@@ -114,8 +105,6 @@ export function PlayShell({
   renderIllustration: (kind: string) => React.ReactNode;
   solved: boolean;
   hints: number;
-  note: TrialNote | null;
-  onClearNote: () => void;
   canUndo: boolean;
   onExit: () => void;
   /** Called with Insight already paid for. */
@@ -260,7 +249,6 @@ export function PlayShell({
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
-        {note && !solved && <HintNote key={note.id} reason={note.reason} kind={note.kind} accent={accent} onGone={onClearNote} />}
       </View>
 
       {showSolved && stars && !showSetComplete && (

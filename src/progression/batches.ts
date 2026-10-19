@@ -82,11 +82,11 @@ interface TierBand {
 }
 
 const TIER_CURVE: ReadonlyArray<TierBand> = [
-  { maxLevel: 2, batchSize: 3, weights: { easy: 1.0, medium: 0, hard: 0 } },
-  { maxLevel: 5, batchSize: 3, weights: { easy: 0.55, medium: 0.45, hard: 0 } },
-  { maxLevel: 9, batchSize: 4, weights: { easy: 0.3, medium: 0.55, hard: 0.15 } },
-  { maxLevel: 18, batchSize: 4, weights: { easy: 0.12, medium: 0.53, hard: 0.35 } },
-  { maxLevel: Infinity, batchSize: 5, weights: { easy: 0.05, medium: 0.45, hard: 0.5 } }, // the permanent plateau
+  { maxLevel: 2, batchSize: 4, weights: { easy: 1.0, medium: 0, hard: 0 } },
+  { maxLevel: 5, batchSize: 4, weights: { easy: 0.55, medium: 0.45, hard: 0 } },
+  { maxLevel: 9, batchSize: 6, weights: { easy: 0.3, medium: 0.55, hard: 0.15 } },
+  { maxLevel: 18, batchSize: 6, weights: { easy: 0.12, medium: 0.53, hard: 0.35 } },
+  { maxLevel: Infinity, batchSize: 8, weights: { easy: 0.05, medium: 0.45, hard: 0.5 } }, // the permanent plateau
 ];
 
 /** The first level number whose band can deal a hard-tier puzzle - read
@@ -369,6 +369,21 @@ function poolForKindAndTier(kind: GameKind, tier: PuzzleDifficulty): ReadonlyArr
     case 'bridges':
       return getBridgesByDifficulty(tier).map(puzzle => puzzle.id);
   }
+}
+
+/** How many boards a game's practice run deals before it starts over. */
+export const PRACTICE_BOARDS = 6;
+
+/**
+ * The boards a game is tried out on from Settings: its first easy ones -
+ * the same a new player meets first - topped up with endless easy boards
+ * where the curated pool is shorter.
+ */
+export function practiceBoards(kind: GameKind): ReadonlyArray<string> {
+  const pool = poolForKindAndTier(kind, 'easy').slice(0, PRACTICE_BOARDS);
+  const ids = [...pool];
+  for (let index = 0; ids.length < PRACTICE_BOARDS; index += 1) ids.push(endlessId(kind, 'easy', index));
+  return ids;
 }
 
 /** Weighted pick from `entries` (`[item, weight]` pairs) - falls back to a

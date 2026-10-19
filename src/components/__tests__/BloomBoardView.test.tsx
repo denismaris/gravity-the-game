@@ -4,15 +4,12 @@ import { BloomBoardView } from '../BloomBoardView';
 import { getBloomById, initialBloomState, isRotatable, rotateTile } from '../../game/bloom';
 
 /**
- * Regression test for a turn that stuttered on device. The board used to
- * rebuild and re-parse every tile, loop and pin on every animation frame;
- * now everything not moving sits in memoised layers. The property that
- * makes that work is that the static tile layer receives *the same props*
- * on every frame of a turn - identical `ink` object, identical
- * `activeKeys` string - so `React.memo` bails out and only the one
- * turning tile renders per frame.
+ * Regression test for a turn that stuttered on device. A turn used to be
+ * redrawn from a JavaScript clock every frame; now each tile is drawn once
+ * in its unturned facing and turned by an angle on the UI thread - so a
+ * tap must change a tile's rotation, never its drawing.
  */
-describe('BloomBoardView - a turn renders only what moves', () => {
+describe('BloomBoardView - a turn moves an angle, not a drawing', () => {
   let now: number;
 
   beforeEach(() => {
@@ -26,11 +23,11 @@ describe('BloomBoardView - a turn renders only what moves', () => {
     jest.restoreAllMocks();
   });
 
-  test('the static tile layer gets identical props across frames of one turn', () => {
+  test('a turn changes only the angle: the tile keeps its one drawing, and only its rotation moves on', () => {
     const puzzle = getBloomById('bloom-medium-01')!;
     const start = initialBloomState(puzzle);
     let target: [number, number] | null = null;
-    for (let r = 0; r < puzzle.rows && !target; r += 1) for (let c = 0; c < puzzle.cols && !target; c += 1) if (isRotatable(puzzle, r, c)) target = [r, c];
+    for (let r = 0; r < puzzle.rows && !target; r += 1) for (let c = 0; c < puzzle.cols && !target; c += 1) if (isRotatable(puzzle, r, c) && puzzle.kinds[r][c] === 'arc') target = [r, c];
     const turned = rotateTile(puzzle, start, target![0], target![1]);
     const board = (state: typeof start) => <BloomBoardView puzzle={puzzle} state={state} size={320} solved={false} />;
 
@@ -38,22 +35,13 @@ describe('BloomBoardView - a turn renders only what moves', () => {
     act(() => {
       renderer = ReactTestRenderer.create(board(start));
     });
+    const tile = () => renderer.root.find(node => node.props.turns === true && node.props.cx === (target![1] + 0.5) * (320 / puzzle.cols) && node.props.cy === (target![0] + 0.5) * (320 / puzzle.rows)).props;
+    const before = tile();
     act(() => renderer.update(board(turned)));
-
-    const staticLayer = () => renderer.root.find(node => node.props.activeKeys !== undefined && node.props.ink !== undefined).props;
-    const first = staticLayer();
-    expect(first.activeKeys).toBe(`${target![0]}:${target![1]}`);
-
-    now += 60;
-    act(() => renderer.update(board(turned)));
-    const second = staticLayer();
-    expect(second.ink).toBe(first.ink);
-    expect(second.activeKeys).toBe(first.activeKeys);
-
-    // Once the turn lands, the tile rejoins the static layer.
-    now += 1000;
-    act(() => renderer.update(board(turned)));
-    expect(staticLayer().activeKeys).toBe('');
+    const after = tile();
+    expect(after.rotation).toBe((before.rotation + 1) % 4);
+    // Drawn unturned either way: the same arc, turned by the view.
+    expect(after.base.joined?.svg ?? after.base.loose?.svg).toBe(before.base.joined?.svg ?? before.base.loose?.svg);
     act(() => renderer.unmount());
   });
 });

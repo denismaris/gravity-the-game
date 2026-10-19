@@ -1,6 +1,8 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { LEVELS_PER_CHAPTER, chapterAt } from '../progression/chapters';
 import { toRoman } from '../progression/rank';
+import { SET_BONUS } from '../progression/coins';
+import { CoinGlyph } from './Coins';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { Icon } from './Icon';
 import { ConfettiBurst } from './ConfettiBurst';
@@ -49,7 +51,7 @@ const PLACE_MS = 620;
  */
 export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCompleteProps): React.JSX.Element {
   // It follows a puzzle's own card: arrives once that one has left.
-  const { backdrop, card, hero, rowStyle } = useCardEntrance(ROW_COUNT, { delay: MODAL_EXIT_MS });
+  const { backdrop, card, cardOpacity, hero, rowStyle } = useCardEntrance(ROW_COUNT, { delay: MODAL_EXIT_MS });
   const places = useRef(kinds.map(() => new Animated.Value(0))).current;
 
   useEffect(() => {
@@ -76,7 +78,7 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
           style={[
             styles.cardShadow,
             {
-              opacity: card,
+              opacity: cardOpacity,
               transform: [
                 { scale: card.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
                 { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) },
@@ -94,6 +96,7 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
                 },
               ]}
             >
+              <View pointerEvents="none" style={styles.crestInner} />
               {/* Sized by its digits, never shrunk to fit: iOS measured the
                   fit against the line height and shrank even a short
                   number to the minimum. */}
@@ -128,13 +131,20 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
               <Text style={styles.headline}>{kinds.length} games, all finished</Text>
             </Animated.View>
 
-            <View style={styles.tally}>
+            {/* Rows of equal length: four in one row, six or eight in two. */}
+            <View style={[styles.tally, { maxWidth: (kinds.length <= 4 ? kinds.length : Math.ceil(kinds.length / 2)) * (62 + 6) }]}>
               {kinds.map((kind, i) => (
                 <TallyTile key={`${kind}-${i}`} kind={kind} t={places[i]} />
               ))}
             </View>
 
-            <Animated.View style={[styles.cardRule, rowStyle(2)]}>
+            {/* The level's own reward, counted up once every game is ticked
+                off - paid with the set's last solve, shown here as the
+                prize for the set as a whole. */}
+            <Animated.View style={[styles.reward, rowStyle(2)]}>
+              <CoinGlyph size={18} />
+              <RewardCount to={SET_BONUS} after={PLACE_DELAY_MS + MODAL_EXIT_MS + kinds.length * PLACE_STAGGER_MS + 300} />
+              <Text style={styles.rewardLabel}>Level reward</Text>
             </Animated.View>
 
             {levelNumber % LEVELS_PER_CHAPTER === 0 ? (
@@ -157,6 +167,27 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
       </View>
     </ModalLayer>
   );
+}
+
+/** A number counting up to `to`, starting `after` ms from now. */
+function RewardCount({ to, after }: { to: number; after: number }): React.JSX.Element {
+  const [n, setN] = useState(0);
+  useEffect(() => {
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const start = setTimeout(() => {
+      const began = Date.now();
+      timer = setInterval(() => {
+        const k = Math.min(1, (Date.now() - began) / 520);
+        setN(Math.round(to * (1 - (1 - k) ** 3)));
+        if (k >= 1 && timer) clearInterval(timer);
+      }, 30);
+    }, after);
+    return () => {
+      clearTimeout(start);
+      if (timer) clearInterval(timer);
+    };
+  }, [to, after]);
+  return <Text style={styles.rewardValue}>{`+${n}`}</Text>;
 }
 
 /** A slice of a 0..1 clock, eased: 0 before `from`, 1 after `to`. */
@@ -314,6 +345,9 @@ const styles = themedStyles(() => ({
     fontSize: 32,
     fontVariant: ['lining-nums', 'tabular-nums'],
     lineHeight: 38,
+    // Avenir's figures rest a little above the middle of their line; this
+    // brings their centre onto the medal's.
+    transform: [{ translateY: 2 }],
     width: CREST - 12,
     textAlign: 'center',
     includeFontPadding: false,
@@ -321,7 +355,9 @@ const styles = themedStyles(() => ({
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
   },
-  crestNumberLong: { fontSize: 25, lineHeight: 30 },
+  crestNumberLong: { fontSize: 25, lineHeight: 30, transform: [{ translateY: 1.5 }] },
+  /** A fine inner ring, so it reads as a struck medal, not a plain disc. */
+  crestInner: { position: 'absolute', top: 5, left: 5, right: 5, bottom: 5, borderRadius: CREST / 2 - 5, borderWidth: 1, borderColor: theme.colors.accent, opacity: 0.45 },
   eyebrow: {
     fontSize: theme.typography.sizes.caption,
     fontWeight: theme.typography.weights.bold,
@@ -337,7 +373,7 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.lg,
   },
   tally: {
-    alignSelf: 'stretch',
+    alignSelf: 'center',
     flexDirection: 'row',
     flexWrap: 'wrap',
     justifyContent: 'center',
@@ -348,6 +384,19 @@ const styles = themedStyles(() => ({
   tile: { width: 62, alignItems: 'center' },
   tileLabel: { marginTop: 8, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, textAlign: 'center' },
   bead: { position: 'absolute', width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: theme.colors.surface },
+  reward: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'center',
+    gap: 6,
+    marginTop: theme.spacing.md,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    borderRadius: theme.radii.pill,
+    backgroundColor: theme.colors.surfaceAlt,
+  },
+  rewardValue: { fontFamily: theme.typography.families.figures, fontVariant: ['lining-nums', 'tabular-nums'], fontSize: 20, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, minWidth: 34 },
+  rewardLabel: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.2, textTransform: 'uppercase', color: theme.colors.textTertiary },
   cardRule: {
     alignSelf: 'stretch',
     marginBottom: theme.spacing.md,

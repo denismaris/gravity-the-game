@@ -355,14 +355,26 @@ function Vane({
   const L = cell * 0.37;
   const plate = cell * 0.4;
   const metal = theme.colors.vaneMetal;
-  // One clear head; the tail is a small open fork in the shaft's own
-  // colour. A filled tail in a second colour read as a second head, so
-  // vanes looked like double arrows and which way they pointed was a guess.
-  const arrow = (fill: string) => (
+  // A weathervane's arrow, cast in metal: a lancet head with swept-back
+  // barbs, a thin rod, and a swallowtail banner for a tail - a shape that
+  // can never be read as a second head. A light edge down one side and
+  // the ball at the pivot give it its depth (geometry, not gradient).
+  const arrow = (fill: string, edge?: string, tail?: string) => (
     <Group>
-      <Path path={`M 0 ${L * 0.62} L 0 ${-L * 0.62}`} color={fill} style="stroke" strokeWidth={cell * 0.05} strokeCap="round" />
-      <Path path={`M 0 ${-L * 1.05} L ${L * 0.34} ${-L * 0.5} L 0 ${-L * 0.64} L ${-L * 0.34} ${-L * 0.5} Z`} color={fill} />
-      <Path path={`M ${-L * 0.2} ${L * 0.82} L 0 ${L * 0.6} L ${L * 0.2} ${L * 0.82}`} color={fill} style="stroke" strokeWidth={cell * 0.035} strokeCap="round" strokeJoin="round" opacity={0.7} />
+      {/* The rod. */}
+      <Path path={`M 0 ${L * 0.5} L 0 ${-L * 0.6}`} color={fill} style="stroke" strokeWidth={cell * 0.028} strokeCap="round" />
+      {/* The head: a lancet with barbs swept back from its waist. */}
+      <Path path={`M 0 ${-L * 1.1} C ${L * 0.08} ${-L * 0.92} ${L * 0.17} ${-L * 0.74} ${L * 0.24} ${-L * 0.52} L ${L * 0.06} ${-L * 0.61} L 0 ${-L * 0.54} L ${-L * 0.06} ${-L * 0.61} L ${-L * 0.24} ${-L * 0.52} C ${-L * 0.17} ${-L * 0.74} ${-L * 0.08} ${-L * 0.92} 0 ${-L * 1.1} Z`} color={fill} />
+      {/* The tail: a swallowtail banner, the wind's own flag - light,
+          and only outlined in the metal, so the solid head is the one
+          bold end and which way it points is never in doubt. */}
+      {tail && <Path path={`M ${-L * 0.05} ${L * 0.4} L ${-L * 0.24} ${L * 0.46} L ${-L * 0.26} ${L * 0.9} L 0 ${L * 0.74} L ${L * 0.26} ${L * 0.9} L ${L * 0.24} ${L * 0.46} L ${L * 0.05} ${L * 0.4} Z`} color={tail} />}
+      <Path path={`M ${-L * 0.05} ${L * 0.4} L ${-L * 0.24} ${L * 0.46} L ${-L * 0.26} ${L * 0.9} L 0 ${L * 0.74} L ${L * 0.26} ${L * 0.9} L ${L * 0.24} ${L * 0.46} L ${L * 0.05} ${L * 0.4} Z`} color={fill} style="stroke" strokeWidth={cell * 0.022} strokeJoin="round" />
+      {edge && (
+        <Group>
+          <Path path={`M ${-L * 0.03} ${-L * 0.98} C ${-L * 0.1} ${-L * 0.84} ${-L * 0.18} ${-L * 0.7} ${-L * 0.24} ${-L * 0.54}`} color={edge} style="stroke" strokeWidth={cell * 0.016} strokeCap="round" opacity={0.85} />
+        </Group>
+      )}
     </Group>
   );
   return (
@@ -375,10 +387,10 @@ function Vane({
               and solid where a turning vane is round and light, so the
               two can never be mistaken at a glance. */}
           <RoundedRect x={x - plate / 2} y={y - plate / 2 + cell * 0.035} width={plate} height={plate} r={cell * 0.06} color={inkWash(0.18)} />
-          <RoundedRect x={x - plate / 2} y={y - plate / 2} width={plate} height={plate} r={cell * 0.06} color={theme.colors.vaneAccent} opacity={0.3} />
-          <RoundedRect x={x - plate / 2} y={y - plate / 2} width={plate} height={plate} r={cell * 0.06} color={reached ? theme.colors.vaneWind : theme.colors.vaneAccent} style="stroke" strokeWidth={reached ? 2.5 : 1.6} />
+          <RoundedRect x={x - plate / 2} y={y - plate / 2} width={plate} height={plate} r={cell * 0.06} color={theme.colors.vaneGold} opacity={0.22} />
+          <RoundedRect x={x - plate / 2} y={y - plate / 2} width={plate} height={plate} r={cell * 0.06} color={reached ? theme.colors.vaneWind : theme.colors.vaneGold} style="stroke" strokeWidth={reached ? 2.5 : 1.6} />
           {[-1, 1].map(k => (
-            <Circle key={k} cx={x + k * plate * 0.32} cy={y + k * plate * 0.32} r={cell * 0.022} color={theme.colors.vaneAccent} />
+            <Circle key={k} cx={x + k * plate * 0.32} cy={y + k * plate * 0.32} r={cell * 0.022} color={theme.colors.vaneGold} />
           ))}
         </Group>
       ) : (
@@ -394,8 +406,10 @@ function Vane({
         {arrow('#000000')}
       </Group>
       {/* In trouble, the whole arrow says so - not just its tail. */}
-      <Group transform={transform}>{arrow(fixed ? theme.colors.vaneAccent : trouble ? theme.colors.danger : metal)}</Group>
-      <Circle cx={x} cy={y} r={cell * (fixed ? 0.06 : 0.045)} color={fixed ? shade(theme.colors.vaneAccent, 0.7) : theme.colors.vaneMetalLight} />
+      {/* Fixed vanes are polished gold, catching a bright shine; the ones
+          that turn are fine blued steel with a cool light along one edge. */}
+      <Group transform={transform}>{arrow(fixed ? theme.colors.vaneGold : trouble ? theme.colors.danger : metal, fixed ? '#FFF6D8' : trouble ? shade(theme.colors.danger, 1.9) : theme.colors.vaneMetalLight, theme.colors.surfaceHi)}</Group>
+      <Circle cx={x} cy={y} r={cell * (fixed ? 0.06 : 0.045)} color={fixed ? shade(theme.colors.vaneGold, 0.72) : theme.colors.vaneMetalLight} />
     </Group>
   );
 }

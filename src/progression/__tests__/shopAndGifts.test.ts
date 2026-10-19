@@ -113,13 +113,13 @@ describe('the seasons', () => {
     for (const date of [autumn, spring, new Date('2026-07-01T12:00:00Z'), new Date('2027-01-01T12:00:00Z')]) {
       expect(seasonalItems(date)).toHaveLength(3);
     }
-    const maple = cosmeticById('garden-maple')!;
-    expect(inSeason(maple, autumn)).toBe(true);
-    expect(buyCosmetic(rich(), 'garden-maple', autumn)).not.toBeNull();
-    expect(buyCosmetic(rich(), 'garden-maple', spring)).toBeNull();
+    const ember = cosmeticById('garden-ember')!;
+    expect(inSeason(ember, autumn)).toBe(true);
+    expect(buyCosmetic(rich(), 'garden-ember', autumn)).not.toBeNull();
+    expect(buyCosmetic(rich(), 'garden-ember', spring)).toBeNull();
     // Bought in season, kept for good.
-    const bought = buyCosmetic(rich(), 'garden-maple', autumn)!;
-    expect(owns(bought, 'garden-maple')).toBe(true);
+    const bought = buyCosmetic(rich(), 'garden-ember', autumn)!;
+    expect(owns(bought, 'garden-ember')).toBe(true);
   });
 
   it('never features a seasonal piece, so the feature cannot vanish mid-season', () => {
@@ -205,14 +205,14 @@ describe('the store (simulated for now)', () => {
 
   it("halves this season's prices for a Patron, and nothing else", () => {
     const autumn = new Date('2026-10-01T12:00:00Z');
-    const maple = cosmeticById('garden-maple')!;
+    const ember = cosmeticById('garden-ember')!;
     const patron = { ...rich(), patron: true };
-    const half = Math.round(maple.price / 20) * 10; // half, to the nearest 10
-    expect(priceFor(maple, autumn, patron)).toBe(half);
-    expect(priceFor(maple, autumn, rich())).toBe(maple.price);
+    const half = Math.round(ember.price / 20) * 10; // half, to the nearest 10
+    expect(priceFor(ember, autumn, patron)).toBe(half);
+    expect(priceFor(ember, autumn, rich())).toBe(ember.price);
     const plain = COSMETICS.find(item => item.price > 0 && !item.season && featuredItem(autumn).id !== item.id)!;
     expect(priceFor(plain, autumn, patron)).toBe(plain.price);
-    expect(buyCosmetic(patron, 'garden-maple', autumn)!.coins).toBe(patron.coins - half);
+    expect(buyCosmetic(patron, 'garden-ember', autumn)!.coins).toBe(patron.coins - half);
   });
 });
 

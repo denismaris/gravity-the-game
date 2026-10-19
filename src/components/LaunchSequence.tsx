@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Easing, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import Reanimated, { cancelAnimation, Easing as Curve, SharedValue, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 import { Canvas, Group, Path, RoundedRect, rect, rrect } from '@shopify/react-native-skia';
-import { useAnimationClock, useReducedMotion } from '../game/rendering';
+import { shade, useReducedMotion } from '../game/rendering';
 import { theme, themedStyles } from '../theme';
 import {
   ACTS,
@@ -11,12 +13,15 @@ import {
   launchPieces,
   LaunchPiece,
   letterProgress,
+  OCHRE,
   pieceOpacity,
   piecePointsAt,
   pieceProgress,
+  rollingGlyph,
   sheenBandPoints,
   sheenOpacity,
   sheenTravel,
+  tilePress,
   TOTAL_MS,
 } from './launchChoreography';
 
@@ -30,90 +35,112 @@ export interface LaunchSequenceProps {
 }
 
 const WORDMARK = 'TESSELLATUM';
+const LETTERS = WORDMARK.split('');
+
+/** The short ochre rule drawing out under the name once it has set - the
+ * same closing stroke the finish card puts under "Solved". */
+const RULE = { start: ACTS.wordmark.end - 220, end: ACTS.handoff.start - 20 } as const;
+
+const landedGlyphs = (): ReadonlyArray<{ glyph: string; landed: boolean }> => LETTERS.map(glyph => ({ glyph, landed: true }));
 
 /**
  * The app's mark, building itself.
  *
- * A magenta tessera arrives, eighteen pieces of tilework fly in and lock
- * into the star-and-cross of the app icon, the wordmark sets beneath it
- * letter by letter, and the tile lifts away to Home. Timing and geometry
- * live in `launchChoreography.ts`; this file is only the rendering.
+ * A tessera rises into place, eighteen pieces of tilework slide in and
+ * lock into the star-and-cross of the app icon, the tile gives once as
+ * the heart seats, the wordmark rolls up letter by letter into the name,
+ * and the tile lifts away to Home. Timing and geometry live in
+ * `launchChoreography.ts`; this file is only the rendering.
+ *
+ * Every frame of it runs on the UI thread, off one shared clock: a cold
+ * start is exactly when the JS thread is busiest (building Home behind
+ * this layer), and a sequence redrawn from React state stuttered there.
+ * JS only swaps the rolling letters' glyphs, which can lag a frame
+ * without anything visibly catching.
  *
  * It sits on the app's own paper colour, which is also what the native
- * launch screen is set to, so there is no flash between the two - the
- * static launch image simply becomes this.
- *
- * Three things keep it from being a tax on every cold start: it is under
- * two seconds, a tap anywhere skips it, and it is skipped outright under
- * reduced motion (where it degrades to a short cross-fade - the point of
- * that setting is not to watch things fly around).
+ * launch screen is set to, so there is no flash between the two. A tap
+ * anywhere skips it, and under reduced motion it degrades to a short
+ * cross-fade.
  */
 export function LaunchSequence({ appReady, onDone }: LaunchSequenceProps): React.JSX.Element {
   const { width, height } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
-  const [skipped, setSkipped] = useState(false);
-
   const pieces = useMemo(() => launchPieces(), []);
-  // Stops asking for new frames once the choreography has actually
-  // finished playing (`elapsed` itself, not a fixed duration, so this
-  // reacts the frame it happens rather than a render late) - without it,
-  // the clock kept ticking at 60fps for as long as `appReady` took to
-  // resolve, which is normally milliseconds but is not guaranteed to be,
-  // and every one of those frames was recomputing eighteen already-
-  // finished pieces for a screen that had stopped changing. The one extra
-  // tick this lags by is `useAnimationClock`'s own documented behaviour -
-  // it freezes at its last value once inactive, so nothing here has to
-  // worry about `elapsed` itself going stale.
-  const finishedPlayingRef = useRef(false);
-  const running = !skipped && !reducedMotion && !finishedPlayingRef.current;
-  const elapsed = useAnimationClock(running);
-  if (elapsed >= TOTAL_MS) finishedPlayingRef.current = true;
 
-  // Under reduced motion there is nothing to watch, so the layer exists
-  // only long enough to cover the providers' first load.
-  const effectiveElapsed = skipped || reducedMotion ? TOTAL_MS : elapsed;
+  /** Milliseconds into the sequence. Runs to the handoff and holds there
+   * until the app behind is ready, then runs out. */
+  const t = useSharedValue(reducedMotion ? TOTAL_MS : 0);
+  const [atRest, setAtRest] = useState(reducedMotion);
+  const [glyphs, setGlyphs] = useState(() => (reducedMotion ? landedGlyphs() : LETTERS.map((ch, i) => rollingGlyph(ch, i, 0))));
+  const stoppedRef = useRef(reducedMotion);
+
+  useEffect(() => {
+    if (reducedMotion) return;
+    t.value = withTiming(ACTS.handoff.start, { duration: ACTS.handoff.start, easing: Curve.linear }, finished => {
+      if (finished) scheduleOnRN(setAtRest, true);
+    });
+    // The rolling letters: only the glyphs, and only when one changes.
+    const began = Date.now();
+    const timer = setInterval(() => {
+      const elapsed = Date.now() - began;
+      if (stoppedRef.current || elapsed >= ACTS.wordmark.end) {
+        clearInterval(timer);
+        setGlyphs(landedGlyphs());
+        return;
+      }
+      const next = LETTERS.map((ch, i) => rollingGlyph(ch, i, letterProgress(elapsed, i, LETTERS.length)));
+      setGlyphs(prev => (prev.every((g, i) => g.glyph === next[i].glyph && g.landed === next[i].landed) ? prev : next));
+    }, 32);
+    return () => clearInterval(timer);
+    // Once, on mount: this is the whole sequence.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const side = Math.min(width, height) * 0.46;
   const half = side / 2;
+  const radius = side * 0.225;
+  /** The tile's lip: the darker edge below it that every card in the app
+   * stands on, and that it presses into as the heart seats. */
+  const lip = Math.max(5, side * 0.04);
   const cx = width / 2;
   const cy = height * 0.42;
 
-  // `easeOut`, not `easeInOut`: this is the very first thing drawn on a
-  // cold start, appearing from nothing, and every other entrance in this
-  // app (`motion.cardEnter.easing`, every piece's own `pieceProgress`,
-  // each wordmark letter's `letterProgress`) fades in on that same
-  // fast-start curve. `easeInOut` was tried here first and reads as a
-  // stall: its cubic ease-in holds the tile under 10% opacity for
-  // roughly the first third of `ACTS.tileIn`, so the app appears to hang
-  // for a beat before the tile "pops" in - exactly the wrong first
-  // impression for a cold start. `handoff` keeps `easeInOut` on purpose:
-  // that is a crossfade between two already-visible things, where both
-  // ends genuinely matter, not an appearance from nothing.
-  const tile = easeOut(actProgress(effectiveElapsed, ACTS.tileIn));
-  const handoff = easeInOut(actProgress(effectiveElapsed, ACTS.handoff));
+  const tileTransform = useDerivedValue(() => {
+    const tile = easeOut(actProgress(t.value, ACTS.tileIn));
+    const handoff = easeInOut(actProgress(t.value, ACTS.handoff));
+    return [
+      { translateX: cx },
+      // Arriving, it rises a little into place; leaving, it lifts up and
+      // away as it fades - a gentle rise, not a zoom at the viewer.
+      { translateY: cy + (1 - tile) * 18 - handoff * 26 },
+      { scale: 0.86 + 0.14 * tile + 0.05 * handoff },
+    ];
+  });
+  const tileOpacity = useDerivedValue(() => easeOut(actProgress(t.value, ACTS.tileIn)) * (1 - easeInOut(actProgress(t.value, ACTS.handoff))));
+  const faceTransform = useDerivedValue(() => [{ translateY: tilePress(t.value) * lip * 0.6 }]);
 
-  // The tile's own square bounding box, plain corners rather than
-  // matching `RoundedRect`'s rounding - a hand-written arc path risks
-  // getting a sweep flag wrong in exactly the way this app has been
-  // burned by before (see `RestartIcon`'s own comment on that), for a
-  // difference that would only ever show as a sliver of the sheen's own
-  // soft white poking a fraction past a rounded corner, for a couple of
-  // frames, while it is already fading in or out. Not worth the risk.
+  // Square, not rounded: the sheen only ever brushes a corner while it is
+  // fading in or out, not worth a hand-written arc path.
   const tileClipPath = useMemo(() => `M ${-half} ${-half} L ${half} ${-half} L ${half} ${half} L ${-half} ${half} Z`, [half]);
-  // The pieces, though, are clipped to the true rounded silhouette: they
-  // slide in from under the tile's edge, and a satellite arriving on a
-  // diagonal would otherwise show a chalk corner hanging off the tile.
-  const tileClipRRect = useMemo(() => rrect(rect(-half, -half, side, side), side * 0.225, side * 0.225), [half, side]);
-  const sheenPath = useMemo(() => {
-    const points = sheenBandPoints(sheenTravel(effectiveElapsed));
-    return `${points
-      .map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${(x * half).toFixed(2)} ${(y * half).toFixed(2)}`)
-      .join(' ')} Z`;
-  }, [effectiveElapsed, half]);
+  // The pieces are clipped to the true rounded silhouette: they slide in
+  // from under the tile's edge.
+  const tileClipRRect = useMemo(() => rrect(rect(-half, -half, side, side), radius, radius), [half, side, radius]);
+  const sheenPath = useDerivedValue(() => {
+    const points = sheenBandPoints(sheenTravel(t.value));
+    let d = '';
+    for (let i = 0; i < points.length; i += 1) d += `${i === 0 ? 'M' : 'L'} ${points[i][0] * half} ${points[i][1] * half} `;
+    return `${d}Z`;
+  });
+  const sheen = useDerivedValue(() => sheenOpacity(t.value));
 
-  // The layer's own fade, driven by RN rather than the clock so it keeps
-  // running on the native thread even as the JS thread takes the first
-  // render of Home.
+  const ruleStyle = useAnimatedStyle(() => {
+    const drawn = easeOut(actProgress(t.value, RULE));
+    const handoff = easeInOut(actProgress(t.value, ACTS.handoff));
+    return { opacity: drawn > 0 ? 1 - handoff : 0, transform: [{ scaleX: drawn }] };
+  });
+
+  // The layer's own fade, on the native driver.
   const cover = useRef(new Animated.Value(1)).current;
   const finishedRef = useRef(false);
 
@@ -121,18 +148,26 @@ export function LaunchSequence({ appReady, onDone }: LaunchSequenceProps): React
     // Hold on the assembled tile until the app behind is actually ready -
     // handing off to a screen still resolving its own storage read is the
     // one thing that would make this feel like a loading spinner.
-    if (finishedRef.current) return;
-    if (effectiveElapsed < ACTS.handoff.start || !appReady) return;
+    if (finishedRef.current || !atRest || !appReady) return;
     finishedRef.current = true;
+    const duration = ACTS.handoff.end - ACTS.handoff.start;
+    if (!reducedMotion) t.value = withTiming(TOTAL_MS, { duration, easing: Curve.linear });
     Animated.timing(cover, {
       toValue: 0,
-      duration: ACTS.handoff.end - ACTS.handoff.start,
-      easing: Easing.out(Easing.cubic),
+      duration,
+      easing: Easing.inOut(Easing.cubic),
       useNativeDriver: true,
     }).start(() => onDone());
-  }, [effectiveElapsed, appReady, cover, onDone]);
+  }, [atRest, appReady, reducedMotion, cover, onDone, t]);
 
-  const skip = useCallback(() => setSkipped(true), []);
+  const skip = useCallback(() => {
+    if (stoppedRef.current) return;
+    stoppedRef.current = true;
+    cancelAnimation(t);
+    t.value = Math.max(t.value, ACTS.handoff.start);
+    setGlyphs(landedGlyphs());
+    setAtRest(true);
+  }, [t]);
 
   return (
     <Animated.View
@@ -149,101 +184,77 @@ export function LaunchSequence({ appReady, onDone }: LaunchSequenceProps): React
         accessibilityLabel="Skip the opening animation"
       >
         <Canvas style={StyleSheet.absoluteFill}>
-          <Group
-            transform={[
-              { translateX: cx },
-              { translateY: cy },
-              { scale: 0.86 + 0.14 * tile + 0.10 * handoff },
-            ]}
-            opacity={tile * (1 - handoff)}
-          >
-            <RoundedRect
-              x={-half}
-              y={-half}
-              width={side}
-              height={side}
-              r={side * 0.225}
-              color={theme.colors.brandTile}
-            />
-            <Group clip={tileClipRRect}>
-              {pieces.map((piece, i) => (
-                <Piece key={i} piece={piece} half={half} progress={pieceProgress(effectiveElapsed, piece)} />
-              ))}
-            </Group>
-            {/* The glow: "the star is fully done and built" gets the same
-                diagonal light sweep every completion card in this app
-                plays once its own contents have settled - clipped to the
-                tile's own rounded silhouette, on top of the finished
-                pieces, so it reads as light catching a glazed surface
-                rather than a shape drawn over it. */}
-            <Group clip={tileClipPath}>
-              <Path
-                path={sheenPath}
-                color="rgba(255,255,255,0.55)"
-                opacity={sheenOpacity(effectiveElapsed)}
-              />
+          <Group transform={tileTransform} opacity={tileOpacity}>
+            <RoundedRect x={-half} y={-half + lip} width={side} height={side} r={radius} color={shade(theme.colors.brandTile, 0.6)} />
+            <Group transform={faceTransform}>
+              <RoundedRect x={-half} y={-half} width={side} height={side} r={radius} color={theme.colors.brandTile} />
+              <Group clip={tileClipRRect}>
+                {pieces.map((piece, i) => (
+                  <Piece key={i} piece={piece} half={half} t={t} />
+                ))}
+              </Group>
+              {/* The glow: once the star is built, the same diagonal light
+                  sweep every completion card plays once it has settled. */}
+              <Group clip={tileClipPath}>
+                <Path path={sheenPath} color="rgba(255,255,255,0.55)" opacity={sheen} />
+              </Group>
             </Group>
           </Group>
         </Canvas>
 
-        {/* RN text, not Skia: no Skia font is bundled in this app. Each
-            letter is its own node so they can set one after another, which
-            is also what lets the whole thing use the native driver. */}
-        <View style={[styles.wordmarkRow, { top: cy + half + theme.spacing.xl }]} pointerEvents="none">
-          {WORDMARK.split('').map((ch, i) => {
-            const p = letterProgress(effectiveElapsed, i, WORDMARK.length) * (1 - handoff);
-            return (
-              <Text
-                key={i}
-                style={[
-                  styles.wordmark,
-                  { opacity: p, transform: [{ translateY: (1 - p) * 14 }] },
-                ]}
-              >
-                {ch}
-              </Text>
-            );
-          })}
+        {/* RN text, not Skia: no Skia font is bundled in this app. */}
+        <View style={[styles.wordmarkRow, { top: cy + half + lip + theme.spacing.xl }]} pointerEvents="none">
+          {LETTERS.map((ch, i) => (
+            <Letter key={i} letter={ch} index={i} glyph={glyphs[i].glyph} landed={glyphs[i].landed} t={t} />
+          ))}
         </View>
+        <Reanimated.View
+          style={[styles.rule, { top: cy + half + lip + theme.spacing.xl + theme.typography.sizes.headline * 1.45 }, ruleStyle]}
+          pointerEvents="none"
+        />
       </Pressable>
     </Animated.View>
   );
 }
 
 /**
- * One piece of tilework, sliding in along its own vector and turning
- * upright about its own centre as it lands (see `piecePointsAt`). The polygon is rebuilt from scratch every frame it
- * is actually moving - eighteen short point lists is nothing next to the
- * Skia draw itself.
- *
- * `React.memo`'d specifically so a piece stops paying that cost once it
- * isn't moving any more: `progress` is `easeOut`'s own output, which is
- * an exact, stable `0` for the roughly-half of the assemble act a piece
- * hasn't been released into yet, and an exact, stable `1` for the rest of
- * the sequence once it has landed - only genuinely mid-flight does it
- * change frame to frame. `piece` and `half` are already stable across
- * the whole animation (a memoized array and the window's own size), so
- * this bails out correctly on every frame that isn't this piece's own
- * flight, which for any single piece is most of the roughly two seconds
- * eighteen of these are otherwise all re-rendering in lockstep.
+ * One letter of the name. The real letter holds its space, invisibly, so
+ * the row never shifts while a narrower or wider one rolls over it.
  */
-const Piece = React.memo(function PieceImpl({
-  piece,
-  half,
-  progress,
-}: {
-  piece: LaunchPiece;
-  half: number;
-  progress: number;
-}): React.JSX.Element | null {
-  if (progress <= 0) return null;
+function Letter({ letter, index, glyph, landed, t }: { letter: string; index: number; glyph: string; landed: boolean; t: SharedValue<number> }): React.JSX.Element {
+  const style = useAnimatedStyle(() => {
+    const arrive = letterProgress(t.value, index, LETTERS.length);
+    const handoff = easeInOut(actProgress(t.value, ACTS.handoff));
+    // Leaving, the letters lift and fade one after another, left to right.
+    const leave = Math.min(1, Math.max(0, handoff * 1.6 - (index / LETTERS.length) * 0.6));
+    const shown = arrive * (1 - leave);
+    return { opacity: shown, transform: [{ translateY: leave > 0 ? -leave * 10 : (1 - arrive) * 16 }] };
+  });
+  return (
+    <View>
+      <Text style={[styles.wordmark, styles.holder]}>{letter}</Text>
+      <Reanimated.Text style={[styles.wordmark, styles.overlay, !landed && styles.rolling, style]}>{glyph}</Reanimated.Text>
+    </View>
+  );
+}
 
-  const path = piecePointsAt(piece, progress)
-    .map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${(x * half).toFixed(2)} ${(y * half).toFixed(2)}`)
-    .join(' ');
-
-  return <Path path={`${path} Z`} color={piece.color} opacity={pieceOpacity(progress)} />;
-});
+/**
+ * One piece of tilework, sliding in along its own vector and turning
+ * upright about its own centre as it lands (see `piecePointsAt`), all of
+ * it worked out on the UI thread each frame.
+ */
+function Piece({ piece, half, t }: { piece: LaunchPiece; half: number; t: SharedValue<number> }): React.JSX.Element {
+  const path = useDerivedValue(() => {
+    const progress = pieceProgress(t.value, piece);
+    if (progress <= 0) return 'M 0 0 Z';
+    const points = piecePointsAt(piece, progress);
+    let d = '';
+    for (let i = 0; i < points.length; i += 1) d += `${i === 0 ? 'M' : 'L'} ${points[i][0] * half} ${points[i][1] * half} `;
+    return `${d}Z`;
+  });
+  const opacity = useDerivedValue(() => pieceOpacity(pieceProgress(t.value, piece)));
+  return <Path path={path} color={piece.color} opacity={opacity} />;
+}
 
 const styles = themedStyles(() => ({
   layer: {
@@ -257,6 +268,11 @@ const styles = themedStyles(() => ({
     flexDirection: 'row',
     justifyContent: 'center',
   },
+  holder: { opacity: 0 },
+  overlay: { position: 'absolute', left: 0, right: 0, textAlign: 'center' },
+  /** Rolling letters are set lighter; each darkens to ink as it lands. */
+  rolling: { color: theme.colors.textTertiary },
+  rule: { position: 'absolute', alignSelf: 'center', left: '50%', width: 40, marginLeft: -20, height: 2.5, borderRadius: 1.25, backgroundColor: OCHRE },
   wordmark: {
     fontFamily: theme.typography.families.display,
     fontSize: theme.typography.sizes.headline,

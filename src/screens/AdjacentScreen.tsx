@@ -42,10 +42,8 @@ import { motion, theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
-import { HintNote } from '../components/HintNote';
 import { MechanicIntro } from '../components/MechanicIntro';
 import { mechanic } from '../game/mechanics';
-import { HintKind } from '../game/hints';
 import { UNDO_COST } from '../progression/coins';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { HelpHalo } from '../components/HelpHalo';
@@ -152,8 +150,6 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
   // Insight, the superpower: charges first, then a video or coins.
   const insight = useInsightPower();
   const [insightsUsed, setInsightsUsed] = useState(0);
-  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
-  const clearNote = useCallback(() => setNote(null), []);
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [history, setHistory] = useState<ReadonlyArray<AdjacentState>>([]);
   const [undosUsed, setUndosUsed] = useState(0);
@@ -285,7 +281,6 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
     if (!hint) return;
     insight.spend(() => {
       setInsightsUsed(n => n + 1);
-      setNote({ reason: hint.reason, tip: hint.tip, kind: 'nudge', id: Date.now() });
       setPreview(hint.group);
       triggerFeedback('targetReached');
       track(setTimeout(() => onPressCell(hint.tap.row, hint.tap.col), INSIGHT_TAP_DELAY_MS));
@@ -312,7 +307,6 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
     setHistory([]);
     setUndosUsed(0);
     setInsightsUsed(0);
-    setNote(null);
     setPreview(null);
     setAnimation(null);
     setPopups([]);
@@ -405,7 +399,6 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
-        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('adjacent')} onGone={clearNote} />}
       </View>
 
       {showSolvedCard && stars && !showSetComplete && (

@@ -89,4 +89,3 @@ export { renderBridgesIllustration } from './BridgesMechanicsIllustrations';
 export { SOLVE_CELEBRATION_MS, useSolveCelebration } from './useSolveCelebration';
 export { TesseraMark } from './TesseraMark';
 export type { TesseraMarkProps } from './TesseraMark';
-export { HintNote } from './HintNote';

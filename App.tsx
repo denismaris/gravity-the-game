@@ -36,7 +36,6 @@ import { EmblemHandoff } from './src/components/EmblemHandoff';
 import { ErrorBoundary, IntroWalkthrough, LaunchSequence, ScreenTransition } from './src/components';
 import { GameLesson } from './src/components/lessons';
 import { CollectionScreen } from './src/screens/CollectionScreen';
-import { FirstPuzzleCoach } from './src/components/lessons/FirstPuzzleCoach';
 import { FirstPuzzleContext } from './src/components/HelpHalo';
 import { tutorialIdForGame } from './src/game/tutorials';
 import { getLevelById } from './src/game/levels';
@@ -54,7 +53,7 @@ import { getMosaicById } from './src/game/mosaic';
 import { getBridgesById } from './src/game/bridges';
 import { GameKind, NextPuzzleOptions, getDailyEntry, usePrepareUpcoming } from './src/game/journey';
 import { CalmingInterstitialScreen } from './src/interstitial';
-import { PlayerProgressProvider, gamesPlayed, isAdFree, notePuzzleOpened, usePlayerProgress } from './src/progression';
+import { PlayerProgressProvider, PracticeProvider, gamesPlayed, isAdFree, notePuzzleOpened, practiceBoards, usePlayerProgress } from './src/progression';
 import { learnedTutorials } from './src/progression/learnedTutorials';
 import { AD_RULES, betweenSets, startAds } from './src/ads';
 import { AppearanceProvider, SettingsProvider, useAppearance, useHoldAppearance, useSettings } from './src/settings';
@@ -63,6 +62,9 @@ import { theme, themedStyles } from './src/theme';
 interface Selected {
   kind: GameKind;
   puzzleId: string;
+  /** Opened from Settings to try the game: nothing is saved, Next deals
+   * the game's next practice board, and Home returns to Settings. */
+  practice?: boolean;
 }
 
 /** Settings and Achievements are reachable only from Home, and opening a
@@ -146,9 +148,6 @@ function Boot(): React.JSX.Element {
 function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
   const { settings, ready: settingsReady, markTutorialSeen } = useSettings();
   const { progress, ready: progressReady, markIntroSeen, addInsights } = usePlayerProgress();
-  // The game whose lesson was just finished: its first board comes with a
-  // free Insight, and the coach says so.
-  const [justLearned, setJustLearned] = useState<GameKind | null>(null);
   // A lesson replayed from Your games.
   const [replaying, setReplaying] = useState<GameKind | null>(null);
   const progressRef = useRef(progress);
@@ -203,7 +202,9 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
     // Only when a puzzle opens or closes: the set it was opened under.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
-  usePrepareUpcoming(upcoming, progressReady && (!selected || setKey !== setAtOpen.current));
+  // Not until the opening animation is over: building a hard board under
+  // it held the JavaScript thread and made the opening stutter.
+  usePrepareUpcoming(upcoming, launched && progressReady && (!selected || setKey !== setAtOpen.current));
   const openFromHome = useCallback((target: Selected) => {
     setHandoff(target.kind);
     setSelected(target);
@@ -226,6 +227,23 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
   }, [openFromHome]);
 
   const exit = useCallback(() => setSelected(null), []);
+  // A practice run: one game's starter boards in turn, from Settings.
+  const tryGame = useCallback((kind: GameKind) => {
+    setOverlayRoute(null);
+    setSelected({ kind, puzzleId: practiceBoards(kind)[0], practice: true });
+  }, []);
+  const nextPractice = useCallback(() => {
+    setSelected(current => {
+      if (!current) return current;
+      const boards = practiceBoards(current.kind);
+      const at = boards.indexOf(current.puzzleId);
+      return { kind: current.kind, puzzleId: boards[(at + 1) % boards.length], practice: true };
+    });
+  }, []);
+  const exitPractice = useCallback(() => {
+    setSelected(null);
+    setOverlayRoute('settings');
+  }, []);
   // Shared by every game's completion screen as "next puzzle": advancing
   // always means going straight to the current level batch's next puzzle,
   // whatever game it belongs to, *unless* this solve just completed the
@@ -291,7 +309,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
     screen = <CalmingInterstitialScreen onDone={finishInterstitial} />;
     routeKey = 'interstitial';
   } else if (!selected && overlayRoute === 'settings') {
-    screen = <SettingsScreen onExit={() => setOverlayRoute(null)} onOpenAccount={() => setOverlayRoute('account')} onOpenPuzzle={(kind, puzzleId) => openPuzzle(kind, puzzleId)} />;
+    screen = <SettingsScreen onExit={() => setOverlayRoute(null)} onOpenAccount={() => setOverlayRoute('account')} onTryGame={tryGame} />;
     routeKey = 'settings';
   } else if (!selected && overlayRoute === 'journey') {
     screen = <JourneyScreen onExit={() => setOverlayRoute(null)} onOpenShop={() => openShop('journey')} />;
@@ -325,11 +343,13 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
     // Exhaustive over `GameKind` and deliberately has no `default`: forgetting
     // a case here is a compile error, not a silent bounce to Home the way an
     // unmatched if/else-if chain would be.
+    const playExit = selected.practice ? exitPractice : exit;
+    const playNext = selected.practice ? nextPractice : openPuzzle;
     switch (selected.kind) {
       case 'mirror': {
         const puzzle = getMirrorMazeById(selected.puzzleId);
         screen = puzzle ? (
-          <MirrorMazeScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+          <MirrorMazeScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} />
         ) : (
           homeScreen
         );
@@ -339,21 +359,21 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       case 'lilypads': {
         const endless = parseEndlessId(selected.puzzleId);
         const puzzle = getLilyById(selected.puzzleId, endless?.kind === 'lilypads' ? { name: endlessName(endless.index, 'lilypads'), tier: endless.tier } : undefined);
-        screen = puzzle ? <LilyPadsScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} /> : homeScreen;
+        screen = puzzle ? <LilyPadsScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} /> : homeScreen;
         routeKey = puzzle ? `lilypads:${puzzle.id}` : 'home';
         break;
       }
       case 'vanes': {
         const endless = parseEndlessId(selected.puzzleId);
         const puzzle = getVanesById(selected.puzzleId, endless?.kind === 'vanes' ? { name: endlessName(endless.index, 'vanes'), tier: endless.tier } : undefined);
-        screen = puzzle ? <VanesScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} /> : homeScreen;
+        screen = puzzle ? <VanesScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} /> : homeScreen;
         routeKey = puzzle ? `vanes:${puzzle.id}` : 'home';
         break;
       }
       case 'binairo': {
         const puzzle = getBinairoById(selected.puzzleId);
         screen = puzzle ? (
-          <BinairoScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+          <BinairoScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} />
         ) : (
           homeScreen
         );
@@ -363,7 +383,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       case 'arukone': {
         const puzzle = getArukoneById(selected.puzzleId);
         screen = puzzle ? (
-          <ArukoneScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+          <ArukoneScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} />
         ) : (
           homeScreen
         );
@@ -374,7 +394,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
         const endless = parseEndlessId(selected.puzzleId);
         const puzzle = getGlassWindow(selected.puzzleId, endless?.kind === 'glass' ? { name: endlessName(endless.index, 'glass'), tier: endless.tier } : undefined);
         screen = puzzle ? (
-          <GlassScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+          <GlassScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} />
         ) : (
           homeScreen
         );
@@ -384,7 +404,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       case 'lightsout': {
         const puzzle = getLightsOutById(selected.puzzleId);
         screen = puzzle ? (
-          <LightsOutScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+          <LightsOutScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} />
         ) : (
           homeScreen
         );
@@ -394,7 +414,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       case 'adjacent': {
         const puzzle = getAdjacentById(selected.puzzleId);
         screen = puzzle ? (
-          <AdjacentScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+          <AdjacentScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} />
         ) : (
           homeScreen
         );
@@ -404,7 +424,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       case 'bloom': {
         const puzzle = getBloomById(selected.puzzleId);
         screen = puzzle ? (
-          <BloomScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+          <BloomScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} />
         ) : (
           homeScreen
         );
@@ -414,7 +434,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       case 'mosaic': {
         const puzzle = getMosaicById(selected.puzzleId);
         screen = puzzle ? (
-          <MosaicScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+          <MosaicScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} />
         ) : (
           homeScreen
         );
@@ -424,7 +444,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       case 'bridges': {
         const puzzle = getBridgesById(selected.puzzleId);
         screen = puzzle ? (
-          <BridgesScreen key={puzzle.id} puzzle={puzzle} onExit={exit} onNextPuzzle={openPuzzle} />
+          <BridgesScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} />
         ) : (
           homeScreen
         );
@@ -434,7 +454,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       case 'gravity': {
         const level = getLevelById(selected.puzzleId);
         screen = level ? (
-          <GameScreen key={level.id} level={level} onExit={exit} onNextPuzzle={openPuzzle} />
+          <GameScreen key={level.id} level={level} onExit={playExit} onNextPuzzle={playNext} />
         ) : (
           homeScreen
         );
@@ -442,6 +462,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
         break;
       }
     }
+    if (selected.practice && screen !== homeScreen) screen = <PracticeProvider>{screen}</PracticeProvider>;
   }
 
   // A game the player has never learned opens on its lesson: a route of
@@ -456,8 +477,8 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
         kind={lessonKind}
         onDone={() => {
           markTutorialSeen(tutorialIdForGame(lessonKind));
+          // A finished lesson leaves a free Insight for the first board.
           addInsights(1);
-          setJustLearned(lessonKind);
         }}
       />
     );
@@ -484,11 +505,6 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
         </FirstPuzzleContext.Provider>
       </ScreenTransition>
       {handoff && selected && <EmblemHandoff kind={handoff} onDone={endHandoff} />}
-      {/* A game's first real board: its goal once more, and the free
-          Insight its lesson left. */}
-      {firstPuzzle && selected && (
-        <FirstPuzzleCoach key={selected.puzzleId} kind={selected.kind} gift={justLearned === selected.kind} />
-      )}
       {/* The walkthrough, once, for a new player - after the launch mark,
           and only over Home: never over a game, the shop, or the sign-in
           screen (a sign-out or a reset makes the player new again while

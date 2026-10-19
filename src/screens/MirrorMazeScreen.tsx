@@ -1,6 +1,4 @@
-import { HintNote } from '../components/HintNote';
 import { BackLabel } from '../components/Icon';
-import { HintKind } from '../game/hints';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
@@ -205,13 +203,10 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
   // \`state\` rather than inside a \`setState\` updater: React may run an
   // updater twice, which would charge twice.
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
-  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const h = explainMirrorHint(puzzle, state);
     if (!h) return;
     spendInsight(() => {
-      setNote({ reason: h.reason, tip: h.tip, kind: h.kind, id: Date.now() });
       setState(h.state);
       setHints(n => n + 1);
       setFlash(h.cell);
@@ -280,16 +275,19 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <MirrorMazeBoard
-            puzzle={puzzle}
-            state={state}
-            size={boardSize}
-            path={path}
-            revealProgress={revealProgress}
-            solved={solved}
-            onCycleCell={cycleCell}
-            flashCell={flash}
-          />
+          {/* Finished: the board takes no more touches. */}
+          <View pointerEvents={solved ? 'none' : 'auto'}>
+            <MirrorMazeBoard
+              puzzle={puzzle}
+              state={state}
+              size={boardSize}
+              path={path}
+              revealProgress={revealProgress}
+              solved={solved}
+              onCycleCell={cycleCell}
+              flashCell={flash}
+            />
+          </View>
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
@@ -309,7 +307,6 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
-        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('mirror')} onGone={clearNote} />}
       </View>
 
 

@@ -208,7 +208,9 @@ function runGravity(state: GameState, direction: Direction, traces: Map<string, 
     // cell is still held afterwards by an object caught mid-slide.
     const heldBy = (key: string): boolean => {
       const holder = waitingAt.get(key);
-      if (!holder) return false;
+      // Its own starting square never blocks it (a portal can lead back
+      // there).
+      if (!holder || holder.id === movable.id) return false;
       if (resolving.has(holder.id)) return true;
       resolve(holder);
       return false;
@@ -238,8 +240,8 @@ function runGravity(state: GameState, direction: Direction, traces: Map<string, 
         const exit = portalMap.get(positionKey(nextRow, nextCol));
         if (exit) {
           const exitKey = positionKey(exit.row, exit.col);
-          // Exit blocked, or already walked over this slide -> stop here.
-          if (heldBy(exitKey) || occupied.has(exitKey) || visited.has(exitKey)) break;
+          // Exit blocked -> the portal is a wall: stop here.
+          if (heldBy(exitKey) || occupied.has(exitKey)) break;
           if (cells) {
             enter = { row: nextRow, col: nextCol };
             portal = cells.length;
@@ -248,6 +250,12 @@ function runGravity(state: GameState, direction: Direction, traces: Map<string, 
           row = exit.row;
           col = exit.col;
           teleported = true;
+          // The way on from the exit is a fresh run: it may cross squares
+          // the run in already crossed (two mouths in one column, say).
+          // Counting those as a loop stopped a ball in mid-air, or sent it
+          // down when it was pulled up. A slide still ends: portals take
+          // it once, and the run on keeps its own visited squares.
+          visited.clear();
           visited.add(exitKey);
           // Keep sliding from the exit. Any further portal endpoint is an
           // ordinary cell for the rest of this slide (no chaining).

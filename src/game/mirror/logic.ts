@@ -107,6 +107,10 @@ export type DecidedMirror = MirrorKind | null | undefined;
 export interface BeamPiece {
   readonly cells: ReadonlyArray<MirrorMazeCell>;
   readonly ruby: boolean;
+  /** The way the light was going when this stretch ended - for a stretch
+   * that never left its square (a splitter's half sent straight into a
+   * wall), the only way to draw it. */
+  readonly heading?: Direction;
 }
 
 export interface BeamTrace {
@@ -199,7 +203,7 @@ export function traceBeams(puzzle: MirrorMazePuzzle, mirrorAt: (row: number, col
       if (gem !== undefined && (!gem || ruby)) lit.add(positionKey(row, col));
     }
     if (!split) {
-      pieces.push({ cells: piece, ruby });
+      pieces.push({ cells: piece, ruby, heading: direction });
       firstPath = firstPath ?? path;
     }
   }

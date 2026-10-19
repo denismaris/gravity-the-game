@@ -118,7 +118,7 @@ describe('MosaicPlay - the hand', () => {
    * surface is exactly two (board and tray), however many pieces, and
    * every loose piece is drawn from the very first render.
    */
-  test('the surface is two canvases, and every tray piece is drawn from the first render', () => {
+  test('the surface is three canvases (board, tray, and the hand, kept ready), and every tray piece is drawn from the first render', () => {
     let renderer!: ReactTestRenderer.ReactTestRenderer;
     act(() => {
       renderer = ReactTestRenderer.create(
@@ -126,7 +126,7 @@ describe('MosaicPlay - the hand', () => {
       );
     });
     mounted = renderer;
-    expect(renderer.root.findAll(node => (node.type as unknown) === 'SkiaCanvasMock')).toHaveLength(2);
+    expect(renderer.root.findAll(node => (node.type as unknown) === 'SkiaCanvasMock')).toHaveLength(3);
     const trayPieces = renderer.root.findAll(node => typeof node.props.cellSize === 'number' && Array.isArray(node.props.cells) && node.props.seed !== undefined && node.props.part === undefined && node.props.set === undefined);
     expect(trayPieces.map(node => node.props.seed).sort()).toEqual([0, 1]);
   });

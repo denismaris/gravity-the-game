@@ -661,8 +661,15 @@ def glass_tone(t, freq, amp=1.0, ring=0.45):
 
 
 def glass_set(freq):
-    t = timeline(0.7)
-    return finish(lowpass(room(glass_tone(t, freq, 1.0, 0.32), 0.2), 4200), 0.26)
+    """A pane set in its lead: a soft, short, warm tap with a little glass
+    in it. It used to ring for most of a second with a bright clang above
+    the note, and a stroke across several panes stacked those rings up -
+    players found it grating. Now the note is an octave lower, the clang is
+    gone, and it is over in a quarter of a second."""
+    t = timeline(0.32)
+    note = tone(t, freq / 2, 1.0, 0.07, attack=0.006) + tone(t, freq, 0.28, 0.045, attack=0.006)
+    tap = bandpass_noise(t, 900, 2600, 0.006, 0.18)
+    return finish(lowpass(room(note + tap, 0.12), 2400), 0.17)
 
 
 def glass_lift():

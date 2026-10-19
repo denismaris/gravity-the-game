@@ -786,10 +786,55 @@ export function PlayerProgressProvider({
 /** Access player progress. Throws if used outside `PlayerProgressProvider`. */
 export function usePlayerProgress(): PlayerProgressContextValue {
   const value = useContext(PlayerProgressContext);
-  if (!value) {
+  const practice = useContext(PracticeContext);
+  // A practice board, opened from Settings to try a game: played for real,
+  // but its solve is never saved - no coins, stars, errands or streak - and
+  // it never becomes the board the app resumes on.
+  const practised = useMemo(
+    () => (value && practice ? { ...value, recordCompletion: practiceCompletion, markLevelOpened: () => {} } : value),
+    [value, practice],
+  );
+  if (!practised) {
     throw new Error('usePlayerProgress must be used within a PlayerProgressProvider');
   }
-  return value;
+  return practised;
+}
+
+/** True inside a practice board (see `PracticeProvider`). */
+const PracticeContext = createContext(false);
+
+/** Wraps a board opened to try a game out: nothing it does is saved. */
+export function PracticeProvider({ children }: { children: React.ReactNode }): React.JSX.Element {
+  return <PracticeContext.Provider value>{children}</PracticeContext.Provider>;
+}
+
+/** Whether the board on screen is a practice one. */
+export function useIsPractice(): boolean {
+  return useContext(PracticeContext);
+}
+
+/** A practice solve: scored like any other, so the finish card reads
+ * true, and recorded nowhere. */
+function practiceCompletion(levelId: string, moves: number, options?: { maxStars?: StarRating }): CompletionOutcome {
+  const level = getLevelById(levelId);
+  const thresholds = level ? getStarThresholds(level) : HINT_STAR_THRESHOLDS;
+  const stars = Math.min(computeStars(level ? moves : moves + 1, thresholds), options?.maxStars ?? 3) as StarRating;
+  return {
+    runStars: stars,
+    runMoves: moves,
+    best: { completed: true, stars, bestMoves: moves },
+    batchCompleted: false,
+    coinsEarned: 0,
+    chapterFinished: null,
+    charmed: false,
+    golden: false,
+    cleanRun: 0,
+    comboMultiplier: 1,
+    grand: false,
+    grandCosmetic: null,
+    daily: null,
+    dailyReplayMs: null,
+  };
 }
 
 /**
@@ -806,10 +851,15 @@ export function useEquipped(slot: CosmeticSlot): Cosmetic {
 /** Whether the latest solve's coins were doubled by the lucky charm -
  * false outside a provider. */
 export function useLastCharmed(): boolean {
-  return useContext(PlayerProgressContext)?.lastCharmed ?? false;
+  const practice = useContext(PracticeContext);
+  const charmed = useContext(PlayerProgressContext)?.lastCharmed ?? false;
+  return !practice && charmed;
 }
 
 /** Every bonus on the latest solve - null outside a provider. */
 export function useLastBonus(): SolveBonus | null {
-  return useContext(PlayerProgressContext)?.lastBonus ?? null;
+  const practice = useContext(PracticeContext);
+  const bonus = useContext(PlayerProgressContext)?.lastBonus ?? null;
+  // The last real solve's bonuses are not this practice board's.
+  return practice ? null : bonus;
 }

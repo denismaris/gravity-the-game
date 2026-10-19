@@ -102,9 +102,9 @@ export const TILE_RADIUS = 8;
 // Slowed after play-testing: at 40/220ms the ring was over before it
 // registered. An 8x8 corner-to-corner wave is now 7 * 70 + 480 = 970ms,
 // inside the shared 1.1s finish beat (`SOLVE_CELEBRATION_MS`).
-const WAVE_STAGGER_MS = 70;
-const WAVE_TILE_MS = 480;
-const WAVE_TOTAL_MS = 1050;
+const WAVE_STAGGER_MS = 95;
+const WAVE_TILE_MS = 620;
+const WAVE_TOTAL_MS = 1400;
 
 /** The board's own opening flourish: every tile - given or not - starts
  * hidden under a solid cream "shutter" (the page's own `background`, not a
@@ -1328,11 +1328,28 @@ export function BinairoBoardView({ puzzle, state, size, solved, flashCell, press
             // early in the tile's own window, fades out by the time the
             // ring has moved on.
             const flash = Math.max(0, 1 - Math.abs(cellElapsed - WAVE_TILE_MS * 0.18) / (WAVE_TILE_MS * 0.4));
+            // The piece itself hops as the wave reaches it - up a little,
+            // over the top, and back down with a small settle - drawn over
+            // its resting self, so at rest the two are one. A soft halo
+            // and a glint go with it; the board comes alive, square by
+            // square, from the last piece placed.
+            const value = state.values[r][c];
+            const u = cellElapsed / WAVE_TILE_MS;
+            const hop = u < 0.55 ? Math.sin((u / 0.55) * Math.PI) : -0.18 * Math.sin(((u - 0.55) / 0.45) * Math.PI);
+            const tileCx = origin.x + TILE_GAP + tileSize / 2;
+            const tileCy = origin.y + TILE_GAP + tileSize / 2;
             return (
               <Group key={`wave-${r}-${c}`}>
-                <Circle cx={cx} cy={cy} r={(tileSize / 2) * (1 + t * 0.38)} color={theme.colors.accent} style="stroke" strokeWidth={7} opacity={(1 - t) * 0.28} />
-                <Circle cx={cx} cy={cy} r={(tileSize / 2) * (1 + t * 0.3)} color="rgba(255,255,255,0.95)" style="stroke" strokeWidth={2.5} opacity={(1 - t) * 0.95} />
-                <Circle cx={cx} cy={cy} r={tileSize * 0.32} color="rgba(255,255,255,0.95)" opacity={flash * 0.5} />
+                <Circle cx={cx} cy={cy} r={(tileSize / 2) * (0.9 + t * 0.35)} color={theme.colors.accent} style="stroke" strokeWidth={4} opacity={(1 - t) * 0.22} />
+                {/* Its own tile face first, so the resting piece underneath
+                    never shows double while this one is in the air. */}
+                {value !== null && renderTileChrome(origin.x + TILE_GAP, origin.y + TILE_GAP, tileSize, isGiven(puzzle, r, c))}
+                {value !== null && (
+                  <Group origin={vec(tileCx, tileCy)} transform={[{ translateY: -hop * tileSize * 0.09 }, { scale: 1 + hop * 0.14 }]}>
+                    {renderSymbol(`pop-${r}-${c}`, value, tileCx, tileCy, tileSize * 0.32)}
+                  </Group>
+                )}
+                <Circle cx={tileCx - tileSize * 0.08} cy={tileCy - tileSize * 0.1 - hop * tileSize * 0.09} r={tileSize * 0.07} color="#FFFFFF" opacity={flash * 0.7} />
               </Group>
             );
           }),

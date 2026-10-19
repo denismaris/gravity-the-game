@@ -283,6 +283,13 @@ export function composeBloom(width: number, height: number, card: CardRect, clea
   // One unit for every size here, so the picture scales with the phone
   // rather than being tuned to one screen.
   const u = card.width / 354;
+  // A tall phone leaves a deep field under the card (the card stops
+  // growing at its own cap). The lower group settles into it rather than
+  // huddling at the card's foot, and a leaf and a disc join it - the same
+  // poster, set on a longer sheet.
+  const below = height - foot;
+  const roomy = below > 205 * u;
+  const low = Math.max(0, (below - 190 * u) * 0.4);
 
   const blossom = (cx: number, cy: number, r: number, lobes: number, seed: number, rotation: number): BloomBlossom => ({
     path: blossomPath(cx, cy, r, lobes, seed, rotation),
@@ -298,7 +305,7 @@ export function composeBloom(width: number, height: number, card: CardRect, clea
     // page's edge when the villa's words sit above it.
     clearTop ? blossom(left - 14 * u, top + 2 * u, 42 * u, 6, 23, 0.4) : blossom(left + 44 * u, top - 4 * u, 46 * u, 6, 23, 0.4),
     // Spilling out from under the card's foot, cut by the left edge.
-    blossom(left + 6 * u, foot + 92 * u, 60 * u, 7, 37, 0.1),
+    blossom(left + 6 * u, foot + 92 * u + low, 60 * u, 7, 37, 0.1),
   ];
 
   // Two stems leaving the card's foot and crossing on the way down to the
@@ -320,13 +327,16 @@ export function composeBloom(width: number, height: number, card: CardRect, clea
     // Off the stalks just under the card, reaching right - kept high and
     // short so it never reaches the page tally further down.
     leaf(left + 92 * u, foot + 34 * u, left + 150 * u, foot + 18 * u, 13 * u),
+    // Lower on the other stalk, reaching the other way - only where the
+    // sheet runs long enough to hold it.
+    ...(roomy ? [leaf(left + 104 * u, foot + 104 * u + low * 0.55, left + 168 * u, foot + 84 * u + low * 0.55, 12 * u)] : []),
     // Between the two top blossoms, rising from behind the card.
     ...(clearTop ? [] : [leaf(left + 132 * u, top + 8, left + 104 * u, top - 84 * u, 15 * u)]),
   ];
 
   const domeR = 40 * u;
   const domeCx = width - 26 * u;
-  const domeBase = foot + 104 * u;
+  const domeBase = foot + 104 * u + low;
   const dome = `M ${domeCx - domeR} ${domeBase} A ${domeR} ${domeR} 0 0 1 ${domeCx + domeR} ${domeBase} Z`;
   const ruleH = 6 * u;
   const rules = [0, 1, 2].map(i => ({
@@ -337,6 +347,7 @@ export function composeBloom(width: number, height: number, card: CardRect, clea
   }));
   const discs = [
     { cx: domeCx - domeR - 26 * u, cy: domeBase - 20 * u, r: 10 * u },
+    ...(roomy ? [{ cx: right - 96 * u, cy: foot + 46 * u + low * 0.4, r: 6 * u }] : []),
     // The poster's lone disc in the upper field, in the open ground
     // between the leaf and the big blossom.
     ...(clearTop ? [] : [{ cx: left + 196 * u, cy: top - 46 * u, r: 9 * u }]),

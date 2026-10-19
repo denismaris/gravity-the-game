@@ -10,5 +10,5 @@ export type { Profile } from './profile';
 export { citySuggestions, deviceCountry, getProfile, publishXp, saveProfile } from './profile';
 export { COUNTRIES, countryName, flagOf } from './countries';
 export type { Account, Provider, SignInResult } from './account';
-export { accountNameSuggestion, availableProviders, boardNameFrom, currentAccount, deleteAccount, applyAccountName, signIn, signOut } from './account';
+export { accountNameSuggestion, availableProviders, boardNameFrom, currentAccount, knownAccount, deleteAccount, applyAccountName, signIn, signOut } from './account';
 export { nameAllowed } from './nameFilter';

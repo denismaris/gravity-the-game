@@ -1,5 +1,6 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { Circle, Group, Path, RoundedRect, Skia, SkPath, vec } from '@shopify/react-native-skia';
+import { Easing, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { BloomArcStep, BloomCell, BloomEdge, BloomPuzzle, BloomState, joinedArcs, tileArcs, traceLoops } from '../game/bloom';
 import { BoardLayout, computeBoardLayout, useAnimationClock, useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
@@ -29,12 +30,6 @@ function clamp01(t: number): number {
   return t < 0 ? 0 : t > 1 ? 1 : t;
 }
 const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
-/** A little overshoot, so a turning tile and an opening blossom both land
- * with a settle rather than a dead stop. */
-function easeOutBack(t: number): number {
-  const c = 1.2;
-  return 1 + (c + 1) * (t - 1) ** 3 + c * (t - 1) ** 2;
-}
 
 function edgeMidpoint(layout: BoardLayout, row: number, col: number, e: BloomEdge): { x: number; y: number } {
   const s = layout.cellSize;
@@ -105,44 +100,6 @@ function fillTone(): string {
   return mix(theme.colors.bloomAccent, theme.colors.surfaceHi, 0.22);
 }
 
-/** When each tile last turned, and how far it still has to swing - so a
- * second tap mid-turn adds to the swing instead of snapping. */
-interface Turn {
-  readonly at: number;
-  readonly fromDegrees: number;
-}
-
-function turnOffset(turn: Turn | undefined, now: number): number {
-  if (!turn) return 0;
-  const t = clamp01((now - turn.at) / TURN_MS);
-  return t >= 1 ? 0 : turn.fromDegrees * (1 - easeOutBack(t));
-}
-
-function useTurns(rotations: BloomState['rotations'], now: number): Map<string, Turn> {
-  const previousRef = useRef<BloomState['rotations'] | null>(null);
-  const turnsRef = useRef(new Map<string, Turn>());
-  if (previousRef.current !== rotations) {
-    const previous = previousRef.current;
-    if (previous) {
-      for (let r = 0; r < rotations.length; r += 1) {
-        for (let c = 0; c < rotations[r].length; c += 1) {
-          if (previous[r][c] === rotations[r][c]) continue;
-          const key = `${r}:${c}`;
-          // A single quarter clockwise is a tap; anything else (a hint, a
-          // restart) jumps straight there.
-          if ((previous[r][c] + 1) % 4 === rotations[r][c] % 4) {
-            turnsRef.current.set(key, { at: now, fromDegrees: turnOffset(turnsRef.current.get(key), now) - 90 });
-          } else {
-            turnsRef.current.delete(key);
-          }
-        }
-      }
-    }
-    previousRef.current = rotations;
-  }
-  return turnsRef.current;
-}
-
 /** When each loop first closed, keyed by `loopKey`. Seeded silently on
  * mount, so a board opened with loops already closed does not bloom them
  * all at once. */
@@ -158,6 +115,8 @@ function useLoopOpenings(keys: ReadonlyArray<string>, now: number): Map<string, 
 
 /** One non-empty tile's ink, parsed and split by whether it is joined. */
 interface TileInk {
+  readonly turns: boolean;
+  readonly rotation: number;
   readonly key: string;
   readonly cx: number;
   readonly cy: number;
@@ -187,33 +146,67 @@ const StaticFill = React.memo(function StaticFillImpl({ path }: { path: SkPath |
   return path ? <Path path={path} color={fillTone()} fillType="evenOdd" /> : null;
 });
 
-/** Every tile not currently mid-turn. `activeKeys` is a string so the
- * shallow memo comparison holds across frames where the set is unchanged. */
-const StaticTiles = React.memo(function StaticTilesImpl({
-  ink,
-  activeKeys,
+/**
+ * One tile's line, turning on the UI thread. An arc tile is drawn once in
+ * its unturned facing and the whole drawing is turned to where it points,
+ * so a tap changes only an angle: the turn eases on, overshoots a hair and
+ * settles, every frame on the UI thread. (It used to be redrawn from a
+ * JavaScript clock sixty times a second, which stuttered on a phone.) The
+ * well behind it flushes rose as it turns.
+ */
+const TileView = React.memo(function TileViewImpl({
+  turns,
+  rotation,
+  base,
+  cx,
+  cy,
+  wellSize,
   strokeWidth,
+  reducedMotion,
 }: {
-  ink: ReadonlyArray<TileInk>;
-  activeKeys: string;
+  /** Whether this tile turns at all (a loose arc). */
+  turns: boolean;
+  rotation: number;
+  /** The tile's arcs at rotation 0 (turning tiles) or as they lie (others),
+   * split by whether each is joined. */
+  base: { joined: SkPath | null; loose: SkPath | null };
+  cx: number;
+  cy: number;
+  wellSize: number;
   strokeWidth: number;
+  reducedMotion: boolean;
 }) {
-  const skip = useMemo(() => new Set(activeKeys ? activeKeys.split(',') : []), [activeKeys]);
+  const quarter = Math.PI / 2;
+  const count = useRef(rotation);
+  const angle = useSharedValue(turns ? rotation * quarter : 0);
+  const flush = useSharedValue(0);
+  useLayoutEffect(() => {
+    if (!turns) return;
+    const step = (((rotation - count.current) % 4) + 4) % 4;
+    if (step === 0) return;
+    count.current += step;
+    const to = count.current * quarter;
+    if (reducedMotion) {
+      angle.value = to;
+      return;
+    }
+    // A tap turns one quarter; a hint may turn two or three - the same
+    // easy swing, a little longer, never a jump.
+    angle.value = withTiming(to, { duration: TURN_MS * (1 + (step - 1) * 0.45), easing: Easing.out(Easing.back(1.4)) });
+    flush.value = 1;
+    flush.value = withTiming(0, { duration: TURN_MS + 120, easing: Easing.out(Easing.cubic) });
+  }, [rotation, turns, reducedMotion, angle, flush, quarter]);
+  const transform = useDerivedValue(() => [{ rotate: angle.value }]);
   return (
     <Group>
-      {ink.map(tile => (skip.has(tile.key) ? null : <TileStrokes key={tile.key} tile={tile} strokeWidth={strokeWidth} />))}
+      <RoundedRect x={cx - wellSize / 2} y={cy - wellSize / 2} width={wellSize} height={wellSize} r={wellSize * 0.22} color={TURN_WASH} opacity={flush} />
+      <Group origin={vec(cx, cy)} transform={transform}>
+        {base.loose && <Path path={base.loose} color={theme.colors.bloomLooseInk} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />}
+        {base.joined && <Path path={base.joined} color={lineInk()} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />}
+      </Group>
     </Group>
   );
 });
-
-function TileStrokes({ tile, strokeWidth }: { tile: TileInk; strokeWidth: number }): React.JSX.Element {
-  return (
-    <>
-      {tile.loose && <Path path={tile.loose} color={theme.colors.bloomLooseInk} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />}
-      {tile.joined && <Path path={tile.joined} color={lineInk()} style="stroke" strokeWidth={strokeWidth} strokeCap="round" />}
-    </>
-  );
-}
 
 /** Pins, and the tray's own rim drawn back over the ink - so a line that
  * reaches the edge runs *under* the frame instead of being sliced off by
@@ -295,7 +288,10 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
     const tiles: TileInk[] = [];
     for (let r = 0; r < puzzle.rows; r += 1) {
       for (let c = 0; c < puzzle.cols; c += 1) {
-        const arcs = tileArcs(puzzle.kinds[r][c], state.rotations[r][c]);
+        // A tile that turns is drawn unturned and turned as a whole by
+        // `TileView`; a knot or a pinned arc is drawn as it lies.
+        const turns = puzzle.kinds[r][c] === 'arc' && !puzzle.pinned[r][c];
+        const arcs = tileArcs(puzzle.kinds[r][c], turns ? 0 : state.rotations[r][c]);
         if (arcs.length === 0) continue;
         let joinedSvg = '';
         let looseSvg = '';
@@ -306,6 +302,8 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
         });
         tiles.push({
           key: `${r}:${c}`,
+          turns,
+          rotation: state.rotations[r][c],
           cx: (c + 0.5) * layout.cellSize,
           cy: (r + 0.5) * layout.cellSize,
           joined: toPath(joinedSvg.trim()),
@@ -317,7 +315,6 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
   }, [puzzle, state, layout]);
 
   // --- Per frame: only timing, and only for what is moving ----------------
-  const turns = useTurns(state.rotations, now);
   const keys = useMemo(() => loopGeometry.map(loop => loop.key), [loopGeometry]);
   const openedAt = useLoopOpenings(keys, now);
 
@@ -326,8 +323,6 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
   if (!solved) solvedAtRef.current = null;
   const solvedAt = solvedAtRef.current;
 
-  const turningKeys: string[] = [];
-  if (!reducedMotion) for (const [key, turn] of turns) if (now - turn.at < TURN_MS) turningKeys.push(key);
   const finishing = !reducedMotion && solvedAt !== null && now - solvedAt < loops.length * SOLVE_STAGGER_MS + SOLVE_SWELL_MS;
 
   const movingLoops: Array<{ key: string; path: SkPath | null; opacity: number }> = [];
@@ -352,36 +347,15 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
   const settledKey = settledSvg.join(' ');
   const settledPath = useMemo(() => toPath(settledKey), [settledKey]);
 
-  useAnimationClock(!reducedMotion && (turningKeys.length > 0 || movingLoops.length > 0 || finishing), 60);
+  useAnimationClock(!reducedMotion && (movingLoops.length > 0 || finishing), 60);
 
   const strokeWidth = Math.max(3, layout.cellSize * 0.1);
-  const activeKeys = turningKeys.join(',');
   const inset = layout.cellSize * WELL_INSET;
   const well = layout.cellSize - inset * 2;
 
   return (
     <Group>
       <StaticWells size={puzzle.rows} layout={layout} />
-
-      {/* The touched tile's well flushes faintly rose while it turns - an
-          answer to the finger as well as to the eye. */}
-      {turningKeys.map(key => {
-        const [r, c] = key.split(':').map(Number);
-        const t = clamp01((now - turns.get(key)!.at) / TURN_MS);
-        return (
-          <RoundedRect
-            key={`wash-${key}`}
-            x={c * layout.cellSize + inset}
-            y={r * layout.cellSize + inset}
-            width={well}
-            height={well}
-            r={well * 0.22}
-            color={TURN_WASH}
-            opacity={1 - easeOutCubic(t)}
-          />
-        );
-      })}
-
 
       <StaticFill path={settledPath} />
       {movingLoops.map(loop =>
@@ -400,17 +374,19 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
         />
       )}
 
-      <StaticTiles ink={ink} activeKeys={activeKeys} strokeWidth={strokeWidth} />
-      {turningKeys.map(key => {
-        const tile = ink.find(candidate => candidate.key === key);
-        if (!tile) return null;
-        const degrees = turnOffset(turns.get(key), now);
-        return (
-          <Group key={`turn-${key}`} origin={vec(tile.cx, tile.cy)} transform={[{ rotate: (degrees * Math.PI) / 180 }]}>
-            <TileStrokes tile={tile} strokeWidth={strokeWidth} />
-          </Group>
-        );
-      })}
+      {ink.map(tile => (
+        <TileView
+          key={tile.key}
+          turns={tile.turns}
+          rotation={tile.rotation}
+          base={tile}
+          cx={tile.cx}
+          cy={tile.cy}
+          wellSize={well}
+          strokeWidth={strokeWidth}
+          reducedMotion={reducedMotion}
+        />
+      ))}
 
       <StaticTop puzzle={puzzle} layout={layout} />
     </Group>

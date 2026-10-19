@@ -23,6 +23,7 @@ import {
   directionForAccessibilityAction,
   GravityBoard,
   PuzzleSolved,
+  useSolveCelebration,
   LevelFailedCard,
   LevelSetComplete,
   MechanicsCarousel,
@@ -194,9 +195,9 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
     [level],
   );
   const [tutorialToShow, setTutorialToShow] = useState<ReturnType<typeof pickTutorial>>(null);
-  // A player's very first Gravity puzzle already opens on its goal card
-  // (`FirstPuzzleCoach`); a "new on the board" card on top of it was one
-  // popup too many. A mechanic's card waits for the next board that has it.
+  // A player's very first Gravity puzzle comes straight after its lesson;
+  // a "new on the board" card on top of that was one popup too many. A
+  // mechanic's card waits for the next board that has it.
   const firstGravity = useMemo(() => !gamesPlayed(progress).has('gravity'), [progress]);
   useEffect(() => {
     if (!settingsReady) return;
@@ -269,6 +270,9 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   // flip, and the win haptic and the solved card would both fire a frame
   // before the winning piece had visibly moved.
   const [isAnimating, setIsAnimating] = useState(false);
+  // The card waits the same beat as every game's, from the moment the last
+  // ball has landed - long enough to watch the finish.
+  const showSolvedCard = useSolveCelebration(solved && !isAnimating);
 
   const onTargetIds = useMemo(() => computeOnTargetIds(gameState), [gameState]);
   const previousOnTargetRef = useRef<ReadonlySet<string>>(onTargetIds);
@@ -590,7 +594,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           board container that only ever covered the *board* - and worse,
           that container carries the board's own shake transform, so a card
           rendered in it shook along with the board it was reporting on. */}
-      {solved && !isAnimating && outcome && !showSetComplete && (
+      {showSolvedCard && outcome && !showSetComplete && (
         <PuzzleSolved
           kind="gravity"
           stars={outcome.best.stars}

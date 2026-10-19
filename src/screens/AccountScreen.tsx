@@ -150,6 +150,8 @@ export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element
       triggerFeedback('coin');
       setMessage(result.switched ? 'Welcome back. Your progress from your other phone is being brought over.' : 'Signed in. Your progress is saved to your account.');
       refresh();
+    } else if (result.comingSoon) {
+      setMessage('Sign in with Apple is coming soon. Until then, Google keeps your progress safe.');
     } else if (!result.cancelled) {
       setMessage('That did not work. Check your connection and try again.');
       setDetail(result.message || null);

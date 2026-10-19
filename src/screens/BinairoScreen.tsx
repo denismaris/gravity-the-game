@@ -1,6 +1,5 @@
-import { HintNote } from '../components/HintNote';
+import { SOLVE_CELEBRATION_MS } from '../components/useSolveCelebration';
 import { BackLabel } from '../components/Icon';
-import { HintKind } from '../game/hints';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
@@ -66,7 +65,7 @@ const TRACK_WIDTH = 140;
  * the board's ripple-celebration duration, so the popup doesn't cut the
  * wave off mid-flight. Completion is still recorded and the solve sound
  * still fires immediately on detection - only the popup itself waits. */
-const POPUP_DELAY_MS = 1100;
+const POPUP_DELAY_MS = SOLVE_CELEBRATION_MS;
 
 /** A circular restart arrow: a 270-degree open ring plus a small
  * arrowhead tangent to its open end, continuing the arc's own rotation -
@@ -256,13 +255,10 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
   // \`state\` rather than inside a \`setState\` updater: React may run an
   // updater twice, which would charge twice.
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
-  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const h = explainBinairoHint(puzzle, state);
     if (!h) return;
     spendInsight(() => {
-      setNote({ reason: h.reason, tip: h.tip, kind: h.kind, id: Date.now() });
       setState(h.state);
       setHints(n => n + 1);
       setFlash(h.cell);
@@ -340,7 +336,10 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <BinairoBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} introKey={introKey} />
+          {/* Finished: the board takes no more touches. */}
+          <View pointerEvents={solved ? 'none' : 'auto'}>
+            <BinairoBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} introKey={introKey} />
+          </View>
         </Animated.View>
 
         {constraintKinds.size > 0 && (
@@ -377,7 +376,6 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
-        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('binairo')} onGone={clearNote} />}
       </View>
 
 

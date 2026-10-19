@@ -82,12 +82,12 @@ export const LESSON_GUIDES: Record<GameKind, LessonGuide> = {
   },
   bridges: {
     kind: 'bridges',
-    goal: 'Join all the islands with the right number of bridges.',
+    goal: 'Give every island the right number of bridges.',
     gesture: 'tap',
     recap: [
       'Tap the water between two islands for a bridge. Tap again for a double.',
       'The number says how many bridges an island needs.',
-      'Bridges cannot cross, and all the islands must be joined.',
+      'Bridges cannot cross. When every island is green, you win.',
     ],
   },
   mirror: {

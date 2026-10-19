@@ -39,13 +39,14 @@ export const STARTING_INSIGHTS = 3;
 export const INSIGHTS_PER_VIDEO = 2;
 
 /** A first solve, by the stars it earned. */
-export const FIRST_SOLVE_COINS: Readonly<Record<StarRating, number>> = { 1: 4, 2: 6, 3: 8 };
+export const FIRST_SOLVE_COINS: Readonly<Record<StarRating, number>> = { 1: 3, 2: 4, 3: 6 };
 /** Each star a replay earns that the puzzle had not had before. */
 export const STAR_UPGRADE_COINS = 3;
 /** The Daily, on top of its own solve - once per day. */
 export const DAILY_BONUS = 15;
-/** Finishing a whole level set. */
-export const SET_BONUS = 15;
+/** Finishing a whole level - shown on its finish card, the reward for the
+ * set as a whole. */
+export const SET_BONUS = 25;
 /** On top of the stars, for a signposted challenge's first solve: the hard
  * ones should be worth the effort. */
 export const CHALLENGE_BONUS = 15;

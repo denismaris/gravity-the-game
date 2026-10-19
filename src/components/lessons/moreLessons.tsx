@@ -133,7 +133,7 @@ const BRIDGE_STEPS: ReadonlyArray<LessonStepCopy & { readonly link: number; read
     title: 'Doubles count twice',
     say: 'Two islands can share two bridges. The 2 has only one neighbour, so both its bridges go there.',
     hint: 'Tap the glowing water two times.',
-    praise: 'Every island has its bridges, and they are all joined. You did it!',
+    praise: 'Every island has its bridges. You did it!',
     link: SIDE,
     count: 2,
   },

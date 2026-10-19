@@ -119,12 +119,16 @@ export function components(puzzle: BridgesPuzzle, state: BridgesState): number[]
   return Array.from(groups.values());
 }
 
+/**
+ * Solved the moment every island shows done: each number met, and each
+ * island in fog given at least one bridge (its number is hidden, but it is
+ * never left on its own). The islands need not all join into one network:
+ * a player who met every number had done everything the board shows them,
+ * and a board left open then - every island green - read as broken.
+ */
 export function isBridgesSolved(puzzle: BridgesPuzzle, state: BridgesState): boolean {
   const loads = islandLoads(puzzle, state);
-  // An island in fog takes whatever the rest of the board leaves it; it
-  // only has to be joined in, which the one-network check sees to.
-  if (puzzle.islands.some((island, i) => !island.fog && loads[i] !== island.need)) return false;
-  return components(puzzle, state).length === 1;
+  return puzzle.islands.every((island, i) => (island.fog ? loads[i] > 0 : loads[i] === island.need));
 }
 
 /** Bridges still to lay: half the total of every number, less what is

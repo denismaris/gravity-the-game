@@ -31,7 +31,7 @@ const SHEET_IN = SlideInDown.duration(320).easing(ReEasing.out(ReEasing.cubic));
  * works its hint out from the board as it last rendered, so taps faster
  * than a render all found the same move: each one was charged, and the
  * board showed one. */
-const HINT_LOCK_MS = 800;
+const HINT_LOCK_MS = 400;
 
 /** A hint to apply: returns `false` when there was nothing to show, and
  * then nothing is charged. */
@@ -137,7 +137,7 @@ function InsightSheet({ visible, onClose, onEarned, onPaid, onPack }: { visible:
           <Text style={styles.title} accessibilityRole="header">
             Out of Insight
           </Text>
-          <Text style={styles.body}>Insight shows your next move on the board and explains why it has to be there.</Text>
+          <Text style={styles.body}>Insight shows your next move on the board.</Text>
 
           <View style={styles.options}>
             <PressableScale

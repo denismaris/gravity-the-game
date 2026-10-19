@@ -90,8 +90,9 @@ const COLUMN_HOLD_MS = FALL_DELAY_MS + FALL_MS + Math.round(CRUMBLE_MS * 0.45);
  * tuned so the last one lands inside `SOLVE_CELEBRATION_MS` - the beat
  * the completion card waits out before covering the board. On a full
  * 6x6 that is 35 * 8 + 300 = 580ms. */
-const SWEEP_STAGGER_MS = 8;
-const SWEEP_MS = 300;
+/** The finish: a diagonal wave, a beat per diagonal. */
+const SWEEP_STAGGER_MS = 55;
+const SWEEP_MS = 560;
 
 /** The four ways a cleared tile's chips fly - the diagonals, slightly
  * uneven so a burst never looks stamped out of a template. */
@@ -517,7 +518,7 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
     : 0;
   const hasStones = !!animation?.removed.some(t => t.colour === STONE);
   const moveWindow = Math.max(hasStones ? FALL_DELAY_MS + FALL_MS + CRUMBLE_MS + COLUMN_HOLD_MS : FALL_DELAY_MS + FALL_MS, clearWindow);
-  const sweepWindow = SWEEP_MS + puzzle.size * puzzle.size * SWEEP_STAGGER_MS;
+  const sweepWindow = SWEEP_MS + 2 * puzzle.size * SWEEP_STAGGER_MS;
   const animating =
     !reducedMotion &&
     ((animation != null && now - animation.at < moveWindow) || (solvedAt !== null && now - solvedAt < sweepWindow));
@@ -617,9 +618,9 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
     for (let row = 0; row < puzzle.size; row += 1) {
       for (let col = 0; col < puzzle.size; col += 1) {
         if (state.grid[row][col] === null) continue;
-        const since = frame - solvedAt - (row * puzzle.size + col) * SWEEP_STAGGER_MS;
+        const since = frame - solvedAt - (row + col) * SWEEP_STAGGER_MS;
         if (since < 0) continue;
-        map.set(cellKey(row, col), 1 - easeOutCubic(clamp01(since / SWEEP_MS)));
+        map.set(cellKey(row, col), clamp01(since / SWEEP_MS));
       }
     }
     return map;
@@ -681,21 +682,21 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
         );
       })}
 
-      {/* The finishing sweep. */}
-      {[...sweep.entries()].map(([key, opacity]) => {
+      {/* The finish: a diagonal wave over what is left - each tile pops up
+          a little, then shrinks away as a ring of its colour opens out. */}
+      {[...sweep.entries()].map(([key, t]) => {
         const [row, col] = key.split(':').map(Number);
         const colour = state.grid[row][col];
-        if (colour === null) return null;
+        if (colour === null || t >= 1) return null;
+        const pop = t < 0.3 ? 1 + 0.16 * Math.sin((t / 0.3) * (Math.PI / 2)) : 1.16 * (1 - easeOutCubic((t - 0.3) / 0.7));
+        const ring = clamp01((t - 0.25) / 0.75);
         return (
-          <Tile
-            key={`sweep-${key}`}
-            colour={colour}
-            x={col * cell}
-            y={row * cell}
-            cell={cell}
-            opacity={opacity}
-            scale={0.6 + 0.4 * opacity}
-          />
+          <Group key={`sweep-${key}`}>
+            {ring > 0 && (
+              <Circle cx={col * cell + cell / 2} cy={row * cell + cell / 2} r={cell * (0.3 + 0.45 * easeOutCubic(ring))} color={adjacentTileColor(colour)} style="stroke" strokeWidth={Math.max(1, cell * 0.08 * (1 - ring))} opacity={0.8 * (1 - ring)} />
+            )}
+            {pop > 0.02 && <Tile colour={colour} x={col * cell} y={row * cell} cell={cell} opacity={1} scale={pop} />}
+          </Group>
         );
       })}
 

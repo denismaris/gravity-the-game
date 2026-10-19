@@ -31,7 +31,7 @@ export const lightColors = {
 
   // --- ink + accent ---
   primary: '#3B1F52', // violet ink - primary buttons are ink on sand
-  secondary: '#C46C33', // warm coral-terracotta - the app's one loud colour
+  secondary: '#B5452B', // maple red - the app's one loud colour (the flowers' own; see `skinOverrides`)
   accent: '#B7892F', // ochre - target rings and stars only
   /** Gold used as *text*: deep enough to read on cream (4.5:1 on the
    * ground), where the bright ochre above, made for stars and rings,
@@ -123,8 +123,11 @@ export const lightColors = {
 
   // --- Weathervanes: the roof, the vanes and the wind ---
   vaneRoof: '#E8DCC6',
-  vaneMetal: '#3C3346',
-  vaneMetalLight: '#6A5E77',
+  /** Turnable vanes: blued steel. */
+  vaneMetal: '#4E5F6E',
+  vaneMetalLight: '#9FB1C0',
+  /** Fixed vanes: polished gold. */
+  vaneGold: '#C9972E',
   vaneWind: '#7FA9C9',
   vaneAccent: '#B5652E',
 
@@ -239,7 +242,7 @@ export const darkColors: Palette = {
   // Primary inverts: a primary button is parchment with dark type on it -
   // the same "ink on paper" object, lit the other way round.
   primary: '#EFE3CC',
-  secondary: '#D29466',
+  secondary: '#D9715A',
   accent: '#D1AE62',
   accentText: '#D1AE62',
 
@@ -313,8 +316,9 @@ export const darkColors: Palette = {
   lilyBloom: '#F0A0B4',
   lilyAccent: '#7DB3A6',
   vaneRoof: '#2B2722',
-  vaneMetal: '#E6DCCB',
-  vaneMetalLight: '#B9AEC4',
+  vaneMetal: '#AFC0CE',
+  vaneMetalLight: '#DCE6EE',
+  vaneGold: '#E2B85C',
   vaneWind: '#7FB2D9',
   vaneAccent: '#CF9566',
   adjacentTile0: '#D47A57',

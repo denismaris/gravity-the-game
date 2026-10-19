@@ -8,10 +8,14 @@ import {
   letterProgress,
   piecePointsAt,
   pieceProgress,
+  PRESS,
+  ROLL_UNTIL,
+  rollingGlyph,
   SHEEN,
   sheenBandPoints,
   sheenOpacity,
   sheenTravel,
+  tilePress,
   TOTAL_MS,
 } from '../launchChoreography';
 
@@ -56,10 +60,11 @@ describe('act structure', () => {
     expect(TOTAL_MS).toBe(handoff.end);
   });
 
-  /** A launch animation is charged to every cold start. Two seconds is the
-   * outer limit of what is worth watching twice. */
-  test('the whole sequence stays under two seconds', () => {
-    expect(TOTAL_MS).toBeLessThanOrEqual(2000);
+  /** A launch animation is charged to every cold start (a tap skips it).
+   * Three seconds is the outer limit: long enough for the name to turn
+   * over and be read, short enough to be worth watching twice. */
+  test('the whole sequence stays under three seconds', () => {
+    expect(TOTAL_MS).toBeLessThanOrEqual(3000);
   });
 
   test('actProgress spans exactly its own act', () => {
@@ -319,5 +324,39 @@ describe('sheenBandPoints', () => {
     expect(length(e01)).toBeCloseTo(length(e32), 5);
     // Parallel: the cross product of the two edge vectors is ~0.
     expect(Math.abs(e01[0] * e32[1] - e01[1] * e32[0])).toBeCloseTo(0, 5);
+  });
+});
+
+describe('tilePress', () => {
+  test('is still outside its window and pressed once, inside it', () => {
+    expect(tilePress(PRESS.start - 1)).toBe(0);
+    expect(tilePress(PRESS.end + 1)).toBe(0);
+    const mid = tilePress((PRESS.start + PRESS.end) / 2);
+    expect(mid).toBeGreaterThan(0.5);
+    expect(mid).toBeLessThanOrEqual(1);
+  });
+
+  test('lands on the heart seating, and is over before the handoff', () => {
+    expect(PRESS.start).toBeLessThan(ACTS.assemble.end);
+    expect(PRESS.end).toBeLessThan(ACTS.handoff.start);
+  });
+});
+
+describe('rollingGlyph', () => {
+  test('rolls up through the letters just before its own, then lands', () => {
+    const seen: string[] = [];
+    for (let a = 0; a <= 1.0001; a += 0.02) {
+      const { glyph } = rollingGlyph('T', 0, a);
+      if (seen[seen.length - 1] !== glyph) seen.push(glyph);
+    }
+    expect(seen).toEqual(['Q', 'R', 'S', 'T']);
+  });
+
+  test('wraps round the alphabet near A', () => {
+    expect(rollingGlyph('A', 0, 0).glyph).toBe('X');
+  });
+
+  test('has landed once the roll is over', () => {
+    expect(rollingGlyph('M', 4, ROLL_UNTIL)).toEqual({ glyph: 'M', landed: true });
   });
 });

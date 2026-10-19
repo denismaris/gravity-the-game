@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { DailyStanding, reportDaily } from '../backend';
-import { useLastBonus, usePlayerProgress } from '../progression/PlayerProgressProvider';
+import { useIsPractice, useLastBonus, usePlayerProgress } from '../progression/PlayerProgressProvider';
 import { nextGameToArrive } from '../progression/batches';
 import { dailyKeyOf, gameDisplayName, gameShortName, getDailyEntry } from '../game/journey';
 import { cosmeticById } from '../progression/shop';
@@ -82,7 +82,7 @@ export function PuzzleSolved({
   onNext,
   coinsEarned = 0,
 }: PuzzleSolvedProps): React.JSX.Element {
-  const { backdrop, card, hero, rowStyle } = useCardEntrance(ROW_COUNT);
+  const { backdrop, card, cardOpacity, hero, rowStyle } = useCardEntrance(ROW_COUNT);
   // What multiplied this solve's coins: a golden puzzle, the clean-run
   // combo, the lucky charm (see the shop).
   const bonus = useLastBonus();
@@ -90,7 +90,9 @@ export function PuzzleSolved({
   // While a game is being learned, every solve of it moves the next game
   // closer - shown here, where the solve happens.
   const arriving = useMemo(() => nextGameToArrive(progress), [progress]);
-  const towardNext = arriving && kind === arriving.gate ? arriving : null;
+  // A practice board moves nothing on, so it says nothing about what is next.
+  const practice = useIsPractice();
+  const towardNext = !practice && arriving && kind === arriving.gate ? arriving : null;
   // Today's Daily, ready to post: the share sheet, with a no-spoiler card.
   // The world's Daily: post this first solve, then show where it stands
   // among everyone's. Silent offline - the card simply does not say.
@@ -142,7 +144,7 @@ export function PuzzleSolved({
   // In place of stars, one quiet fact about how it went.
   const howItWent = note ? null : hintsUsed === 0 ? 'Without a hint' : hintsUsed === 1 ? 'With one hint' : `With ${hintsUsed} hints`;
   const accent = kind ? accentColorForKind(kind) : theme.colors.accent;
-  const kicker = kind ? gameDisplayName(kind) : null;
+  const kicker = kind ? (practice ? `${gameDisplayName(kind)} · Practice` : gameDisplayName(kind)) : null;
 
   // Picked once per mount, not per render - a re-render mid-animation must
   // not swap the sentence out from under the player.
@@ -165,7 +167,7 @@ export function PuzzleSolved({
           style={[
             styles.cardShadow,
             {
-              opacity: card,
+              opacity: cardOpacity,
               transform: [
                 { scale: card.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
                 { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) },
@@ -179,6 +181,7 @@ export function PuzzleSolved({
             <Animated.View style={rowStyle(0)}>
               {kicker && <Text style={[styles.kicker, { color: accent }]}>{kicker}</Text>}
               <Text style={styles.title}>{heading}</Text>
+              <View style={[styles.titleRule, { backgroundColor: accent }]} />
             </Animated.View>
 
             <Animated.View style={[styles.praiseBlock, rowStyle(1)]}>
@@ -350,7 +353,9 @@ const styles = themedStyles(() => ({
     overflow: 'hidden',
   },
   emblem: { marginBottom: theme.spacing.sm, alignItems: 'center', justifyContent: 'center' },
-  kicker: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, textAlign: 'center' },
+  kicker: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.bold, letterSpacing: 1.4, textTransform: 'uppercase', textAlign: 'center' },
+  /** A short rule in the game's colour under the title, as every Home card has. */
+  titleRule: { alignSelf: 'center', width: 36, height: 2, borderRadius: 1, marginTop: 8 },
   title: {
     fontFamily: theme.typography.families.display,
     fontSize: 36,
@@ -367,13 +372,14 @@ const styles = themedStyles(() => ({
     textAlign: 'center',
     maxWidth: 260,
   },
-  ledger: { alignSelf: 'stretch', marginTop: theme.spacing.md, paddingVertical: 14, paddingHorizontal: 12, borderRadius: 20, backgroundColor: theme.colors.surfaceAlt, gap: 10 },
+  // What it paid, as a clean row between two fine rules - not a slab.
+  ledger: { alignSelf: 'stretch', marginTop: theme.spacing.md, paddingVertical: 12, paddingHorizontal: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.borderStrong, gap: 10 },
   ledgerRow: { flexDirection: 'row', alignItems: 'center' },
   stat: { flex: 1, alignItems: 'center', gap: 3 },
   statValue: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  statNumber: { fontSize: theme.typography.sizes.title - 3, fontWeight: theme.typography.weights.bold, fontVariant: ['tabular-nums'], color: theme.colors.textPrimary },
+  statNumber: { fontFamily: theme.typography.families.figures, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, fontVariant: ['tabular-nums'], color: theme.colors.textPrimary },
   statGold: { color: theme.colors.accentText },
-  statLabel: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
+  statLabel: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.2, textTransform: 'uppercase', color: theme.colors.textTertiary },
   statRule: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', marginVertical: 4, backgroundColor: theme.colors.borderStrong },
   bonusLine: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.accentText, textAlign: 'center' },
   daily: { alignItems: 'center', gap: 3, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.borderStrong },

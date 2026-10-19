@@ -356,6 +356,23 @@ const StaticMirrors = React.memo(function StaticMirrorsImpl({ layout, mirrors, m
   );
 });
 
+/**
+ * The light source: the light itself, not a device - an orb in the beam's
+ * own colour with a soft halo and a bright heart, sitting on a pale disc
+ * so it reads on any tile. The beam leaving it says which way it shines.
+ */
+function SourceLamp({ x, y, cell }: { x: number; y: number; cell: number }): React.JSX.Element {
+  return (
+    <Group>
+      <Circle cx={x} cy={y} r={cell * 0.34} color={theme.colors.mirrorBeamGlow} opacity={0.22} />
+      <Circle cx={x} cy={y} r={cell * 0.24} color={theme.colors.surfaceHi} />
+      <Circle cx={x} cy={y} r={cell * 0.19} color={theme.colors.mirrorBeamCore} />
+      <Circle cx={x} cy={y} r={cell * 0.11} color={theme.colors.mirrorBeamGlow} />
+      <Circle cx={x} cy={y} r={cell * 0.05} color={theme.colors.surfaceHi} />
+    </Group>
+  );
+}
+
 export interface MirrorMazeBoardViewProps {
   puzzle: MirrorMazePuzzle;
   state: MirrorMazeState;
@@ -404,8 +421,44 @@ export function MirrorMazeBoardView({
   const ruled = !!(puzzle.filters?.length || puzzle.splitters?.length || puzzle.rubyGems?.length);
   const trace = useMemo(() => (ruled ? traceAll(puzzle, state) : null), [ruled, puzzle, state]);
   const litGemKeys = useMemo(() => (trace ? new Set(trace.lit) : new Set(path.map(cell => positionKey(cell.row, cell.col)))), [trace, path]);
-  const pieces = useMemo(() => (trace ? trace.pieces : [{ cells: path, ruby: false }]).map(piece => ({ d: pathThroughCells(layout, piece.cells), ruby: piece.ruby })).filter(piece => piece.d !== ''), [trace, path, layout]);
-  const ignitionPathString = partialPathThroughCells(layout, path, revealProgress);
+  const pieces = useMemo(
+    () =>
+      (trace ? trace.pieces : [{ cells: path, ruby: false }])
+        .map(piece => {
+          // A stretch that never left its square - a splitter's half sent
+          // straight into a wall - is drawn as a short stub to the wall,
+          // so both halves of a split are seen, not just the one that runs.
+          const heading = 'heading' in piece ? piece.heading : undefined;
+          if (piece.cells.length === 1 && heading) {
+            const c = getCellCenter(layout, piece.cells[0].row, piece.cells[0].col);
+            const { dRow, dCol } = DIRECTION_VECTOR[heading];
+            return { d: `M ${c.x} ${c.y} L ${c.x + dCol * layout.cellSize * 0.46} ${c.y + dRow * layout.cellSize * 0.46}`, ruby: piece.ruby };
+          }
+          return { d: pathThroughCells(layout, piece.cells), ruby: piece.ruby };
+        })
+        .filter(piece => piece.d !== ''),
+    [trace, path, layout],
+  );
+  // The solve's gold sweeps every stretch of light at once - both halves
+  // of a split beam, not only the first beam out of the lamp (which left
+  // the second half dark as the board finished).
+  const ignitionPathString = useMemo(
+    () =>
+      (trace ? trace.pieces : [{ cells: path, ruby: false }])
+        .map(piece => {
+          const heading = 'heading' in piece ? piece.heading : undefined;
+          if (piece.cells.length === 1 && heading && revealProgress > 0) {
+            const c = getCellCenter(layout, piece.cells[0].row, piece.cells[0].col);
+            const { dRow, dCol } = DIRECTION_VECTOR[heading];
+            const k = layout.cellSize * 0.46 * Math.min(1, revealProgress * 4);
+            return `M ${c.x} ${c.y} L ${c.x + dCol * k} ${c.y + dRow * k}`;
+          }
+          return partialPathThroughCells(layout, piece.cells, revealProgress);
+        })
+        .filter(d => d !== '')
+        .join(' '),
+    [trace, path, layout, revealProgress],
+  );
 
   const flourish = useMirrorFlourish(state.mirrors);
   const flourishingKey = flourish ? positionKey(flourish.cell.row, flourish.cell.col) : null;
@@ -439,7 +492,6 @@ export function MirrorMazeBoardView({
   const coreOpacity = useDerivedValue(() => 0.85 + 0.15 * pulse.value);
   const midWidth = Math.max(1.8, layout.cellSize * 0.055);
   const coreWidth = Math.max(1, layout.cellSize * 0.026);
-  const arrowSize = layout.cellSize * 0.26;
   const sourceCenter = getCellCenter(layout, puzzle.source.row, puzzle.source.col);
   const gemSize = layout.cellSize * 0.16;
   const mirrorHalfLength = (layout.cellSize - layout.cellSize * 0.22 * 2) / 2;
@@ -518,13 +570,8 @@ export function MirrorMazeBoardView({
         </Group>
       )}
 
-      {/* The lamp, over the beam - light leaves it, it is not drawn
-          across it: a steel disc with a paper arrow the way it shines. */}
-      <Circle cx={sourceCenter.x} cy={sourceCenter.y} r={layout.cellSize * 0.22} color={theme.colors.mirrorAccent} />
-      <Path
-        path={arrowPath(sourceCenter.x, sourceCenter.y, arrowSize * 0.5, puzzle.sourceDirection)}
-        color={theme.colors.surfaceHi}
-      />
+      {/* The source, over the beam it sends out. */}
+      <SourceLamp x={sourceCenter.x} y={sourceCenter.y} cell={layout.cellSize} />
 
       {puzzle.gems.map((cell, i) => {
         const center = getCellCenter(layout, cell.row, cell.col);

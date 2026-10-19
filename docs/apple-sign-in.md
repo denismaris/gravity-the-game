@@ -1,6 +1,8 @@
 # Turning on Sign in with Apple
 
-The code is ready. It stays off until the paid Apple Developer account exists, because Apple only lets paid teams use this permission. While it's off, the iPhone build shows no sign-in buttons ("Sign-in is coming soon") and players play anonymously. Google sign-in is hidden on iPhone too, because App Review rejects an app that offers Google without Apple next to it (guideline 4.8).
+The code is ready. It stays off until the paid Apple Developer account exists, because Apple only lets paid teams use this permission. While it's off, the iPhone shows the Apple button next to Google's for the design, and tapping it says "Sign in with Apple is coming soon". Google sign-in works as normal.
+
+**Before an App Store build, this must be switched on.** App Review rejects a button that does nothing (and an app that offers Google sign-in without a working Apple option, guideline 4.8).
 
 ## On the day you have the account
 
@@ -12,7 +14,7 @@ The code is ready. It stays off until the paid Apple Developer account exists, b
    - Turn it on.
    - Under **Client IDs**, add `com.marisdenis.tessera`.
    - Leave the secret key empty. It's only for signing in on a website, and the app signs in natively.
-3. **The app:** in `src/backend/config.ts`, set `APPLE_SIGN_IN_ENABLED = true`. This also brings back the Google button on iPhone.
+3. **The app:** in `src/backend/config.ts`, set `APPLE_SIGN_IN_ENABLED = true`. The Apple button then signs in for real.
 4. **Test on a real iPhone.** The simulator can't complete an Apple sign-in reliably.
    - Open the account screen and tap **Sign in with Apple**. The player's progress should stay exactly as it was.
    - Delete the app, reinstall it, and sign in again. The same account and progress should come back.

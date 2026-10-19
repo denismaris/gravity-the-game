@@ -106,7 +106,16 @@ const lastPlayed = new Map<HapticKind, number>();
 
 let soundEnabled = true;
 let initialized = false;
-const players = new Map<HapticKind, Sound>();
+/** Each effect's players, and which one plays next. */
+const players = new Map<HapticKind, Sound[]>();
+const nextPlayer = new Map<HapticKind, number>();
+/**
+ * Players per effect. Replaying a sound used to stop its one player and
+ * start it again - cutting a sound off mid-wave, which clicks, and on a
+ * phone with fast taps that read as crackling. With a few players, a new
+ * play starts on one that is free while the last rings out untouched.
+ */
+const VOICES = 3;
 
 function ensureInitialized(): void {
   if (initialized) return;
@@ -119,12 +128,13 @@ function ensureInitialized(): void {
   Sound.setCategory('Ambient');
 
   (Object.keys(FILES) as HapticKind[]).forEach(kind => {
-    const player = new Sound(FILES[kind], Sound.MAIN_BUNDLE, () => {
-      // A load failure (most likely: not yet added to the iOS bundle) just
-      // means this one effect stays silent - every other call site is
-      // already guarded, so nothing else is affected.
-    });
-    players.set(kind, player);
+    // A load failure (most likely: not yet added to the iOS bundle) just
+    // means this one effect stays silent - every other call site is
+    // already guarded, so nothing else is affected.
+    // One player each to begin with; more only for an effect that is
+    // actually replayed faster than it lasts (see `triggerSound`) - a
+    // phone, Android especially, has only so many to give.
+    players.set(kind, [new Sound(FILES[kind], Sound.MAIN_BUNDLE, () => {})]);
   });
 }
 
@@ -188,12 +198,39 @@ export function triggerSound(kind: HapticKind): void {
   try {
     ensureInitialized();
     const chime = solveChime && isSolveKind(kind) ? chimePlayer(solveChime) : null;
-    const player = chime ?? players.get(kind);
-    if (!player || !player.isLoaded()) return;
     const now = Date.now();
     if (now - (lastPlayed.get(kind) ?? -Infinity) < REPEAT_GAP_MS) return;
+    if (chime) {
+      if (!chime.isLoaded()) return;
+      lastPlayed.set(kind, now);
+      chime.stop(() => chime.play());
+      return;
+    }
+    const voices = players.get(kind);
+    if (!voices) return;
+    // The next player in turn - so the one that played last keeps
+    // ringing out. Only when every one is still busy is one cut short.
+    const start = nextPlayer.get(kind) ?? 0;
+    let pick = -1;
+    for (let k = 0; k < voices.length; k += 1) {
+      const i = (start + k) % voices.length;
+      if (voices[i].isLoaded() && !voices[i].isPlaying()) {
+        pick = i;
+        break;
+      }
+    }
+    if (pick === -1) {
+      // All busy: add a player for next time (it loads in the background),
+      // and for now cut the oldest short.
+      if (voices.length < VOICES) voices.push(new Sound(FILES[kind], Sound.MAIN_BUNDLE, () => {}));
+      pick = start % voices.length;
+    }
+    const player = voices[pick];
+    if (!player.isLoaded()) return;
+    nextPlayer.set(kind, (pick + 1) % voices.length);
     lastPlayed.set(kind, now);
-    player.stop(() => player.play());
+    if (player.isPlaying()) player.stop(() => player.play());
+    else player.play();
   } catch {
     // Never let a missing/failing audio backend break gameplay.
   }

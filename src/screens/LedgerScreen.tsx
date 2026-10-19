@@ -99,6 +99,7 @@ function AlbumPage({
       <LedgerStampRow kind={row.kind} stamps={stamps} stampWidth={stampWidth} width={rowWidth} onClaim={onClaim} />
 
       <View style={styles.pageFoot}>
+        <View style={styles.pageFootLabel}>
         {ready.length > 0 ? (
           <View style={styles.claimHint}>
             <Text style={styles.claimHintText}>Tap to claim</Text>
@@ -106,10 +107,11 @@ function AlbumPage({
             <Text style={styles.claimHintText}>{ready.reduce((sum, s) => sum + STAMP_COINS[s.rank], 0)}</Text>
           </View>
         ) : (
-          <Text style={styles.pageFootText}>
+          <Text style={styles.pageFootText} numberOfLines={1}>
             {next ? `${next.step - row.solved} more for ${STAMP_NAMES[next.rank]}` : 'Page complete'}
           </Text>
         )}
+        </View>
         <View style={styles.pageTrack}>
           <View style={[styles.pageTrackFill, { width: `${Math.max(0, Math.min(1, share)) * 100}%`, backgroundColor: accent }]} />
         </View>
@@ -306,11 +308,13 @@ const styles = themedStyles(() => ({
     padding: theme.spacing.md,
     borderRadius: 20,
     backgroundColor: theme.colors.surface,
-    borderWidth: 1,
+    // One width ready or not: a border that thickened when a stamp came in
+    // nudged everything on the page.
+    borderWidth: 1.5,
     borderColor: theme.colors.border,
     gap: theme.spacing.sm,
   },
-  pageReady: { borderColor: theme.colors.goldRim, borderWidth: 1.5, backgroundColor: theme.colors.surfaceHi },
+  pageReady: { borderColor: theme.colors.goldRim, backgroundColor: theme.colors.surfaceHi },
   pageHead: { flexDirection: 'row', alignItems: 'flex-start' },
   pageTitleBox: { flex: 1 },
   pageTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
@@ -323,6 +327,10 @@ const styles = themedStyles(() => ({
   pageCountValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, lineHeight: theme.typography.sizes.title + 6, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   pageCountLabel: { fontSize: 8.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   pageFoot: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
+  /** The footer's words in a fixed width, so the track beside them stays
+   * the same length whatever they say - it used to jump as a stamp came
+   * in and the line changed. */
+  pageFootLabel: { width: 132 },
   pageFootText: { fontSize: 11.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   claimHint: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   claimHintText: { fontSize: 11.5, fontWeight: theme.typography.weights.bold, color: theme.colors.gold },

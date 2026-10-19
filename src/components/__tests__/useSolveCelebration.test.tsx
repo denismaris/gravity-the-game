@@ -85,8 +85,9 @@ describe('useSolveCelebration', () => {
   test('the beat is long enough to read but not a wait', () => {
     // Pinned deliberately: every board's finish animation is tuned to
     // land inside this, so moving it silently desynchronises all of them.
-    // Raised from 620ms after play-testing called the finishes too fast.
-    expect(SOLVE_CELEBRATION_MS).toBeGreaterThanOrEqual(900);
-    expect(SOLVE_CELEBRATION_MS).toBeLessThanOrEqual(1400);
+    // Raised from 620ms, then to 1.6s, after play-testing called the
+    // finishes too fast and asked for one beat across every game.
+    expect(SOLVE_CELEBRATION_MS).toBeGreaterThanOrEqual(1200);
+    expect(SOLVE_CELEBRATION_MS).toBeLessThanOrEqual(2000);
   });
 });

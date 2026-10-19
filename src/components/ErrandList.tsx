@@ -1,24 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Canvas, Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
 import { dailyKeyOf } from '../game/journey';
-import { triggerFeedback } from '../game/rendering';
+import { shade, triggerFeedback } from '../game/rendering';
 import { Errand, ErrandKind, errandLogFor, errandsFor, isErrandDone, usePlayerProgress } from '../progression';
 import { theme, themedStyles } from '../theme';
 import { CoinGlyph } from './Coins';
 import { GameEmblem } from './GameEmblem';
+import { Icon } from './Icon';
 import { PressableScale } from './PressableScale';
 import { XpBar } from './XpBar';
-
-/** The mark for an errand that isn't about one game - U+FE0E keeps every
- * one a flat glyph rather than a colour emoji. */
-const GLYPHS: Record<Exclude<ErrandKind, 'solveGame'>, string> = {
-  solve: '▦︎',
-  stars: '★︎',
-  clean: '✦︎',
-  hard: '◆︎',
-  daily: '☀︎',
-  set: '❖︎',
-};
 
 /** Hours and minutes until today's errands turn over (UTC midnight, the
  * same clock the Daily runs on). */
@@ -30,17 +21,86 @@ export function untilTomorrow(now: Date): string {
   return h > 0 ? `${h}H ${m}M` : `${m}M`;
 }
 
-function ErrandMark({ errand, done, compact }: { errand: Errand; done: boolean; compact: boolean }): React.JSX.Element {
-  if (errand.kind === 'solveGame' && errand.game) return <GameEmblem kind={errand.game} size={compact ? 28 : 36} />;
+/** How big an errand's mark is drawn, in the compact list and the full. */
+const MARK = { compact: 30, full: 36 } as const;
+
+/**
+ * The drawing on an errand's mark: a small figure of the thing asked for,
+ * in the mark's own colour - puzzle tiles to solve, a star, a spark for
+ * "no hints", a diamond for the hard one, the sun for the Daily, a set of
+ * four. Drawn, not typed: the type glyphs they replaced (`▦ ★ ◆`) set at
+ * a different size and weight in every font, and read as placeholders.
+ */
+function ErrandGlyph({ kind, size, color }: { kind: Exclude<ErrandKind, 'solveGame'>; size: number; color: string }): React.JSX.Element {
+  const c = size / 2;
+  const star = (cx: number, cy: number, r: number, points: number, inner: number): string => {
+    let d = '';
+    for (let k = 0; k < points * 2; k += 1) {
+      const a = (k * Math.PI) / points - Math.PI / 2;
+      const rr = k % 2 === 0 ? r : r * inner;
+      d += `${k === 0 ? 'M' : 'L'} ${cx + Math.cos(a) * rr} ${cy + Math.sin(a) * rr} `;
+    }
+    return `${d}Z`;
+  };
+  const diamond = (cx: number, cy: number, r: number): string => `M ${cx} ${cy - r} L ${cx + r * 0.8} ${cy} L ${cx} ${cy + r} L ${cx - r * 0.8} ${cy} Z`;
   return (
-    <View style={[styles.mark, compact && styles.markCompact, done && styles.markDone]}>
-      <Text style={[styles.markGlyph, done && styles.markGlyphDone]}>{GLYPHS[errand.kind as Exclude<ErrandKind, 'solveGame'>]}</Text>
+    <Canvas style={{ width: size, height: size }}>
+      {kind === 'solve' &&
+        [0, 1, 2, 3].map(i => {
+          const cell = size * 0.2;
+          const gap = size * 0.05;
+          const x = c - cell - gap / 2 + (i % 2) * (cell + gap);
+          const y = c - cell - gap / 2 + Math.floor(i / 2) * (cell + gap);
+          return <RoundedRect key={i} x={x} y={y} width={cell} height={cell} r={cell * 0.25} color={color} opacity={i === 3 ? 0.4 : 1} />;
+        })}
+      {kind === 'stars' && <Path path={star(c, c + size * 0.02, size * 0.27, 5, 0.46)} color={color} />}
+      {kind === 'clean' && <Path path={star(c, c, size * 0.28, 4, 0.3)} color={color} />}
+      {kind === 'hard' && <Path path={diamond(c, c, size * 0.26)} color={color} />}
+      {kind === 'daily' && (
+        <Group>
+          <Circle cx={c} cy={c} r={size * 0.12} color={color} />
+          {Array.from({ length: 8 }, (_v, k) => {
+            const a = (k * Math.PI) / 4;
+            return (
+              <Path
+                key={k}
+                path={`M ${c + Math.cos(a) * size * 0.2} ${c + Math.sin(a) * size * 0.2} L ${c + Math.cos(a) * size * 0.28} ${c + Math.sin(a) * size * 0.28}`}
+                color={color}
+                style="stroke"
+                strokeWidth={Math.max(1.4, size * 0.055)}
+                strokeCap="round"
+              />
+            );
+          })}
+        </Group>
+      )}
+      {kind === 'set' &&
+        [
+          [0, -1],
+          [1, 0],
+          [0, 1],
+          [-1, 0],
+        ].map(([dx, dy], i) => <Path key={i} path={diamond(c + dx * size * 0.14, c + dy * size * 0.14, size * 0.1)} color={color} />)}
+    </Canvas>
+  );
+}
+
+/** An errand's mark: the game's own emblem for "solve a <game>", else a
+ * small gold tile with its figure - both standing on a lip, like every
+ * tile on Home. Green once done. */
+function ErrandMark({ errand, done, compact }: { errand: Errand; done: boolean; compact: boolean }): React.JSX.Element {
+  const size = compact ? MARK.compact : MARK.full;
+  if (errand.kind === 'solveGame' && errand.game) return <GameEmblem kind={errand.game} size={size} raised />;
+  return (
+    <View style={[styles.mark, { width: size, height: size + 2.5 }, done && styles.markDone]}>
+      <ErrandGlyph kind={errand.kind as Exclude<ErrandKind, 'solveGame'>} size={size * 0.9} color={done ? theme.colors.success : theme.colors.accentText} />
     </View>
   );
 }
 
-/** One errand: what to do, how far along, what it pays - and, once done,
- * a Claim pill that pays it out with the coins floating up to the purse. */
+/** One errand: what to do and how far along on one line, the bar under
+ * it, and on the right what it pays - a coin pill that becomes the Claim
+ * button once it is done, and a tick once claimed. */
 function ErrandRow({ errand, done, progress, claimed, onClaim, compact, dense }: { errand: Errand; done: boolean; progress: number; claimed: boolean; onClaim: () => void; compact: boolean; dense: boolean }): React.JSX.Element {
   const float = useRef(new Animated.Value(1)).current;
   const ready = done && !claimed;
@@ -55,6 +115,7 @@ function ErrandRow({ errand, done, progress, claimed, onClaim, compact, dense }:
     Animated.timing(float, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
     onClaim();
   };
+  const shown = Math.min(progress, errand.target);
 
   return (
     <Animated.View
@@ -62,42 +123,47 @@ function ErrandRow({ errand, done, progress, claimed, onClaim, compact, dense }:
         styles.row,
         compact && styles.rowCompact,
         dense && styles.rowDense,
-        claimed && styles.rowClaimed,
-        { borderColor: glow.interpolate({ inputRange: [0, 1], outputRange: [theme.colors.border, theme.colors.accent] }) },
+        claimed && (compact ? styles.rowClaimedCompact : styles.rowClaimed),
+        !compact && { borderColor: glow.interpolate({ inputRange: [0, 1], outputRange: [theme.colors.border, theme.colors.accent] }) },
       ]}
       accessible
-      accessibilityLabel={`${errand.title}. ${Math.min(progress, errand.target)} of ${errand.target}. ${claimed ? 'Claimed' : ready ? `Ready to claim ${errand.coins} coins` : `Pays ${errand.coins} coins`}.`}
+      accessibilityLabel={`${errand.title}. ${shown} of ${errand.target}. ${claimed ? 'Claimed' : ready ? `Ready to claim ${errand.coins} coins` : `Pays ${errand.coins} coins`}.`}
     >
       <ErrandMark errand={errand} done={done} compact={compact} />
-      <View style={[styles.rowBody, compact && styles.rowBodyCompact]}>
-        <Text style={[styles.title, compact && styles.titleCompact, claimed && styles.titleClaimed]} numberOfLines={1}>
-          {errand.title}
-          {/* Dense: the count rides on the title line, no bar. */}
-          {dense && <Text style={styles.countInline}>{`  ${Math.min(progress, errand.target)}/${errand.target}`}</Text>}
-        </Text>
-        {!dense && (
-        <View style={styles.progressRow}>
-          <XpBar share={errand.target > 0 ? progress / errand.target : 0} ticks={errand.target > 1 && errand.target <= 10 ? errand.target : 1} height={compact ? 4 : 6} color={done ? theme.colors.success : theme.colors.accent} style={styles.bar} />
-          <Text style={styles.count}>
-            {Math.min(progress, errand.target)}/{errand.target}
+      <View style={[styles.rowBody, compact && styles.rowBodyCompact, dense && styles.rowBodyDense]}>
+        <View style={styles.titleLine}>
+          <Text style={[styles.title, compact && styles.titleCompact, claimed && styles.titleClaimed]} numberOfLines={1}>
+            {errand.title}
           </Text>
+          {/* The count on the title's own line, set in figures: "2 of 4"
+              read with the words it counts, not stranded under the bar. */}
+          {/* Once done, the bar and the Claim button say it: the count
+              steps aside so the title keeps its room. */}
+          {!done && (
+            <Text style={styles.count}>
+              {shown}
+              <Text style={styles.countOf}>{`/${errand.target}`}</Text>
+            </Text>
+          )}
         </View>
+        {!dense && (
+          <XpBar share={errand.target > 0 ? progress / errand.target : 0} ticks={errand.target > 1 && errand.target <= 10 ? errand.target : 1} height={compact ? 5 : 6} color={done ? theme.colors.success : theme.colors.accent} />
         )}
       </View>
       {ready ? (
-        <PressableScale accessibilityRole="button" accessibilityLabel={`Claim ${errand.coins} coins`} onPress={claim} style={({ pressed }) => [styles.claim, compact && styles.claimCompact, pressed && styles.claimPressed]}>
+        <PressableScale accessibilityRole="button" accessibilityLabel={`Claim ${errand.coins} coins`} onPress={claim} style={({ pressed }) => [styles.pill, styles.claim, pressed && styles.claimPressed]}>
           <Text style={styles.claimText}>Claim</Text>
-          <CoinGlyph size={13} />
-          <Text style={styles.claimText}>{errand.coins}</Text>
+          <CoinGlyph size={12} />
+          <Text style={[styles.claimText, styles.figure]}>{errand.coins}</Text>
         </PressableScale>
       ) : claimed ? (
         <View style={styles.doneTick}>
-          <Text style={styles.doneTickGlyph}>{'✓︎'}</Text>
+          <Icon name="check" size={13} color="#FFFBF3" weight={2.6} />
         </View>
       ) : (
-        <View style={styles.reward}>
-          <CoinGlyph size={13} />
-          <Text style={styles.rewardText}>{errand.coins}</Text>
+        <View style={styles.pill}>
+          <CoinGlyph size={12} />
+          <Text style={[styles.rewardText, styles.figure]}>{errand.coins}</Text>
         </View>
       )}
       <Animated.View
@@ -142,13 +208,24 @@ export function ErrandList({ compact = false, dense = false }: { compact?: boole
           last errand and fits the card. */}
       {compact && (
         <View style={styles.head}>
-          <Text style={styles.headLabel}>Errands</Text>
-          <Text style={styles.headClock}>{`${doneCount} of ${errands.length} done · new in ${clock.toLowerCase()}`}</Text>
+          <View style={styles.headLeft}>
+            <Text style={styles.headLabel}>Errands</Text>
+            {/* How many are done, as pips: one per errand. */}
+            <View style={styles.pips} accessibilityLabel={`${doneCount} of ${errands.length} done`}>
+              {errands.map((_e, i) => (
+                <View key={i} style={[styles.pip, i < doneCount && styles.pipOn]} />
+              ))}
+            </View>
+          </View>
+          <Text style={styles.headClock}>{`New in ${clock.toLowerCase()}`}</Text>
         </View>
       )}
       {errands.map((errand, i) => (
+        <React.Fragment key={`${dayKey}-${i}`}>
+        {/* On Home: a list, not a stack of boxes - a fine rule between
+            rows, and the Claim pill the one strong thing on a row. */}
+        {compact && i > 0 && <View style={styles.divider} />}
         <ErrandRow
-          key={`${dayKey}-${i}`}
           errand={errand}
           progress={log.progress[i]}
           done={isErrandDone(errand, log, i)}
@@ -159,6 +236,7 @@ export function ErrandList({ compact = false, dense = false }: { compact?: boole
             claimErrand(i);
           }}
         />
+        </React.Fragment>
       ))}
       {!compact && (
         <Text style={styles.foot}>
@@ -171,81 +249,102 @@ export function ErrandList({ compact = false, dense = false }: { compact?: boole
 
 const styles = themedStyles(() => ({
   list: { gap: theme.spacing.sm },
-  listCompact: { gap: 6 },
+  listCompact: { gap: 0 },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: theme.spacing.sm,
+    gap: theme.spacing.sm + 2,
     paddingVertical: 10,
     paddingHorizontal: theme.spacing.sm,
     borderRadius: 16,
     backgroundColor: theme.colors.surfaceHi,
     borderWidth: 1.5,
   },
-  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 2 },
-  headLabel: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
-  headClock: { fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
-  rowCompact: { paddingVertical: 6, borderRadius: 13 },
-  rowDense: { paddingVertical: 3 },
-  listDense: { gap: 4 },
-  countInline: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
-  rowBodyCompact: { gap: 4 },
-  titleCompact: { fontSize: theme.typography.sizes.caption },
-  markCompact: { width: 28, height: 28, borderRadius: 9 },
-  claimCompact: { paddingHorizontal: 10, paddingVertical: 5 },
+  head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+  headLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headLabel: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.4, textTransform: 'uppercase', color: theme.colors.textTertiary },
+  pips: { flexDirection: 'row', gap: 3 },
+  pip: { width: 12, height: 4, borderRadius: 2, backgroundColor: theme.colors.border },
+  pipOn: { backgroundColor: theme.colors.success },
+  headClock: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
+  rowCompact: { paddingVertical: 9, paddingHorizontal: 0, borderRadius: 0, borderWidth: 0, backgroundColor: 'transparent' },
+  divider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.borderStrong, opacity: 0.6, marginLeft: MARK.compact + theme.spacing.sm + 2 },
+  rowDense: { paddingVertical: 4 },
+  listDense: { gap: 0 },
+  rowBodyCompact: { gap: 6 },
+  rowBodyDense: { gap: 0 },
+  titleCompact: { fontSize: theme.typography.sizes.caption + 1 },
   rowClaimed: { backgroundColor: theme.colors.surface, opacity: 0.72 },
+  rowClaimedCompact: { opacity: 0.55 },
   mark: {
-    width: 36,
-    height: 36,
-    borderRadius: 11,
+    borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: 'rgba(183,137,47,0.16)',
+    // A lip, as every tile on Home has: the same tint, deeper, below.
+    borderBottomWidth: 2.5,
+    borderBottomColor: 'rgba(183,137,47,0.32)',
   },
-  markDone: { backgroundColor: 'rgba(92,124,74,0.18)' },
-  markGlyph: { fontSize: 17, color: theme.colors.accentText },
-  markGlyphDone: { color: theme.colors.success },
-  rowBody: { flex: 1, gap: 6 },
+  markDone: { backgroundColor: 'rgba(92,124,74,0.18)', borderBottomColor: 'rgba(92,124,74,0.36)' },
+  rowBody: { flex: 1, gap: 7 },
+  titleLine: { flexDirection: 'row', alignItems: 'baseline', gap: theme.spacing.sm },
   title: {
+    flex: 1,
     fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
     color: theme.colors.textPrimary,
   },
   titleClaimed: { textDecorationLine: 'line-through', color: theme.colors.textSecondary },
-  progressRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
-  bar: { flex: 1 },
+  figure: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'] },
   count: {
-    fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.micro,
-    color: theme.colors.textSecondary,
-    minWidth: 28,
-    textAlign: 'right',
+    fontFamily: theme.typography.families.figures,
+    fontVariant: ['tabular-nums'],
+    fontSize: theme.typography.sizes.caption,
+    fontWeight: theme.typography.weights.bold,
+    color: theme.colors.textPrimary,
   },
-  reward: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 6 },
-  rewardText: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
-  claim: {
+  countOf: { fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
+  /** What it pays: a small raised key - the same one that, once the errand
+   * is done, fills in as the Claim button. */
+  pill: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 12,
-    paddingVertical: 7,
+    minWidth: 52,
+    justifyContent: 'center',
+    paddingHorizontal: 9,
+    paddingTop: 4,
+    paddingBottom: 3,
     borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderBottomWidth: 3,
+    borderColor: theme.colors.border,
+    borderBottomColor: theme.colors.borderStrong,
+    backgroundColor: theme.colors.surfaceHi,
+  },
+  rewardText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, color: theme.colors.textSecondary },
+  claim: {
+    gap: 3,
+    paddingHorizontal: 9,
     backgroundColor: theme.colors.primary,
+    borderColor: theme.colors.primary,
+    borderBottomColor: shade(theme.colors.primary, 0.6),
   },
   claimPressed: { opacity: 0.85 },
-  claimText: { color: theme.colors.surfaceHi, fontWeight: theme.typography.weights.semibold, fontSize: theme.typography.sizes.caption },
+  claimText: { color: theme.colors.surfaceHi, fontWeight: theme.typography.weights.bold, fontSize: theme.typography.sizes.caption },
   doneTick: {
     width: 26,
     height: 26,
     borderRadius: 13,
     backgroundColor: theme.colors.success,
+    borderBottomWidth: 2.5,
+    borderBottomColor: shade(theme.colors.success, 0.68),
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 4,
+    marginHorizontal: 13,
   },
-  doneTickGlyph: { color: theme.colors.surfaceHi, fontSize: 14, fontWeight: theme.typography.weights.bold },
   float: { position: 'absolute', right: 18, top: 6, flexDirection: 'row', alignItems: 'center', gap: 3 },
-  floatText: { fontFamily: theme.typography.families.mono, fontWeight: theme.typography.weights.bold, color: theme.colors.accentText, fontSize: theme.typography.sizes.body },
+  floatText: { fontFamily: theme.typography.families.figures, fontWeight: theme.typography.weights.bold, color: theme.colors.accentText, fontSize: theme.typography.sizes.body },
   foot: {
     marginTop: 2,
     fontSize: theme.typography.sizes.caption,

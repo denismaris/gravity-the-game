@@ -1,6 +1,8 @@
 /**
  * The launch sequence's timing and geometry, with no React and no Skia in
  * it, so the choreography can be reasoned about and tested on its own.
+ * The per-frame functions are worklets: the sequence plays on the UI
+ * thread, because the JS thread is busy building Home underneath it.
  *
  * The app's mark builds itself: a tessera arrives, eighteen pieces of
  * tilework fly in and lock into the star-and-cross, the wordmark sets
@@ -23,6 +25,18 @@
  * still match the icon, since the pieces themselves are the same shapes.
  */
 
+/** Worklets capture what they call when defined, so this one, used by
+ * nearly everything below, comes first. */
+export function clamp01(value: number): number {
+  'worklet';
+  // NaN is the only value that has no sensible clamp, and it is the one a
+  // divide-by-zero would produce. Infinities clamp like any other
+  // out-of-range number - an earlier version rejected those too and turned
+  // a fully-elapsed animation into a not-yet-started one.
+  if (Number.isNaN(value)) return 0;
+  return value < 0 ? 0 : value > 1 ? 1 : value;
+}
+
 export const CHALK = '#F2EDDF';
 export const OCHRE = '#D9A441';
 
@@ -40,10 +54,12 @@ export const ACTS = {
   tileIn: { start: 0, end: 420 },
   /** Eighteen pieces flying in and locking into place, staggered. */
   assemble: { start: 260, end: 1180 },
-  /** The wordmark setting, letter by letter, under the tile. */
-  wordmark: { start: 1020, end: 1560 },
-  /** The tile lifting away and Home arriving behind it. */
-  handoff: { start: 1620, end: 1980 },
+  /** The wordmark setting, letter by letter, under the tile - each letter
+   * turning over through others before it lands, slow enough to read. */
+  wordmark: { start: 1020, end: 2120 },
+  /** The tile lifting away and Home arriving behind it: unhurried, so the
+   * name has a moment to be seen whole before it goes. */
+  handoff: { start: 2260, end: 2960 },
 } as const;
 
 export const TOTAL_MS = ACTS.handoff.end;
@@ -218,6 +234,7 @@ export function launchPieces(): ReadonlyArray<LaunchPiece> {
 const PIECE_TRAVEL = 0.5;
 
 function centroid(points: ReadonlyArray<readonly [number, number]>): readonly [number, number] {
+  'worklet';
   let x = 0;
   let y = 0;
   for (const [px, py] of points) {
@@ -240,6 +257,7 @@ function centroid(points: ReadonlyArray<readonly [number, number]>): readonly [n
  * spots before correcting.
  */
 export function piecePointsAt(piece: LaunchPiece, progress: number): Array<readonly [number, number]> {
+  'worklet';
   const p = clamp01(progress);
   const [cx, cy] = centroid(piece.points);
   const spin = ((1 - p) * piece.spin * Math.PI) / 180;
@@ -259,32 +277,27 @@ export function piecePointsAt(piece: LaunchPiece, progress: number): Array<reado
 /** 0..1 opacity through a piece's flight - fully opaque well before it
  * lands, so the settle is read as motion, not as a fade finishing. */
 export function pieceOpacity(progress: number): number {
+  'worklet';
   return clamp01(progress * 2.5);
 }
 
 /** Cubic ease-out - the deceleration every piece lands on. */
 export function easeOut(t: number): number {
+  'worklet';
   const c = clamp01(t);
   return 1 - (1 - c) ** 3;
 }
 
 /** Ease-in-out, for the tile and the handoff where both ends matter. */
 export function easeInOut(t: number): number {
+  'worklet';
   const c = clamp01(t);
   return c < 0.5 ? 4 * c * c * c : 1 - (-2 * c + 2) ** 3 / 2;
 }
 
-export function clamp01(value: number): number {
-  // NaN is the only value that has no sensible clamp, and it is the one a
-  // divide-by-zero would produce. Infinities clamp like any other
-  // out-of-range number - an earlier version rejected those too and turned
-  // a fully-elapsed animation into a not-yet-started one.
-  if (Number.isNaN(value)) return 0;
-  return value < 0 ? 0 : value > 1 ? 1 : value;
-}
-
 /** Linear 0..1 across an act, before easing. */
 export function actProgress(elapsed: number, act: { start: number; end: number }): number {
+  'worklet';
   return clamp01((elapsed - act.start) / (act.end - act.start));
 }
 
@@ -296,6 +309,7 @@ export function actProgress(elapsed: number, act: { start: number; end: number }
  * *final* piece settles, not when the last one is released.
  */
 export function pieceProgress(elapsed: number, piece: LaunchPiece): number {
+  'worklet';
   const { start, end } = ACTS.assemble;
   const release = start + piece.order * (end - start - PIECE_FLIGHT_MS);
   return easeOut((elapsed - release) / PIECE_FLIGHT_MS);
@@ -303,6 +317,7 @@ export function pieceProgress(elapsed: number, piece: LaunchPiece): number {
 
 /** The wordmark's letters set one after another, left to right. */
 export function letterProgress(elapsed: number, index: number, count: number): number {
+  'worklet';
   const { start, end } = ACTS.wordmark;
   const span = end - start;
   const per = span * 0.55;
@@ -317,6 +332,7 @@ export function letterProgress(elapsed: number, index: number, count: number): n
  * the same four numbers are reproduced by hand instead of inventing a
  * differently-shaped curve. */
 function interpolate(t: number, stops: ReadonlyArray<readonly [number, number]>): number {
+  'worklet';
   const c = clamp01(t);
   for (let i = 1; i < stops.length; i += 1) {
     const [x0, y0] = stops[i - 1];
@@ -331,6 +347,7 @@ function interpolate(t: number, stops: ReadonlyArray<readonly [number, number]>)
  * The same envelope shape `useCardEntrance`'s own `sheen` animates a card
  * with. */
 export function sheenOpacity(elapsed: number): number {
+  'worklet';
   const t = actProgress(elapsed, SHEEN);
   return interpolate(t, [
     [0, 0],
@@ -343,6 +360,7 @@ export function sheenOpacity(elapsed: number): number {
 /** 0..1 raw progress across the sweep, linear - the caller supplies its own
  * travel distance, since that depends on the tile's own on-screen size. */
 export function sheenTravel(elapsed: number): number {
+  'worklet';
   return actProgress(elapsed, SHEEN);
 }
 
@@ -375,6 +393,7 @@ const SHEEN_ANGLE_DEG = 24;
  * rendered.
  */
 export function sheenBandPoints(t: number): ReadonlyArray<readonly [number, number]> {
+  'worklet';
   const angle = (SHEEN_ANGLE_DEG * Math.PI) / 180;
   const d: readonly [number, number] = [Math.cos(angle), Math.sin(angle)];
   const n: readonly [number, number] = [-Math.sin(angle), Math.cos(angle)];
@@ -399,3 +418,42 @@ export function sheenBandPoints(t: number): ReadonlyArray<readonly [number, numb
   ];
   return [corner(1, 1), corner(1, -1), corner(-1, -1), corner(-1, 1)];
 }
+
+/**
+ * The tile's one "click": when the ochre heart seats, the whole tile gives
+ * a little - pressed in a few percent and back - the way a tile tapped
+ * home into a bed of mortar does. 0 at rest, 1 at the deepest point.
+ */
+export const PRESS = { start: ACTS.assemble.end - 90, end: ACTS.assemble.end + 230 } as const;
+
+export function tilePress(elapsed: number): number {
+  'worklet';
+  const t = actProgress(elapsed, PRESS);
+  return t <= 0 || t >= 1 ? 0 : Math.sin(Math.PI * t) * (1 - t * 0.35);
+}
+
+const ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+
+/** How many letters each wordmark letter rolls through before its own:
+ * three to five, varied so the row never ticks in lockstep. */
+export function rollSteps(index: number): number {
+  return 3 + ((index * 5) % 3);
+}
+
+/**
+ * The glyph a wordmark letter shows at `arrive` (its 0..1 `letterProgress`):
+ * the letters just before its own in the alphabet, in order, like a
+ * counter rolling up to it - so the name visibly homes in on itself rather
+ * than flickering at random. `arrive` is eased, so the roll slows as it
+ * nears the real letter. Anything that is not a letter is never rolled.
+ */
+export function rollingGlyph(letter: string, index: number, arrive: number): { glyph: string; landed: boolean } {
+  const at = ALPHABET.indexOf(letter);
+  if (at < 0 || arrive >= ROLL_UNTIL) return { glyph: letter, landed: true };
+  const steps = rollSteps(index);
+  const step = Math.min(steps - 1, Math.floor((clamp01(arrive) / ROLL_UNTIL) * steps));
+  return { glyph: ALPHABET[(at - steps + step + ALPHABET.length) % ALPHABET.length], landed: false };
+}
+
+/** The share of a letter's rise spent rolling; it lands on itself after. */
+export const ROLL_UNTIL = 0.8;

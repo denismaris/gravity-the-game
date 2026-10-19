@@ -17,6 +17,10 @@ class Sound {
     return this._loaded;
   }
 
+  isPlaying() {
+    return false;
+  }
+
   play(onEnd) {
     if (onEnd) onEnd(true);
     return this;

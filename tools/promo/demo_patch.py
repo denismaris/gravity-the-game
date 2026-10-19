@@ -1,12 +1,14 @@
 """Temporary demo-mode patches for recording the promo. Applied to a copy
 of the working tree's files and always restored by record.sh."""
-import re, sys
+import os, re, sys
 root = '/Users/marisdenis/DEV/gravity-the-game/'
 mode = sys.argv[1]        # 'auto' for game autoplay, 'home' for carousel, 'none'
 interval = int(sys.argv[2]) if len(sys.argv) > 2 else 700
 
 def patch(path, fn):
     p = root + path
+    if not os.path.exists(p):
+        return
     s = open(p).read()
     open(p, 'w').write(fn(s))
 
@@ -15,7 +17,7 @@ def patch(path, fn):
 patch('src/progression/coins.ts', lambda s: s.replace('export const HINT_COST = 15;', 'export const HINT_COST = 0;', 1))
 
 # Autoplay reveals moves through Insight: on camera it never runs out.
-patch('src/components/InsightPower.tsx', lambda s: s.replace('    (apply: () => void) => {\n      if (spendInsightCharge()) {', '    (apply: () => void) => {\n      if (Date.now() > 0) {\n        apply();\n        return;\n      }\n      if (spendInsightCharge()) {', 1))
+patch('src/components/InsightPower.tsx', lambda s: s.replace('      if (progress.insights > 0) {', '      if (Date.now() > 0) {\n        apply();\n        return;\n      }\n      if (progress.insights > 0) {', 1))
 
 # No ads and no consent form on camera.
 patch('src/ads/index.ts', lambda s: s.replace('export function startAds(): Promise<boolean> {', 'export function startAds(): Promise<boolean> {\n  if (Date.now() > 0) return Promise.resolve(false);', 1))

@@ -25,7 +25,7 @@ export {
   saveProgress,
 } from './playerProgressStore';
 export type { BatchPuzzleRef, BatchState } from './batches';
-export { gamesPlayed, generateBatch, INTRO_ORDER, INTRO_SOLVES, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from './batches';
+export { gamesPlayed, generateBatch, INTRO_ORDER, INTRO_SOLVES, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, practiceBoards, replaceInBatch, unlockedGames } from './batches';
 export type { LevelPoint, LevelPointEntry, WorldLevelSummary, WorldSummary } from './worldProgress';
 export {
   getAllWorldSummaries,
@@ -41,7 +41,7 @@ export type {
   PlayerProgressProviderProps,
 } from './PlayerProgressProvider';
 export type { SolveBonus } from './PlayerProgressProvider';
-export { PlayerProgressProvider, useEquipped, useLastBonus, useLastCharmed, usePlayerProgress } from './PlayerProgressProvider';
+export { PlayerProgressProvider, PracticeProvider, useEquipped, useIsPractice, useLastBonus, useLastCharmed, usePlayerProgress } from './PlayerProgressProvider';
 export type { Rank, RankTier } from './rank';
 export { RANKS, collectRanks, experienceOf, pendingRanks, rankAt, rankOf, rankReward, rankTitle, toRoman, XP_PER_ERRAND, XP_PER_PUZZLE, XP_PER_STAR, XP_PER_STREAK_DAY } from './rank';
 export type { Chapter } from './chapters';

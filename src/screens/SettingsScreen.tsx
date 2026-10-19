@@ -4,26 +4,26 @@ import { Alert, ScrollView, StyleSheet, Switch, Text, View } from 'react-native'
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { version } from '../../package.json';
 import { PressableScale } from '../components';
-import { usePlayerProgress } from '../progression';
+import { INTRO_ORDER, usePlayerProgress } from '../progression';
+import { GameKind, gameDisplayName, gameShortName } from '../game/journey';
+import { GameEmblem } from '../components/GameEmblem';
 import { useSettings } from '../settings';
 import { requestReminderPermission } from '../notifications';
 import { theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { TesseraMark } from '../components/TesseraMark';
-import { Account, currentAccount } from '../backend';
+import { Account, currentAccount, knownAccount } from '../backend';
 import { AppearancePicker } from '../components/AppearancePicker';
 import { copyrightLine } from '../legal/documents';
 import { privacyChoicesRequired, showPrivacyChoices } from '../ads';
 import { LegalDoc, LegalScreen } from './LegalScreen';
-import { GameKind, gameDisplayName, gameShortName } from '../game/journey';
-import { MECHANICS } from '../game/mechanics';
 
 export interface SettingsScreenProps {
+  /** Opens a practice run of one game (see `practiceBoards`). */
+  onTryGame?: (kind: GameKind) => void;
   onExit: () => void;
   /** The player's account: sign in, sign out, delete. */
   onOpenAccount: () => void;
-  /** Opens one puzzle - for the Mechanics lab. */
-  onOpenPuzzle?: (kind: GameKind, puzzleId: string) => void;
 }
 
 /**
@@ -36,11 +36,12 @@ export interface SettingsScreenProps {
  * `PlayerProgressProvider` since progress is what's being reset, not a
  * settings concern itself.
  */
-export function SettingsScreen({ onExit, onOpenAccount, onOpenPuzzle }: SettingsScreenProps): React.JSX.Element {
+export function SettingsScreen({ onExit, onOpenAccount, onTryGame }: SettingsScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { settings, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance, resetTutorials } = useSettings();
   const { resetProgress } = usePlayerProgress();
-  const [account, setAccount] = useState<Account | null>(null);
+  // The last known account at once, refreshed from the server behind it.
+  const [account, setAccount] = useState<Account | null>(knownAccount);
   useEffect(() => {
     let live = true;
     currentAccount().then(a => live && setAccount(a));
@@ -190,34 +191,30 @@ export function SettingsScreen({ onExit, onOpenAccount, onOpenPuzzle }: Settings
           </Text>
         </View>
 
-        {/* TEMPORARY: every new rule, one board each, to try before deciding
-            which stay. Remove with the rejected mechanics. */}
-        {onOpenPuzzle && (
+        {/* Every game, to try any time: its starter boards, saved nowhere. */}
+        {onTryGame && (
           <>
-            <Text style={styles.sectionLabel}>Mechanics lab</Text>
+            <Text style={styles.sectionLabel}>Try a game</Text>
             <View style={styles.card}>
-              {MECHANICS.map((m, i) => (
-                <React.Fragment key={m.id}>
-                  {i > 0 && <View style={styles.divider} />}
+              <View style={styles.tryGrid}>
+                {INTRO_ORDER.map(kind => (
                   <PressableScale
+                    key={kind}
                     accessibilityRole="button"
-                    accessibilityLabel={`Try ${m.title} in ${gameDisplayName(m.game)}`}
-                    onPress={() => onOpenPuzzle(m.game, m.sample)}
-                    feedback={false}
-                    scaleTo={1}
-                    style={({ pressed }) => [styles.row, pressed && styles.resetRowPressed]}
+                    accessibilityLabel={`Try ${gameDisplayName(kind)}`}
+                    onPress={() => onTryGame(kind)}
+                    scaleTo={0.94}
+                    containerStyle={styles.tryCell}
+                    style={styles.tryItem}
                   >
-                    <Text style={styles.rowLabel}>
-                      {m.title} <Text style={styles.labGame}>{gameShortName(m.game)}</Text>
+                    <GameEmblem kind={kind} size={46} raised />
+                    <Text style={styles.tryName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                      {gameShortName(kind)}
                     </Text>
-                    <Text style={styles.chevron}>›</Text>
                   </PressableScale>
-                </React.Fragment>
-              ))}
-              <View style={styles.divider} />
-              <PressableScale accessibilityRole="button" accessibilityLabel="Show the new-rule cards again" onPress={resetTutorials} feedback={false} scaleTo={1} style={({ pressed }) => [styles.row, pressed && styles.resetRowPressed]}>
-                <Text style={styles.rowLabel}>Show the cards again</Text>
-              </PressableScale>
+                ))}
+              </View>
+              <Text style={[styles.note, styles.tryNote]}>Practice boards: nothing you solve here is saved, and none of it pays coins.</Text>
             </View>
           </>
         )}
@@ -333,7 +330,6 @@ const styles = themedStyles(() => ({
     padding: theme.spacing.lg,
     paddingBottom: theme.spacing.xxl,
   },
-  labGame: { color: theme.colors.textTertiary, fontWeight: theme.typography.weights.regular },
   sectionLabel: {
     fontSize: theme.typography.sizes.caption,
     color: theme.colors.textTertiary,
@@ -394,6 +390,11 @@ const styles = themedStyles(() => ({
     color: theme.colors.textPrimary,
   },
   hourTextOn: { color: theme.colors.surfaceHi, fontWeight: theme.typography.weights.bold },
+  tryGrid: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: theme.spacing.sm, paddingTop: theme.spacing.md, rowGap: theme.spacing.md },
+  tryCell: { width: '25%' },
+  tryItem: { alignItems: 'center', gap: 6 },
+  tryNote: { marginTop: theme.spacing.md },
+  tryName: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary, maxWidth: 76 },
   note: {
     paddingHorizontal: theme.spacing.lg,
     paddingBottom: theme.spacing.md,

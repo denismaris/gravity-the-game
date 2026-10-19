@@ -30,6 +30,7 @@ export const GOOGLE_SIGN_IN = {
 
 /** Sign in with Apple needs the paid Apple Developer account and the
  * "Sign in with Apple" capability on the app; turn this on with it (the
- * steps: docs/apple-sign-in.md). While off, iPhone shows no sign-in at
- * all - Google alone would fail App Review (see `availableProviders`). */
+ * steps: docs/apple-sign-in.md). While off, the Apple button still shows
+ * on iPhone, and a tap says it is coming soon (see `signIn`). It must be
+ * on before an App Store build: a button that does nothing fails review. */
 export const APPLE_SIGN_IN_ENABLED = false;

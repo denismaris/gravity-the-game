@@ -6,16 +6,20 @@ import { motion } from '../theme';
  * deliberate cascade, short enough that the last row lands well inside
  * half a second - a celebration the player has to sit through stops being
  * a reward. */
-const ROW_STAGGER_MS = 70;
+const ROW_STAGGER_MS = 60;
 /** The card follows the dimming slightly rather than racing it. */
 const CARD_DELAY_MS = 90;
-/** Contents wait until the card has somewhere to land. */
-const ROWS_DELAY_MS = 200;
+/** Contents follow the card closely: a card that is up and still empty
+ * for a beat reads as a pale panel flashing over the board. */
+const ROWS_DELAY_MS = 130;
+/** The card's own fade, slower than its spring - the spring alone took it
+ * to full opacity in a few frames, ahead of everything it holds. */
+const CARD_FADE_MS = 260;
 
 /** The emblem lands just after the card itself, ahead of the text rows -
  * it is the hero of this card, so it arrives first and on its own spring
  * rather than queued behind the cascade. */
-const HERO_DELAY_MS = 150;
+const HERO_DELAY_MS = 100;
 /** The light sweep runs once, after the contents have all landed. */
 const SHEEN_DELAY_MS = 460;
 const SHEEN_MS = 720;
@@ -33,7 +37,9 @@ export interface CardEntranceOptions {
 export interface CardEntrance {
   /** Opacity for the dimmed scrim behind the card. */
   backdrop: Animated.Value;
-  /** Drives the card's own fade, scale and rise. */
+  /** The card's own opacity: an eased fade, gentler than its spring. */
+  cardOpacity: Animated.Value;
+  /** Drives the card's scale and rise. */
   card: Animated.Value;
   /** Drives the game emblem's own entrance - a bigger, later spring than
    * the card's, so the mark visibly *lands* on an already-present card. */
@@ -66,6 +72,7 @@ export interface CardEntrance {
 export function useCardEntrance(rowCount: number, options: CardEntranceOptions = {}): CardEntrance {
   const backdrop = useRef(new Animated.Value(0)).current;
   const card = useRef(new Animated.Value(0)).current;
+  const cardOpacity = useRef(new Animated.Value(0)).current;
   const hero = useRef(new Animated.Value(0)).current;
   const sheen = useRef(new Animated.Value(0)).current;
   const rows = useRef(Array.from({ length: rowCount }, () => new Animated.Value(0))).current;
@@ -83,6 +90,10 @@ export function useCardEntrance(rowCount: number, options: CardEntranceOptions =
         easing: motion.cardEnter.easing,
         useNativeDriver: true,
       }),
+      Animated.sequence([
+        Animated.delay(CARD_DELAY_MS),
+        Animated.timing(cardOpacity, { toValue: 1, duration: CARD_FADE_MS, easing: motion.cardEnter.easing, useNativeDriver: true }),
+      ]),
       Animated.sequence([
         Animated.delay(CARD_DELAY_MS),
         Animated.spring(card, { toValue: 1, useNativeDriver: true, ...(subdued ? motion.spring.settle : motion.spring.pop) }),
@@ -124,6 +135,7 @@ export function useCardEntrance(rowCount: number, options: CardEntranceOptions =
   return {
     backdrop,
     card,
+    cardOpacity,
     hero,
     sheen,
     rowStyle: (index: number) => {

@@ -76,7 +76,7 @@ export const DEFAULT_EQUIPPED: Readonly<Record<CosmeticSlot, string>> = {
   confetti: 'confetti-almanac',
   ball: 'ball-violet',
   chart: 'chart-day',
-  garden: 'garden-terracotta',
+  garden: 'garden-maple',
   chime: 'chime-house',
   ...(Object.fromEntries(SKIN_GAMES.map(g => [`skin-${g}`, `skin-${g}-classic`])) as Record<`skin-${SkinGame}`, string>),
 };
@@ -96,7 +96,7 @@ function masterworks(items: ReadonlyArray<Omit<Cosmetic, 'slot' | 'price'> & { g
 
 export const COSMETICS: ReadonlyArray<Cosmetic> = [
   // Solve confetti - the burst behind every solved card, in every game.
-  { id: 'confetti-almanac', slot: 'confetti', name: 'Almanac', blurb: 'The house colours.', price: 0, colors: ['#C46C33', '#B7892F', '#5C7C4A', '#3F6FA0'] },
+  { id: 'confetti-almanac', slot: 'confetti', name: 'Almanac', blurb: 'The house colours.', price: 0, colors: ['#B5452B', '#B7892F', '#5C7C4A', '#3F6FA0'] },
   { id: 'confetti-gold', slot: 'confetti', name: 'Gold Leaf', blurb: 'A shower of gilt.', price: common, colors: ['#E3B341', '#C99422', '#F3D98A', '#A77912'] },
   { id: 'confetti-blossom', slot: 'confetti', name: 'Blossom', blurb: 'Petals on the wind.', price: fine, colors: ['#E58FA4', '#F4C2CF', '#C8506A', '#FBE3E9'] },
   { id: 'confetti-harbour', slot: 'confetti', name: 'Harbour', blurb: 'Sea spray and sails.', price: fine, colors: ['#1683A6', '#7CC4D8', '#F6EBCB', '#2F5DAF'] },
@@ -116,7 +116,7 @@ export const COSMETICS: ReadonlyArray<Cosmetic> = [
   { id: 'chart-night', slot: 'chart', name: 'Night Chart', blurb: 'Islands by lantern light.', price: rare, colors: ['#243B52', '#34526E', '#3F5F7C', '#E9DCC0', '#17263A'] },
   { id: 'chart-arctic', slot: 'chart', name: 'Arctic', blurb: 'Ice floes and still water.', price: rare, colors: ['#E3EEF6', '#C6D9E8', '#BCD2E4', '#2E4A6B', '#FFFFFF'] },
   // Page art: the blossom in the corner of every screen: [blossom].
-  { id: 'garden-terracotta', slot: 'garden', name: 'Terracotta', blurb: 'The almanac as printed.', price: 0, colors: ['#C46C33'] },
+  { id: 'garden-terracotta', slot: 'garden', name: 'Terracotta', blurb: 'Warm clay, the first edition.', price: 0, colors: ['#C46C33'] },
   { id: 'garden-camellia', slot: 'garden', name: 'Camellia', blurb: 'Deep rose, early spring.', price: fine, colors: ['#C8506A'] },
   { id: 'garden-marigold', slot: 'garden', name: 'Marigold', blurb: 'High-summer gold.', price: fine, colors: ['#D9A032'] },
   { id: 'garden-sage', slot: 'garden', name: 'Sage', blurb: 'A quiet herb garden.', price: fine, colors: ['#7FA36A'] },
@@ -138,7 +138,8 @@ export const COSMETICS: ReadonlyArray<Cosmetic> = [
 
   // --- In season: each sold only in its own three months. ---
   { id: 'confetti-leaves', slot: 'confetti', name: 'Falling Leaves', blurb: 'Maple and oak on the wind.', price: rare, season: 'autumn', colors: ['#B5452B', '#D9822B', '#E3B341', '#7A4A2A'] },
-  { id: 'garden-maple', slot: 'garden', name: 'Maple', blurb: 'October red.', price: fine, season: 'autumn', colors: ['#B5452B'] },
+  { id: 'garden-maple', slot: 'garden', name: 'Maple', blurb: 'The almanac as printed: October red.', price: 0, colors: ['#B5452B'] },
+  { id: 'garden-ember', slot: 'garden', name: 'Ember', blurb: 'The last leaves, glowing.', price: fine, season: 'autumn', colors: ['#D2691E'] },
   { id: 'ball-chestnut', slot: 'ball', name: 'Chestnut', blurb: 'Fresh from the husk, polished.', price: fine, season: 'autumn', colors: ['#3D2416', '#6E3F24', '#A8693E', '#F2D2B0'] },
   { id: 'confetti-snowfall', slot: 'confetti', name: 'Snowfall', blurb: 'The first quiet snow.', price: rare, season: 'winter', colors: ['#FFFFFF', '#DCE8F2', '#A9C3D9', '#7FA3C4'] },
   { id: 'garden-holly', slot: 'garden', name: 'Holly', blurb: 'Red berries in the frost.', price: fine, season: 'winter', colors: ['#A3233A'] },
@@ -151,7 +152,7 @@ export const COSMETICS: ReadonlyArray<Cosmetic> = [
   { id: 'ball-seaglass', slot: 'ball', name: 'Sea Glass', blurb: 'Worn smooth by the tide.', price: fine, season: 'summer', colors: ['#2F7F78', '#6FB8AE', '#BFE6DD', '#F4FFFB'] },
 
   // --- Solve chimes: the sound of every solved puzzle. ---
-  { id: 'chime-house', slot: 'chime', name: 'House Chimes', blurb: "Each game's own finish.", price: 0, colors: ['#C46C33', '#3B1F52'] },
+  { id: 'chime-house', slot: 'chime', name: 'House Chimes', blurb: "Each game's own finish.", price: 0, colors: ['#B5452B', '#3B1F52'] },
   { id: 'chime-kalimba', slot: 'chime', name: 'Kalimba', blurb: 'Thumbed metal, warm wood.', price: fine, sound: 'sfx_chime_kalimba.wav', colors: ['#B8683A', '#F2D2B0'] },
   { id: 'chime-wind', slot: 'chime', name: 'Wind Chimes', blurb: 'A breeze on the porch.', price: fine, sound: 'sfx_chime_wind.wav', colors: ['#6F8FD6', '#E3EEF7'] },
   { id: 'chime-bell', slot: 'chime', name: 'Temple Bell', blurb: 'One deep, long note.', price: rare, sound: 'sfx_chime_bell.wav', colors: ['#8C6A1C', '#E8C66E'] },
@@ -235,7 +236,21 @@ export function skinOverrides(progress: PlayerProgress): { light: Record<string,
     Object.assign(light, item.tokens ?? {});
     Object.assign(dark, item.tokens ?? {}, item.darkTokens ?? {});
   }
+  // The flowers set the app's one loud colour: the play buttons and every
+  // other mark in `secondary` take the colour of the garden worn, so the
+  // page and its buttons always match. Softer by night, like the palette's.
+  const flower = equipped(progress, 'garden').colors[0];
+  if (flower) {
+    light.secondary = flower;
+    dark.secondary = towardWhite(flower, 0.22);
+  }
   return { light, dark };
+}
+
+/** `hex` moved `t` of the way toward white. */
+function towardWhite(hex: string, t: number): string {
+  const ch = (i: number) => parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+  return `#${[0, 1, 2].map(i => Math.round(ch(i) + (255 - ch(i)) * t).toString(16).padStart(2, '0')).join('')}`.toUpperCase();
 }
 
 export const STREAK_FREEZE_PRICE = 200;

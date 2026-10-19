@@ -72,8 +72,9 @@ import {
   PressableScale,
   TesseraMark,
 } from '../components';
-import { triggerFeedback, useReducedMotion } from '../game/rendering';
-import { theme, themedStyles } from '../theme';
+import { shade, triggerFeedback, useReducedMotion } from '../game/rendering';
+import { nightTone, theme, themedStyles } from '../theme';
+import { useEquipped } from '../progression/PlayerProgressProvider';
 import { CoinBalance, CoinGlyph } from '../components/Coins';
 import { ErrandList } from '../components/ErrandList';
 import { RankMedal } from '../components/RankMedal';
@@ -205,6 +206,7 @@ export function HomeScreen({
   // this is decoration with no state behind it, so unlike the app's other
   // motion there is nothing lost by stopping it.
   const pulse = useRef(new Animated.Value(0)).current;
+  const bloom = useBloomTone();
   useEffect(() => {
     if (reducedMotion) return;
     const loop = Animated.loop(
@@ -664,7 +666,7 @@ export function HomeScreen({
                   )}
                   {/* Only a debut needs a line here: otherwise the set's own
                       emblems below already say where in it this puzzle is. */}
-                  {debut && <Text style={styles.heroMeta}>{`Your first ${entry.chapter} puzzle.${lessonFirst ? ' A short lesson comes first.' : ''}`}</Text>}
+                  {debut && <Text style={styles.heroMeta}>{lessonFirst ? `Your first ${entry.chapter} puzzle, after a short lesson.` : `Your first ${entry.chapter} puzzle.`}</Text>}
 
                   {/* The middle of every card is a flexible block holding real
                     content, centred. Slack from a tall screen spreads around
@@ -679,9 +681,19 @@ export function HomeScreen({
                       filled and the ones ahead faded: a preview, not a
                       mystery. */}
                     {progress.currentBatch && <Text style={styles.setLabel}>This set</Text>}
-                    {progress.currentBatch && (
-                      <View style={styles.setRow}>
-                        {progress.currentBatch.puzzles.map((entryRef, i) => {
+                    {/* A set of four sits in one row; six and eight in two
+                        equal rows, a little smaller and without names - the
+                        emblems say which game, and the card keeps its size. */}
+                    {progress.currentBatch && (() => {
+                      const all = progress.currentBatch.puzzles;
+                      const perRow = all.length <= 4 ? all.length : Math.ceil(all.length / 2);
+                      const twoRows = all.length > perRow;
+                      const emblemSize = twoRows ? 34 : 44;
+                      const rows = twoRows ? [all.slice(0, perRow), all.slice(perRow)] : [all];
+                      return rows.map((row, rowIndex) => (
+                      <View key={rowIndex} style={[styles.setRow, rowIndex > 0 && styles.setRowNext]}>
+                        {row.map((entryRef, inRow) => {
+                          const i = rowIndex * perRow + inRow;
                           const completed =
                             progress.currentBatch!.completedPuzzleIds;
                           const done = completed.includes(entryRef.puzzleId);
@@ -694,8 +706,8 @@ export function HomeScreen({
                             <React.Fragment key={`${entryRef.puzzleId}-${i}`}>
                             {/* The path between one game and the next: dots,
                                 filled once the way is walked. */}
-                            {i > 0 && (
-                              <View style={styles.setPath}>
+                            {inRow > 0 && (
+                              <View style={[styles.setPath, twoRows && styles.setPathSmall]}>
                                 {[0, 1, 2].map(k => (
                                   <View key={k} style={[styles.setPathDot, (done || isCurrent) && styles.setPathDotOn]} />
                                 ))}
@@ -703,7 +715,7 @@ export function HomeScreen({
                             )}
                             <View style={styles.setItem}>
                               <View style={[styles.setRing, isCurrent && { borderColor: tint }, !(done || isCurrent) && styles.setAhead]}>
-                                <GameEmblem kind={entryRef.kind} size={44} />
+                                <GameEmblem kind={entryRef.kind} size={emblemSize} raised />
                                 {done && (
                                   <View style={[styles.setCheck, { backgroundColor: tint }]}>
                                     <Icon name="check" size={9} color={theme.colors.surfaceHi} />
@@ -737,21 +749,24 @@ export function HomeScreen({
                                     styles.setChallengeRuleOn,
                                 ]}
                               />
-                              <Text
-                                style={[
-                                  styles.setName,
-                                  !(done || isCurrent) && styles.setAhead,
-                                ]}
-                                numberOfLines={1}
-                              >
-                                {gameShortName(entryRef.kind)}
-                              </Text>
+                              {!twoRows && (
+                                <Text
+                                  style={[
+                                    styles.setName,
+                                    !(done || isCurrent) && styles.setAhead,
+                                  ]}
+                                  numberOfLines={1}
+                                >
+                                  {gameShortName(entryRef.kind)}
+                                </Text>
+                              )}
                             </View>
                             </React.Fragment>
                           );
                         })}
                       </View>
-                    )}
+                      ));
+                    })()}
 
                     {/* The next game on its way: a small promise, kept a
                       few puzzles from now. Named only once it lands. */}
@@ -832,6 +847,7 @@ export function HomeScreen({
                         style={[
                           styles.playHalo,
                           {
+                            backgroundColor: bloom,
                             opacity: pulse.interpolate({
                               inputRange: [0, 1],
                               outputRange: [0.3, 0],
@@ -847,9 +863,7 @@ export function HomeScreen({
                           },
                         ]}
                       />
-                      <View style={styles.play}>
-                        <View style={styles.playTri} />
-                      </View>
+                      <PlayDisc />
                     </View>
                   </View>
                 </>
@@ -866,7 +880,7 @@ export function HomeScreen({
               <View style={[styles.card, { height: cardHeight }]}>
                 <View pointerEvents="none" style={styles.cardKeyline} />
                 <View style={styles.cardHead}>
-                  <Text style={styles.eyebrowMuted}>Today</Text>
+                  <Text style={[styles.eyebrowMuted, { color: accentColorForKind(daily.kind) }]}>Today</Text>
                   <Text style={[styles.badge, errandsWaiting > 0 || !dailyCompletedToday ? styles.badgeLive : styles.badgeDone]}>
                     {errandsWaiting > 0 ? `${errandsWaiting} to claim` : dailyCompletedToday ? 'Daily solved' : 'Daily waiting'}
                   </Text>
@@ -883,10 +897,10 @@ export function HomeScreen({
                 >
                   <View style={styles.todayDailyRow}>
                     <View style={[styles.cardEmblem, { borderColor: accentColorForKind(daily.kind) }]}>
-                      <GameEmblem kind={daily.kind} size={44} />
+                      <GameEmblem kind={daily.kind} size={44} raised />
                     </View>
                     <View style={styles.dailyText}>
-                      <Text style={styles.todayKicker}>The Daily</Text>
+                      <Text style={[styles.todayKicker, { color: accentColorForKind(daily.kind) }]}>The Daily</Text>
                       <Text style={styles.todayTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
                         {daily.name}
                       </Text>
@@ -896,13 +910,9 @@ export function HomeScreen({
                     </View>
                     {/* Solved: a tick, not a play button - today's is done. */}
                     {dailyCompletedToday ? (
-                      <View style={[styles.play, styles.playSmall, styles.playDone]}>
-                        <Icon name="check" size={20} color={theme.colors.surfaceHi} weight={2.4} />
-                      </View>
+                      <PlayDisc small done />
                     ) : (
-                      <View style={[styles.play, styles.playSmall]}>
-                        <View style={[styles.playTri, styles.playTriSmall]} />
-                      </View>
+                      <PlayDisc small />
                     )}
                   </View>
                   {/* The week of Dailies (tap for the whole calendar), and in
@@ -951,7 +961,7 @@ export function HomeScreen({
                 unstable_pressDelay={110}
                 style={[styles.card, styles.cardGrand, { height: cardHeight }]}
               >
-                <View pointerEvents="none" style={styles.cardKeyline} />
+                <View pointerEvents="none" style={[styles.cardKeyline, styles.cardKeylineGold]} />
                 <View style={styles.cardHead}>
                   <Text style={[styles.eyebrowMuted, styles.grandEyebrow]}>Weekly Grand</Text>
                   <Text style={[styles.badge, grandDone ? styles.badgeDone : styles.badgeLive]}>
@@ -961,7 +971,7 @@ export function HomeScreen({
                 <View style={[styles.headingRule, styles.grandRule]} />
                 <View style={styles.dailyRow}>
                   <View style={[styles.cardEmblem, styles.grandEmblem]}>
-                    <GameEmblem kind={grand.kind} size={50} />
+                    <GameEmblem kind={grand.kind} size={50} raised />
                   </View>
                   <View style={styles.dailyText}>
                     <Text style={styles.dailyTitle} numberOfLines={2}>
@@ -1013,9 +1023,7 @@ export function HomeScreen({
 
                 <View style={styles.heroFoot}>
                   <Text style={styles.verb}>{grandDone ? 'Replay' : 'Play'}</Text>
-                  <View style={styles.play}>
-                    <View style={styles.playTri} />
-                  </View>
+                  <PlayDisc />
                 </View>
               </PressableScale>
               </Animated.View>
@@ -1030,7 +1038,7 @@ export function HomeScreen({
               <View style={[styles.card, { height: cardHeight }]}>
                 <View pointerEvents="none" style={styles.cardKeyline} />
                 <View style={styles.cardHead}>
-                  <Text style={styles.eyebrowMuted}>You</Text>
+                  <Text style={[styles.eyebrowMuted, { color: theme.colors.accentText }]}>You</Text>
                   <View style={styles.youHeadRight}>
                     {chaptersWaiting > 0 || pending.length > 0 ? (
                       <Text style={[styles.badge, styles.badgeLive]}>Reward waiting</Text>
@@ -1091,31 +1099,39 @@ export function HomeScreen({
                     <View style={styles.shelf}>
                       {INTRO_ORDER.map(kind => (
                         <View key={kind} style={[styles.shelfSlot, !roster.includes(kind) && styles.shelfAhead]}>
-                          <GameEmblem kind={kind} size={30} />
+                          <GameEmblem kind={kind} size={30} raised />
                         </View>
                       ))}
                     </View>
                   </PressableScale>
                 )}
 
-                {/* Where the rest lives: doors with one line each of where
-                    it stands. */}
+                {/* Where the rest lives: a figure each, set large, over a
+                    small label - read at a glance, and never cut short. */}
                 <View style={styles.youLinks}>
                   {[
-                    ...(tight ? [{ label: 'Games', note: `${roster.length} of ${ROTATION.length} · ${solved} solved`, a11y: 'Open your games', onPress: onOpenCollection, dot: false }] : []),
-                    { label: 'Badges', note: `${earned} of ${ACHIEVEMENTS.length}`, a11y: 'Open achievements', onPress: onOpenAchievements, dot: false },
-                    { label: 'Ledger', note: stampsWaiting > 0 ? `${stampsWaiting} to claim` : aptitude.index !== null ? `Puzzle IQ ${aptitude.index}` : 'Stamps and records', a11y: `Open the ledger. ${iqLabel}`, onPress: onOpenLedger, dot: stampsWaiting > 0 },
-                    { label: 'Leaderboards', note: 'Top times', a11y: 'Open the leaderboards', onPress: onOpenLeaderboard, dot: false },
+                    ...(tight ? [{ label: 'Games', value: `${roster.length}/${ROTATION.length}`, a11y: `Open your games. ${roster.length} of ${ROTATION.length}, ${solved} solved`, onPress: onOpenCollection, dot: false }] : []),
+                    { label: 'Badges', value: `${earned}/${ACHIEVEMENTS.length}`, a11y: `Open achievements. ${earned} of ${ACHIEVEMENTS.length}`, onPress: onOpenAchievements, dot: false },
+                    stampsWaiting > 0
+                      ? { label: stampsWaiting === 1 ? 'Stamp to claim' : 'Stamps to claim', value: `${stampsWaiting}`, a11y: `Open the ledger. ${iqLabel}`, onPress: onOpenLedger, dot: true }
+                      : { label: 'Puzzle IQ', value: aptitude.index !== null ? `${aptitude.index}` : '\u2013', a11y: `Open the ledger. ${iqLabel}`, onPress: onOpenLedger, dot: false },
+                    { label: 'Top times', value: null, a11y: 'Open the leaderboards', onPress: onOpenLeaderboard, dot: false },
                   ].map(link => (
-                    <PressableScale key={link.label} accessibilityRole="button" accessibilityLabel={`${link.a11y}. ${link.note}`} onPress={link.onPress} scaleTo={0.97} containerStyle={[styles.youLinkWrap, !tight && styles.youLinkThird]} style={[styles.youLink, !tight && styles.youLinkSnug]}>
+                    <PressableScale key={link.label} accessibilityRole="button" accessibilityLabel={link.a11y} onPress={link.onPress} scaleTo={0.97} containerStyle={[styles.youLinkWrap, !tight && styles.youLinkThird]} style={styles.youLink}>
                       <View style={styles.youLinkHead}>
-                        <Text style={styles.youLinkText} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
-                          {link.label}
-                        </Text>
+                        {link.value !== null ? (
+                          <Text style={styles.youLinkValue} numberOfLines={1}>
+                            {link.value}
+                          </Text>
+                        ) : (
+                          <View style={styles.youLinkGlyph}>
+                            <TrophyGlyph size={22} />
+                          </View>
+                        )}
                         {link.dot && <View style={styles.youLinkDot} />}
                       </View>
-                      <Text style={styles.youLinkNote} numberOfLines={1}>
-                        {link.note}
+                      <Text style={styles.youLinkLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
+                        {link.label}
                       </Text>
                     </PressableScale>
                   ))}
@@ -1222,6 +1238,31 @@ const MASTHEAD_BLOCK =
   theme.spacing.lg;
 const DOTS_BLOCK = theme.spacing.sm * 2 + 8;
 
+/** How far a play disc's lip shows below it. */
+const PLAY_LIP = 4;
+
+/** The flowers' tone exactly as the page art draws it (toned toward the
+ * ground by night) - so the play buttons always match the garden worn. */
+function useBloomTone(): string {
+  const garden = useEquipped('garden');
+  return nightTone(garden.colors[0] ?? theme.colors.secondary);
+}
+
+/** A play button: a disc in the garden's colour, standing on its lip. A
+ * solved one is a green tick instead. */
+function PlayDisc({ small = false, done = false }: { small?: boolean; done?: boolean }): React.JSX.Element {
+  const bloom = useBloomTone();
+  const face = done ? theme.colors.success : bloom;
+  return (
+    <View style={styles.playStand}>
+      <View style={[styles.play, small && styles.playSmall, styles.playLip, { backgroundColor: shade(face, 0.68) }]} />
+      <View style={[styles.play, small && styles.playSmall, { backgroundColor: face }]}>
+        {done ? <Icon name="check" size={20} color="#FFFBF3" weight={2.4} /> : <View style={[styles.playTri, small && styles.playTriSmall]} />}
+      </View>
+    </View>
+  );
+}
+
 const styles = themedStyles(() => ({
   trophyButton: { right: undefined, left: theme.spacing.lg },
   ruleLine: { width: 44, height: StyleSheet.hairlineWidth * 2, backgroundColor: theme.colors.borderStrong },
@@ -1238,8 +1279,8 @@ const styles = themedStyles(() => ({
     marginTop: theme.spacing.md,
   },
   todayDailyRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
-  todayKicker: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary },
-  todayTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  todayKicker: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.3, textTransform: 'uppercase', color: theme.colors.secondary },
+  todayTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, marginTop: 2 },
   playDone: { backgroundColor: theme.colors.success },
   playDoneGlyph: { color: theme.colors.surfaceHi, fontSize: 18, fontWeight: theme.typography.weights.bold },
   playSmall: { width: 42, height: 42, borderRadius: 21 },
@@ -1254,7 +1295,6 @@ const styles = themedStyles(() => ({
   todayDailyTight: { marginTop: theme.spacing.sm },
   youHeadRight: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   youRank: { marginTop: theme.spacing.sm },
-  youLinkSnug: { paddingHorizontal: 10 },
   youLinkThird: { width: '30%', flexBasis: 'auto' },
   shelfHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   shelfCount: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
@@ -1270,10 +1310,11 @@ const styles = themedStyles(() => ({
   youValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   youLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 'auto' },
   youLinkWrap: { width: '48.5%', flexGrow: 1 },
-  youLink: { paddingVertical: 10, paddingHorizontal: 12, borderRadius: 14, backgroundColor: theme.colors.background, gap: 2 },
-  youLinkHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  youLinkText: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
-  youLinkNote: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
+  youLink: { paddingTop: 10, paddingBottom: 7, paddingHorizontal: 12, borderRadius: 14, backgroundColor: theme.colors.background, borderWidth: 1, borderBottomWidth: 3, borderColor: theme.colors.border, borderBottomColor: theme.colors.borderStrong, alignItems: 'center', gap: 3 },
+  youLinkHead: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 26 },
+  youLinkValue: { fontFamily: theme.typography.families.figures, fontVariant: ['lining-nums', 'tabular-nums'], fontSize: 22, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  youLinkGlyph: { height: 26, justifyContent: 'center' },
+  youLinkLabel: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1, textTransform: 'uppercase', color: theme.colors.textTertiary },
   youLinkDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.secondary },
   pursePatron: { width: 9, height: 9, borderRadius: 2, marginRight: 6, transform: [{ rotate: '45deg' }], backgroundColor: theme.colors.gold, borderWidth: 1.5, borderColor: theme.colors.goldRim },
   purseDot: { width: 7, height: 7, borderRadius: 4, marginLeft: 4, backgroundColor: theme.colors.secondary },
@@ -1291,7 +1332,8 @@ const styles = themedStyles(() => ({
   },
   swapWrap: { alignSelf: 'center' },
   swapBeside: { justifyContent: 'center', alignSelf: 'stretch', gap: 4, paddingHorizontal: 12, borderRadius: 14 },
-  swap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.border },
+  // A key standing on its lip, like the cards: something to press.
+  swap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingTop: 4, paddingBottom: 3, borderRadius: theme.radii.pill, borderWidth: 1, borderBottomWidth: 3, borderColor: theme.colors.border, borderBottomColor: theme.colors.borderStrong, backgroundColor: theme.colors.surfaceHi },
   swapText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   swapShort: { color: theme.colors.danger },
   rankRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.sm },
@@ -1391,6 +1433,10 @@ const styles = themedStyles(() => ({
     borderRadius: 24,
     borderWidth: 1,
     borderColor: theme.colors.border,
+    // A ledge along the bottom: the card stands on the page as a thick
+    // printed board does - depth by its edge, not by a gradient.
+    borderBottomWidth: 4,
+    borderBottomColor: theme.colors.borderStrong,
     padding: theme.spacing.lg,
     shadowColor: theme.colors.shadow,
     shadowOpacity: 0.08,
@@ -1423,10 +1469,15 @@ const styles = themedStyles(() => ({
   },
   /** Names the middle block, the way an almanac heads a column. Small,
    * tracked, and quiet - it is a signpost, not a heading. */
+  /** The Grand's card in one gold family: a fine gold edge, its ledge a
+   * deeper gold (its shadow side), and a gold keyline inside. */
   cardGrand: {
     borderColor: theme.colors.goldRim,
-    borderWidth: 1.5,
+    borderWidth: 1,
+    borderBottomWidth: 4,
+    borderBottomColor: shade(theme.colors.goldRim, 0.68),
   },
+  cardKeylineGold: { borderColor: theme.colors.goldRim, opacity: 0.45 },
   grandEyebrow: { color: theme.colors.gold },
   grandPays: {
     flexDirection: 'row',
@@ -1452,11 +1503,13 @@ const styles = themedStyles(() => ({
     borderRadius: 14,
     backgroundColor: theme.colors.surfaceAlt,
     borderWidth: 1,
+    borderBottomWidth: 3,
     borderColor: theme.colors.border,
+    borderBottomColor: theme.colors.borderStrong,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  grandPlateNext: { borderColor: theme.colors.goldRim, borderWidth: 2, backgroundColor: theme.colors.surfaceHi },
+  grandPlateNext: { borderColor: theme.colors.goldRim, borderWidth: 2, borderBottomWidth: 3, borderBottomColor: shade(theme.colors.goldRim, 0.68), backgroundColor: theme.colors.surfaceHi },
   grandTick: {
     position: 'absolute',
     right: -5,
@@ -1473,15 +1526,17 @@ const styles = themedStyles(() => ({
   grandTickText: { color: theme.colors.surfaceHi, fontSize: 9, fontWeight: theme.typography.weights.bold },
   grandPrizeAt: { fontSize: theme.typography.sizes.micro, color: theme.colors.textTertiary },
   grandPrizeWon: { color: theme.colors.success },
-  sectionLabel: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary, marginBottom: 6 },
+  sectionLabel: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.4, textTransform: 'uppercase', color: theme.colors.textTertiary, marginBottom: 6 },
 
   eyebrowRow: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  eyebrow: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary, flexShrink: 1 },
+  /** Every card's header: small spaced capitals in the card's own colour,
+   * the status opposite in the same hand - one header for all four. */
+  eyebrow: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.bold, letterSpacing: 1.3, textTransform: 'uppercase', color: theme.colors.secondary, flexShrink: 1 },
   heroChip: { marginLeft: 8 },
-  eyebrowMuted: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  eyebrowMuted: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.bold, letterSpacing: 1.3, textTransform: 'uppercase', color: theme.colors.textSecondary },
   heroTitle: {
     fontFamily: theme.typography.families.display,
     fontSize: theme.typography.sizes.display,
@@ -1532,6 +1587,8 @@ const styles = themedStyles(() => ({
   setRing: { padding: 3, borderRadius: 15, borderWidth: 2, borderColor: 'transparent' },
   setCheck: { position: 'absolute', right: -3, bottom: -3, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: theme.colors.surface },
   setPath: { flexDirection: 'row', gap: 3, marginTop: 26, marginHorizontal: 4 },
+  setPathSmall: { marginTop: 21, marginHorizontal: 3 },
+  setRowNext: { marginTop: 6 },
   setPathDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: theme.colors.borderStrong },
   setPathDotOn: { backgroundColor: theme.colors.textTertiary },
   /** Each game named under its own mark. The marks alone were an
@@ -1614,8 +1671,11 @@ const styles = themedStyles(() => ({
     width: 56,
     height: 56,
     borderRadius: 28,
-    backgroundColor: theme.colors.secondary,
   },
+  /** The disc's lip: the same disc, darker, showing below it - the play
+   * button stands on the card the way the card stands on the page. */
+  playLip: { position: 'absolute', top: PLAY_LIP },
+  playStand: { paddingBottom: PLAY_LIP },
   play: {
     width: 56,
     height: 56,
@@ -1632,11 +1692,13 @@ const styles = themedStyles(() => ({
     borderLeftWidth: 17,
     borderTopColor: 'transparent',
     borderBottomColor: 'transparent',
-    borderLeftColor: theme.colors.surfaceHi,
+    // Light in both schemes: the disc is the flowers' own tone, which by
+    // night is a deep one.
+    borderLeftColor: '#FFFBF3',
     marginLeft: 5,
   },
 
-  badge: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold },
+  badge: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.bold, letterSpacing: 1, textTransform: 'uppercase' },
   badgeLive: { color: theme.colors.secondary },
   badgeDone: { color: theme.colors.textTertiary },
   dailyRow: {

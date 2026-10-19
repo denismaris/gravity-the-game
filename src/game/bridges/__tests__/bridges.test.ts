@@ -108,12 +108,12 @@ describe('building', () => {
     expect(isBridgesSolved(SQUARE, state)).toBe(true);
   });
 
-  test('right numbers but two separate groups is not solved', () => {
+  test('every number met is solved, even in two separate groups: every island shows done', () => {
     let state = emptyBridgesState(SQUARE);
     state = cycleBridge(SQUARE, cycleBridge(SQUARE, state, 0), 0);
     state = cycleBridge(SQUARE, cycleBridge(SQUARE, state, 3), 3);
     expect(islandLoads(SQUARE, state)).toEqual([2, 2, 2, 2]);
-    expect(isBridgesSolved(SQUARE, state)).toBe(false);
+    expect(isBridgesSolved(SQUARE, state)).toBe(true);
   });
 });
 

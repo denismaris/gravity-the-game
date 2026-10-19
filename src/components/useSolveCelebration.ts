@@ -27,7 +27,9 @@ import { useEffect, useRef, useState } from 'react';
  * waves were over before they registered, and play-testing called them
  * too fast - and still short of anyone waiting on it.
  */
-export const SOLVE_CELEBRATION_MS = 1100;
+/** Every game's finish plays this long before its card comes in - the
+ * same beat in every game, unhurried enough to watch the finish. */
+export const SOLVE_CELEBRATION_MS = 1600;
 
 /**
  * `true` once `solved` has been set for a full celebration beat.

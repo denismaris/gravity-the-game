@@ -1,6 +1,4 @@
-import { HintNote } from '../components/HintNote';
 import { BackLabel } from '../components/Icon';
-import { HintKind } from '../game/hints';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
@@ -194,14 +192,11 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
   }, []);
 
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
-  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const next = explainArukoneHint(puzzle, state);
     if (!next) return;
     // Charged only when there is a hint to give, and before applying it.
     spendInsight(() => {
-      setNote({ reason: next.reason, tip: next.tip, kind: next.kind, id: Date.now() });
       setHints(n => n + 1);
       setState(next.state);
       triggerFeedback('targetReached');
@@ -267,16 +262,19 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <ArukoneBoard
-            puzzle={puzzle}
-            state={state}
-            size={boardSize}
-            solved={solved}
-            onChange={applyMove}
-            onReject={rejectMove}
-            introKey={introKey}
-            rejectedCell={rejected}
-          />
+          {/* Finished: the board takes no more touches. */}
+          <View pointerEvents={solved ? 'none' : 'auto'}>
+            <ArukoneBoard
+              puzzle={puzzle}
+              state={state}
+              size={boardSize}
+              solved={solved}
+              onChange={applyMove}
+              onReject={rejectMove}
+              introKey={introKey}
+              rejectedCell={rejected}
+            />
+          </View>
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
@@ -296,7 +294,6 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
-        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('arukone')} onGone={clearNote} />}
       </View>
 
 

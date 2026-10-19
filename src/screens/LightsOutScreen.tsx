@@ -1,6 +1,4 @@
-import { HintNote } from '../components/HintNote';
 import { BackLabel } from '../components/Icon';
-import { HintKind } from '../game/hints';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
@@ -179,13 +177,10 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
   // \`state\` rather than inside a \`setState\` updater: React may run an
   // updater twice, which would charge twice.
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
-  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const result = explainLightsOutHint(puzzle, state);
     if (!result) return;
     spendInsight(() => {
-      setNote({ reason: result.reason, tip: result.tip, kind: result.kind, id: Date.now() });
       setState(result.state);
       setHints(n => n + 1);
       setPresses(n => n + 1);
@@ -245,7 +240,10 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <LightsOutBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onPressCell={onPressCell} flashCell={flashCell} />
+          {/* Finished: the board takes no more touches. */}
+          <View pointerEvents={solved ? 'none' : 'auto'}>
+            <LightsOutBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onPressCell={onPressCell} flashCell={flashCell} />
+          </View>
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
@@ -265,7 +263,6 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
-        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('lightsout')} onGone={clearNote} />}
       </View>
 
       {showSolvedCard && stars && !showSetComplete && (

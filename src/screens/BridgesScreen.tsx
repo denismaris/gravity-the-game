@@ -1,6 +1,4 @@
-import { HintNote } from '../components/HintNote';
 import { BackLabel } from '../components/Icon';
-import { HintKind } from '../game/hints';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
@@ -264,13 +262,10 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
   const onTapLane = useCallback((link: number, at: number) => build(link, at), [build]);
 
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
-  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const result = explainBridgesHint(puzzle, stateRef.current);
     if (!result) return;
     spendInsight(() => {
-      setNote({ reason: result.reason, tip: result.tip, kind: result.kind, id: Date.now() });
       historyRef.current.push(stateRef.current);
       setCanUndo(true);
       stateRef.current = result.state;
@@ -342,19 +337,22 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <BridgesBoard
-            puzzle={puzzle}
-            state={state}
-            size={boardSize}
-            solved={solved}
-            onLane={onLane}
-            onTapLane={onTapLane}
-            onAdjustLane={onAdjustLane}
-            origin={origin}
-            flashLink={flashLink}
-            blocked={blocked}
-            introKey={introKey}
-          />
+          {/* Finished: the board takes no more touches. */}
+          <View pointerEvents={solved ? 'none' : 'auto'}>
+            <BridgesBoard
+              puzzle={puzzle}
+              state={state}
+              size={boardSize}
+              solved={solved}
+              onLane={onLane}
+              onTapLane={onTapLane}
+              onAdjustLane={onAdjustLane}
+              origin={origin}
+              flashLink={flashLink}
+              blocked={blocked}
+              introKey={introKey}
+            />
+          </View>
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
@@ -372,7 +370,6 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
-        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('bridges')} onGone={clearNote} />}
       </View>
 
       {showSolvedCard && stars && !showSetComplete && (

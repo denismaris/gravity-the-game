@@ -32,7 +32,7 @@ import { inkWash, theme } from '../theme';
  * pad, a water lily opens under the frog, and it hops for joy.
  */
 const PAD = 0.32; // tray margin, in cells
-export const HOP_MS = 320;
+export const HOP_MS = 420;
 
 export interface LilyGeo {
   readonly cell: number;

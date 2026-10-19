@@ -64,7 +64,7 @@ export function rankThreshold(n: number): number {
 /** Coins paid out on reaching rank `n` (1-based; rank 1 is where you
  * start and pays nothing). */
 export function rankReward(n: number): number {
-  return n <= 1 ? 0 : 40 + 20 * n;
+  return n <= 1 ? 0 : 20 + 10 * n;
 }
 
 export function experienceOf(progress: PlayerProgress): number {

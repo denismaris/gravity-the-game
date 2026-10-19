@@ -10,9 +10,27 @@ export interface GameEmblemProps {
   /** Outer square size in pixels. Every mark inside is derived from this,
    * so one emblem set works at card size and at summary-row size. */
   readonly size?: number;
+  /** Stands the plate on a darker lip, like the cards it sits on - for an
+   * emblem that is a button, or the thing a card is about. The plate is
+   * made opaque (its tint over the card's surface) so the lip never shows
+   * through it. Adds the lip's height below `size`. */
+  readonly raised?: boolean;
 }
 
 const DEFAULT_SIZE = 64;
+
+/** The lip under a raised emblem, as a share of its size. */
+export function emblemLip(size: number): number {
+  return Math.max(2, Math.round(size * 0.075));
+}
+
+/** `a` moved `t` of the way to `b`, both `#rrggbb`. */
+function mix(a: string, b: string, t: number): string {
+  const x = hexToRgb(a);
+  const y = hexToRgb(b);
+  const ch = (u: number, v: number) => Math.round(u + (v - u) * t).toString(16).padStart(2, '0');
+  return `#${ch(x.r, y.r)}${ch(x.g, y.g)}${ch(x.b, y.b)}`;
+}
 
 /** `hex` at `alpha` - the accents are all `#rrggbb` literals, and a tinted
  * plate needs real transparency rather than `shade`'s opaque tone, so the
@@ -39,12 +57,14 @@ export function tint(hex: string, alpha: number): string {
  * marks competing with gradients and highlights would read as clutter
  * rather than as a set.
  */
-export function GameEmblem({ kind, size = DEFAULT_SIZE }: GameEmblemProps): React.JSX.Element {
+export function GameEmblem({ kind, size = DEFAULT_SIZE, raised = false }: GameEmblemProps): React.JSX.Element {
   const accent = accentColorForKind(kind);
-  const plate = tint(accent, 0.16);
+  const plate = raised ? mix(theme.colors.surface, accent, 0.16) : tint(accent, 0.16);
+  const lip = raised ? emblemLip(size) : 0;
   return (
-    <View style={{ width: size, height: size }} accessibilityRole="image" accessibilityLabel={`${kind} emblem`}>
+    <View style={{ width: size, height: size + lip }} accessibilityRole="image" accessibilityLabel={`${kind} emblem`}>
       <Canvas style={StyleSheet.absoluteFill}>
+        {raised && <RoundedRect x={0} y={lip} width={size} height={size} r={size * 0.28} color={mix(theme.colors.surface, accent, 0.42)} />}
         <RoundedRect x={0} y={0} width={size} height={size} r={size * 0.28} color={plate} />
         {renderMark(kind, size, accent, plate)}
       </Canvas>
@@ -162,8 +182,9 @@ function MirrorMark({ size, accent }: MarkProps): React.JSX.Element {
   const b = size * 0.5;
   const c = size * 0.8;
 
+  // The drawing spans 0.1-0.59 of the height: centred on the plate.
   return (
-    <Group>
+    <Group transform={[{ translateY: size * 0.155 }]}>
       <Path
         path={`M ${a} ${a} L ${b} ${a} L ${b} ${b} L ${c} ${b}`}
         color={accent}

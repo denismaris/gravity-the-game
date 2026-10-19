@@ -41,7 +41,7 @@ export function LevelFailedCard({
   // `subdued`: the same staged arrival every other card uses, but landing
   // without overshoot and with no light sweep. A loss should feel like it
   // settled onto the screen, not like it bounced in pleased with itself.
-  const { backdrop, card, rowStyle } = useCardEntrance(ROW_COUNT, { subdued: true });
+  const { backdrop, card, cardOpacity, rowStyle } = useCardEntrance(ROW_COUNT, { subdued: true });
 
   return (
     <ModalLayer>
@@ -51,7 +51,7 @@ export function LevelFailedCard({
           style={[
             dialogStyles.card,
             {
-              opacity: card,
+              opacity: cardOpacity,
               transform: [
                 { scale: card.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
                 { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [20, 0] }) },

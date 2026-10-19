@@ -6,7 +6,6 @@ import { DifficultyChip, LevelSetComplete, MechanicsCarousel, PressableScale, Pu
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { GLASS_ARCH, GlassBoard, glassColor, glassTexture, StrokePhase } from '../components/GlassBoard';
 import { HelpHalo } from '../components/HelpHalo';
-import { HintNote } from '../components/HintNote';
 import { MechanicIntro } from '../components/MechanicIntro';
 import { BackLabel, Icon } from '../components/Icon';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
@@ -67,7 +66,6 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
   const [brush, setBrush] = useState<GlassColor | null>(0);
   const [hints, setHints] = useState(0);
   const [highlight, setHighlight] = useState<number | null>(null);
-  const [note, setNote] = useState<{ reason: string; tip?: string; kind: 'fix' | 'rule'; id: number } | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const dismissHelp = useCallback(() => {
     markTutorialSeen(TUTORIAL_ID);
@@ -164,7 +162,6 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
       setState(hint.state);
       setHints(n => n + 1);
       setHighlight(hint.pane);
-      setNote({ reason: hint.reason, tip: hint.tip, kind: hint.kind, id: Date.now() });
       triggerFeedback('targetReached');
     });
   }, [puzzle, state, insight]);
@@ -217,7 +214,10 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <GlassBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onStroke={onStroke} highlight={highlight} />
+          {/* Finished: the board takes no more touches. */}
+          <View pointerEvents={solved ? 'none' : 'auto'}>
+            <GlassBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onStroke={onStroke} highlight={highlight} />
+          </View>
         </Animated.View>
 
         {/* The glass to set, in a tray like Mosaic's pieces. */}
@@ -242,7 +242,6 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
-        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('glass')} onGone={() => setNote(null)} />}
       </View>
 
       {showSolved && stars && !showSetComplete && (

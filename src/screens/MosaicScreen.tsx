@@ -1,6 +1,4 @@
-import { HintNote } from '../components/HintNote';
 import { BackLabel } from '../components/Icon';
-import { HintKind } from '../game/hints';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
@@ -159,14 +157,11 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
   }, [puzzle]);
 
   // The last hint's reason, shown over the board for a few seconds.
-  const [note, setNote] = useState<{ reason: string; tip?: string; kind: HintKind; id: number } | null>(null);
-  const clearNote = useCallback(() => setNote(null), []);
   const useHint = useCallback(() => {
     const result = explainMosaicHint(puzzle, stateRef.current);
     if (!result) return;
     // Charged only when there is a hint to give, and before applying it.
     spendInsight(() => {
-      setNote({ reason: result.reason, tip: result.tip, kind: result.kind, id: Date.now() });
       commit(result.state);
       setHints(n => n + 1);
       const piece = result.state.pieces[result.index];
@@ -224,18 +219,21 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          <MosaicPlay
-            puzzle={puzzle}
-            state={state}
-            width={playWidth}
-            maxBoardHeight={maxBoardHeight}
-            solved={solved}
-            flashCells={flashCells}
-            onPlace={onPlace}
-            onLift={onLift}
-            onRotate={onRotate}
-            onFeedback={onFeedback}
-          />
+          {/* Finished: the board takes no more touches. */}
+          <View pointerEvents={solved ? 'none' : 'auto'}>
+            <MosaicPlay
+              puzzle={puzzle}
+              state={state}
+              width={playWidth}
+              maxBoardHeight={maxBoardHeight}
+              solved={solved}
+              flashCells={flashCells}
+              onPlace={onPlace}
+              onLift={onLift}
+              onRotate={onRotate}
+              onFeedback={onFeedback}
+            />
+          </View>
         </Animated.View>
 
         <Animated.View style={[styles.controls, controlsIn]}>
@@ -255,7 +253,6 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
-        {note && !solved && <HintNote key={note.id} reason={note.reason} tip={note.tip} kind={note.kind} accent={accentColorForKind('mosaic')} onGone={clearNote} />}
       </View>
 
       {showSolvedCard && stars && !showSetComplete && (

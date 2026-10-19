@@ -339,10 +339,10 @@ export const BRIDGES_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     tip: "If an island has only one neighbour, all its bridges go to that neighbour.",
   },
   {
-    title: 'Join them all',
-    body: "Bridges cannot cross. In the end, all the islands must be joined together.",
+    title: 'No crossing',
+    body: "Bridges cannot cross each other. When every island has all its bridges, you win.",
     illustration: 'network',
-    tip: "Do not cut a group of islands off from the rest. Stuck? Insight builds the next bridge.",
+    tip: "Stuck? Insight builds the next bridge for you.",
   },
   {
     title: 'Islands in fog',
@@ -502,7 +502,7 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   },
   bridges: {
     title: 'Bridges',
-    body: 'Drag from one island to another to build a bridge. The number says how many bridges an island needs. Bridges cannot cross, and all the islands must be joined.',
+    body: 'Drag from one island to another to build a bridge. The number says how many bridges an island needs. Bridges cannot cross. When every island turns green, you win.',
   },
   mosaic: {
     title: 'Mosaic',
