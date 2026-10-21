@@ -269,12 +269,6 @@ export const LIGHTSOUT_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
     illustration: 'dark',
     tip: "Go row by row. To turn off a lit lantern, tap the one just under it. Stuck? Insight shows the next tap.",
   },
-  {
-    title: 'Twin lanterns',
-    body: "Two lanterns joined by a gold thread are twins. Tap one and the other one switches too.",
-    illustration: 'twins',
-    tip: "Use a twin to reach a lantern far away.",
-  },
 ];
 
 export const BLOOM_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [

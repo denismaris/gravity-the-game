@@ -7,6 +7,9 @@ import { motion, theme, themedStyles } from '../theme';
 export interface BatchProgressDotsProps {
   readonly batch: BatchState;
   readonly style?: StyleProp<ViewStyle>;
+  /** The puzzle on screen: it keeps the ring once solved, rather than the
+   * ring moving on to the next puzzle while this one is still showing. */
+  readonly currentId?: string;
 }
 
 const DOT_SIZE = 8;
@@ -26,9 +29,10 @@ const CURRENT_DOT_SIZE = 10;
  * one puzzle in a batch of three-to-five is exactly that, not a repeat-
  * dozens-of-times tick like the header's own "N LEFT" kicker.
  */
-export function BatchProgressDots({ batch, style }: BatchProgressDotsProps): React.JSX.Element {
+export function BatchProgressDots({ batch, style, currentId }: BatchProgressDotsProps): React.JSX.Element {
   const completed = new Set(batch.completedPuzzleIds);
-  const currentIndex = batch.puzzles.findIndex(p => !completed.has(p.puzzleId));
+  const onScreen = currentId ? batch.puzzles.findIndex(p => p.puzzleId === currentId) : -1;
+  const currentIndex = onScreen >= 0 ? onScreen : batch.puzzles.findIndex(p => !completed.has(p.puzzleId));
 
   // One `Animated.Value` per puzzle id, created lazily and kept for the
   // life of this batch - `batch.puzzles` itself is fixed once generated

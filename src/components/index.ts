@@ -16,7 +16,7 @@ export { LevelSetComplete } from './LevelSetComplete';
 export type { LevelSetCompleteProps } from './LevelSetComplete';
 export { PuzzleSolved } from './PuzzleSolved';
 export type { PuzzleSolvedProps } from './PuzzleSolved';
-export { PressableScale } from './PressableScale';
+export { PressableScale, PressDepth, sunkKey } from './PressableScale';
 export type { PressableScaleProps } from './PressableScale';
 export { ErrorBoundary } from './ErrorBoundary';
 export { LaunchSequence } from './LaunchSequence';

@@ -68,10 +68,31 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
   useEffect(() => () => timers.current.forEach(clearTimeout), []);
   const later = (fn: () => void, ms: number) => timers.current.push(setTimeout(fn, ms));
 
+  // One hop at a time. A tap that came while the frog was still in the air
+  // started the next hop from where the frog *would* be, so on quick taps
+  // it seemed to teleport. Now a tap mid-hop waits, and is made the moment
+  // the frog lands - quick taps still all count.
+  const landsAt = useRef(0);
+  const queued = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onHopRef = useRef<(pad: number) => void>(() => {});
+  useEffect(() => () => {
+    if (queued.current) clearTimeout(queued.current);
+  }, []);
+
   const onHop = useCallback(
     (pad: number) => {
+      const wait = landsAt.current - Date.now();
+      if (wait > 0) {
+        if (queued.current) clearTimeout(queued.current);
+        queued.current = setTimeout(() => {
+          queued.current = null;
+          onHopRef.current(pad);
+        }, wait);
+        return;
+      }
       const next = hop(puzzle, state, pad);
       if (next === state) return;
+      landsAt.current = Date.now() + HOP_MS;
       setHistory(h => [...h, state]);
       setState(next);
       setGlow(null);
@@ -83,8 +104,14 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
     [puzzle, state],
   );
 
+  onHopRef.current = onHop;
+
   const undo = useCallback(() => {
     if (history.length === 0) return;
+    // Undo always answers - and drops any hop still waiting to be made.
+    if (queued.current) clearTimeout(queued.current);
+    queued.current = null;
+    landsAt.current = 0;
     setState(history[history.length - 1]);
     setHistory(h => h.slice(0, -1));
     setGlow(null);
@@ -92,12 +119,17 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
   }, [history]);
 
   const restart = useCallback(() => {
+    if (queued.current) clearTimeout(queued.current);
+    queued.current = null;
+    landsAt.current = 0;
     setState(initialLilyState(puzzle));
     setHistory([]);
     setGlow(null);
   }, [puzzle]);
 
   const useHint = useCallback(() => {
+    // Still in the air: no hint yet, and nothing charged.
+    if (landsAt.current > Date.now()) return false;
     const h = lilyHint(puzzle, history, state);
     if (!h) return false;
     // Back to where the way is still open, if it is not, and then the hop
@@ -114,6 +146,7 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
       setState(s);
       setGlow(h.pad);
     } else {
+      landsAt.current = Date.now() + HOP_MS;
       setHistory([...past, s]);
       setState(next);
       setGlow(null);
@@ -153,8 +186,11 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
       onUndo={undo}
       onRestart={restart}
     >
-      {/* Finished: the board takes no more touches. */}
-      <View pointerEvents={solved ? 'none' : 'auto'}>
+      {/* Finished: the board takes no more touches. Never collapsed: on
+              Android a flattened wrapper is re-created when its touches
+              change, and the board canvas under it redraws from blank - a
+              white flash at every finish. */}
+      <View collapsable={false} pointerEvents={solved ? 'none' : 'auto'}>
         <LilyPadsBoard
           puzzle={puzzle}
           state={state}

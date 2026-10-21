@@ -90,9 +90,10 @@ const COLUMN_HOLD_MS = FALL_DELAY_MS + FALL_MS + Math.round(CRUMBLE_MS * 0.45);
  * tuned so the last one lands inside `SOLVE_CELEBRATION_MS` - the beat
  * the completion card waits out before covering the board. On a full
  * 6x6 that is 35 * 8 + 300 = 580ms. */
-/** The finish: a diagonal wave, a beat per diagonal. */
-const SWEEP_STAGGER_MS = 55;
-const SWEEP_MS = 560;
+/** The finish: a ripple out from the middle of the tray, a beat per ring
+ * of tiles - each hops and lands back in its place. */
+const SWEEP_STAGGER_MS = 85;
+const SWEEP_MS = 620;
 
 /** The four ways a cleared tile's chips fly - the diagonals, slightly
  * uneven so a burst never looks stamped out of a template. */
@@ -325,66 +326,107 @@ function Tile({ colour, x, y, cell, scale = 1, opacity = 1, highlighted = false 
 }
 
 /**
- * A stone at the end of its drop. Before `t` reaches 0 it is a whole stone
- * still falling; then a crack runs across it, it breaks into four pieces
- * that tumble out and down with a turn each, and a low puff of dust spreads
- * along the floor where it landed - stone, not glaze: no sparkle.
+ * The shards a stone breaks into: a fan of five uneven pieces round a
+ * point a little off its centre, each with the direction it is thrown.
+ * In the stone's own unit square (-1..1), fixed - a stone always breaks
+ * the same believable way, never into a neat grid of squares.
+ */
+const SHARD_HUB: readonly [number, number] = [0.12, 0.1];
+const SHARD_RIM: ReadonlyArray<readonly [number, number]> = [
+  [-1, -1],
+  [0.2, -1],
+  [1, -0.35],
+  [1, 1],
+  [-0.15, 1],
+  [-1, 0.25],
+];
+const SHARDS: ReadonlyArray<ReadonlyArray<readonly [number, number]>> = [
+  [SHARD_HUB, SHARD_RIM[0], SHARD_RIM[1]],
+  [SHARD_HUB, SHARD_RIM[1], [1, -1], SHARD_RIM[2]],
+  [SHARD_HUB, SHARD_RIM[2], SHARD_RIM[3]],
+  [SHARD_HUB, SHARD_RIM[3], SHARD_RIM[4]],
+  [SHARD_HUB, SHARD_RIM[4], [-1, 1], SHARD_RIM[5]],
+  [SHARD_HUB, SHARD_RIM[5], SHARD_RIM[0]],
+];
+/** Grit thrown out with the shards: where from, which way, how big. */
+const PEBBLES: ReadonlyArray<readonly [number, number, number]> = [
+  [-0.9, -0.5, 0.09],
+  [0.85, -0.7, 0.07],
+  [-0.4, 0.9, 0.06],
+  [0.7, 0.5, 0.08],
+];
+
+/**
+ * A stone at the end of its drop. It lands whole; then it shudders, a
+ * crack draws itself across it, and it gives way - six uneven shards
+ * thrown out and falling with a turn each, grit flying wider, and a low
+ * puff of dust along the floor where it stood. Stone, not glaze: no
+ * sparkle.
  */
 function CrumblingStone({ x, y, cell, t }: { x: number; y: number; cell: number; t: number }): React.JSX.Element {
   if (t <= 0) return <Tile colour={STONE} x={x} y={y} cell={cell} />;
   const full = cell * TILE_SCALE;
-  const left = x + (cell - full) / 2;
-  const top = y + (cell - full) / 2;
+  const half = full / 2;
   const face = theme.colors.adjacentStone;
   const dark = shade(face, 0.62);
-  const cx = left + full / 2;
-  const cy = top + full / 2;
-  // The crack first, then the break.
-  const crack = Math.min(1, t / 0.22);
-  const breakT = Math.max(0, (t - 0.22) / 0.78);
-  const half = full / 2;
-  const pieces: ReadonlyArray<readonly [number, number]> = [
-    [-1, -1],
-    [1, -1],
-    [-1, 1],
-    [1, 1],
-  ];
-  const dust = easeOutCubic(Math.max(0, (t - 0.18) / 0.82));
+  // The first beat: a shudder that dies away as the crack runs.
+  const shudder = t < 0.26 ? Math.sin(t * 90) * cell * 0.022 * (1 - t / 0.26) : 0;
+  const cx = x + cell / 2 + shudder;
+  const cy = y + cell / 2;
+  const crack = clamp01(t / 0.24);
+  const breakT = clamp01((t - 0.26) / 0.74);
+  const dust = easeOutCubic(clamp01((t - 0.24) / 0.76));
+  const at = ([ux, uy]: readonly [number, number]) => `${cx + ux * half} ${cy + uy * half}`;
+  // The crack stops short of the edge, inside the stone's rounded corners.
+  const inside = ([ux, uy]: readonly [number, number]): readonly [number, number] => [SHARD_HUB[0] + (ux - SHARD_HUB[0]) * 0.78, SHARD_HUB[1] + (uy - SHARD_HUB[1]) * 0.78];
   return (
     <Group>
-      {/* Dust along the floor where it landed. */}
       {dust > 0 &&
-        [-0.42, 0, 0.42].map((dx, i) => (
-          <Circle key={`d${i}`} cx={cx + dx * full * (0.6 + dust * 0.9)} cy={top + full * 0.92 - dust * full * 0.12 * (i === 1 ? 1.4 : 1)} r={full * (0.12 + dust * 0.22)} color={shade(face, 1.18)} opacity={0.55 * (1 - dust)} />
+        [-0.5, 0, 0.5].map((dx, i) => (
+          <Circle key={`d${i}`} cx={cx + dx * full * (0.55 + dust * 0.9)} cy={cy + half * 0.86 - dust * full * 0.12 * (i === 1 ? 1.4 : 1)} r={full * (0.1 + dust * 0.24)} color={shade(face, 1.18)} opacity={0.5 * (1 - dust)} />
         ))}
       {breakT === 0 ? (
         <Group>
-          <Tile colour={STONE} x={x} y={y} cell={cell} />
+          <Tile colour={STONE} x={x + shudder} y={y} cell={cell} />
+          {/* The crack runs out from where it will break, along the seams
+              the shards will part on. */}
           <Path
-            path={`M ${cx - half * 0.9} ${cy - half * 0.15} L ${cx - half * 0.2} ${cy + half * 0.08} L ${cx + half * 0.1} ${cy - half * 0.5} M ${cx - half * 0.2} ${cy + half * 0.08} L ${cx + half * 0.25} ${cy + half * 0.85} M ${cx - half * 0.2} ${cy + half * 0.08} L ${cx + half * 0.9} ${cy + half * 0.2}`}
+            path={`M ${at(SHARD_HUB)} L ${at(inside(SHARD_RIM[0]))} M ${at(SHARD_HUB)} L ${at(inside(SHARD_RIM[2]))} M ${at(SHARD_HUB)} L ${at(inside(SHARD_RIM[4]))} M ${at(SHARD_HUB)} L ${at(inside(SHARD_RIM[1]))}`}
             color={dark}
             style="stroke"
-            strokeWidth={Math.max(1.2, full * 0.05)}
+            strokeWidth={Math.max(1.2, full * 0.045)}
             strokeCap="round"
-            strokeJoin="round"
-            opacity={crack}
+            end={crack}
           />
         </Group>
       ) : (
-        pieces.map(([sx, sy], i) => {
-          const out = easeOutCubic(breakT) * full * 0.45;
-          const drop = breakT * breakT * full * 0.9;
-          const px = cx + sx * (half / 2 + out);
-          const py = cy + sy * (half / 2) + drop + (sy < 0 ? -out * 0.3 : out * 0.1);
-          const turn = sx * breakT * (0.9 + i * 0.15);
-          const piece = half * (1 - breakT * 0.35);
-          return (
-            <Group key={`p${i}`} opacity={1 - breakT * breakT} transform={[{ translateX: px }, { translateY: py }, { rotate: turn }]}>
-              <RoundedRect x={-piece / 2} y={-piece / 2 + full * 0.04} width={piece} height={piece} r={piece * 0.22} color={dark} />
-              <RoundedRect x={-piece / 2} y={-piece / 2} width={piece} height={piece} r={piece * 0.22} color={face} />
-            </Group>
-          );
-        })
+        <Group>
+          {SHARDS.map((shard, i) => {
+            const mx = shard.reduce((a, p) => a + p[0], 0) / shard.length;
+            const my = shard.reduce((a, p) => a + p[1], 0) / shard.length;
+            // Stone is heavy: the pieces part a little and mostly drop.
+            const throwOut = easeOutCubic(breakT) * full * 0.18;
+            const fall = breakT * breakT * full * 0.85;
+            const len = Math.hypot(mx, my) || 1;
+            const dx = (mx / len) * throwOut;
+            const dy = (my / len) * throwOut * 0.4 + fall;
+            const turn = (mx >= 0 ? 1 : -1) * breakT * (0.28 + i * 0.06);
+            const shrink = 0.94 - breakT * 0.2;
+            const pts = shard.map(([ux, uy]) => [(ux - mx) * half * shrink, (uy - my) * half * shrink] as const);
+            const poly = `M ${pts.map(([px, py]) => `${px} ${py}`).join(' L ')} Z`;
+            return (
+              <Group key={`s${i}`} opacity={1 - breakT ** 2} transform={[{ translateX: cx + mx * half + dx }, { translateY: cy + my * half + dy }, { rotate: turn }]}>
+                <Path path={poly} color={dark} transform={[{ translateY: full * 0.05 }]} />
+                <Path path={poly} color={face} />
+              </Group>
+            );
+          })}
+          {PEBBLES.map(([ux, uy, r], i) => {
+            const out = easeOutCubic(breakT) * full * 0.45;
+            const fall = breakT * breakT * full * 1.1;
+            return <Circle key={`g${i}`} cx={cx + ux * (half + out)} cy={cy + uy * half * 0.6 + fall - (1 - breakT) * breakT * full * 0.5} r={full * r} color={dark} opacity={1 - breakT} />;
+          })}
+        </Group>
       )}
     </Group>
   );
@@ -518,7 +560,7 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
     : 0;
   const hasStones = !!animation?.removed.some(t => t.colour === STONE);
   const moveWindow = Math.max(hasStones ? FALL_DELAY_MS + FALL_MS + CRUMBLE_MS + COLUMN_HOLD_MS : FALL_DELAY_MS + FALL_MS, clearWindow);
-  const sweepWindow = SWEEP_MS + 2 * puzzle.size * SWEEP_STAGGER_MS;
+  const sweepWindow = SWEEP_MS + puzzle.size * SWEEP_STAGGER_MS;
   const animating =
     !reducedMotion &&
     ((animation != null && now - animation.at < moveWindow) || (solvedAt !== null && now - solvedAt < sweepWindow));
@@ -618,7 +660,11 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
     for (let row = 0; row < puzzle.size; row += 1) {
       for (let col = 0; col < puzzle.size; col += 1) {
         if (state.grid[row][col] === null) continue;
-        const since = frame - solvedAt - (row + col) * SWEEP_STAGGER_MS;
+        // Rings out from the middle: the same spreading the clear's own
+        // pop uses, from the centre of the tray instead of a tapped tile.
+        const mid = (puzzle.size - 1) / 2;
+        const ringOut = Math.round(Math.max(Math.abs(row - mid), Math.abs(col - mid)) - (puzzle.size % 2 === 0 ? 0.5 : 0));
+        const since = frame - solvedAt - ringOut * SWEEP_STAGGER_MS;
         if (since < 0) continue;
         map.set(cellKey(row, col), clamp01(since / SWEEP_MS));
       }
@@ -682,20 +728,24 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
         );
       })}
 
-      {/* The finish: a diagonal wave over what is left - each tile pops up
-          a little, then shrinks away as a ring of its colour opens out. */}
+      {/* The finish: a ripple out from the middle over the tiles that are
+          left - each hops and lands back in place with a little give, a
+          ring of its colour spreading as it does. The board is finished, not emptied: every tile stays. */}
       {[...sweep.entries()].map(([key, t]) => {
         const [row, col] = key.split(':').map(Number);
         const colour = state.grid[row][col];
-        if (colour === null || t >= 1) return null;
-        const pop = t < 0.3 ? 1 + 0.16 * Math.sin((t / 0.3) * (Math.PI / 2)) : 1.16 * (1 - easeOutCubic((t - 0.3) / 0.7));
-        const ring = clamp01((t - 0.25) / 0.75);
+        if (colour === null) return null;
+        // Up and down on one arc, then a small squash on landing.
+        const hop = t < 0.78 ? Math.sin((t / 0.78) * Math.PI) : 0;
+        const land = t >= 0.78 && t < 1 ? Math.sin(((t - 0.78) / 0.22) * Math.PI) : 0;
+        const scale = 1 + 0.07 * hop - 0.04 * land;
+        const ring = clamp01((t - 0.72) / 0.28);
         return (
           <Group key={`sweep-${key}`}>
-            {ring > 0 && (
-              <Circle cx={col * cell + cell / 2} cy={row * cell + cell / 2} r={cell * (0.3 + 0.45 * easeOutCubic(ring))} color={adjacentTileColor(colour)} style="stroke" strokeWidth={Math.max(1, cell * 0.08 * (1 - ring))} opacity={0.8 * (1 - ring)} />
+            {ring > 0 && ring < 1 && (
+              <Circle cx={col * cell + cell / 2} cy={row * cell + cell / 2} r={cell * (0.36 + 0.3 * easeOutCubic(ring))} color={adjacentTileColor(colour)} style="stroke" strokeWidth={Math.max(1, cell * 0.06 * (1 - ring))} opacity={0.55 * (1 - ring)} />
             )}
-            {pop > 0.02 && <Tile colour={colour} x={col * cell} y={row * cell} cell={cell} opacity={1} scale={pop} />}
+            <Tile colour={colour} x={col * cell} y={row * cell - hop * cell * 0.24} cell={cell} scale={scale} />
           </Group>
         );
       })}

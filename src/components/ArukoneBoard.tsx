@@ -73,6 +73,7 @@ export function ArukoneBoard({
         onPanResponderTerminationRequest: () => false,
 
         onPanResponderGrant: (event: GestureResponderEvent) => {
+          if (latest.current.solved) return;
           const cell = cellAt(latest.current.layout, event);
           if (!cell) return;
           lastCellRef.current = cell;
@@ -87,7 +88,9 @@ export function ArukoneBoard({
 
         onPanResponderMove: (event: GestureResponderEvent) => {
           const value = valueRef.current;
-          if (value === null) return;
+          // Finished mid-drag: the stroke that joined the last pair ends
+          // there. Dragging on had redrawn a finished board.
+          if (value === null || latest.current.solved) return;
           const cell = cellAt(latest.current.layout, event);
           // Only act when the finger actually crosses into a new square -
           // a move event fires many times per square otherwise, and every

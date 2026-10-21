@@ -273,9 +273,9 @@ export function owns(progress: PlayerProgress, id: string): boolean {
   return (item.price === 0 && !item.exclusive) || progress.owned.includes(id);
 }
 
-/** The season a date falls in, by its UTC month (as the Daily keys are). */
+/** The season a date falls in, by its local month (as the Daily keys are). */
 export function seasonOf(date: Date = new Date()): Season {
-  const m = date.getUTCMonth();
+  const m = date.getMonth();
   if (m >= 2 && m <= 4) return 'spring';
   if (m >= 5 && m <= 7) return 'summer';
   if (m >= 8 && m <= 10) return 'autumn';
@@ -284,13 +284,13 @@ export function seasonOf(date: Date = new Date()): Season {
 
 /** Whole days left in the current season, counting today. */
 export function seasonDaysLeft(date: Date = new Date()): number {
-  const y = date.getUTCFullYear();
-  const m = date.getUTCMonth();
+  const y = date.getFullYear();
+  const m = date.getMonth();
   // Each season ends as its third month does: May, August, November, February.
   const endMonth = m >= 2 && m <= 4 ? 5 : m >= 5 && m <= 7 ? 8 : m >= 8 && m <= 10 ? 11 : 2;
   const endYear = endMonth === 2 && m >= 11 ? y + 1 : y;
   const end = Date.UTC(endYear, endMonth, 1);
-  const today = Date.UTC(y, m, date.getUTCDate());
+  const today = Date.UTC(y, m, date.getDate());
   return Math.max(1, Math.round((end - today) / 86400000));
 }
 

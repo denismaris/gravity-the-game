@@ -34,6 +34,7 @@ import { useReminderSync } from './src/notifications';
 import { useCloudSync } from './src/backend';
 import { EmblemHandoff } from './src/components/EmblemHandoff';
 import { ErrorBoundary, IntroWalkthrough, LaunchSequence, ScreenTransition } from './src/components';
+import { PlayingPuzzle } from './src/components/DifficultyChip';
 import { GameLesson } from './src/components/lessons';
 import { CollectionScreen } from './src/screens/CollectionScreen';
 import { FirstPuzzleContext } from './src/components/HelpHalo';
@@ -463,6 +464,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
       }
     }
     if (selected.practice && screen !== homeScreen) screen = <PracticeProvider>{screen}</PracticeProvider>;
+    if (screen !== homeScreen) screen = <PlayingPuzzle.Provider value={selected.puzzleId}>{screen}</PlayingPuzzle.Provider>;
   }
 
   // A game the player has never learned opens on its lesson: a route of

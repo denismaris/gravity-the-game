@@ -12,10 +12,12 @@ export interface WidgetSchedule {
 }
 
 export function buildWidgetSchedule(): WidgetSchedule {
-  const start = Date.parse(`${SCHEDULE_START}T12:00:00Z`);
+  // Local noons, one per calendar day: the widget reads the list by the
+  // phone's own date, as the app keys its Daily.
+  const [y, m, d] = SCHEDULE_START.split('-').map(Number);
   const days = Array.from({ length: SCHEDULE_DAYS }, (_v, i) => {
-    const entry = getDailyEntry(new Date(start + i * 86400000));
+    const entry = getDailyEntry(new Date(y, m - 1, d + i, 12));
     return { n: entry.name, g: gameDisplayName(entry.kind), c: accentColorForKind(entry.kind) };
   });
-  return { start: dailyKeyOf(new Date(start)), days };
+  return { start: dailyKeyOf(new Date(y, m - 1, d, 12)), days };
 }

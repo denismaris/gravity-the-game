@@ -10,12 +10,20 @@ import { getLevelById } from '../../levels';
 import { getMirrorMazeById } from '../../mirror';
 import { lilyCuratedInfo } from '../../lilypads';
 import { vaneCuratedInfo } from '../../vanes';
-import { dailyKeyOf, getDailyEntry } from '../daily';
+import { dailyKeyOf, getDailyEntry, nextDayStart } from '../daily';
 
 describe('dailyKeyOf', () => {
-  test('formats as YYYY-MM-DD in UTC', () => {
-    expect(dailyKeyOf(new Date('2026-01-05T23:30:00Z'))).toBe('2026-01-05');
-    expect(dailyKeyOf(new Date('2026-01-05T00:00:00Z'))).toBe('2026-01-05');
+  // The player's own calendar: the day turns at local midnight.
+  test('formats as YYYY-MM-DD on the local calendar', () => {
+    expect(dailyKeyOf(new Date(2026, 0, 5, 23, 30))).toBe('2026-01-05');
+    expect(dailyKeyOf(new Date(2026, 0, 5, 0, 0))).toBe('2026-01-05');
+    expect(dailyKeyOf(new Date(2026, 0, 5, 23, 59, 59))).toBe('2026-01-05');
+    expect(dailyKeyOf(new Date(2026, 0, 6, 0, 0))).toBe('2026-01-06');
+  });
+
+  test('the next day starts at local midnight', () => {
+    expect(nextDayStart(new Date(2026, 0, 5, 23, 30))).toBe(new Date(2026, 0, 6).getTime());
+    expect(nextDayStart(new Date(2026, 0, 31, 0, 0))).toBe(new Date(2026, 1, 1).getTime());
   });
 });
 
@@ -55,21 +63,22 @@ function realPuzzleExists(entry: ReturnType<typeof getDailyEntry>): boolean {
 
 describe('getDailyEntry', () => {
   test('is deterministic for the same calendar day', () => {
-    const a = getDailyEntry(new Date('2026-03-14T02:00:00Z'));
-    const b = getDailyEntry(new Date('2026-03-14T21:45:00Z'));
+    const a = getDailyEntry(new Date(2026, 2, 14, 2, 0));
+    const b = getDailyEntry(new Date(2026, 2, 14, 21, 45));
     expect(a).toEqual(b);
   });
 
   test('always resolves to a real puzzle in its own game', () => {
     for (const iso of ['2026-01-01', '2026-06-15', '2027-12-31', '2030-02-28']) {
-      const entry = getDailyEntry(new Date(`${iso}T12:00:00Z`));
+      const [y, m, d] = iso.split('-').map(Number);
+      const entry = getDailyEntry(new Date(y, m - 1, d, 12));
       expect(realPuzzleExists(entry)).toBe(true);
     }
   });
 
   test('different days usually land on different puzzles', () => {
     const days = Array.from({ length: 30 }, (_, i) => {
-      const d = new Date('2026-01-01T12:00:00Z');
+      const d = new Date(2026, 0, 1, 12, 0);
       d.setUTCDate(d.getUTCDate() + i);
       return getDailyEntry(d).puzzleId;
     });

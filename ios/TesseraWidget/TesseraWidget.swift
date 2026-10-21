@@ -31,9 +31,11 @@ struct PlayerState: Decodable {
   let solvedKey: String?
 }
 
+// The player's own calendar: the Daily turns over at local midnight, the
+// same as in the app (`dailyKeyOf`). (Named `utc` from when it was UTC's.)
 private var utc: Calendar = {
   var calendar = Calendar(identifier: .gregorian)
-  calendar.timeZone = TimeZone(identifier: "UTC")!
+  calendar.timeZone = TimeZone.current
   return calendar
 }()
 
@@ -101,7 +103,7 @@ struct Provider: TimelineProvider {
     completion(context.isPreview ? placeholder(in: context) : entry(at: Date()))
   }
 
-  /// Now, then each of the next few UTC midnights - when the Daily turns over.
+  /// Now, then each of the next few local midnights - when the Daily turns over.
   func getTimeline(in context: Context, completion: @escaping (Timeline<DailyEntry>) -> Void) {
     let now = Date()
     var entries = [entry(at: now)]

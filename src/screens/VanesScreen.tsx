@@ -142,8 +142,11 @@ function Roof({ puzzle, mode, onExit }: { puzzle: VanePuzzle; mode: TrialMode | 
       onUndo={undo}
       onRestart={restart}
     >
-      {/* Finished: the board takes no more touches. */}
-      <View pointerEvents={solved ? 'none' : 'auto'}>
+      {/* Finished: the board takes no more touches. Never collapsed: on
+              Android a flattened wrapper is re-created when its touches
+              change, and the board canvas under it redraws from blank - a
+              white flash at every finish. */}
+      <View collapsable={false} pointerEvents={solved ? 'none' : 'auto'}>
         <VanesBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onTurn={onTurn} glow={glow} touched={touched} />
       </View>
     </PlayShell>

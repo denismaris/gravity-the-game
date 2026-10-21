@@ -17,13 +17,6 @@ export interface Mechanic {
 
 export const MECHANICS: ReadonlyArray<Mechanic> = [
   {
-    id: 'mechanic:lantern-twins',
-    game: 'lightsout',
-    title: 'Twin lanterns',
-    body: 'Two lanterns joined by a gold thread are twins. Tap one and the other one switches too, wherever it is.',
-    sample: 'lightsout-medium-t01',
-  },
-  {
     id: 'mechanic:glass-vines',
     game: 'glass',
     title: 'Vines',

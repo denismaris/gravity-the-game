@@ -7,7 +7,7 @@ import { cosmeticById } from '../progression/shop';
 import { formatDuration } from '../progression/timing';
 import { CosmeticPreview } from './CosmeticPreview';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import { GameEmblem } from './GameEmblem';
+import { GameEmblem, tint } from './GameEmblem';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, encouragementTier, GameKind, pickEncouragement } from '../game/journey';
 import { motion, theme, themedStyles } from '../theme';
@@ -187,7 +187,7 @@ export function PuzzleSolved({
             <Animated.View style={[styles.praiseBlock, rowStyle(1)]}>
               <Text style={styles.praise}>{praise}</Text>
               {howItWent && (
-                <View style={[styles.how, hintsUsed === 0 && { borderColor: accent }]}>
+                <View style={[styles.how, hintsUsed === 0 && { borderColor: tint(accent, 0.35), backgroundColor: tint(accent, 0.12) }]}>
                   <Text style={[styles.howText, hintsUsed === 0 && { color: accent }]}>{howItWent}</Text>
                 </View>
               )}
@@ -259,7 +259,7 @@ export function PuzzleSolved({
                 primary goes on to another puzzle. */}
             <Animated.View style={[styles.actions, rowStyle(4)]}>
               <DialogActions
-                primary={hasNext && onNext ? { label: 'Next puzzle', onPress: onNext } : { label: 'Done', onPress: onDone, accessibilityLabel: 'Back to home' }}
+                primary={hasNext && onNext ? { label: 'Next puzzle', onPress: onNext, onward: true } : { label: 'Done', onPress: onDone, accessibilityLabel: 'Back to home' }}
                 secondary={hasNext && onNext ? { label: 'Home', onPress: onDone, accessibilityLabel: 'Back to home' } : undefined}
               />
             </Animated.View>
@@ -303,7 +303,7 @@ function EmblemSeal({ kind, accent, hero }: { kind: GameKind; accent: string; he
           ],
         }}
       >
-        <GameEmblem kind={kind} size={64} />
+        <GameEmblem kind={kind} size={64} raised />
       </Animated.View>
     </View>
   );
@@ -343,13 +343,19 @@ const styles = themedStyles(() => ({
     shadowOffset: { width: 0, height: 14 },
     elevation: 14,
   },
+  /** Stands on its edge like the cards on Home: a fine rim, and the same
+   * rim deepened along the bottom. */
   card: {
     alignItems: 'center',
     paddingHorizontal: theme.spacing.lg,
     paddingTop: theme.spacing.xl,
-    paddingBottom: theme.spacing.md,
+    paddingBottom: theme.spacing.lg,
     borderRadius: 30,
     backgroundColor: theme.colors.surface,
+    borderWidth: 1,
+    borderBottomWidth: 5,
+    borderColor: theme.colors.border,
+    borderBottomColor: theme.colors.borderStrong,
     overflow: 'hidden',
   },
   emblem: { marginBottom: theme.spacing.sm, alignItems: 'center', justifyContent: 'center' },

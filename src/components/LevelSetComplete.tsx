@@ -7,11 +7,13 @@ import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { Icon } from './Icon';
 import { ConfettiBurst } from './ConfettiBurst';
 import { GameEmblem } from './GameEmblem';
+import { glide, settle, slice } from './placeMotion';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, GameKind, gameShortName } from '../game/journey';
 import { motion, theme, themedStyles } from '../theme';
+import { shade } from '../game/rendering';
 import { MODAL_EXIT_MS, ModalLayer } from './ModalLayer';
-import { DialogActions, dialogStyles } from './dialog';
+import { DialogActions } from './dialog';
 
 export interface LevelSetCompleteProps {
   /** The level number that was just finished. */
@@ -103,32 +105,12 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
               <Text style={[styles.crestNumber, String(levelNumber).length >= 3 && styles.crestNumberLong]} numberOfLines={1}>
                 {levelNumber}
               </Text>
-              {/* A bead round the medal for each game, lit in its colour as
-                  that game is counted in. */}
-              {kinds.map((kind, i) => {
-                const a = (i / kinds.length) * Math.PI * 2 - Math.PI / 2;
-                const r = CREST / 2 + 9;
-                return (
-                  <Animated.View
-                    key={`bead-${i}`}
-                    style={[
-                      styles.bead,
-                      {
-                        left: CREST / 2 + Math.cos(a) * r - 5,
-                        top: CREST / 2 + Math.sin(a) * r - 5,
-                        backgroundColor: accentColorForKind(kind),
-                        opacity: slice(places[i], 0.35, 0.6, glide, [0.15, 1], 0.15),
-                        transform: [{ scale: slice(places[i], 0.35, 0.75, settle, [0.5, 1], 0.5) }],
-                      },
-                    ]}
-                  />
-                );
-              })}
             </Animated.View>
 
-            <Animated.View style={rowStyle(0)}>
-              <Text style={dialogStyles.kicker}>{`Level ${levelNumber} complete`}</Text>
-              <Text style={styles.headline}>{kinds.length} games, all finished</Text>
+            <Animated.View style={[styles.heading, rowStyle(0)]}>
+              <Text style={styles.eyebrow}>{`All ${kinds.length} games`}</Text>
+              <Text style={styles.headline}>Set complete</Text>
+              <View style={styles.headRule} />
             </Animated.View>
 
             {/* Rows of equal length: four in one row, six or eight in two. */}
@@ -142,8 +124,10 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
                 off - paid with the set's last solve, shown here as the
                 prize for the set as a whole. */}
             <Animated.View style={[styles.reward, rowStyle(2)]}>
-              <CoinGlyph size={18} />
-              <RewardCount to={SET_BONUS} after={PLACE_DELAY_MS + MODAL_EXIT_MS + kinds.length * PLACE_STAGGER_MS + 300} />
+              <View style={styles.rewardFigure}>
+                <CoinGlyph size={18} />
+                <RewardCount to={SET_BONUS} after={PLACE_DELAY_MS + MODAL_EXIT_MS + kinds.length * PLACE_STAGGER_MS + 300} />
+              </View>
               <Text style={styles.rewardLabel}>Level reward</Text>
             </Animated.View>
 
@@ -155,12 +139,12 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
               </Animated.View>
             ) : (
               <Animated.Text style={[styles.closing, rowStyle(2)]}>
-                That is the whole set. Take a breather; the next one is ready when you are.
+                The next set is ready when you are.
               </Animated.Text>
             )}
 
             <Animated.View style={[styles.actions, rowStyle(3)]}>
-              <DialogActions primary={{ label: 'Continue', onPress: onContinue }} />
+              <DialogActions primary={{ label: 'Continue', onPress: onContinue, onward: true }} />
             </Animated.View>
           </View>
         </Animated.View>
@@ -190,24 +174,6 @@ function RewardCount({ to, after }: { to: number; after: number }): React.JSX.El
   return <Text style={styles.rewardValue}>{`+${n}`}</Text>;
 }
 
-/** A slice of a 0..1 clock, eased: 0 before `from`, 1 after `to`. */
-function slice(t: Animated.Value, from: number, to: number, easing: (x: number) => number, out: [number, number], before?: number): Animated.AnimatedInterpolation<number> {
-  // The easing sampled into the interpolation, so it runs on the native
-  // driver; outside [from, to] it holds its ends - or, given `before`,
-  // holds that until the slice begins (a ring that fades *out* must not
-  // show at full strength while it waits).
-  const steps = 12;
-  const inputRange = Array.from({ length: steps + 1 }, (_v, k) => from + ((to - from) * k) / steps);
-  const outputRange = inputRange.map((_x, k) => out[0] + (out[1] - out[0]) * easing(k / steps));
-  if (before !== undefined && from > 0) {
-    inputRange.unshift(0, from - 0.001);
-    outputRange.unshift(before, before);
-  }
-  return t.interpolate({ inputRange, outputRange, extrapolate: 'clamp' });
-}
-
-const settle = Easing.out(Easing.back(1.5));
-const glide = Easing.out(Easing.cubic);
 
 /**
  * One game in the tally, counted in three beats off one clock: its emblem
@@ -230,7 +196,7 @@ function TallyTile({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JS
             ],
           }}
         >
-          <GameEmblem kind={kind} size={50} />
+          <GameEmblem kind={kind} size={50} raised />
         </Animated.View>
         <Animated.View
           pointerEvents="none"
@@ -310,31 +276,38 @@ const styles = themedStyles(() => ({
     shadowOffset: { width: 0, height: 16 },
     elevation: 16,
   },
+  /** The level's card, gilded like the Grand's on Home: a gold rim and
+   * the card standing on a deeper gold edge. */
   card: {
     alignItems: 'center',
     paddingHorizontal: theme.spacing.xl,
-    paddingVertical: theme.spacing.xl,
+    paddingTop: theme.spacing.xl,
+    paddingBottom: theme.spacing.lg,
     borderRadius: theme.radii.lg,
     backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
+    borderWidth: 1.5,
+    borderBottomWidth: 5,
+    borderColor: theme.colors.goldRim,
+    borderBottomColor: shade(theme.colors.goldRim, 0.68),
     maxWidth: 340,
   },
   /** The level's own number, as a struck medal - this card belongs to a
    * level rather than to any one game, so it takes the app's ink and ochre
    * rather than borrowing a single game's accent. */
   crest: {
-    // Room for the beads round the medal.
-    marginTop: 10,
     width: CREST,
     height: CREST,
     borderRadius: CREST / 2,
-    borderWidth: 2,
-    borderColor: theme.colors.accent,
-    backgroundColor: theme.colors.surfaceAlt,
+    borderWidth: 2.5,
+    // A struck medal on its edge: the rim deepens below, the way every
+    // raised thing in the app shows its thickness.
+    borderBottomWidth: 5,
+    borderColor: theme.colors.goldRim,
+    borderBottomColor: shade(theme.colors.goldRim, 0.68),
+    backgroundColor: theme.colors.surfaceHi,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: theme.spacing.lg,
+    marginBottom: theme.spacing.md,
   },
   crestNumber: {
     // Not the display face: Georgia's old-style figures hang a 3, 4, 5, 7
@@ -357,21 +330,25 @@ const styles = themedStyles(() => ({
   },
   crestNumberLong: { fontSize: 25, lineHeight: 30, transform: [{ translateY: 1.5 }] },
   /** A fine inner ring, so it reads as a struck medal, not a plain disc. */
-  crestInner: { position: 'absolute', top: 5, left: 5, right: 5, bottom: 5, borderRadius: CREST / 2 - 5, borderWidth: 1, borderColor: theme.colors.accent, opacity: 0.45 },
+  crestInner: { position: 'absolute', top: 4, left: 4, right: 4, bottom: 4, borderRadius: CREST / 2 - 6, borderWidth: 1, borderColor: theme.colors.goldRim, opacity: 0.6 },
+  heading: { alignItems: 'center', marginBottom: theme.spacing.lg },
   eyebrow: {
-    fontSize: theme.typography.sizes.caption,
+    fontSize: theme.typography.sizes.micro + 1,
     fontWeight: theme.typography.weights.bold,
-    color: theme.colors.accentText,
+    letterSpacing: 1.4,
+    textTransform: 'uppercase',
+    color: theme.colors.gold,
     textAlign: 'center',
   },
   headline: {
     fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.title,
+    fontSize: theme.typography.sizes.title + 4,
+    fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
     textAlign: 'center',
-    marginTop: theme.spacing.xs,
-    marginBottom: theme.spacing.lg,
+    marginTop: 4,
   },
+  headRule: { width: 36, height: 2, borderRadius: 1, marginTop: 10, backgroundColor: theme.colors.goldRim },
   tally: {
     alignSelf: 'center',
     flexDirection: 'row',
@@ -382,20 +359,21 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.lg,
   },
   tile: { width: 62, alignItems: 'center' },
-  tileLabel: { marginTop: 8, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, textAlign: 'center' },
-  bead: { position: 'absolute', width: 10, height: 10, borderRadius: 5, borderWidth: 2, borderColor: theme.colors.surface },
+  tileLabel: { marginTop: 6, fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, textAlign: 'center' },
+  // What the set paid, as a clean row between two fine rules - the same
+  // ledger line a solved puzzle's card uses.
   reward: {
-    flexDirection: 'row',
+    alignSelf: 'stretch',
     alignItems: 'center',
-    alignSelf: 'center',
-    gap: 6,
-    marginTop: theme.spacing.md,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.surfaceAlt,
+    gap: 4,
+    marginBottom: theme.spacing.md,
+    paddingVertical: 12,
+    borderTopWidth: StyleSheet.hairlineWidth,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderColor: theme.colors.borderStrong,
   },
-  rewardValue: { fontFamily: theme.typography.families.figures, fontVariant: ['lining-nums', 'tabular-nums'], fontSize: 20, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, minWidth: 34 },
+  rewardFigure: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rewardValue: { fontFamily: theme.typography.families.figures, fontVariant: ['lining-nums', 'tabular-nums'], fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.accentText, minWidth: 44 },
   rewardLabel: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.2, textTransform: 'uppercase', color: theme.colors.textTertiary },
   cardRule: {
     alignSelf: 'stretch',

@@ -33,7 +33,7 @@ export function BloomBoard({ puzzle, state, size, solved, onTurn, flashCell }: B
       <Canvas style={StyleSheet.absoluteFill}>
         <BloomBoardView puzzle={puzzle} state={state} size={size} solved={solved} flashCell={flashCell} />
       </Canvas>
-      <View style={StyleSheet.absoluteFill} pointerEvents={solved ? 'none' : 'box-none'}>
+      <View collapsable={false} style={StyleSheet.absoluteFill} pointerEvents={solved ? 'none' : 'box-none'}>
         {Array.from({ length: puzzle.rows }).map((_, row) =>
           Array.from({ length: puzzle.cols }).map((__, col) => {
             if (!isRotatable(puzzle, row, col)) return null;

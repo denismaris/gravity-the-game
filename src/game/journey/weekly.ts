@@ -8,13 +8,15 @@ import { GameKind, puzzleDisplayInfo, ROTATION } from './gameKind';
  * the curated pools, at an index the dealer never reaches, so it is never
  * a board the player has already been dealt.
  *
- * Weeks run Monday to Sunday in UTC, like the Daily's days.
+ * Weeks run Monday to Sunday on the player's own calendar, like the
+ * Daily's days.
  */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+/** Days since 1970-01-01 on the local calendar. */
 function dayNumber(date: Date): number {
-  return Math.floor(date.getTime() / DAY_MS);
+  return Math.round(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()) / DAY_MS);
 }
 
 /** Weeks since the Monday before 1970-01-01 (a Thursday). */

@@ -4,7 +4,7 @@ import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
 import { GameEmblem } from '../components/GameEmblem';
-import { GameKind, ROTATION, accentColorForKind, gameDisplayName, gameShortName } from '../game/journey';
+import { GameKind, ROTATION, accentColorForKind, gameDisplayName, gameShortName, nextDayStart } from '../game/journey';
 import { ConfettiBurst, PressableScale } from '../components';
 import { CoinBalance, CoinGlyph } from '../components/Coins';
 import { InsightMark } from '../components/InsightPower';
@@ -964,7 +964,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
   }, []);
   const untilMidnight = (() => {
     const now = new Date(clock);
-    const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+    const next = nextDayStart(now);
     const mins = Math.max(0, Math.floor((next - clock) / 60000));
     return `${Math.floor(mins / 60)}H ${String(mins % 60).padStart(2, '0')}M`;
   })();
@@ -1066,7 +1066,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
               </View>
             </PressableScale>
           ) : (
-            <View style={styles.purse} accessible accessibilityLabel={`${coins} coins`}>
+            <View style={[styles.purse, styles.purseBare]} accessible accessibilityLabel={`${coins} coins`}>
               <CoinBalance coins={coins} />
             </View>
           )}
@@ -1352,6 +1352,8 @@ const styles = themedStyles(() => ({
   adOptionLabel: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   adOptionPrice: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   purse: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 4, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.goldRim, backgroundColor: theme.colors.surfaceHi },
+  /** No "+" disc to sit beside: the balance alone, centred in the pill. */
+  purseBare: { paddingLeft: 10, paddingRight: 10, paddingVertical: 5 },
   pursePlus: { width: 20, height: 20, borderRadius: 10, backgroundColor: theme.colors.goldFill, alignItems: 'center', justifyContent: 'center' },
   pursePlusText: { color: theme.colors.onGold, fontSize: 14, lineHeight: 16, fontWeight: theme.typography.weights.bold },
   tabsBar: { marginHorizontal: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.xs, paddingBottom: theme.spacing.md, backgroundColor: theme.colors.background },

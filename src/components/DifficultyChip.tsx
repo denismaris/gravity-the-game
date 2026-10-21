@@ -1,5 +1,6 @@
-import React from 'react';
+import React, { useContext, useRef } from 'react';
 import { StyleProp, Text, View, ViewStyle } from 'react-native';
+import { useCurrentBatch } from '../progression/PlayerProgressProvider';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { theme, themedStyles } from '../theme';
 
@@ -36,7 +37,25 @@ export interface DifficultyChipProps {
  * use, which is the one colour in this palette that already means
  * "this one counts".
  */
-export function DifficultyChip({ difficulty, expert = false, challenge = false, extreme = false, style }: DifficultyChipProps): React.JSX.Element {
+/**
+ * The puzzle open on screen, set by the app around a game screen. Home
+ * labels a puzzle with how its set dealt it (a hard board can be dealt as
+ * the set's extreme challenge); with this the game's own chip says the
+ * same, instead of only the board's tier.
+ */
+export const PlayingPuzzle = React.createContext<string | null>(null);
+
+export function DifficultyChip({ difficulty, expert = false, challenge: challengeProp = false, extreme: extremeProp = false, style }: DifficultyChipProps): React.JSX.Element {
+  const playing = useContext(PlayingPuzzle);
+  const batch = useCurrentBatch();
+  const dealt = playing ? batch?.puzzles.find(p => p.puzzleId === playing) : undefined;
+  // Remembered: solving a set's last puzzle deals the next set at once,
+  // and the chip must not drop from Extreme to Hard under the finish.
+  const flags = useRef<{ id: string | null; challenge: boolean; extreme: boolean }>({ id: null, challenge: false, extreme: false });
+  if (dealt) flags.current = { id: playing, challenge: !!dealt.challenge, extreme: !!dealt.extreme };
+  const known = flags.current.id === playing && playing !== null;
+  const challenge = challengeProp || (known && flags.current.challenge);
+  const extreme = extremeProp || (known && flags.current.extreme);
   const label = extreme ? 'Extreme' : challenge ? 'Challenge' : expert ? 'Expert' : difficulty.charAt(0).toUpperCase() + difficulty.slice(1);
   const loud = extreme || challenge || expert || difficulty === 'hard';
 

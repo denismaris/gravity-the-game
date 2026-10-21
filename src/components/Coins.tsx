@@ -39,16 +39,25 @@ export function CoinCost({ cost, muted = false }: { cost: number; muted?: boolea
  * refused it says so in place - what is missing and how to get it - rather
  * than the button silently doing nothing.
  */
-/** The balance a purse last showed, app-wide - where the next one counts
- * up from. */
-let lastShownBalance: number | null = null;
+/** The balance each purse last showed, by its `track` - where it counts
+ * up from next time. Kept per purse: the play screen keeps one mounted
+ * (out of sight) that takes a solve's payout the moment it is paid, and
+ * with one shared memory Home's purse then had nothing left to count. */
+const lastShown = new Map<string, number>();
 
 export function CoinBalance({
   coins,
   shortBy = null,
   style,
+  track = 'play',
+  delay = 0,
 }: {
   coins: number;
+  /** Which purse this is, for where its count starts (see `lastShown`). */
+  track?: string;
+  /** Wait this long before counting - for a purse on a screen still
+   * arriving, so the count is seen, not missed under the entrance. */
+  delay?: number;
   /** Set for a moment after a refused purchase: how many coins were missing. */
   shortBy?: number | null;
   style?: StyleProp<ViewStyle>;
@@ -60,30 +69,46 @@ export function CoinBalance({
   // The number itself counts up (or down) to the new balance, starting
   // from the last balance any purse showed - so coming back to Home after
   // a solve, the payout is watched arriving.
-  const [shown, setShown] = useState(() => lastShownBalance ?? coins);
+  const [shown, setShown] = useState(() => lastShown.get(track) ?? coins);
   useEffect(() => {
     if (coins !== previous.current) {
       pop.setValue(0.82);
       Animated.spring(pop, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
     }
+    const changedHere = coins !== previous.current;
     previous.current = coins;
-    const from = lastShownBalance ?? coins;
-    lastShownBalance = coins;
+    const from = lastShown.get(track) ?? coins;
+    lastShown.set(track, coins);
     if (from === coins) {
       setShown(coins);
       return;
     }
-    const start = Date.now();
     const duration = Math.min(900, 300 + Math.abs(coins - from) * 6);
+    const wait = changedHere ? 0 : delay;
     let frame = 0;
+    let start = 0;
     const step = () => {
       const t = Math.min(1, (Date.now() - start) / duration);
       const eased = 1 - (1 - t) ** 3;
       setShown(Math.round(from + (coins - from) * eased));
       if (t < 1) frame = requestAnimationFrame(step);
+      // Arrived from elsewhere (back on Home after a solve): the purse
+      // pops as the count lands - the payout, seen arriving.
+      else if (!changedHere) {
+        pop.setValue(0.82);
+        Animated.spring(pop, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
+      }
     };
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
+    const timer = setTimeout(() => {
+      start = Date.now();
+      frame = requestAnimationFrame(step);
+    }, wait);
+    return () => {
+      clearTimeout(timer);
+      cancelAnimationFrame(frame);
+    };
+    // `track` and `delay` are fixed for a purse's life.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [coins, pop]);
 
   return (

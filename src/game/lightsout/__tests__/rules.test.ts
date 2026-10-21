@@ -8,11 +8,13 @@ describe('Lanterns: twin lanterns', () => {
     expect(effectOf(5, 2, 2, rules)).toHaveLength(5);
   });
 
-  test('every twin board, curated and endless, is solved by its own solver at its par', () => {
-    const ids = ['lightsout-medium-t01', 'lightsout-medium-t02', 'lightsout-hard-t01', 'lightsout-hard-t02', 'lightsout-hard-t03', 'lightsout-e-hard-7'];
+  // Twins were taken out of the game (2026-10-20): the boards that had
+  // them still open, as plain boards, and still solve at their par.
+  test('the old twin boards open plain, and endless boards carry no twins', () => {
+    const ids = ['lightsout-medium-t01', 'lightsout-medium-t02', 'lightsout-hard-t01', 'lightsout-hard-t02', 'lightsout-hard-t03', 'lightsout-e-hard-7', 'lightsout-e-medium-3'];
     for (const id of ids) {
       const p = getLightsOutById(id)!;
-      expect(p.twins?.length).toBeTruthy();
+      expect(p.twins?.length ?? 0).toBe(0);
       let s = initialLightsOutState(p);
       const solution = solveLightsOut(p, s)!;
       expect(solution.length).toBe(p.par);

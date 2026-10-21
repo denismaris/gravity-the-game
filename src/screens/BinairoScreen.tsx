@@ -336,8 +336,11 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          {/* Finished: the board takes no more touches. */}
-          <View pointerEvents={solved ? 'none' : 'auto'}>
+          {/* Finished: the board takes no more touches. Never collapsed: on
+              Android a flattened wrapper is re-created when its touches
+              change, and the board canvas under it redraws from blank - a
+              white flash at every finish. */}
+          <View collapsable={false} pointerEvents={solved ? 'none' : 'auto'}>
             <BinairoBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onToggleCell={toggle} flashCell={flash} introKey={introKey} />
           </View>
         </Animated.View>

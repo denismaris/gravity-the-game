@@ -172,7 +172,8 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
    */
   const applyMove = useCallback(
     (next: ArukoneState) => {
-      if (next === state) return;
+      // A finished board is finished: nothing redraws it.
+      if (next === state || isArukoneSolved(puzzle, state)) return;
       const joinedSomething = remainingPairs(puzzle, next) < remainingPairs(puzzle, state);
       // The solved cue fires once from the effect above, whatever move
       // triggers it - so it is not doubled up here.
@@ -193,6 +194,7 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
 
   // The last hint's reason, shown over the board for a few seconds.
   const useHint = useCallback(() => {
+    if (isArukoneSolved(puzzle, state)) return;
     const next = explainArukoneHint(puzzle, state);
     if (!next) return;
     // Charged only when there is a hint to give, and before applying it.
@@ -262,8 +264,11 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          {/* Finished: the board takes no more touches. */}
-          <View pointerEvents={solved ? 'none' : 'auto'}>
+          {/* Finished: the board takes no more touches. Never collapsed: on
+              Android a flattened wrapper is re-created when its touches
+              change, and the board canvas under it redraws from blank - a
+              white flash at every finish. */}
+          <View collapsable={false} pointerEvents={solved ? 'none' : 'auto'}>
             <ArukoneBoard
               puzzle={puzzle}
               state={state}

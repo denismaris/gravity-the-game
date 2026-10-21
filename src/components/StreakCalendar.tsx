@@ -1,5 +1,6 @@
-import React, { useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Animated as RNAnimated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { useReducedMotion } from '../game/rendering';
 import Animated, { Easing, FadeIn, FadeInDown } from 'react-native-reanimated';
 import { theme, themedStyles } from '../theme';
 import { ModalLayer } from './ModalLayer';
@@ -43,11 +44,42 @@ export function WeekStrip({ days, todayKey, onPress }: { days: ReadonlySet<strin
         return (
           <View key={key} style={styles.stripDay}>
             <Text style={[styles.stripLetter, isToday && styles.stripLetterToday]}>{WEEKDAY_LETTERS[weekdayOf(ms)]}</Text>
-            <View style={[styles.stripDot, days.has(key) && styles.dotOn, isToday && !days.has(key) && styles.dotToday]} />
+            <View>
+              {isToday && !days.has(key) && <TodayPulse />}
+              <View style={[styles.stripDot, days.has(key) && styles.dotOn, isToday && !days.has(key) && styles.dotToday]} />
+            </View>
           </View>
         );
       })}
     </Pressable>
+  );
+}
+
+/** Today's open ring, breathing out slowly: the one day on the strip
+ * still to fill, and the way to start (or keep) the streak. */
+function TodayPulse(): React.JSX.Element | null {
+  const reduced = useReducedMotion();
+  const t = useRef(new RNAnimated.Value(0)).current;
+  useEffect(() => {
+    if (reduced) return;
+    const loop = RNAnimated.loop(
+      RNAnimated.sequence([RNAnimated.timing(t, { toValue: 1, duration: 1600, useNativeDriver: true }), RNAnimated.delay(900)]),
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [t, reduced]);
+  if (reduced) return null;
+  return (
+    <RNAnimated.View
+      pointerEvents="none"
+      style={[
+        styles.pulse,
+        {
+          opacity: t.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 0.5, 0] }),
+          transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [1, 2.1] }) }],
+        },
+      ]}
+    />
   );
 }
 
@@ -140,6 +172,7 @@ const styles = themedStyles(() => ({
   stripDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.border },
   dotOn: { backgroundColor: theme.colors.secondary },
   dotToday: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: theme.colors.secondary },
+  pulse: { position: 'absolute', width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.secondary },
 
   scrim: { ...StyleSheet.absoluteFill, backgroundColor: theme.colors.overlay },
   center: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },

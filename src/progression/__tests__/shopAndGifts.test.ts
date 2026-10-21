@@ -94,23 +94,23 @@ describe('the daily gift', () => {
 
 describe('the seasons', () => {
   it('follows the calendar month', () => {
-    expect(seasonOf(new Date('2026-03-01T12:00:00Z'))).toBe('spring');
-    expect(seasonOf(new Date('2026-08-31T12:00:00Z'))).toBe('summer');
-    expect(seasonOf(new Date('2026-10-01T12:00:00Z'))).toBe('autumn');
-    expect(seasonOf(new Date('2026-12-01T12:00:00Z'))).toBe('winter');
-    expect(seasonOf(new Date('2027-02-28T12:00:00Z'))).toBe('winter');
+    expect(seasonOf(new Date(2026, 2, 1, 12, 0))).toBe('spring');
+    expect(seasonOf(new Date(2026, 7, 31, 12, 0))).toBe('summer');
+    expect(seasonOf(new Date(2026, 9, 1, 12, 0))).toBe('autumn');
+    expect(seasonOf(new Date(2026, 11, 1, 12, 0))).toBe('winter');
+    expect(seasonOf(new Date(2027, 1, 28, 12, 0))).toBe('winter');
   });
 
   it('counts the days left, across a year end', () => {
-    expect(seasonDaysLeft(new Date('2026-10-01T12:00:00Z'))).toBe(61);
-    expect(seasonDaysLeft(new Date('2026-11-30T12:00:00Z'))).toBe(1);
-    expect(seasonDaysLeft(new Date('2026-12-31T12:00:00Z'))).toBe(60);
+    expect(seasonDaysLeft(new Date(2026, 9, 1, 12, 0))).toBe(61);
+    expect(seasonDaysLeft(new Date(2026, 10, 30, 12, 0))).toBe(1);
+    expect(seasonDaysLeft(new Date(2026, 11, 31, 12, 0))).toBe(60);
   });
 
   it('sells three pieces each season, and only in that season', () => {
-    const autumn = new Date('2026-10-01T12:00:00Z');
-    const spring = new Date('2027-04-01T12:00:00Z');
-    for (const date of [autumn, spring, new Date('2026-07-01T12:00:00Z'), new Date('2027-01-01T12:00:00Z')]) {
+    const autumn = new Date(2026, 9, 1, 12, 0);
+    const spring = new Date(2027, 3, 1, 12, 0);
+    for (const date of [autumn, spring, new Date(2026, 6, 1, 12, 0), new Date(2027, 0, 1, 12, 0)]) {
       expect(seasonalItems(date)).toHaveLength(3);
     }
     const ember = cosmeticById('garden-ember')!;
@@ -204,7 +204,7 @@ describe('the store (simulated for now)', () => {
   });
 
   it("halves this season's prices for a Patron, and nothing else", () => {
-    const autumn = new Date('2026-10-01T12:00:00Z');
+    const autumn = new Date(2026, 9, 1, 12, 0);
     const ember = cosmeticById('garden-ember')!;
     const patron = { ...rich(), patron: true };
     const half = Math.round(ember.price / 20) * 10; // half, to the nearest 10

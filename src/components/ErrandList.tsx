@@ -1,25 +1,28 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { Canvas, Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
-import { dailyKeyOf } from '../game/journey';
+import { dailyKeyOf, nextDayStart } from '../game/journey';
 import { shade, triggerFeedback } from '../game/rendering';
 import { Errand, ErrandKind, errandLogFor, errandsFor, isErrandDone, usePlayerProgress } from '../progression';
 import { theme, themedStyles } from '../theme';
 import { CoinGlyph } from './Coins';
 import { GameEmblem } from './GameEmblem';
 import { Icon } from './Icon';
-import { PressableScale } from './PressableScale';
+import { PressableScale, sunkKey } from './PressableScale';
 import { XpBar } from './XpBar';
 
-/** Hours and minutes until today's errands turn over (UTC midnight, the
+/** Hours and minutes until today's errands turn over (local midnight, the
  * same clock the Daily runs on). */
 export function untilTomorrow(now: Date): string {
-  const next = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);
+  const next = nextDayStart(now);
   const minutes = Math.max(0, Math.ceil((next - now.getTime()) / 60000));
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
   return h > 0 ? `${h}H ${m}M` : `${m}M`;
 }
+
+/** How far a claimed tick's disc stands on its lip. */
+const DONE_LIP = 2.5;
 
 /** How big an errand's mark is drawn, in the compact list and the full. */
 const MARK = { compact: 30, full: 36 } as const;
@@ -123,14 +126,17 @@ function ErrandRow({ errand, done, progress, claimed, onClaim, compact, dense }:
         styles.row,
         compact && styles.rowCompact,
         dense && styles.rowDense,
-        claimed && (compact ? styles.rowClaimedCompact : styles.rowClaimed),
+        claimed && !compact && styles.rowClaimed,
         !compact && { borderColor: glow.interpolate({ inputRange: [0, 1], outputRange: [theme.colors.border, theme.colors.accent] }) },
       ]}
       accessible
       accessibilityLabel={`${errand.title}. ${shown} of ${errand.target}. ${claimed ? 'Claimed' : ready ? `Ready to claim ${errand.coins} coins` : `Pays ${errand.coins} coins`}.`}
     >
-      <ErrandMark errand={errand} done={done} compact={compact} />
-      <View style={[styles.rowBody, compact && styles.rowBodyCompact, dense && styles.rowBodyDense]}>
+      {/* Claimed: the errand steps back, its tick does not. */}
+      <View style={claimed && compact ? styles.claimedFade : undefined}>
+        <ErrandMark errand={errand} done={done} compact={compact} />
+      </View>
+      <View style={[styles.rowBody, compact && styles.rowBodyCompact, dense && styles.rowBodyDense, claimed && compact && styles.claimedFade]}>
         <View style={styles.titleLine}>
           <Text style={[styles.title, compact && styles.titleCompact, claimed && styles.titleClaimed]} numberOfLines={1}>
             {errand.title}
@@ -151,17 +157,24 @@ function ErrandRow({ errand, done, progress, claimed, onClaim, compact, dense }:
         )}
       </View>
       {ready ? (
-        <PressableScale accessibilityRole="button" accessibilityLabel={`Claim ${errand.coins} coins`} onPress={claim} style={({ pressed }) => [styles.pill, styles.claim, pressed && styles.claimPressed]}>
+        <PressableScale accessibilityRole="button" accessibilityLabel={`Claim ${errand.coins} coins`} onPress={claim} style={({ pressed }) => [styles.pill, styles.claim, pressed && sunkKey(3)]}>
           <Text style={styles.claimText}>Claim</Text>
           <CoinGlyph size={12} />
           <Text style={[styles.claimText, styles.figure]}>{errand.coins}</Text>
         </PressableScale>
       ) : claimed ? (
-        <View style={styles.doneTick}>
-          <Icon name="check" size={13} color="#FFFBF3" weight={2.6} />
+        // Claimed: the Claim key's own ink, as a small disc standing on
+        // its lip, holding a tick.
+        <View style={styles.doneStand} accessibilityLabel="Claimed">
+          <View style={[styles.doneTick, styles.doneLip]} />
+          <View style={styles.doneTick}>
+            <Icon name="check" size={12} color={theme.colors.surfaceHi} weight={2.6} />
+          </View>
         </View>
       ) : (
-        <View style={styles.pill}>
+        // Not earned yet: what it pays, as plain words - no key shape, so it
+        // never reads as something to press already.
+        <View style={styles.reward} accessibilityLabel={`Pays ${errand.coins} coins`}>
           <CoinGlyph size={12} />
           <Text style={[styles.rewardText, styles.figure]}>{errand.coins}</Text>
         </View>
@@ -275,7 +288,7 @@ const styles = themedStyles(() => ({
   rowBodyDense: { gap: 0 },
   titleCompact: { fontSize: theme.typography.sizes.caption + 1 },
   rowClaimed: { backgroundColor: theme.colors.surface, opacity: 0.72 },
-  rowClaimedCompact: { opacity: 0.55 },
+  claimedFade: { opacity: 0.5 },
   mark: {
     borderRadius: 9,
     alignItems: 'center',
@@ -304,8 +317,8 @@ const styles = themedStyles(() => ({
     color: theme.colors.textPrimary,
   },
   countOf: { fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
-  /** What it pays: a small raised key - the same one that, once the errand
-   * is done, fills in as the Claim button. */
+  /** The Claim key: raised, the one pressable thing on a row, shown only
+   * once the errand is done. */
   pill: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -322,6 +335,7 @@ const styles = themedStyles(() => ({
     borderBottomColor: theme.colors.borderStrong,
     backgroundColor: theme.colors.surfaceHi,
   },
+  reward: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', gap: 4, minWidth: 52, opacity: 0.75 },
   rewardText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, color: theme.colors.textSecondary },
   claim: {
     gap: 3,
@@ -330,19 +344,20 @@ const styles = themedStyles(() => ({
     borderColor: theme.colors.primary,
     borderBottomColor: shade(theme.colors.primary, 0.6),
   },
-  claimPressed: { opacity: 0.85 },
   claimText: { color: theme.colors.surfaceHi, fontWeight: theme.typography.weights.bold, fontSize: theme.typography.sizes.caption },
+  doneStand: { width: 26, height: 26 + DONE_LIP, marginHorizontal: 13 },
   doneTick: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
     width: 26,
     height: 26,
     borderRadius: 13,
-    backgroundColor: theme.colors.success,
-    borderBottomWidth: 2.5,
-    borderBottomColor: shade(theme.colors.success, 0.68),
+    backgroundColor: theme.colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 13,
   },
+  doneLip: { top: DONE_LIP, backgroundColor: shade(theme.colors.primary, 0.55) },
   float: { position: 'absolute', right: 18, top: 6, flexDirection: 'row', alignItems: 'center', gap: 3 },
   floatText: { fontFamily: theme.typography.families.figures, fontWeight: theme.typography.weights.bold, color: theme.colors.accentText, fontSize: theme.typography.sizes.body },
   foot: {

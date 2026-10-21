@@ -28,11 +28,12 @@ patch('src/components/HintNote.tsx', lambda s: s.replace(
     "export function HintNote({ reason, kind, accent, onGone }: { reason: string; kind: HintKind; accent: string; onGone: () => void }): React.JSX.Element {\n  if (Date.now() > 0) return null as unknown as React.JSX.Element;", 1))
 
 def autoplay(s):
-    m = re.search(r"\n  const useHint = useCallback\(\(\) => \{", s)
+    m = re.search(r"\n  const (useHint|revealInsight) = useCallback\(\(\) => \{", s)
     if not m: return s
+    name = m.group(1)
     end = s.index("\n  }, [", m.end())
     end = s.index(";\n", end) + 2
-    inject = f"  useEffect(() => {{ let t: ReturnType<typeof setInterval> | null = null; const s0 = setTimeout(() => {{ t = setInterval(() => useHint(), {interval}); }}, 1100); return () => {{ clearTimeout(s0); if (t) clearInterval(t); }}; }}, [useHint]);\n"
+    inject = f"  useEffect(() => {{ let t: ReturnType<typeof setInterval> | null = null; const s0 = setTimeout(() => {{ t = setInterval(() => {name}(), {interval}); }}, 1100); return () => {{ clearTimeout(s0); if (t) clearInterval(t); }}; }}, [{name}]);\n"
     return s[:end] + inject + s[end:]
 
 def gravity(s):

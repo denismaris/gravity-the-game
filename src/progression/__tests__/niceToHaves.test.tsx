@@ -8,8 +8,8 @@ import { PressableScale } from '../../components';
 import { triggerSound } from '../../game/rendering';
 
 describe("today's feature", () => {
-  const morning = new Date('2026-10-02T06:00:00Z');
-  const night = new Date('2026-10-02T23:30:00Z');
+  const morning = new Date(2026, 9, 2, 6, 0);
+  const night = new Date(2026, 9, 2, 23, 30);
 
   test('is one item all day, sold a fifth off in tidy tens', () => {
     const item = featuredItem(morning);

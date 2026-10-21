@@ -58,7 +58,7 @@ function buildAllPuzzles(): ReadonlyArray<PuzzleRef> {
 }
 
 /**
- * Boards that bring a later rule (twin lanterns, vines, sand, fog and the
+ * Boards that bring a later rule (vines, sand, fog and the
  * rest) stay out of the Daily: it is shared by everyone, newcomers
  * included, and its pool must not shift when such boards are added - a
  * shifted pool would hand players on two app versions two different
@@ -74,11 +74,19 @@ export function bringsLaterRule(puzzleId: string): boolean {
 /** Static - every game's pool is fixed at build time. */
 const ALL_PUZZLES: ReadonlyArray<PuzzleRef> = buildAllPuzzles();
 
-/** `date` as a stable `YYYY-MM-DD` key in UTC, so the Daily can't change
- * mid-session just because a device crosses a local midnight in a different
- * timezone than it started the day in. */
+/** `date` as a `YYYY-MM-DD` key on the player's own calendar: the Daily,
+ * the errands, the gift and the streak all turn over at local midnight.
+ * (They ran on UTC's until 2026-10-21, which put the new Daily at 2 or 3
+ * in the morning in Europe and in the afternoon or evening in the
+ * Americas - "new every day" that did not arrive with the day.) */
 export function dailyKeyOf(date: Date): string {
-  return date.toISOString().slice(0, 10);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+/** The next local midnight after `now`, in epoch ms - when the day's
+ * Daily and errands turn over. */
+export function nextDayStart(now: Date): number {
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
 }
 
 /** A small, fast string hash (FNV-1a) - only needs to spread dates evenly

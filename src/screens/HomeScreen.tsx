@@ -2,6 +2,7 @@ import { Canvas, Path, RoundedRect } from '@shopify/react-native-skia';
 import { Icon } from '../components/Icon';
 import React, {
   useCallback,
+  useContext,
   useEffect,
   useMemo,
   useRef,
@@ -62,19 +63,22 @@ import {
   gameShortName,
   getDailyEntry,
   getWeeklyGrand,
-  dailyKeyOf,
   ROTATION,
+  nextDayStart,
 } from '../game/journey';
 import {
   AlmanacBackdrop,
   DifficultyChip,
   GameEmblem,
   PressableScale,
+  PressDepth,
+  sunkKey,
   TesseraMark,
 } from '../components';
 import { shade, triggerFeedback, useReducedMotion } from '../game/rendering';
 import { nightTone, theme, themedStyles } from '../theme';
 import { useEquipped } from '../progression/PlayerProgressProvider';
+import { useToday } from '../components/useToday';
 import { CoinBalance, CoinGlyph } from '../components/Coins';
 import { ErrandList } from '../components/ErrandList';
 import { RankMedal } from '../components/RankMedal';
@@ -244,7 +248,8 @@ export function HomeScreen({
   // collected (a finished errand, a finished chapter's reward).
   const rank = useMemo(() => rankOf(progress), [progress]);
   const chapterNow = useMemo(() => currentChapter(progress), [progress]);
-  const todayKey = dailyKeyOf(new Date());
+  // Moves on at midnight with the app open: the Daily and errands turn over.
+  const todayKey = useToday();
   const errandsWaiting = unclaimedErrands(progress, todayKey);
   const chaptersWaiting = unclaimedChapters(progress).length;
   // A rank reached but not yet celebrated - shown once the save has
@@ -306,7 +311,10 @@ export function HomeScreen({
 
   // The Weekly Grand - one hard board a week, paying coins and, at a few
   // milestones, a cosmetic the shop does not sell.
-  const grand = useMemo(() => getWeeklyGrand(new Date(), progress.retired, arriving ? roster : null), [progress.retired, arriving, roster]);
+  const grand = useMemo(() => getWeeklyGrand(new Date(), progress.retired, arriving ? roster : null),
+    // `todayKey`: a new day can start a new week.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [progress.retired, arriving, roster, todayKey]);
   const grandDone = isGrandSolved(progress, grand.week);
   const grandNext = nextGrandReward(progress);
   const grandNextItem = grandNext ? cosmeticById(grandNext.cosmetic) : undefined;
@@ -437,11 +445,16 @@ export function HomeScreen({
         }`
   } ${stampsWaiting > 0 ? `${stampsWaiting} ledger stamp${stampsWaiting === 1 ? '' : 's'} to claim. ` : ''}Open the game ledger.`;
 
-  // Pages with something waiting wear a dot above their tally mark, so it
-  // is seen before the swipe.
+  // Pages with something to *act on* wear a dot, so it is seen before the
+  // swipe - and only then. A dot that was up nearly all day (any unplayed
+  // Daily, any unplayed Grand) stopped meaning anything. So: coins to
+  // claim, a streak the Daily is holding up, a Daily in its last hours,
+  // and a Grand on its last day.
+  const now = new Date();
+  const hoursLeftToday = (nextDayStart(now) - now.getTime()) / 3600000;
   const waiting: Partial<Record<(typeof PAGES)[number], boolean>> = {
-    today: errandsWaiting > 0 || !dailyCompletedToday,
-    grand: !grandDone,
+    today: errandsWaiting > 0 || (!dailyCompletedToday && (dailyStreak > 0 || hoursLeftToday < 4)),
+    grand: !grandDone && grand.daysLeft <= 1,
     you: chaptersWaiting > 0 || pending.length > 0 || stampsWaiting > 0,
   };
 
@@ -520,44 +533,44 @@ export function HomeScreen({
             marks, not a row of outlined chips. */}
         <View style={styles.streakSlot}>
           <View style={styles.status}>
-            <PressableScale accessibilityRole="button" accessibilityLabel={`Shop. You have ${coins} coins.`} onPress={onOpenShop} hitSlop={8}>
-              <View style={styles.statusItem}>
-                <ShopBag />
-                <CoinBalance coins={coins} />
-                {progress.luckyCharges > 0 && <Text style={styles.purseCharm}>{'\u00D72'}</Text>}
-                {PURCHASES_ENABLED && (
-                  <View style={styles.pursePlus}>
-                    <Text style={styles.pursePlusText}>+</Text>
-                  </View>
-                )}
-                {setsReady > 0 && <View style={styles.statusDot} accessibilityLabel="A set bonus is ready in the shop" />}
-              </View>
+            {/* Two keys, nothing more: the shop with what you have to spend
+                in it, and the streak. (Insight lives on the play screens,
+                where it is used.) */}
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={`Shop. You have ${coins} coins.`}
+              onPress={onOpenShop}
+              hitSlop={8}
+              scaleTo={1}
+              holdMs={120}
+              style={({ pressed }) => [styles.statusKey, pressed && sunkKey(2.5)]}
+            >
+              <ShopBag />
+              <View style={styles.statusRule} />
+              <CoinBalance coins={coins} track="home" delay={450} />
+              {progress.luckyCharges > 0 && <Text style={styles.purseCharm}>{'\u00D72'}</Text>}
+              {PURCHASES_ENABLED && (
+                <View style={styles.pursePlus}>
+                  <Text style={styles.pursePlusText}>+</Text>
+                </View>
+              )}
+              {setsReady > 0 && <View style={[styles.statusDot, styles.statusBadge]} accessibilityLabel="A set bonus is ready in the shop" />}
             </PressableScale>
-            <View style={styles.statusRule} />
-            <PressableScale accessibilityRole="button" accessibilityLabel={`${progress.insights} Insight. Open the shop`} onPress={onOpenShop} hitSlop={8}>
-              <View style={styles.statusItem}>
-                <Icon name="spark" size={13} color={theme.colors.accent} />
-                <Text style={styles.statusText}>{progress.insights}</Text>
-              </View>
+            <PressableScale
+              accessibilityRole="button"
+              accessibilityLabel={dailyCompletedToday ? `${dailyStreak} day streak` : `${dailyStreak} day streak. Play today's Daily to ${dailyStreak > 0 ? 'keep it' : 'start one'}.`}
+              onPress={openDaily}
+              hitSlop={8}
+              scaleTo={1}
+              holdMs={120}
+              style={({ pressed }) => [styles.statusKey, pressed && sunkKey(2.5)]}
+            >
+              <Icon name="sun" size={14} color={dailyCompletedToday ? theme.colors.textSecondary : theme.colors.secondary} weight={1.5} />
+              <Text style={styles.statusText}>{dailyStreak}</Text>
+              {/* Today's Daily still to play: a dot on the key's corner,
+                  not in its line, so the sun and the count sit centred. */}
+              {!dailyCompletedToday && <View style={[styles.statusDot, styles.statusBadge]} />}
             </PressableScale>
-            {dailyStreak > 0 && (
-              <>
-                <View style={styles.statusRule} />
-                <PressableScale
-                  accessibilityRole="button"
-                  accessibilityLabel={dailyCompletedToday ? `${dailyStreak} day streak` : `${dailyStreak} day streak. Play today's Daily to keep it.`}
-                  onPress={openDaily}
-                  hitSlop={8}
-                >
-                  <View style={styles.statusItem}>
-                    <Icon name="sun" size={14} color={dailyCompletedToday ? theme.colors.textSecondary : theme.colors.secondary} weight={1.5} />
-                    <Text style={styles.statusText}>{dailyStreak}</Text>
-                    {/* Today's Daily still to play: a dot, not a word. */}
-                    {!dailyCompletedToday && <View style={styles.statusDot} />}
-                  </View>
-                </PressableScale>
-              </>
-            )}
           </View>
         </View>
       </Animated.View>
@@ -604,8 +617,9 @@ export function HomeScreen({
                   levelPoint.batchPosition
                 } of ${levelPoint.batchSize}`}
                 onPress={openEntry}
-                scaleTo={0.985}
+                scaleTo={1}
                 unstable_pressDelay={110}
+                holdMs={160}
                 style={[styles.card,
                   { height: cardHeight },
                   entry.golden && !levelPoint.allDone && styles.cardGolden]}
@@ -664,9 +678,9 @@ export function HomeScreen({
                   {!debut && progress.currentBatch && (
                     <Text style={styles.heroSub}>{`Puzzle ${levelPoint.batchPosition} of ${levelPoint.batchSize} in this set`}</Text>
                   )}
-                  {/* Only a debut needs a line here: otherwise the set's own
-                      emblems below already say where in it this puzzle is. */}
-                  {debut && <Text style={styles.heroMeta}>{lessonFirst ? `Your first ${entry.chapter} puzzle, after a short lesson.` : `Your first ${entry.chapter} puzzle.`}</Text>}
+                  {/* A debut's "New game" chip already says it is new: a line
+                      here only when there is a lesson first, worth knowing. */}
+                  {debut && lessonFirst && <Text style={styles.heroMeta}>Starts with a short lesson.</Text>}
 
                   {/* The middle of every card is a flexible block holding real
                     content, centred. Slack from a tall screen spreads around
@@ -750,12 +764,14 @@ export function HomeScreen({
                                 ]}
                               />
                               {!twoRows && (
+                                // Named only where you are: the row reads
+                                // as a path with one marked stop, not a
+                                // list of labels. The others keep the room,
+                                // so every emblem stays in line.
                                 <Text
-                                  style={[
-                                    styles.setName,
-                                    !(done || isCurrent) && styles.setAhead,
-                                  ]}
+                                  style={[styles.setName, !isCurrent && styles.setNameHidden]}
                                   numberOfLines={1}
+                                  accessibilityElementsHidden={!isCurrent}
                                 >
                                   {gameShortName(entryRef.kind)}
                                 </Text>
@@ -809,25 +825,24 @@ export function HomeScreen({
                           onPress={swap}
                           hitSlop={8}
                           containerStyle={styles.swapWrap}
+                          style={({ pressed }) => [styles.swap, arriving && styles.swapBeside, pressed && sunkKey(3)]}
                         >
-                          <View style={[styles.swap, arriving && styles.swapBeside]}>
-                            {swapNote === 'done' ? (
-                              <Icon name="check" size={14} color={theme.colors.success} weight={2.2} />
-                            ) : swapNote === 'short' ? (
-                              <Text style={[styles.swapText, styles.swapShort]}>{`Need ${SWAP_PRICE}`}</Text>
-                            ) : (
-                              <>
-                                <Icon name="swap" size={14} color={theme.colors.textSecondary} />
-                                {!arriving && <Text style={styles.swapText}>Swap game</Text>}
-                              </>
-                            )}
-                            {swapNote === null && (
-                              <>
-                                <CoinGlyph size={11} />
-                                <Text style={styles.swapText}>{SWAP_PRICE}</Text>
-                              </>
-                            )}
-                          </View>
+                          {swapNote === 'done' ? (
+                            <Icon name="check" size={14} color={theme.colors.success} weight={2.2} />
+                          ) : swapNote === 'short' ? (
+                            <Text style={[styles.swapText, styles.swapShort]}>{`Need ${SWAP_PRICE}`}</Text>
+                          ) : (
+                            <>
+                              <Icon name="swap" size={14} color={theme.colors.textSecondary} />
+                              {!arriving && <Text style={styles.swapText}>Swap game</Text>}
+                            </>
+                          )}
+                          {swapNote === null && (
+                            <>
+                              <CoinGlyph size={11} />
+                              <Text style={styles.swapText}>{SWAP_PRICE}</Text>
+                            </>
+                          )}
                         </PressableScale>
                       )}
                     </View>
@@ -891,8 +906,9 @@ export function HomeScreen({
                   accessibilityRole="button"
                   accessibilityLabel={`Daily puzzle: ${daily.name}${dailyCompletedToday ? ', already solved today' : ''}${dailyStreak > 0 ? `, ${dailyStreak} day streak` : ''}. ${dailyCompletedToday ? 'Replay' : 'Play'}`}
                   onPress={openDaily}
-                  scaleTo={0.98}
+                  scaleTo={1}
                 unstable_pressDelay={110}
+                holdMs={160}
                   style={[styles.todayDaily, tight && styles.todayDailyTight]}
                 >
                   <View style={styles.todayDailyRow}>
@@ -922,7 +938,7 @@ export function HomeScreen({
                     <WeekStrip days={dailyDays} todayKey={todayKey} onPress={() => setCalendarOpen(true)} />
                     <View style={styles.todayStreakSide}>
                       <Text style={styles.todayStreakCount} numberOfLines={1}>
-                        {dailyStreak > 0 ? `${dailyStreak}-day streak` : 'No streak yet'}
+                        {dailyStreak > 0 ? `${dailyStreak}-day streak` : dailyCompletedToday ? 'Streak started' : 'Start a streak'}
                       </Text>
                       <Text style={styles.todayStatus} numberOfLines={1}>
                         {dailyCompletedToday
@@ -931,7 +947,7 @@ export function HomeScreen({
                             : 'Solved today'
                           : dailyStreak > 0
                             ? 'Play to keep it'
-                            : 'New every day'}
+                            : 'Solve today’s Daily'}
                       </Text>
                     </View>
                   </View>
@@ -957,8 +973,9 @@ export function HomeScreen({
                   grandDone ? 'Solved this week.' : `${grand.daysLeft} day${grand.daysLeft === 1 ? '' : 's'} left. Pays ${GRAND_COINS} coins.`
                 }${grandNextItem ? ` ${grandNext!.at - grandsSolved} more to win ${grandNextItem.name}.` : ''}`}
                 onPress={openGrand}
-                scaleTo={0.985}
+                scaleTo={1}
                 unstable_pressDelay={110}
+                holdMs={160}
                 style={[styles.card, styles.cardGrand, { height: cardHeight }]}
               >
                 <View pointerEvents="none" style={[styles.cardKeyline, styles.cardKeylineGold]} />
@@ -1007,18 +1024,21 @@ export function HomeScreen({
                               </View>
                             )}
                           </View>
-                          <Text style={[styles.grandPrizeAt, won && styles.grandPrizeWon]}>
-                            {won ? 'Won' : `${reward.at} ${reward.at === 1 ? 'Grand' : 'Grands'}`}
+                          {/* Named, and under the one being played for, how
+                              far off it is - said where it is pointed at. */}
+                          {item && (
+                            <Text style={[styles.grandPrizeName, !won && !next && styles.grandPrizeNameAhead]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.8}>
+                              {item.name}
+                            </Text>
+                          )}
+                          <Text style={[styles.grandPrizeAt, won && styles.grandPrizeWon, next && styles.grandPrizeNext]}>
+                            {won ? 'Won' : next ? `${reward.at - grandsSolved} more` : `${reward.at} ${reward.at === 1 ? 'Grand' : 'Grands'}`}
                           </Text>
                         </View>
                       );
                     })}
                   </View>
-                  <Text style={styles.dailyStreakLabel}>
-                    {grandNextItem
-                      ? `${grandNext!.at - grandsSolved} more Grand${grandNext!.at - grandsSolved === 1 ? '' : 's'} for ${grandNextItem.name}`
-                      : 'Every prize won'}
-                  </Text>
+                  {!grandNextItem && <Text style={styles.dailyStreakLabel}>Every prize won</Text>}
                 </View>
 
                 <View style={styles.heroFoot}>
@@ -1057,6 +1077,7 @@ export function HomeScreen({
                   onPress={onOpenJourney}
                   scaleTo={0.98}
                 unstable_pressDelay={110}
+                holdMs={120}
                   style={[styles.youRank]}
                 >
                   <View style={styles.rankRow}>
@@ -1090,6 +1111,7 @@ export function HomeScreen({
                     onPress={onOpenCollection}
                     scaleTo={0.98}
                     unstable_pressDelay={110}
+                    holdMs={120}
                     containerStyle={styles.wellCentered}
                   >
                     <View style={styles.shelfHead}>
@@ -1117,7 +1139,7 @@ export function HomeScreen({
                       : { label: 'Puzzle IQ', value: aptitude.index !== null ? `${aptitude.index}` : '\u2013', a11y: `Open the ledger. ${iqLabel}`, onPress: onOpenLedger, dot: false },
                     { label: 'Top times', value: null, a11y: 'Open the leaderboards', onPress: onOpenLeaderboard, dot: false },
                   ].map(link => (
-                    <PressableScale key={link.label} accessibilityRole="button" accessibilityLabel={link.a11y} onPress={link.onPress} scaleTo={0.97} containerStyle={[styles.youLinkWrap, !tight && styles.youLinkThird]} style={styles.youLink}>
+                    <PressableScale key={link.label} accessibilityRole="button" accessibilityLabel={link.a11y} onPress={link.onPress} scaleTo={1} holdMs={120} containerStyle={[styles.youLinkWrap, !tight && styles.youLinkThird]} style={({ pressed }) => [styles.youLink, pressed && sunkKey(3)]}>
                       <View style={styles.youLinkHead}>
                         {link.value !== null ? (
                           <Text style={styles.youLinkValue} numberOfLines={1}>
@@ -1253,12 +1275,15 @@ function useBloomTone(): string {
 function PlayDisc({ small = false, done = false }: { small?: boolean; done?: boolean }): React.JSX.Element {
   const bloom = useBloomTone();
   const face = done ? theme.colors.success : bloom;
+  // Pressing the card presses the disc: its face sinks onto its lip.
+  const depth = useContext(PressDepth);
+  const sink = depth ? { transform: [{ translateY: depth.interpolate({ inputRange: [0, 1], outputRange: [0, PLAY_LIP - 0.5] }) }] } : null;
   return (
     <View style={styles.playStand}>
       <View style={[styles.play, small && styles.playSmall, styles.playLip, { backgroundColor: shade(face, 0.68) }]} />
-      <View style={[styles.play, small && styles.playSmall, { backgroundColor: face }]}>
+      <Animated.View style={[styles.play, small && styles.playSmall, { backgroundColor: face }, sink]}>
         {done ? <Icon name="check" size={20} color="#FFFBF3" weight={2.4} /> : <View style={[styles.playTri, small && styles.playTriSmall]} />}
-      </View>
+      </Animated.View>
     </View>
   );
 }
@@ -1268,11 +1293,27 @@ const styles = themedStyles(() => ({
   ruleLine: { width: 44, height: StyleSheet.hairlineWidth * 2, backgroundColor: theme.colors.borderStrong },
   pursePlus: { width: 18, height: 18, borderRadius: 9, backgroundColor: theme.colors.goldFill, alignItems: 'center', justifyContent: 'center' },
   pursePlusText: { color: theme.colors.onGold, fontSize: 13, lineHeight: 15, fontWeight: theme.typography.weights.bold },
-  status: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingHorizontal: 14, paddingVertical: 7, borderRadius: theme.radii.pill, backgroundColor: theme.colors.surface },
-  statusItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  statusText: { fontSize: 14, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  /** A small key on its lip, like every pressable on Home. */
+  statusKey: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 7,
+    paddingHorizontal: 12,
+    paddingTop: 4,
+    paddingBottom: 3,
+    borderRadius: theme.radii.pill,
+    borderWidth: 1,
+    borderBottomWidth: 2.5,
+    borderColor: theme.colors.border,
+    borderBottomColor: theme.colors.borderStrong,
+    backgroundColor: theme.colors.surfaceHi,
+  },
+  // The same setting as the coin count beside it, so the two figures share a line.
+  statusText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   statusRule: { width: StyleSheet.hairlineWidth, height: 14, backgroundColor: theme.colors.borderStrong },
   statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.secondary },
+  statusBadge: { position: 'absolute', top: -2, right: -2, width: 9, height: 9, borderRadius: 4.5, borderWidth: 1.5, borderColor: theme.colors.background },
   streakNudgeDone: { borderColor: theme.colors.border },
   streakNudgeTextDone: { color: theme.colors.textSecondary },
   todayDaily: {
@@ -1496,7 +1537,10 @@ const styles = themedStyles(() => ({
     justifyContent: 'space-between',
     marginTop: theme.spacing.xs,
   },
-  grandPrize: { alignItems: 'center', gap: 5 },
+  grandPrize: { alignItems: 'center', gap: 2, width: 66 },
+  grandPrizeName: { marginTop: 4, maxWidth: 66, fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
+  grandPrizeNameAhead: { color: theme.colors.textTertiary },
+  grandPrizeNext: { color: theme.colors.accentText, fontWeight: theme.typography.weights.bold },
   grandPlate: {
     width: 54,
     height: 54,
@@ -1596,6 +1640,7 @@ const styles = themedStyles(() => ({
    * names the row actually answers "what is in this set". */
   setName: { fontSize: theme.typography.sizes.micro, color: theme.colors.textTertiary, marginTop: 4 },
   /** Games still to come, held back so the finished ones read as done. */
+  setNameHidden: { opacity: 0 },
   setAhead: {
     opacity: 0.35,
   },

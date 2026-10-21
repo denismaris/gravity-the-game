@@ -11,12 +11,13 @@ import { PlayerProgressProvider, usePlayerProgress } from '../PlayerProgressProv
 import { createMemoryBackend } from '../../storage';
 import { getLilyById } from '../../game/lilypads';
 
-const MONDAY = new Date('2026-09-28T09:00:00Z');
-const SUNDAY = new Date('2026-10-04T22:00:00Z');
-const NEXT_MONDAY = new Date('2026-10-05T01:00:00Z');
+// Local times: weeks run on the player's own calendar.
+const MONDAY = new Date(2026, 8, 28, 9, 0);
+const SUNDAY = new Date(2026, 9, 4, 22, 0);
+const NEXT_MONDAY = new Date(2026, 9, 5, 1, 0);
 
 describe('the Weekly Grand', () => {
-  test('weeks run Monday to Sunday, UTC', () => {
+  test('weeks run Monday to Sunday, local time', () => {
     expect(weekIndexOf(SUNDAY)).toBe(weekIndexOf(MONDAY));
     expect(weekIndexOf(NEXT_MONDAY)).toBe(weekIndexOf(MONDAY) + 1);
     expect(daysLeftInWeek(MONDAY)).toBe(7);

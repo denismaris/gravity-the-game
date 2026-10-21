@@ -429,13 +429,40 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   const handleHint = useCallback(() => {
     if (movePendingRef.current || isAnimatingRef.current || solvedRef.current || failedRef.current) return;
     const path = findShortestSolution(gameStateRef.current, 16);
-    if (!path || path.length === 0) return;
+    if (path && path.length > 0) {
+      spendInsight(() => {
+        setHintsUsed(n => n + 1);
+        handleDirection(path[0]);
+        AccessibilityInfo.announceForAccessibility(`Insight: pulled ${path[0]}.`);
+      });
+      return;
+    }
+    // No way on from here: the pieces have been pulled into a position the
+    // board cannot be finished from (on a two-piece board, most of them
+    // are). A hint that then did nothing read as broken - so it starts the
+    // board over and plays the first move of the way through instead.
+    const fromStart = findShortestSolution(initialState, 16);
+    if (!fromStart || fromStart.length === 0) return;
     spendInsight(() => {
       setHintsUsed(n => n + 1);
-      handleDirection(path[0]);
-      AccessibilityInfo.announceForAccessibility(`Insight: pulled ${path[0]}.`);
+      movePendingRef.current = false;
+      queuedDirectionRef.current = null;
+      lastActionRef.current = 'restart';
+      dispatch({ type: 'restart' });
+      restartHintRef.current = fromStart[0];
+      AccessibilityInfo.announceForAccessibility(`Insight: no way on from there. Starting over, then pulled ${fromStart[0]}.`);
     });
-  }, [spendInsight, handleDirection]);
+  }, [spendInsight, handleDirection, initialState]);
+
+  // The first move after a hint's restart, once the fresh board is shown.
+  const restartHintRef = useRef<Direction | null>(null);
+  useEffect(() => {
+    const direction = restartHintRef.current;
+    if (!direction || isAnimating) return;
+    restartHintRef.current = null;
+    const timer = setTimeout(() => handleDirection(direction), 320);
+    return () => clearTimeout(timer);
+  }, [gameState, isAnimating, handleDirection]);
 
   const handleNext = useCallback(() => {
     if (!nextEntry) return;

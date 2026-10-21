@@ -13,7 +13,7 @@ import { dailyKeyOf, getDailyEntry, puzzleKindOf, setDailyRoster } from '../game
 import { computeStars, LevelResult, StarRating } from '../game/scoring';
 import { getWorldForLevel } from '../game/worlds';
 import { createDefaultBackend, StorageBackend } from '../storage';
-import { BatchPuzzleRef, generateBatch, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from './batches';
+import { BatchPuzzleRef, BatchState, generateBatch, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from './batches';
 import { GameKind } from '../game/journey';
 import {
   emptyProgress,
@@ -128,6 +128,10 @@ export interface CompletionOutcome {
   readonly daily: { readonly ms: number; readonly place: number; readonly of: number; readonly beat: number; readonly best: number } | null;
   /** Today's Daily solved again: how long this replay took (not ranked). */
   readonly dailyReplayMs: number | null;
+  /** The set this puzzle was dealt in, with it marked done - kept even when
+   * the solve finished the set and a new one was dealt. Null for a puzzle
+   * played outside any set (the Daily, the Grand, practice). */
+  readonly solvedIn: BatchState | null;
 }
 
 /** The bonuses on the latest solve, for the solved card to show. */
@@ -140,6 +144,10 @@ export interface SolveBonus {
   readonly grandCosmetic: string | null;
   readonly daily: CompletionOutcome['daily'];
   readonly dailyReplayMs: number | null;
+  /** The set the solve was in, and which puzzle it was (see
+   * `CompletionOutcome.solvedIn`). */
+  readonly solvedIn: BatchState | null;
+  readonly puzzleId: string;
 }
 
 interface PlayerProgressContextValue {
@@ -358,6 +366,7 @@ export function PlayerProgressProvider({
     let streakPrize: string | null = null;
     let dailyResult: CompletionOutcome['daily'] = null;
     let dailyReplayMs: number | null = null;
+    let solvedIn: BatchState | null = null;
     // Read the Daily's clock now and stop it, so a later replay is timed
     // from its own opening.
     const dailyElapsed = isDaily ? elapsedFor(levelId) : null;
@@ -400,6 +409,7 @@ export function PlayerProgressProvider({
       let setCompleted = false;
       if (result.currentBatch) {
         const updatedBatch = markPuzzleCompleted(result.currentBatch, levelId);
+        if (updatedBatch.puzzles.some(p => p.puzzleId === levelId)) solvedIn = updatedBatch;
         setCompleted = isBatchComplete(updatedBatch);
         result = setCompleted
           ? { ...result, currentLevel: result.currentLevel + 1, currentBatch: generateBatch(result.currentLevel + 1, result, updatedBatch) }
@@ -479,6 +489,7 @@ export function PlayerProgressProvider({
       grandCosmetic: grandCosmetic ?? streakPrize,
       daily: dailyResult,
       dailyReplayMs,
+      solvedIn,
     };
   }, [applyMutation]);
 
@@ -496,6 +507,8 @@ export function PlayerProgressProvider({
         grandCosmetic: outcome.grandCosmetic,
         daily: outcome.daily,
         dailyReplayMs: outcome.dailyReplayMs,
+        solvedIn: outcome.solvedIn,
+        puzzleId: levelId,
       });
       return outcome;
     },
@@ -834,6 +847,7 @@ function practiceCompletion(levelId: string, moves: number, options?: { maxStars
     grandCosmetic: null,
     daily: null,
     dailyReplayMs: null,
+    solvedIn: null,
   };
 }
 
@@ -846,6 +860,11 @@ function practiceCompletion(levelId: string, moves: number, options?: { maxStars
 export function useEquipped(slot: CosmeticSlot): Cosmetic {
   const value = useContext(PlayerProgressContext);
   return value ? equippedPure(value.progress, slot) : cosmeticById(DEFAULT_EQUIPPED[slot])!;
+}
+
+/** The level set being played, or null - safe outside a provider. */
+export function useCurrentBatch(): BatchState | null {
+  return useContext(PlayerProgressContext)?.progress.currentBatch ?? null;
 }
 
 /** Whether the latest solve's coins were doubled by the lucky charm -

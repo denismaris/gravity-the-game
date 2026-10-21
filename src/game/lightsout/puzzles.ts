@@ -120,47 +120,21 @@ function poolFor(difficulty: PuzzleDifficulty): LightsOutPuzzle[] {
 }
 
 /**
- * Boards with twin lanterns, on ids of their own so no existing id ever
- * changes: one pair on the middle tier, then two on the hard one. Dealt
- * among the rest by par, so twins arrive some way into a tier rather than
- * at its start.
+ * The boards that once had twin lanterns, on ids of their own. Twins were
+ * taken out of the game (2026-10-20): these are no longer dealt, but a set
+ * already holding one, or a save that solved one, still opens it - as a
+ * plain board of the same name and par.
  */
-const RULED: Record<PuzzleDifficulty, ReadonlyArray<readonly [id: string, name: string, par: number, twins: number]>> = {
-  easy: [],
-  medium: [
-    ['lightsout-medium-t01', 'Twin Flames', 5, 1],
-    ['lightsout-medium-t02', 'Kindred Lights', 6, 1],
-  ],
-  hard: [
-    ['lightsout-hard-t01', 'Paired Wicks', 7, 1],
-    ['lightsout-hard-t02', 'Two by Two', 8, 2],
-    ['lightsout-hard-t03', 'The Long Thread', 8, 2],
-  ],
-};
-
-function withRuled(difficulty: PuzzleDifficulty, pool: LightsOutPuzzle[]): LightsOutPuzzle[] {
-  const ruled = RULED[difficulty].map(([id, name, par, twins]) => generateLightsOut(id, name, difficulty, par, { twins }));
-  // Each placed after the last plain board of its par, so it comes as a
-  // change once that rung is familiar.
-  const out = [...pool];
-  for (const board of ruled) {
-    let at = out.length;
-    for (let i = out.length - 1; i >= 0; i -= 1) {
-      if (out[i].par <= board.par) {
-        at = i + 1;
-        break;
-      }
-    }
-    out.splice(at, 0, board);
-  }
-  return out;
-}
-
-export const LIGHTS_OUT: ReadonlyArray<LightsOutPuzzle> = [
-  ...poolFor('easy'),
-  ...withRuled('medium', poolFor('medium')),
-  ...withRuled('hard', poolFor('hard')),
+const RETIRED_TWIN_BOARDS: ReadonlyArray<readonly [id: string, name: string, par: number, difficulty: PuzzleDifficulty]> = [
+  ['lightsout-medium-t01', 'Twin Flames', 5, 'medium'],
+  ['lightsout-medium-t02', 'Kindred Lights', 6, 'medium'],
+  ['lightsout-hard-t01', 'Paired Wicks', 7, 'hard'],
+  ['lightsout-hard-t02', 'Two by Two', 8, 'hard'],
+  ['lightsout-hard-t03', 'The Long Thread', 8, 'hard'],
 ];
+const retiredCache = new Map<string, LightsOutPuzzle>();
+
+export const LIGHTS_OUT: ReadonlyArray<LightsOutPuzzle> = [...poolFor('easy'), ...poolFor('medium'), ...poolFor('hard')];
 
 /**
  * Endless boards, built the first time they are asked for and kept.
@@ -191,10 +165,7 @@ function buildEndless(id: string, tier: PuzzleDifficulty, index: number): Lights
   const floor = shape.minPar < shape.maxPar ? shape.minPar + 1 : shape.minPar;
   const span = shape.maxPar - floor + 1;
   const par = floor + (endlessSeed(id) % span);
-  // Endless boards keep twins in play: now and then on the middle tier,
-  // usually on the hard one.
-  const extra = tier === 'medium' ? (endlessSeed(id) % 3 === 0 ? { twins: 1 } : undefined) : tier === 'hard' ? { twins: 1 + (endlessSeed(id) % 2) } : undefined;
-  const puzzle = generateLightsOut(id, endlessName(index, 'lightsout'), tier, par, extra);
+  const puzzle = generateLightsOut(id, endlessName(index, 'lightsout'), tier, par);
   endlessCache.set(id, puzzle);
   return puzzle;
 }
@@ -202,6 +173,13 @@ function buildEndless(id: string, tier: PuzzleDifficulty, index: number): Lights
 export function getLightsOutById(id: string): LightsOutPuzzle | undefined {
   const found = LIGHTS_OUT.find(puzzle => puzzle.id === id);
   if (found) return found;
+  const retired = RETIRED_TWIN_BOARDS.find(([rid]) => rid === id);
+  if (retired) {
+    const [, name, par, difficulty] = retired;
+    const board = retiredCache.get(id) ?? generateLightsOut(id, name, difficulty, par);
+    retiredCache.set(id, board);
+    return board;
+  }
   const endless = parseEndlessId(id);
   if (!endless || endless.kind !== 'lightsout') return undefined;
   return buildEndless(id, endless.tier, endless.index);

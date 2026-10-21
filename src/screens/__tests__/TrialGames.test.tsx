@@ -8,7 +8,8 @@ import { PLAYER_PROGRESS_KEY } from '../../progression/playerProgressStore';
 import { createMemoryBackend } from '../../storage';
 import { SettingsProvider, defaultSettings } from '../../settings';
 import { SETTINGS_KEY } from '../../settings/settingsStore';
-import { getLilyTrial, hopsFrom, initialLilyState } from '../../game/lilypads';
+import { getLilyTrial, hop, hopsFrom, initialLilyState } from '../../game/lilypads';
+import { HOP_MS } from '../../components/LilyPadsBoard';
 import { getVaneTrial } from '../../game/vanes';
 
 /** The two games on trial, driven through their boards. */
@@ -32,6 +33,34 @@ const at = (size: number, cells: number, row: number, col: number) => {
   const cell = (size - inset * 2) / cells;
   return { nativeEvent: { locationX: inset + col * cell + cell / 2, locationY: inset + row * cell + cell / 2 } };
 };
+
+// Two quick taps: the second waits for the frog to land, then hops - it
+// is never dropped, and never starts while the frog is in the air.
+test('Lily Pads: a tap made mid-hop waits for the landing, then hops', async () => {
+  jest.useFakeTimers();
+  const r = await mount(<LilyPadsScreen onExit={() => {}} />);
+  const p = getLilyTrial(0);
+  const total = p.pads.length - 1;
+  const board = r.root.find(n => typeof n.props.accessibilityLabel === 'string' && n.props.accessibilityLabel.startsWith('Pond') && n.props.onResponderRelease);
+  const size = board.props.style.width as number;
+  const first = hopsFrom(p, initialLilyState(p))[0];
+  const afterFirst = hop(p, initialLilyState(p), first);
+  const second = hopsFrom(p, afterFirst)[0];
+  const tap = async (pad: number) =>
+    act(async () => {
+      board.props.onResponderGrant(at(size, p.size, p.pads[pad].row, p.pads[pad].col));
+      board.props.onResponderRelease(at(size, p.size, p.pads[pad].row, p.pads[pad].col));
+    });
+  await tap(first);
+  await tap(second);
+  expect(text(r)).toContain(`${total - 1} ${total - 1 === 1 ? 'pad' : 'pads'} to go`);
+  await act(async () => {
+    jest.advanceTimersByTime(HOP_MS + 20);
+  });
+  expect(text(r)).toContain(`${total - 2} ${total - 2 === 1 ? 'pad' : 'pads'} to go`);
+  await act(async () => r.unmount());
+  jest.useRealTimers();
+});
 
 test('Lily Pads: tapping a pad in reach hops there, and undo brings the pad back', async () => {
   jest.useFakeTimers();

@@ -29,8 +29,6 @@ import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
 import { LIGHTSOUT_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
-import { mechanic } from '../game/mechanics';
-import { MechanicIntro } from '../components/MechanicIntro';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
@@ -240,8 +238,11 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>
-          {/* Finished: the board takes no more touches. */}
-          <View pointerEvents={solved ? 'none' : 'auto'}>
+          {/* Finished: the board takes no more touches. Never collapsed: on
+              Android a flattened wrapper is re-created when its touches
+              change, and the board canvas under it redraws from blank - a
+              white flash at every finish. */}
+          <View collapsable={false} pointerEvents={solved ? 'none' : 'auto'}>
             <LightsOutBoard puzzle={puzzle} state={state} size={boardSize} solved={solved} onPressCell={onPressCell} flashCell={flashCell} />
           </View>
         </Animated.View>
@@ -285,10 +286,6 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         />
       )}
 
-      <MechanicIntro
-        intros={puzzle.twins?.length ? [mechanic('mechanic:lantern-twins')] : []}
-        accent={accentColorForKind('lightsout')}
-      />
       {showTutorial && <MechanicsCarousel slides={LIGHTSOUT_MECHANICS_SLIDES} renderIllustration={renderLightsOutIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('lightsout')} />}
     </View>
   );

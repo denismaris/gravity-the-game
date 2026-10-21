@@ -14,7 +14,6 @@ import com.gravitygame.MainActivity
 import com.gravitygame.R
 import org.json.JSONObject
 import java.time.LocalDate
-import java.time.ZoneOffset
 import java.time.temporal.ChronoUnit
 
 /**
@@ -53,7 +52,8 @@ class TesseraWidgetProvider : AppWidgetProvider() {
 
     private fun views(context: Context): RemoteViews {
       val views = RemoteViews(context.packageName, R.layout.tessera_widget)
-      val today = LocalDate.now(ZoneOffset.UTC)
+      // The player's own calendar, as in the app: the Daily turns over at local midnight.
+      val today = LocalDate.now()
       views.setTextViewText(R.id.number, "No. ${ChronoUnit.DAYS.between(EPOCH, today) + 1}")
 
       // The day's puzzle.

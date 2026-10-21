@@ -9,7 +9,7 @@ describe('the widget schedule', () => {
     const schedule = buildWidgetSchedule();
     expect(schedule.start).toBe(SCHEDULE_START);
     expect(schedule.days).toHaveLength(SCHEDULE_DAYS);
-    const day = new Date('2026-12-25T08:00:00Z');
+    const day = new Date(2026, 11, 25, 8, 0);
     const i = Math.round((Date.parse('2026-12-25T00:00:00Z') - Date.parse(`${SCHEDULE_START}T00:00:00Z`)) / 86400000);
     expect(schedule.days[i].n).toBe(getDailyEntry(day).name);
     expect(schedule.days[i].g).toBe(gameDisplayName(getDailyEntry(day).kind));
