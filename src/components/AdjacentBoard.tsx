@@ -1,10 +1,12 @@
 /* eslint-disable react-native/no-inline-styles -- cell geometry is derived from `size` at render time */
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { Canvas } from '@shopify/react-native-skia';
 import { AdjacentCoord, AdjacentPuzzle, AdjacentState, groupAt } from '../game/adjacent';
 import { theme, themedStyles } from '../theme';
 import { AdjacentAnimation, AdjacentBoardView, adjacentTileColor, computeAdjacentLayout } from './AdjacentBoardView';
+import { curve } from '../theme/motion';
 
 /** Plain-language colour names, for the screen reader - a board whose
  * entire content is colour is exactly the one that cannot rely on it. */
@@ -70,7 +72,7 @@ function ScorePopup({ popup, x, y }: { popup: AdjacentPopup; x: number; y: numbe
     Animated.timing(rise, {
       toValue: 1,
       duration: POPUP_MS,
-      easing: Easing.out(Easing.cubic),
+      easing: curve.arrive,
       useNativeDriver: true,
     }).start();
   }, [rise]);

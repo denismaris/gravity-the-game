@@ -6,6 +6,7 @@ import {
   easeOut,
   launchPieces,
   letterProgress,
+  pieceMoveAt,
   piecePointsAt,
   pieceProgress,
   PRESS,
@@ -358,5 +359,28 @@ describe('rollingGlyph', () => {
 
   test('has landed once the roll is over', () => {
     expect(rollingGlyph('M', 4, ROLL_UNTIL)).toEqual({ glyph: 'M', landed: true });
+  });
+});
+
+describe('pieceMoveAt', () => {
+  test('moving the landed outline puts every corner where piecePointsAt does', () => {
+    // The launch draws each piece once and moves it; this pins that the
+    // move is the same flight the outline used to be rebuilt for.
+    for (const piece of launchPieces()) {
+      for (const p of [0, 0.2, 0.5, 0.8, 1]) {
+        const m = pieceMoveAt(piece, p);
+        const cos = Math.cos(m.rotate);
+        const sin = Math.sin(m.rotate);
+        const moved = piece.points.map(([x, y]) => {
+          const lx = (x - m.cx) * m.scale;
+          const ly = (y - m.cy) * m.scale;
+          return [m.x + lx * cos - ly * sin, m.y + lx * sin + ly * cos];
+        });
+        piecePointsAt(piece, p).forEach(([x, y], k) => {
+          expect(moved[k][0]).toBeCloseTo(x, 6);
+          expect(moved[k][1]).toBeCloseTo(y, 6);
+        });
+      }
+    }
   });
 });

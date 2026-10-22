@@ -30,6 +30,7 @@ import {
   useReducedMotion,
 } from '../game/rendering';
 import { theme, inkWash } from '../theme';
+import { curve } from '../theme/motion';
 
 /** A placed mark doesn't turn or fade in - it stamps: it lands a touch
  * oversized and settles to its resting size in one quick, decelerating
@@ -662,11 +663,11 @@ function PressGlowView({
   const tint = useSharedValue(0);
   const ripple = useSharedValue(0);
   useEffect(() => {
-    tint.value = withTiming(1, { duration: PRESS_GLOW_IN_MS, easing: Easing.out(Easing.cubic) });
+    tint.value = withTiming(1, { duration: PRESS_GLOW_IN_MS, easing: curve.arrive });
     ripple.value = withTiming(1, { duration: PRESS_RIPPLE_MS, easing: Easing.linear });
   }, [tint, ripple]);
   useEffect(() => {
-    if (released) tint.value = withTiming(0, { duration: PRESS_GLOW_OUT_MS, easing: Easing.in(Easing.cubic) });
+    if (released) tint.value = withTiming(0, { duration: PRESS_GLOW_OUT_MS, easing: curve.leave });
   }, [released, tint]);
   const tintOpacity = useDerivedValue(() => PRESS_GLOW_OPACITY * tint.value);
   const rippleRadius = useDerivedValue(

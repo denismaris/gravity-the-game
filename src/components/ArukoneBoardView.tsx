@@ -22,6 +22,7 @@ import {
   introCellProgress,
   INTRO_TOTAL_MS,
   isIntroActive,
+  RefuseMark,
   shade,
   useAnimationClock,
   useIntroWave,
@@ -344,6 +345,10 @@ export function ArukoneBoardView({
   rejectedCell,
 }: ArukoneBoardViewProps): React.JSX.Element {
   const reducedMotion = useReducedMotion();
+  // Each refusal plays its own shake, even on the same square twice.
+  const rejectRef = useRef<{ cell: ArukoneCell | null | undefined; count: number }>({ cell: null, count: 0 });
+  if (rejectedCell && rejectRef.current.cell !== rejectedCell) rejectRef.current = { cell: rejectedCell, count: rejectRef.current.count + 1 };
+  const rejectCount = rejectRef.current.count;
   const layout = useMemo(() => computeBoardLayout(puzzle.size, size), [puzzle.size, size]);
   const blocked = useMemo(() => new Set(puzzle.obstacles.map(cellKey)), [puzzle.obstacles]);
   const tones = useMemo(() => toneForPairs(puzzle), [puzzle]);
@@ -457,14 +462,11 @@ export function ArukoneBoardView({
       })}
 
       {rejectedCell && (
-        <RoundedRect
-          x={getCellOrigin(layout, rejectedCell.row, rejectedCell.col).x + layout.cellSize * 0.08}
-          y={getCellOrigin(layout, rejectedCell.row, rejectedCell.col).y + layout.cellSize * 0.08}
-          width={layout.cellSize * 0.84}
-          height={layout.cellSize * 0.84}
-          r={layout.cellSize * 0.16}
-          color={theme.colors.danger}
-          opacity={0.28}
+        <RefuseMark
+          key={`${rejectedCell.row},${rejectedCell.col},${rejectCount}`}
+          x={getCellOrigin(layout, rejectedCell.row, rejectedCell.col).x}
+          y={getCellOrigin(layout, rejectedCell.row, rejectedCell.col).y}
+          size={layout.cellSize}
         />
       )}
 

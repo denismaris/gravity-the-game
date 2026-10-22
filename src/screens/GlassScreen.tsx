@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RoundKey } from '../components/RoundKey';
-import { Animated, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, View, useWindowDimensions } from 'react-native';
+import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Group, Path, rect, RoundedRect, rrect } from '@shopify/react-native-skia';
 import { DifficultyChip, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, renderGlassIllustration, useSolveCelebration } from '../components';

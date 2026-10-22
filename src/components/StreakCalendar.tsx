@@ -1,11 +1,13 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { Animated as RNAnimated, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated as RNAnimated, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { useReducedMotion } from '../game/rendering';
-import Animated, { Easing, FadeIn, FadeInDown } from 'react-native-reanimated';
+import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
 import { theme, themedStyles } from '../theme';
 import { ModalLayer } from './ModalLayer';
 import { PressableScale } from './PressableScale';
 import { DialogActions, dialogStyles } from './dialog';
+import { curve } from '../theme/motion';
 
 /**
  * The Daily's calendar: the days it was solved, so a streak is something
@@ -105,7 +107,7 @@ export function StreakCalendar({ days, todayKey, streak, best, onClose }: { days
         <Pressable accessibilityLabel="Close the calendar" style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
       <View style={styles.center} pointerEvents="box-none">
-        <Animated.View entering={FadeInDown.duration(420).easing(Easing.out(Easing.cubic))} style={styles.card}>
+        <Animated.View entering={FadeInDown.duration(420).easing(curve.arrive)} style={styles.card}>
           <Text style={dialogStyles.kicker}>Your Dailies</Text>
           <View style={styles.figures}>
             <View style={styles.figure}>
@@ -167,7 +169,7 @@ export function StreakCalendar({ days, todayKey, streak, best, onClose }: { days
 const styles = themedStyles(() => ({
   strip: { flex: 1, flexDirection: 'row', justifyContent: 'space-between', paddingRight: theme.spacing.md },
   stripDay: { alignItems: 'center', gap: 4 },
-  stripLetter: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
+  stripLetter: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
   stripLetterToday: { color: theme.colors.textPrimary },
   stripDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.border },
   dotOn: { backgroundColor: theme.colors.secondary },
@@ -188,7 +190,7 @@ const styles = themedStyles(() => ({
     shadowOffset: { width: 0, height: 14 },
     elevation: 14,
   },
-  kicker: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary, textAlign: 'center' },
+  kicker: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary, textAlign: 'center' },
   figures: { flexDirection: 'row', alignItems: 'center', marginTop: theme.spacing.sm, paddingVertical: theme.spacing.sm, borderRadius: 16, backgroundColor: theme.colors.surfaceAlt },
   figure: { flex: 1, alignItems: 'center' },
   figureValue: { fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, fontVariant: ['tabular-nums'], color: theme.colors.textPrimary },
@@ -198,19 +200,19 @@ const styles = themedStyles(() => ({
   arrow: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceAlt },
   arrowOff: { opacity: 0.3 },
   arrowText: { fontSize: 20, lineHeight: 22, color: theme.colors.textPrimary },
-  monthName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  monthName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   grid: { flexDirection: 'row', flexWrap: 'wrap', marginTop: theme.spacing.sm },
-  gridLetter: { width: `${100 / 7}%`, textAlign: 'center', paddingVertical: 4, fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
+  gridLetter: { width: `${100 / 7}%`, textAlign: 'center', paddingVertical: 4, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
   cell: { width: `${100 / 7}%`, aspectRatio: 1, alignItems: 'center', justifyContent: 'center' },
   day: { width: '80%', aspectRatio: 1, borderRadius: 999, alignItems: 'center', justifyContent: 'center' },
   daySolved: { backgroundColor: theme.colors.secondary },
   dayToday: { borderWidth: 1.5, borderColor: theme.colors.secondary },
-  dayText: { fontSize: theme.typography.sizes.caption + 1, fontVariant: ['tabular-nums'], color: theme.colors.textSecondary },
+  dayText: { fontSize: theme.typography.sizes.body, fontVariant: ['tabular-nums'], color: theme.colors.textSecondary },
   dayTextSolved: { color: theme.colors.surfaceHi, fontWeight: theme.typography.weights.bold },
   dayTextFuture: { color: theme.colors.textTertiary, opacity: 0.5 },
   monthNote: { marginTop: theme.spacing.xs, textAlign: 'center', fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   doneWrap: { alignSelf: 'stretch', marginTop: theme.spacing.lg },
   done: { height: 50, borderRadius: theme.radii.pill, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary },
-  doneText: { fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.surfaceHi },
+  doneText: { fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.semibold, color: theme.colors.surfaceHi },
   pressed: { opacity: 0.85 },
 }));

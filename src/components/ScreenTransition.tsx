@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
 import { motion, themedStyles } from '../theme';
+import { isReducedMotion } from '../game/rendering';
 
 export interface ScreenTransitionProps {
   /** Identifies the screen currently mounted inside. Changing it (Home ->
@@ -36,7 +37,9 @@ export function ScreenTransition({ routeKey, direction = 'forward', children }: 
   // Captured per transition, so a re-render cannot flip the direction of
   // an animation already on its way in.
   const slideFrom = useRef(SLIDE_PX);
-  slideFrom.current = direction === 'back' ? -SLIDE_PX : SLIDE_PX;
+  // Reduced motion: the screen fades in where it is, without sliding.
+  const travel = isReducedMotion() ? 0 : 1;
+  slideFrom.current = (direction === 'back' ? -SLIDE_PX : SLIDE_PX) * travel;
 
   useEffect(() => {
     progress.setValue(0);
@@ -66,7 +69,7 @@ export function ScreenTransition({ routeKey, direction = 'forward', children }: 
             {
               translateY: progress.interpolate({
                 inputRange: [0, 1],
-                outputRange: [8, 0],
+                outputRange: [8 * travel, 0],
               }),
             },
           ],

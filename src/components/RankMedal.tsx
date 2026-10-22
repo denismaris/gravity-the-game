@@ -1,5 +1,6 @@
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { Canvas, Circle, Group, Path } from '@shopify/react-native-skia';
 import { shade } from '../game/rendering';
 import { toRoman } from '../progression/rank';

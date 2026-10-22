@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect } from 'react';
 import { StyleSheet, View } from 'react-native';
-import Animated, { Easing, useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
+import Animated, { useAnimatedStyle, useSharedValue, withRepeat, withTiming } from 'react-native-reanimated';
 import { theme, themedStyles } from '../theme';
+import { curve } from '../theme/motion';
 
 /** True on a game's first real puzzle (provided by `AppRoutes`): the one
  * time the "?" deserves pointing out. */
@@ -16,7 +17,7 @@ export function HelpHalo(): React.JSX.Element | null {
   const first = useContext(FirstPuzzleContext);
   const t = useSharedValue(0);
   useEffect(() => {
-    if (first) t.value = withRepeat(withTiming(1, { duration: 1400, easing: Easing.out(Easing.quad) }), -1, false);
+    if (first) t.value = withRepeat(withTiming(1, { duration: 1400, easing: curve.arrive }), -1, false);
   }, [first, t]);
   const ring = useAnimatedStyle(() => ({ opacity: 0.55 * (1 - t.value), transform: [{ scale: 1 + t.value * 0.9 }] }));
   if (!first) return null;

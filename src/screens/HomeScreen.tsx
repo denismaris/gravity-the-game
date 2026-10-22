@@ -10,17 +10,16 @@ import React, {
 } from 'react';
 import {
   Animated,
-  Easing,
   LayoutChangeEvent,
   NativeScrollEvent,
   NativeSyntheticEvent,
   Pressable,
   ScrollView,
   StyleSheet,
-  Text,
   View,
   useWindowDimensions,
 } from 'react-native';
+
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   ACHIEVEMENTS,
@@ -75,11 +74,11 @@ import {
   sunkKey,
   TesseraMark,
 } from '../components';
-import { shade, triggerFeedback, useReducedMotion } from '../game/rendering';
+import { isReducedMotion, shade, triggerFeedback, useReducedMotion } from '../game/rendering';
 import { motion, nightTone, theme, themedStyles } from '../theme';
 import { useEquipped } from '../progression/PlayerProgressProvider';
 import { useToday } from '../components/useToday';
-import { CoinBalance, CoinGlyph } from '../components/Coins';
+import { CoinBalance, CoinGlyph, FIGURE_SCALE } from '../components/Coins';
 import { ErrandList } from '../components/ErrandList';
 import { RankMedal } from '../components/RankMedal';
 import { RankUpCard } from '../components/RankUpCard';
@@ -87,6 +86,9 @@ import { XpBar } from '../components/XpBar';
 import { CosmeticPreview } from '../components/CosmeticPreview';
 import { useSettings } from '../settings';
 import { tutorialIdForGame } from '../game/tutorials';
+import { curve } from '../theme/motion';
+import { Text, MAX_TEXT_SCALE } from '../components/Text';
+import { glide, settle, slice } from '../components/placeMotion';
 
 /** A small trophy, drawn rather than typed: a cup on a stem and base,
  * with its two handles - the masthead's way into the leaderboards. */
@@ -128,7 +130,58 @@ function riseIn(mount: Animated.Value, endsAt: number) {
   };
 }
 
+/**
+ * Home's first arrival in a run of the app: its pieces are placed, the way
+ * the games are placed on the level card (`placeMotion`), each a slice of
+ * one clock from 0 to 1. A piece drops `dy` into place, grows from
+ * `scale` with a small give, and straightens from a `turn` in degrees.
+ */
+function placed(t: Animated.Value, from: number, to: number, o: { dy?: number; scale?: number; turn?: number } = {}) {
+  const transform: Array<Record<string, Animated.AnimatedInterpolation<number | string>>> = [];
+  if (o.dy) transform.push({ translateY: slice(t, from, to, glide, [o.dy, 0]) });
+  if (o.scale) transform.push({ scale: slice(t, from, to, settle, [o.scale, 1]) });
+  if (o.turn) transform.push({ rotate: slice(t, from, to, settle, [0, 1]).interpolate({ inputRange: [0, 1], outputRange: [`${o.turn}deg`, '0deg'] }) });
+  return { opacity: slice(t, from, from + (to - from) * 0.45, glide, [0, 1]), transform };
+}
+
+/** How long the first arrival takes, start to the tabs settling. */
+const PLACE_MS = 1150;
+/** It waits this long into the launch's hand-off, so the first pieces land
+ * as the tile lifts rather than under it. */
+const PLACE_DELAY_MS = 260;
+/** Whether Home has already made its first arrival in this run: every later
+ * visit (back from a game) gets the quiet cascade instead. */
+let placedOnce = false;
+
+/**
+ * Home's first arrival, held while the launch plays over it. A release
+ * rather than a prop: telling Home through its props re-rendered the
+ * whole screen in the very frame its pieces began to move.
+ */
+let entranceHeld = false;
+const entranceWaiters = new Set<() => void>();
+export function holdHomeEntrance(): void {
+  entranceHeld = true;
+}
+export function releaseHomeEntrance(): void {
+  entranceHeld = false;
+  entranceWaiters.forEach(waiter => waiter());
+  entranceWaiters.clear();
+}
+function whenEntranceReleased(start: () => void): () => void {
+  if (!entranceHeld) {
+    start();
+    return () => {};
+  }
+  entranceWaiters.add(start);
+  return () => {
+    entranceWaiters.delete(start);
+  };
+}
+
 export interface HomeScreenProps {
+  /** Called once Home has drawn its first frame. */
+  onDrawn?: () => void;
   /** Open a puzzle from the current level batch (any game). */
   onOpen: (target: { kind: GameKind; puzzleId: string }) => void;
   /** Open the Settings screen. */
@@ -192,6 +245,7 @@ const TAB_WIDTH = 66;
  * `src/progression/batches.ts`) replaces that need entirely.
  */
 export function HomeScreen({
+  onDrawn,
   onOpen,
   onOpenSettings,
   onOpenAchievements,
@@ -218,7 +272,7 @@ export function HomeScreen({
         Animated.timing(pulse, {
           toValue: 1,
           duration: 1800,
-          easing: Easing.out(Easing.quad),
+          easing: curve.arrive,
           useNativeDriver: true,
         }),
         Animated.delay(900),
@@ -328,15 +382,59 @@ export function HomeScreen({
   // fill animates separately so it reads as "counting up to here" rather
   // than popping straight to its resting width.
   const mount = useRef(new Animated.Value(0)).current;
+  // The first visit of the run places Home piece by piece; reduced motion
+  // and every later visit get the quiet cascade.
+  const [placing] = useState(() => !placedOnce && !isReducedMotion());
+  const entered = useRef(false);
   useEffect(() => {
-    mount.setValue(0);
-    Animated.timing(mount, {
-      toValue: 1,
-      duration: 480,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start();
-  }, [mount]);
+    // Two frames: one to lay out, one to draw what the layout placed.
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => onDrawn?.());
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
+    // Once, on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  // Built once: native-driven interpolations, not remade every render.
+  const place = useMemo(
+    () => ({
+      backdrop: slice(mount, 0.02, 0.34, glide, [0, 1]),
+      rule: { opacity: slice(mount, 0.24, 0.34, glide, [0, 1]), transform: [{ scaleX: slice(mount, 0.24, 0.5, glide, [0, 1]) }] },
+      gear: placed(mount, 0.14, 0.44, { scale: 0.7 }),
+      trophy: placed(mount, 0.1, 0.4, { scale: 0.7 }),
+      mark: placed(mount, 0, 0.34, { dy: -14, scale: 0.55, turn: -14 }),
+      name: placed(mount, 0.08, 0.4, { dy: 8 }),
+      shop: placed(mount, 0.22, 0.5, { dy: 6, scale: 0.8 }),
+      streak: placed(mount, 0.28, 0.56, { dy: 6, scale: 0.8 }),
+      card: placed(mount, 0.24, 0.72, { dy: 26, scale: 0.94 }),
+      tabs: placed(mount, 0.52, 0.94, { dy: 18 }),
+    }),
+    [mount],
+  );
+  useEffect(
+    () =>
+      whenEntranceReleased(() => {
+        if (entered.current) return;
+        entered.current = true;
+        mount.setValue(0);
+        if (placing) {
+          placedOnce = true;
+          Animated.timing(mount, { toValue: 1, duration: PLACE_MS, delay: PLACE_DELAY_MS, easing: curve.linear, useNativeDriver: true }).start();
+          return;
+        }
+        Animated.timing(mount, {
+          toValue: 1,
+          duration: 480,
+          easing: curve.arrive,
+          useNativeDriver: true,
+        }).start();
+      }),
+    [mount, placing],
+  );
 
   // Opens on the tab the player left from: Home unmounts behind every other
   // screen, so a trip to Your games from the You tab used to land on Play.
@@ -465,7 +563,7 @@ export function HomeScreen({
           page's own entrance rather than popping in a frame late. */}
       {cardRect && (
         <Animated.View
-          style={[StyleSheet.absoluteFill, { opacity: mount }]}
+          style={[StyleSheet.absoluteFill, { opacity: placing ? place.backdrop : mount }]}
           pointerEvents="none"
         >
           <AlmanacBackdrop width={width} height={height} card={cardRect} />
@@ -476,10 +574,9 @@ export function HomeScreen({
         accessibilityLabel="Settings"
         onPress={onOpenSettings}
         hitSlop={8}
-        containerStyle={[
-          styles.settingsButton,
-          { top: insets.top + theme.spacing.sm },
-        ]}
+        containerStyle={
+          [styles.settingsButton, { top: insets.top + theme.spacing.sm }, placing && place.gear] as never
+        }
       >
         {/* U+FE0E forces the plain monochrome glyph - without it iOS renders
             a full-colour emoji gear that clashes with the flat paper
@@ -494,7 +591,7 @@ export function HomeScreen({
         accessibilityLabel="Leaderboards"
         onPress={onOpenLeaderboard}
         hitSlop={8}
-        containerStyle={[styles.settingsButton, styles.trophyButton, { top: insets.top + theme.spacing.sm }]}
+        containerStyle={[styles.settingsButton, styles.trophyButton, { top: insets.top + theme.spacing.sm }, placing && place.trophy] as never}
       >
         <TrophyGlyph size={20} />
       </PressableScale>
@@ -503,15 +600,21 @@ export function HomeScreen({
         style={[
           styles.masthead,
           { paddingTop: insets.top + theme.spacing.md },
-          riseIn(mount, 0.45),
+          !placing && riseIn(mount, 0.45),
         ]}
       >
         <View style={styles.mastheadRow}>
-          <TesseraMark size={34} />
-          <Text style={styles.wordmark}>TESSELLATUM</Text>
+          {/* First the mark, dropped into the header the way the launch
+              tile has just lifted out of the middle; then the name. */}
+          <Animated.View style={placing && place.mark}>
+            <TesseraMark size={34} />
+          </Animated.View>
+          <Animated.View style={placing && place.name}>
+            <Text style={styles.wordmark}>TESSELLATUM</Text>
+          </Animated.View>
         </View>
         <View style={styles.rule}>
-          <View style={styles.ruleLine} />
+          <Animated.View style={[styles.ruleLine, placing && place.rule]} />
         </View>
         {/* Loss aversion, the moment it applies: a streak already exists
             and today's Daily is still unplayed, so it is genuinely one
@@ -536,6 +639,7 @@ export function HomeScreen({
             {/* Two keys, nothing more: the shop with what you have to spend
                 in it, and the streak. (Insight lives on the play screens,
                 where it is used.) */}
+            <Animated.View style={placing && place.shop}>
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel={`Shop. You have ${coins} coins.`}
@@ -556,6 +660,8 @@ export function HomeScreen({
               )}
               {setsReady > 0 && <View style={[styles.statusDot, styles.statusBadge]} accessibilityLabel="A set bonus is ready in the shop" />}
             </PressableScale>
+            </Animated.View>
+            <Animated.View style={placing && place.streak}>
             <PressableScale
               accessibilityRole="button"
               accessibilityLabel={dailyCompletedToday ? `${dailyStreak} day streak` : `${dailyStreak} day streak. Play today's Daily to ${dailyStreak > 0 ? 'keep it' : 'start one'}.`}
@@ -566,11 +672,12 @@ export function HomeScreen({
               style={({ pressed }) => [styles.statusKey, pressed && sunkKey(2.5)]}
             >
               <Icon name="sun" size={14} color={dailyCompletedToday ? theme.colors.textSecondary : theme.colors.secondary} weight={1.5} />
-              <Text style={styles.statusText}>{dailyStreak}</Text>
+              <Text style={styles.statusText} maxFontSizeMultiplier={FIGURE_SCALE}>{dailyStreak}</Text>
               {/* Today's Daily still to play: a dot on the key's corner,
                   not in its line, so the sun and the count sit centred. */}
               {!dailyCompletedToday && <View style={[styles.statusDot, styles.statusBadge]} />}
             </PressableScale>
+            </Animated.View>
           </View>
         </View>
       </Animated.View>
@@ -579,7 +686,7 @@ export function HomeScreen({
           dots sit directly under the card instead of being pinned to the
           bottom of the screen with a field of paper between them. */}
       <Animated.View
-        style={[styles.stage, riseIn(mount, 0.7)]}
+        style={[styles.stage, placing ? place.card : riseIn(mount, 0.7)]}
         onLayout={onStageLayout}
       >
         {/* A plain wrapper to measure: a ScrollView's own \`onLayout\` did not
@@ -1169,7 +1276,7 @@ export function HomeScreen({
         style={[
           styles.dots,
           { paddingBottom: insets.bottom + theme.spacing.sm },
-          riseIn(mount, 0.9),
+          placing ? place.tabs : riseIn(mount, 0.9),
         ]}
       >
         {/* Named tabs, not bare marks: a player sees at once that Home
@@ -1213,7 +1320,7 @@ export function HomeScreen({
                 <Text style={styles.tabText}>{PAGE_LABELS[name]}</Text>
                 {/* The light label over the pill, faded in by the same
                     native offset, so the colour change glides too. */}
-                <Animated.Text style={[styles.tabText, styles.tabTextOn, { opacity: near }]}>{PAGE_LABELS[name]}</Animated.Text>
+                <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[styles.tabText, styles.tabTextOn, { opacity: near }]}>{PAGE_LABELS[name]}</Animated.Text>
                 {waiting[name] && i !== page && <View style={styles.tabBadge} />}
               </Pressable>
             );
@@ -1301,7 +1408,7 @@ const styles = themedStyles(() => ({
     gap: 7,
     paddingHorizontal: 12,
     paddingTop: 4,
-    paddingBottom: 3,
+    paddingBottom: 4,
     borderRadius: theme.radii.pill,
     borderWidth: 1,
     borderBottomWidth: 2.5,
@@ -1310,7 +1417,7 @@ const styles = themedStyles(() => ({
     backgroundColor: theme.colors.surfaceHi,
   },
   // The same setting as the coin count beside it, so the two figures share a line.
-  statusText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'],  fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  statusText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   statusRule: { width: StyleSheet.hairlineWidth, height: 14, backgroundColor: theme.colors.borderStrong },
   statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.secondary },
   statusBadge: { position: 'absolute', top: -2, right: -2, width: 9, height: 9, borderRadius: 4.5, borderWidth: 1.5, borderColor: theme.colors.background },
@@ -1338,20 +1445,20 @@ const styles = themedStyles(() => ({
   youRank: { marginTop: theme.spacing.sm },
   youLinkThird: { width: '30%', flexBasis: 'auto' },
   shelfHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  shelfCount: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'],  fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
+  shelfCount: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   shelf: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
   shelfSlot: { width: '16.66%', alignItems: 'center' },
   shelfAhead: { opacity: 0.22 },
-  cardEmblem: { padding: 3, borderRadius: 16, borderWidth: 2 },
+  cardEmblem: { padding: 4, borderRadius: 16, borderWidth: 2 },
   grandEmblem: { borderColor: theme.colors.goldRim },
   grandRule: { backgroundColor: theme.colors.gold },
   youChapter: { marginTop: theme.spacing.md, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: theme.spacing.sm },
   youChapterLeft: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary },
   youFigures: { flexDirection: 'row', alignItems: 'center', marginTop: 'auto', marginBottom: 'auto' },
-  youValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  youValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   youLinks: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 'auto' },
   youLinkWrap: { width: '48.5%', flexGrow: 1 },
-  youLink: { paddingTop: 10, paddingBottom: 7, paddingHorizontal: 12, borderRadius: 14, backgroundColor: theme.colors.background, borderWidth: 1, borderBottomWidth: 3, borderColor: theme.colors.border, borderBottomColor: theme.colors.borderStrong, alignItems: 'center', gap: 3 },
+  youLink: { paddingTop: 10, paddingBottom: 8, paddingHorizontal: 12, borderRadius: 14, backgroundColor: theme.colors.background, borderWidth: 1, borderBottomWidth: 3, borderColor: theme.colors.border, borderBottomColor: theme.colors.borderStrong, alignItems: 'center', gap: 3 },
   youLinkHead: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 26 },
   youLinkValue: { fontFamily: theme.typography.families.figures, fontVariant: ['lining-nums', 'tabular-nums'], fontSize: 22, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   youLinkGlyph: { height: 26, justifyContent: 'center' },
@@ -1359,9 +1466,9 @@ const styles = themedStyles(() => ({
   youLinkDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.secondary },
   pursePatron: { width: 9, height: 9, borderRadius: 2, marginRight: 6, transform: [{ rotate: '45deg' }], backgroundColor: theme.colors.gold, borderWidth: 1.5, borderColor: theme.colors.goldRim },
   purseDot: { width: 7, height: 7, borderRadius: 4, marginLeft: 4, backgroundColor: theme.colors.secondary },
-  purse: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 4, paddingVertical: 3, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.goldRim, backgroundColor: theme.colors.surface },
+  purse: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 4, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.goldRim, backgroundColor: theme.colors.surface },
   purseCharm: {
-    paddingHorizontal: 5,
+    paddingHorizontal: 4,
     paddingVertical: 1,
     borderRadius: 6,
     overflow: 'hidden',
@@ -1374,7 +1481,7 @@ const styles = themedStyles(() => ({
   swapWrap: { alignSelf: 'center' },
   swapBeside: { justifyContent: 'center', alignSelf: 'stretch', gap: 4, paddingHorizontal: 12, borderRadius: 14 },
   // A key standing on its lip, like the cards: something to press.
-  swap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingTop: 4, paddingBottom: 3, borderRadius: theme.radii.pill, borderWidth: 1, borderBottomWidth: 3, borderColor: theme.colors.border, borderBottomColor: theme.colors.borderStrong, backgroundColor: theme.colors.surfaceHi },
+  swap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingTop: 4, paddingBottom: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderBottomWidth: 3, borderColor: theme.colors.border, borderBottomColor: theme.colors.borderStrong, backgroundColor: theme.colors.surfaceHi },
   swapText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   swapShort: { color: theme.colors.danger },
   rankRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md, marginTop: theme.spacing.sm },
@@ -1529,7 +1636,7 @@ const styles = themedStyles(() => ({
   grandCoinsText: {
     fontVariant: ['tabular-nums'],
     fontFamily: theme.typography.families.mono,
-    fontSize: theme.typography.sizes.body + 1,
+    fontSize: theme.typography.sizes.subtitle,
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
   },
@@ -1539,7 +1646,7 @@ const styles = themedStyles(() => ({
     marginTop: theme.spacing.xs,
   },
   grandPrize: { alignItems: 'center', gap: 2, width: 66 },
-  grandPrizeName: { marginTop: 4, maxWidth: 66, fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
+  grandPrizeName: { marginTop: 4, maxWidth: 66, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   grandPrizeNameAhead: { color: theme.colors.textTertiary },
   grandPrizeNext: { color: theme.colors.accentText, fontWeight: theme.typography.weights.bold },
   grandPlate: {
@@ -1579,9 +1686,9 @@ const styles = themedStyles(() => ({
   },
   /** Every card's header: small spaced capitals in the card's own colour,
    * the status opposite in the same hand - one header for all four. */
-  eyebrow: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.bold, letterSpacing: 1.3, textTransform: 'uppercase', color: theme.colors.secondary, flexShrink: 1 },
+  eyebrow: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, letterSpacing: 1.3, textTransform: 'uppercase', color: theme.colors.secondary, flexShrink: 1 },
   heroChip: { marginLeft: 8 },
-  eyebrowMuted: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.bold, letterSpacing: 1.3, textTransform: 'uppercase', color: theme.colors.textSecondary },
+  eyebrowMuted: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, letterSpacing: 1.3, textTransform: 'uppercase', color: theme.colors.textSecondary },
   heroTitle: {
     fontFamily: theme.typography.families.display,
     fontSize: theme.typography.sizes.display,
@@ -1629,10 +1736,10 @@ const styles = themedStyles(() => ({
   },
   /** Every game sits in the same ring; only the one up next shows it, in
    * its own colour - so the row never shifts as the set moves on. */
-  setRing: { padding: 3, borderRadius: 15, borderWidth: 2, borderColor: 'transparent' },
+  setRing: { padding: 4, borderRadius: 15, borderWidth: 2, borderColor: 'transparent' },
   setCheck: { position: 'absolute', right: -3, bottom: -3, width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: theme.colors.surface },
   setPath: { flexDirection: 'row', gap: 3, marginTop: 26, marginHorizontal: 4 },
-  setPathSmall: { marginTop: 21, marginHorizontal: 3 },
+  setPathSmall: { marginTop: 20, marginHorizontal: 4 },
   setRowNext: { marginTop: 6 },
   setPathDot: { width: 3, height: 3, borderRadius: 1.5, backgroundColor: theme.colors.borderStrong },
   setPathDotOn: { backgroundColor: theme.colors.textTertiary },
@@ -1687,15 +1794,15 @@ const styles = themedStyles(() => ({
   // and its play button) never gets pushed off the bottom.
   cardFoot: { flexDirection: 'row', justifyContent: 'center', alignItems: 'stretch', gap: 8, marginTop: theme.spacing.sm },
   nextWrap: { flex: 1 },
-  next: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: theme.colors.background },
+  next: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 10, paddingVertical: 8, borderRadius: 14, backgroundColor: theme.colors.background },
   nextEmblem: { opacity: 0.55 },
   nextBody: { flex: 1, gap: 4 },
   nextHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  nextTitle: { flex: 1, fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
-  nextCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
+  nextTitle: { flex: 1, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
+  nextCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   nextTrack: { height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: theme.colors.border },
   nextFill: { height: 4, borderRadius: 2 },
-  newChip: { marginLeft: 8, paddingHorizontal: 7, paddingVertical: 2, borderRadius: theme.radii.pill },
+  newChip: { marginLeft: 8, paddingHorizontal: 8, paddingVertical: 2, borderRadius: theme.radii.pill },
   newChipText: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 0.4, color: theme.colors.surfaceHi },
   setGolden: {
     position: 'absolute',
@@ -1741,10 +1848,10 @@ const styles = themedStyles(() => ({
     // Light in both schemes: the disc is the flowers' own tone, which by
     // night is a deep one.
     borderLeftColor: '#FFFBF3',
-    marginLeft: 5,
+    marginLeft: 4,
   },
 
-  badge: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.bold, letterSpacing: 1, textTransform: 'uppercase' },
+  badge: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, letterSpacing: 1, textTransform: 'uppercase' },
   badgeLive: { color: theme.colors.secondary },
   badgeDone: { color: theme.colors.textTertiary },
   dailyRow: {
@@ -1785,7 +1892,7 @@ const styles = themedStyles(() => ({
   figureStar: {
     color: theme.colors.accentText,
   },
-  figureLabel: { fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary, marginTop: 2 },
+  figureLabel: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary, marginTop: 2 },
 
   stage: {
     flex: 1,
@@ -1799,7 +1906,7 @@ const styles = themedStyles(() => ({
   },
   tabs: {
     flexDirection: 'row',
-    padding: 3,
+    padding: 4,
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surface,
     borderWidth: 1,
@@ -1816,8 +1923,8 @@ const styles = themedStyles(() => ({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    paddingHorizontal: 9,
-    paddingVertical: 3,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
     borderRadius: theme.radii.pill,
     borderWidth: 1,
     borderColor: theme.colors.border,

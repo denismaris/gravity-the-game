@@ -1,7 +1,8 @@
 import React, { useCallback, useRef, useState } from 'react';
 import { Icon } from './Icon';
-import { Modal, Pressable, Text, View } from 'react-native';
-import Reanimated, { Easing as ReEasing, SlideInDown } from 'react-native-reanimated';
+import { Modal, Pressable, View } from 'react-native';
+import { Text } from './Text';
+import Reanimated, { SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { coinVideosLeft, watchRewardedVideo } from '../ads';
 import { shade, triggerFeedback } from '../game/rendering';
@@ -12,9 +13,10 @@ import { CoinGlyph, useCoinPurchase } from './Coins';
 import { PressableScale } from './PressableScale';
 import { RaisedKey } from './RaisedKey';
 import { ROUND_KEY } from './RoundKey';
+import { curve } from '../theme/motion';
 
 /** The sheet rises from the foot of the screen as its backdrop fades in. */
-const SHEET_IN = SlideInDown.duration(320).easing(ReEasing.out(ReEasing.cubic));
+const SHEET_IN = SlideInDown.duration(320).easing(curve.arrive);
 
 /**
  * Insight, the superpower every game shares: one charge reveals the next
@@ -229,7 +231,7 @@ const styles = themedStyles(() => ({
   count: {
     minWidth: 20,
     height: 20,
-    paddingHorizontal: 5,
+    paddingHorizontal: 4,
     marginLeft: 2,
     borderRadius: 10,
     alignItems: 'center',
@@ -243,24 +245,24 @@ const styles = themedStyles(() => ({
   sheetMark: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceHi, borderWidth: 1.5, borderColor: theme.colors.goldRim, borderBottomWidth: 3, borderBottomColor: shade(theme.colors.goldRim, 0.68) },
   sheetHeadText: { flex: 1 },
   sheetTitle: { fontFamily: theme.typography.families.display, fontSize: 26, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  sheetBody: { marginTop: 2, fontSize: theme.typography.sizes.caption + 1, color: theme.colors.textSecondary },
+  sheetBody: { marginTop: 2, fontSize: theme.typography.sizes.body, color: theme.colors.textSecondary },
   offers: { alignSelf: 'stretch', gap: 10, marginTop: theme.spacing.lg },
   offerKey: { alignSelf: 'stretch' },
   offerRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  offerLabelInk: { fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
-  offerValueInk: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.body + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
+  offerLabelInk: { fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
+  offerValueInk: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
   offerLabel: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   offerPrice: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  offerValue: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  offerValue: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   purseLine: { alignSelf: 'flex-end', marginTop: 2, fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   leadWrap: { alignSelf: 'stretch', marginTop: theme.spacing.lg },
   leadGlyph: { fontSize: 13, color: theme.colors.surfaceHi },
-  leadText: { fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
+  leadText: { fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
   alts: { alignItems: 'center', gap: 12, marginTop: theme.spacing.md },
-  altText: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary, textDecorationLine: 'underline', textDecorationColor: theme.colors.borderStrong },
+  altText: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary, textDecorationLine: 'underline', textDecorationColor: theme.colors.borderStrong },
   altShort: { color: theme.colors.textTertiary },
   balance: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  balanceText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
+  balanceText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   layer: { flex: 1, justifyContent: 'flex-end' },
   scrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   scrimFill: { flex: 1, backgroundColor: theme.colors.overlay },
@@ -277,7 +279,7 @@ const styles = themedStyles(() => ({
   markInner: { width: 56, height: 56, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceHi, borderWidth: 1.5, borderColor: theme.colors.goldRim },
   markGlyph: { fontSize: 26, color: theme.colors.accent },
   title: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  body: { marginTop: 4, textAlign: 'center', fontSize: theme.typography.sizes.caption + 1, lineHeight: 20, color: theme.colors.textSecondary, paddingHorizontal: theme.spacing.md },
+  body: { marginTop: 4, textAlign: 'center', fontSize: theme.typography.sizes.body, lineHeight: 20, color: theme.colors.textSecondary, paddingHorizontal: theme.spacing.md },
   options: { flexDirection: 'row', gap: theme.spacing.sm, alignSelf: 'stretch', marginTop: theme.spacing.lg },
   optionWrap: { flex: 1 },
   option: {
@@ -294,7 +296,7 @@ const styles = themedStyles(() => ({
   optionIcon: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceAlt, marginBottom: theme.spacing.sm },
   optionIconLead: { backgroundColor: theme.colors.primary },
   playGlyph: { fontSize: 15, color: theme.colors.surfaceHi, marginLeft: 2 },
-  optionTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, textAlign: 'center' },
+  optionTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, textAlign: 'center' },
   optionSub: { marginTop: 2, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary, textAlign: 'center' },
   optionFree: { marginTop: 6, fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.2, color: theme.colors.accentText },
   missed: { marginTop: theme.spacing.sm, textAlign: 'center', fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
@@ -306,12 +308,12 @@ const styles = themedStyles(() => ({
   packSub: { marginTop: 1, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   packPriceShort: { opacity: 0.55 },
   packCostShort: { color: theme.colors.textSecondary },
-  packTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  packPrice: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 5, borderRadius: theme.radii.pill, backgroundColor: theme.colors.surfaceAlt },
+  packTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  packPrice: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radii.pill, backgroundColor: theme.colors.surfaceAlt },
   packCost: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   pressed: { opacity: 0.85 },
   notNow: { marginTop: theme.spacing.md, paddingVertical: 6 },
-  notNowText: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
+  notNowText: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
   buttonSpark: { fontSize: 14, color: theme.colors.accent },
   buttonText: { color: theme.colors.textPrimary, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold },
 }));

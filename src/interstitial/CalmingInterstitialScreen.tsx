@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useEquipped } from '../progression';
-import { AccessibilityActionEvent, Animated, Easing, Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityActionEvent, Animated, Platform, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Group, Rect, RoundedRect } from '@shopify/react-native-skia';
 import { ConfettiBurst, GeometricRule, PageBloom, PressableScale, directionForAccessibilityAction, useSwipeGesture } from '../components';
@@ -10,6 +11,7 @@ import { playHapticEvents, shade, stopHaptics, triggerFeedback, useReducedMotion
 import { theme, themedStyles, inkWash } from '../theme';
 import { BreatherIntro } from './BreatherIntro';
 import { MAZE_PAINTS, mazeColors } from './mazePalette';
+import { curve } from '../theme/motion';
 
 export interface CalmingInterstitialScreenProps {
   /** Called once, after the last maze is painted or the player skips - the
@@ -501,8 +503,8 @@ function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>;
     const depth = reducedMotion ? 1.008 : 1.03;
     breathingRef.current = Animated.loop(
       Animated.sequence([
-        Animated.timing(breathe, { toValue: depth, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(breathe, { toValue: 1, duration: 1100, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: depth, duration: 1100, easing: curve.breathe, useNativeDriver: true }),
+        Animated.timing(breathe, { toValue: 1, duration: 1100, easing: curve.breathe, useNativeDriver: true }),
       ]),
     );
     breathingRef.current.start();
@@ -523,14 +525,14 @@ function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>;
     if (reducedMotion) return;
     setImpactAt(prev => ({ x, y, dc, dr, n: (prev?.n ?? 0) + 1 }));
     impact.setValue(0);
-    Animated.timing(impact, { toValue: 1, duration: 460, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(impact, { toValue: 1, duration: 460, easing: curve.arrive, useNativeDriver: true }).start();
   };
 
   const squash = (alongX: boolean, depth: number): void => {
     Animated.sequence([
       Animated.parallel([
-        Animated.timing(alongX ? squashX : squashY, { toValue: 1 - depth, duration: 55, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(alongX ? squashY : squashX, { toValue: 1 + depth * 0.8, duration: 55, easing: Easing.out(Easing.quad), useNativeDriver: true }),
+        Animated.timing(alongX ? squashX : squashY, { toValue: 1 - depth, duration: 55, easing: curve.arrive, useNativeDriver: true }),
+        Animated.timing(alongX ? squashY : squashX, { toValue: 1 + depth * 0.8, duration: 55, easing: curve.arrive, useNativeDriver: true }),
       ]),
       Animated.parallel([
         Animated.spring(squashX, { toValue: 1, useNativeDriver: true, speed: 20, bounciness: 14 }),
@@ -559,18 +561,18 @@ function MazeBreak({ mazes, paints, onDone }: { mazes: ReadonlyArray<MazeShape>;
       return;
     }
     lift.setValue(1);
-    Animated.timing(lift, { toValue: 0, duration: 340, delay: 260, easing: Easing.in(Easing.quad), useNativeDriver: true }).start(() => {
+    Animated.timing(lift, { toValue: 0, duration: 340, delay: 260, easing: curve.leave, useNativeDriver: true }).start(() => {
       land();
       Animated.sequence([
-        Animated.timing(lift, { toValue: 0.1, duration: 100, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-        Animated.timing(lift, { toValue: 0, duration: 100, easing: Easing.in(Easing.quad), useNativeDriver: true }),
+        Animated.timing(lift, { toValue: 0.1, duration: 100, easing: curve.arrive, useNativeDriver: true }),
+        Animated.timing(lift, { toValue: 0, duration: 100, easing: curve.leave, useNativeDriver: true }),
       ]).start();
     });
   };
 
   const enterBoard = (): void => {
     boardIn.setValue(reducedMotion ? 1 : 0);
-    Animated.timing(boardIn, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(boardIn, { toValue: 1, duration: 420, easing: curve.arrive, useNativeDriver: true }).start();
   };
 
   useEffect(() => {

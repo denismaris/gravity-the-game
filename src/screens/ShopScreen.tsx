@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BackLabel } from '../components/Icon';
-import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
 import { GameEmblem } from '../components/GameEmblem';
@@ -68,6 +69,7 @@ import {
   restorePurchases,
 } from '../progression';
 import { getColorScheme, motion, theme, themedStyles } from '../theme';
+import { curve } from '../theme/motion';
 
 export interface ShopScreenProps {
   onExit: () => void;
@@ -99,7 +101,7 @@ function TabPane({ children }: { children: React.ReactNode }): React.JSX.Element
   const enter = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   useEffect(() => {
     if (reduced) return;
-    Animated.timing(enter, { toValue: 1, duration: 280, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(enter, { toValue: 1, duration: 280, easing: curve.arrive, useNativeDriver: true }).start();
   }, [enter, reduced]);
   return <Animated.View style={{ opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }] }}>{children}</Animated.View>;
 }
@@ -411,7 +413,7 @@ function Shimmer({ seed, strength }: { seed: string; strength: number }): React.
     if (reduced) return;
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(sweep, { toValue: 1, duration: 1500, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+        Animated.timing(sweep, { toValue: 1, duration: 1500, easing: curve.glide, useNativeDriver: true }),
         Animated.delay(3400),
         Animated.timing(sweep, { toValue: 0, duration: 0, useNativeDriver: true }),
       ]),
@@ -979,7 +981,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
   })();
   const mount = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(mount, { toValue: 1, duration: 560, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(mount, { toValue: 1, duration: 560, easing: curve.arrive, useNativeDriver: true }).start();
   }, [mount]);
   const rise = (from: number) => ({
     opacity: mount.interpolate({ inputRange: [from, Math.min(1, from + 0.4)], outputRange: [0, 1], extrapolate: 'clamp' }),
@@ -1392,7 +1394,7 @@ function ShopKey({ tone, wide = false, children }: { tone: ShopTone; wide?: bool
 
 const styles = themedStyles(() => ({
   adPlate: { width: 64, height: 64, borderRadius: 18, backgroundColor: theme.colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
-  noAds: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, borderWidth: 2, borderColor: theme.colors.textSecondary, alignItems: 'center', justifyContent: 'center' },
+  noAds: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7, borderWidth: 2, borderColor: theme.colors.textSecondary, alignItems: 'center', justifyContent: 'center' },
   noAdsText: { fontSize: 15, fontWeight: theme.typography.weights.bold, letterSpacing: 1, color: theme.colors.textSecondary },
   noAdsStrike: { position: 'absolute', width: 44, height: 2.5, borderRadius: 2, backgroundColor: theme.colors.danger, transform: [{ rotate: '-24deg' }] },
   adStatus: { marginTop: theme.spacing.md, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
@@ -1404,7 +1406,7 @@ const styles = themedStyles(() => ({
   adOptionPrice: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'],  fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   purse: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 4, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.goldRim, backgroundColor: theme.colors.surfaceHi },
   /** No "+" disc to sit beside: the balance alone, centred in the pill. */
-  purseBare: { paddingLeft: 10, paddingRight: 10, paddingVertical: 5 },
+  purseBare: { paddingLeft: 10, paddingRight: 10, paddingVertical: 4 },
   pursePlus: { width: 20, height: 20, borderRadius: 10, backgroundColor: theme.colors.goldFill, alignItems: 'center', justifyContent: 'center' },
   pursePlusText: { color: theme.colors.onGold, fontSize: 14, lineHeight: 16, fontWeight: theme.typography.weights.bold },
   tabsBar: { marginHorizontal: -theme.spacing.lg, paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.xs, paddingBottom: theme.spacing.md, backgroundColor: theme.colors.background },
@@ -1422,7 +1424,7 @@ const styles = themedStyles(() => ({
   wideTop: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   ribbonInline: { position: 'relative', top: 0, left: 0 },
   wideKind: { fontSize: 11.5, color: theme.colors.textTertiary, flexShrink: 1, fontWeight: theme.typography.weights.semibold },
-  wideName: { marginTop: 6, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  wideName: { marginTop: 6, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   wideBlurb: { marginTop: 2, fontSize: theme.typography.sizes.caption, lineHeight: 17, color: theme.colors.textSecondary },
   actionWideWrap: { alignSelf: 'stretch' },
   actionWide: { marginTop: theme.spacing.md, paddingVertical: 10 },
@@ -1432,8 +1434,8 @@ const styles = themedStyles(() => ({
   ledgerKicker: { fontSize: 11.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   ledgerCount: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   ledgerOf: { fontSize: theme.typography.sizes.body, color: theme.colors.textTertiary },
-  ledgerNote: { marginTop: theme.spacing.sm, fontSize: theme.typography.sizes.micro + 1, lineHeight: 15, color: theme.colors.textTertiary },
-  previewNote: { alignSelf: 'center', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: theme.colors.borderStrong, marginBottom: theme.spacing.md },
+  ledgerNote: { marginTop: theme.spacing.sm, fontSize: theme.typography.sizes.caption, lineHeight: 15, color: theme.colors.textTertiary },
+  previewNote: { alignSelf: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, borderWidth: 1, borderStyle: 'dashed', borderColor: theme.colors.borderStrong, marginBottom: theme.spacing.md },
   previewNoteText: { fontSize: 11.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   patron: {
     padding: theme.spacing.lg,
@@ -1457,7 +1459,7 @@ const styles = themedStyles(() => ({
   perkText: { flex: 1, fontSize: theme.typography.sizes.caption, color: theme.colors.textPrimary },
   patronButton: { marginTop: theme.spacing.lg, alignItems: 'center', paddingVertical: theme.spacing.md, borderRadius: theme.radii.pill, backgroundColor: theme.colors.primary },
   patronButtonText: { color: theme.colors.surfaceHi, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold },
-  packTag: { position: 'absolute', top: 10, alignSelf: 'center', paddingHorizontal: 7, paddingVertical: 2, borderRadius: 5, backgroundColor: theme.colors.goldFill, zIndex: 1 },
+  packTag: { position: 'absolute', top: 10, alignSelf: 'center', paddingHorizontal: 8, paddingVertical: 2, borderRadius: 5, backgroundColor: theme.colors.goldFill, zIndex: 1 },
   packTagText: { fontSize: 8, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold },
   packName: { fontSize: theme.typography.sizes.caption, color: theme.colors.secondary, fontWeight: theme.typography.weights.semibold },
   packCoins: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
@@ -1468,7 +1470,7 @@ const styles = themedStyles(() => ({
   restoreWrap: { alignSelf: 'center', marginTop: theme.spacing.xl },
   restore: { paddingHorizontal: theme.spacing.lg, paddingVertical: 10, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong },
   restoreText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
-  finePrint: { marginTop: theme.spacing.md, fontSize: theme.typography.sizes.micro + 0.5, lineHeight: 15, color: theme.colors.textTertiary, textAlign: 'center', paddingHorizontal: theme.spacing.md },
+  finePrint: { marginTop: theme.spacing.md, fontSize: theme.typography.sizes.caption, lineHeight: 15, color: theme.colors.textTertiary, textAlign: 'center', paddingHorizontal: theme.spacing.md },
   seasonScroll: { marginHorizontal: -theme.spacing.lg },
   seasonRow: { paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.sm, gap: theme.spacing.sm },
   seasonItem: { width: 164 },
@@ -1506,7 +1508,7 @@ const styles = themedStyles(() => ({
   pinnedText: { fontSize: 8, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold },
   shimmerClip: { ...StyleSheet.absoluteFill, borderRadius: 20, overflow: 'hidden' },
   shimmer: { position: 'absolute', top: -40, bottom: -40, width: 46, backgroundColor: theme.colors.sheen },
-  filter: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.border },
+  filter: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.border },
   filterOn: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
   filterText: { fontSize: 11.5, color: theme.colors.textSecondary, fontWeight: theme.typography.weights.semibold },
   filterTextOn: { color: theme.colors.surfaceHi, fontWeight: theme.typography.weights.bold },
@@ -1534,7 +1536,7 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.lg,
   },
   tabWrap: { flex: 1 },
-  tab: { paddingVertical: 9, borderRadius: theme.radii.pill, alignItems: 'center' },
+  tab: { paddingVertical: 8, borderRadius: theme.radii.pill, alignItems: 'center' },
   tabOn: {
     backgroundColor: theme.colors.textPrimary,
     shadowColor: theme.colors.shadow,
@@ -1556,7 +1558,7 @@ const styles = themedStyles(() => ({
     borderColor: 'transparent',
     backgroundColor: theme.colors.surface,
   },
-  pickName: { marginTop: 5, fontSize: 10.5, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  pickName: { marginTop: 4, fontSize: 10.5, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   pickNameOn: { color: theme.colors.textPrimary },
   pickCount: { marginTop: 1, fontFamily: theme.typography.families.mono, fontSize: 9, color: theme.colors.textTertiary },
   ribbon: {
@@ -1617,8 +1619,8 @@ const styles = themedStyles(() => ({
   actionLocked: { backgroundColor: theme.colors.surfaceAlt },
   actionLockedText: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   preview: { width: 96, height: 96, borderRadius: 18, backgroundColor: theme.colors.surfaceAlt, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.sm },
-  itemName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  itemBlurb: { marginTop: 2, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textSecondary, textAlign: 'center', minHeight: 30 },
+  itemName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  itemBlurb: { marginTop: 2, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary, textAlign: 'center', minHeight: 30 },
   action: { marginTop: theme.spacing.sm, minWidth: 96, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radii.pill },
   actionBox: { marginTop: theme.spacing.sm },
   actionKey: { minWidth: 96 },
@@ -1650,13 +1652,13 @@ const styles = themedStyles(() => ({
   charmPlate: { width: 64, height: 64, borderRadius: 18, backgroundColor: theme.colors.creamPlate, alignItems: 'center', justifyContent: 'center' },
   charmCount: { fontSize: theme.typography.sizes.caption, color: theme.colors.accentText, fontWeight: theme.typography.weights.semibold },
   games: { flexDirection: 'row', flexWrap: 'wrap', marginTop: theme.spacing.md },
-  gameCell: { width: '25%', padding: 3 },
+  gameCell: { width: '25%', padding: 4 },
   game: { alignItems: 'center', paddingVertical: 8, borderRadius: 14, borderWidth: 1.5, borderColor: 'transparent' },
   gameSelected: { borderColor: theme.colors.secondary, backgroundColor: 'rgba(196,108,51,0.08)' },
   gameRetired: { opacity: 0.3 },
   gameName: { marginTop: 4, fontSize: 10.5, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   gameNameRetired: { color: theme.colors.textTertiary, textDecorationLine: 'line-through' },
-  stamp: { position: 'absolute', top: 20, paddingHorizontal: 5, paddingVertical: 1, borderRadius: 4, borderWidth: 1.5, borderColor: theme.colors.danger, transform: [{ rotate: '-14deg' }], backgroundColor: 'rgba(255,253,248,0.9)' },
+  stamp: { position: 'absolute', top: 20, paddingHorizontal: 4, paddingVertical: 1, borderRadius: 4, borderWidth: 1.5, borderColor: theme.colors.danger, transform: [{ rotate: '-14deg' }], backgroundColor: 'rgba(255,253,248,0.9)' },
   stampText: { fontSize: 8, fontWeight: theme.typography.weights.bold, color: theme.colors.danger },
   retirePrompt: { position: 'absolute', left: theme.spacing.md, right: theme.spacing.md, bottom: 36, height: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: theme.colors.borderStrong },
   retirePromptText: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary, fontStyle: 'italic' },

@@ -1,10 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, Text, View } from 'react-native';
+import { Animated, View } from 'react-native';
+import { Text, MAX_TEXT_SCALE } from '../components/Text';
 import { Canvas, Circle, Group, Rect, RoundedRect } from '@shopify/react-native-skia';
 import { PressableScale } from '../components';
 import { shade, useReducedMotion } from '../game/rendering';
 import { theme, themedStyles, inkWash } from '../theme';
 import { mazeColors } from './mazePalette';
+import { curve } from '../theme/motion';
 
 export interface BreatherIntroProps {
   /** The paint colour the first maze will use, so the picture here
@@ -49,12 +51,12 @@ export function BreatherIntro({ paint, mazeCount, onBegin, onSkip }: BreatherInt
 
   useEffect(() => {
     if (!reducedMotion) {
-      Animated.timing(enter, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+      Animated.timing(enter, { toValue: 1, duration: 700, easing: curve.arrive, useNativeDriver: true }).start();
     }
     const loop = Animated.loop(
       Animated.sequence([
-        Animated.timing(breath, { toValue: 1, duration: BREATH_MS, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
-        Animated.timing(breath, { toValue: 0, duration: BREATH_MS, easing: Easing.inOut(Easing.sin), useNativeDriver: true }),
+        Animated.timing(breath, { toValue: 1, duration: BREATH_MS, easing: curve.breathe, useNativeDriver: true }),
+        Animated.timing(breath, { toValue: 0, duration: BREATH_MS, easing: curve.breathe, useNativeDriver: true }),
       ]),
     );
     loop.start();
@@ -75,8 +77,8 @@ export function BreatherIntro({ paint, mazeCount, onBegin, onSkip }: BreatherInt
 
   return (
     <View style={styles.container}>
-      <Animated.Text style={[styles.kicker, rise(0)]}>BATCH COMPLETE · A LITTLE PAUSE</Animated.Text>
-      <Animated.Text style={[styles.title, rise(0.1)]}>Take a breath</Animated.Text>
+      <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[styles.kicker, rise(0)]}>BATCH COMPLETE · A LITTLE PAUSE</Animated.Text>
+      <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[styles.title, rise(0.1)]}>Take a breath</Animated.Text>
 
       <Animated.View style={[styles.artSlot, rise(0.2)]}>
         <Animated.View style={[styles.breathRing, { opacity: ringOpacity, transform: [{ scale: ringScale }] }]} />
@@ -86,7 +88,7 @@ export function BreatherIntro({ paint, mazeCount, onBegin, onSkip }: BreatherInt
         </Animated.View>
       </Animated.View>
 
-      <Animated.Text style={[styles.breathCaption, rise(0.3)]}>{inhale ? 'Breathe in…' : 'Breathe out…'}</Animated.Text>
+      <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[styles.breathCaption, rise(0.3)]}>{inhale ? 'Breathe in…' : 'Breathe out…'}</Animated.Text>
 
       <Animated.View style={[styles.copy, rise(0.4)]}>
         <Text style={styles.body}>

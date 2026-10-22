@@ -198,7 +198,7 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
           cutOff={lonely}
           stranded={stranded}
           onHop={onHop}
-          onRefused={() => triggerFeedback('bridgesBlocked')}
+          onRefused={() => triggerFeedback('refuse')}
           glow={glow}
           trail={[...history.map(h => h.at), state.at]}
         />

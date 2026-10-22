@@ -1,6 +1,6 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef } from 'react';
 import { Group, Path, RoundedRect, vec } from '@shopify/react-native-skia';
-import { SharedValue, useDerivedValue, useSharedValue } from 'react-native-reanimated';
+import { Easing, SharedValue, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { MosaicCell, MosaicPuzzle, MosaicState, MosaicTheme, orient } from '../game/mosaic';
 import { DealClock, DealIn, dealDelay, shade, useAnimationClock, useDealing, useReducedMotion } from '../game/rendering';
 import { darkColors, getColorScheme, inkWash, lightColors, theme } from '../theme';
@@ -340,55 +340,35 @@ export function MosaicBoardView({ puzzle, state, geometry, hiddenIndex = null, g
   const span = puzzle.rows + puzzle.cols;
   const waving = !reducedMotion && solvedAtRef.current !== null && now - solvedAtRef.current < WAVE_MS + WAVE_TILE_MS;
   const glinting = !reducedMotion && landed !== null && now - landed.at < LANDED_MS;
-  useAnimationClock(waving || glinting, 60);
+  useAnimationClock(waving, 60);
+  // The landed piece plays on the UI thread; this only re-renders once it
+  // is over, to hand the piece back to the board.
+  const [, settle] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (!glinting || !landed) return;
+    const timer = setTimeout(settle, LANDED_MS - (Date.now() - landed.at) + 20);
+    return () => clearTimeout(timer);
+  }, [glinting, landed]);
 
-  // The piece just set presses home: it arrives a touch proud of the
-  // board, sinks a hair past flush into its sockets, and settles - a tile
-  // pressed into wet grout, not a sticker appearing.
   const pressing = useMemo(() => {
-    if (!glinting || !landed || reducedMotion) return null;
-    const piece = state.pieces[landed.index];
-    if (!piece?.at) return null;
-    const cells = orient(puzzle.pieces[landed.index].cells, piece).map(c => ({ row: c.row + piece.at!.row, col: c.col + piece.at!.col }));
-    const cx = ((Math.min(...cells.map(c => c.col)) + Math.max(...cells.map(c => c.col)) + 1) / 2) * cellSize;
-    const cy = ((Math.min(...cells.map(c => c.row)) + Math.max(...cells.map(c => c.row)) + 1) / 2) * cellSize;
-    const t = Math.min(1, (now - landed.at) / LANDED_MS);
-    const scale = t < 0.45 ? 1.06 - 0.09 * Math.sin(((t / 0.45) * Math.PI) / 2) : 0.97 + 0.03 * Math.sin((((t - 0.45) / 0.55) * Math.PI) / 2);
-    return { index: landed.index, cells, color: pieceColor(puzzle, landed.index), cx, cy, scale };
-    // `now` drives it frame by frame while it plays.
-  }, [glinting, landed, now, state, puzzle, cellSize, reducedMotion]);
-
-  // A band of light crossing the piece that has just been set, left to
-  // right - the glaze catching the light as it presses into the grout.
-  const glint = useMemo(() => {
     if (!glinting || !landed) return null;
     const piece = state.pieces[landed.index];
     if (!piece?.at) return null;
     const cells = orient(puzzle.pieces[landed.index].cells, piece).map(c => ({ row: c.row + piece.at!.row, col: c.col + piece.at!.col }));
-    const minCol = Math.min(...cells.map(c => c.col));
-    const width = Math.max(...cells.map(c => c.col)) - minCol + 1;
-    const t = (now - landed.at) / LANDED_MS;
-    const gapPx = cellSize * GROUT_GAP;
-    return cells.map(c => {
-      // Each column lights as the band passes it.
-      const local = t * (width + 1) - (c.col - minCol);
-      const light = local > 0 && local < 1.4 ? Math.sin((local / 1.4) * Math.PI) : 0;
-      if (light <= 0.01) return null;
-      return (
-        <RoundedRect
-          key={`gl-${c.row}-${c.col}`}
-          x={c.col * cellSize + gapPx}
-          y={c.row * cellSize + gapPx}
-          width={cellSize - gapPx * 2}
-          height={cellSize - gapPx * 2}
-          r={cellSize * 0.16}
-          color="#FFFFFF"
-          opacity={0.42 * light}
-        />
-      );
-    });
-    // `now` drives the glint frame by frame while it plays.
-  }, [glinting, landed, now, state, puzzle, cellSize]);
+    const cols = cells.map(c => c.col);
+    const rows = cells.map(c => c.row);
+    const minCol = Math.min(...cols);
+    return {
+      index: landed.index,
+      at: landed.at,
+      cells,
+      color: pieceColor(puzzle, landed.index),
+      cx: ((minCol + Math.max(...cols) + 1) / 2) * cellSize,
+      cy: ((Math.min(...rows) + Math.max(...rows) + 1) / 2) * cellSize,
+      minCol,
+      width: Math.max(...cols) - minCol + 1,
+    };
+  }, [glinting, landed, state, puzzle, cellSize]);
 
   const sheen = useMemo(() => {
     if (!waving) return null;
@@ -447,11 +427,7 @@ export function MosaicBoardView({ puzzle, state, geometry, hiddenIndex = null, g
       <Placed puzzle={puzzle} state={state} geometry={geometry} hiddenIndex={pressing ? pressing.index : hiddenIndex} dealing={dealing} />
       {pressing && (
         <Group transform={[{ translateX: pad }, { translateY: pad }]}>
-          <Group origin={vec(pressing.cx, pressing.cy)} transform={[{ scale: pressing.scale }]}>
-            {(['shadow', 'sides', 'tops'] as const).map(part => (
-              <Tesserae key={part} cells={pressing.cells} color={pressing.color} cellSize={cellSize} seed={pressing.index} shadow set={false} part={part} />
-            ))}
-          </Group>
+          <LandedPiece key={pressing.at} landed={pressing} cellSize={cellSize} />
         </Group>
       )}
       {flashCells && (
@@ -471,8 +447,62 @@ export function MosaicBoardView({ puzzle, state, geometry, hiddenIndex = null, g
           ))}
         </Group>
       )}
-      {glint && <Group transform={[{ translateX: pad }, { translateY: pad }]}>{glint}</Group>}
       {sheen && <Group transform={[{ translateX: pad }, { translateY: pad }]}>{sheen}</Group>}
     </Group>
   );
+}
+
+interface Landing {
+  readonly index: number;
+  readonly at: number;
+  readonly cells: ReadonlyArray<MosaicCell>;
+  readonly color: string;
+  readonly cx: number;
+  readonly cy: number;
+  readonly minCol: number;
+  readonly width: number;
+}
+
+/**
+ * The piece just set presses home: it arrives a touch proud of the board,
+ * sinks a hair past flush into its sockets, and settles - a tile pressed
+ * into wet grout, not a sticker appearing - while a band of light crosses
+ * it left to right. One clock on the UI thread, from 0 to 1.
+ */
+function LandedPiece({ landed, cellSize }: { landed: Landing; cellSize: number }): React.JSX.Element {
+  // Starts at the landing's own age, so a board mounted mid-press shows
+  // that moment.
+  const clock = useSharedValue(Math.min(1, Math.max(0, (Date.now() - landed.at) / LANDED_MS)));
+  useEffect(() => {
+    clock.value = withTiming(1, { duration: (1 - clock.value) * LANDED_MS, easing: Easing.linear });
+    // Once: this piece is keyed by its landing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const press = useDerivedValue(() => {
+    const t = clock.value;
+    const scale = t < 0.45 ? 1.06 - 0.09 * Math.sin(((t / 0.45) * Math.PI) / 2) : 0.97 + 0.03 * Math.sin((((t - 0.45) / 0.55) * Math.PI) / 2);
+    return [{ scale }];
+  });
+  return (
+    <Group>
+      <Group origin={vec(landed.cx, landed.cy)} transform={press}>
+        {(['shadow', 'sides', 'tops'] as const).map(part => (
+          <Tesserae key={part} cells={landed.cells} color={landed.color} cellSize={cellSize} seed={landed.index} shadow set={false} part={part} />
+        ))}
+      </Group>
+      {landed.cells.map(c => (
+        <GlintCell key={`gl-${c.row}-${c.col}`} cell={c} column={c.col - landed.minCol} width={landed.width} cellSize={cellSize} clock={clock} />
+      ))}
+    </Group>
+  );
+}
+
+/** One square of the glint: lit as the band passes its column. */
+function GlintCell({ cell, column, width, cellSize, clock }: { cell: MosaicCell; column: number; width: number; cellSize: number; clock: SharedValue<number> }): React.JSX.Element {
+  const gapPx = cellSize * GROUT_GAP;
+  const opacity = useDerivedValue(() => {
+    const local = clock.value * (width + 1) - column;
+    return local > 0 && local < 1.4 ? 0.42 * Math.sin((local / 1.4) * Math.PI) : 0;
+  });
+  return <RoundedRect x={cell.col * cellSize + gapPx} y={cell.row * cellSize + gapPx} width={cellSize - gapPx * 2} height={cellSize - gapPx * 2} r={cellSize * 0.16} color="#FFFFFF" opacity={opacity} />;
 }

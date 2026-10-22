@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { BackLabel } from '../components/Icon';
-import { Animated, Easing, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ConfettiBurst, PressableScale } from '../components';
 import { CoinBalance, CoinGlyph } from '../components/Coins';
@@ -28,6 +29,7 @@ import {
 } from '../progression';
 import { rankReward, rankThreshold } from '../progression/rank';
 import { motion, theme, themedStyles } from '../theme';
+import { curve } from '../theme/motion';
 
 export interface JourneyScreenProps {
   onExit: () => void;
@@ -104,7 +106,7 @@ export function JourneyScreen({ onExit, onOpenShop }: JourneyScreenProps): React
   const [burst, setBurst] = useState(0);
   const mount = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(mount, { toValue: 1, duration: 620, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(mount, { toValue: 1, duration: 620, easing: curve.arrive, useNativeDriver: true }).start();
   }, [mount]);
   const rise = (from: number) => ({
     opacity: mount.interpolate({ inputRange: [from, Math.min(1, from + 0.4)], outputRange: [0, 1], extrapolate: 'clamp' }),
@@ -257,17 +259,17 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.xl,
   },
   heroKicker: { marginTop: theme.spacing.sm, fontSize: theme.typography.sizes.caption, color: theme.colors.secondary, fontWeight: theme.typography.weights.semibold },
-  heroTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.headline + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  heroTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.headline, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   heroBar: { marginTop: theme.spacing.md },
   heroNext: { marginTop: 6, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary, fontWeight: theme.typography.weights.semibold },
   earnTable: { flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'stretch', marginTop: theme.spacing.lg, paddingTop: theme.spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, rowGap: theme.spacing.sm },
   earnCell: { width: '50%', alignItems: 'center' },
   earnValue: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  earnLabel: { fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
+  earnLabel: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   sectionTitle: { fontSize: theme.typography.sizes.caption, color: theme.colors.secondary, marginBottom: theme.spacing.sm, fontWeight: theme.typography.weights.semibold },
   current: { padding: theme.spacing.lg, borderRadius: 22, backgroundColor: theme.colors.surfaceHi, borderWidth: 1.5, borderColor: theme.colors.accent, marginBottom: theme.spacing.xl },
   currentKicker: { fontSize: theme.typography.sizes.caption, color: theme.colors.accentText, fontWeight: theme.typography.weights.semibold },
-  currentName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  currentName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   ticks: { flexDirection: 'row', gap: 4, marginTop: theme.spacing.md },
   tick: { flex: 1, height: 26, borderRadius: 6, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center' },
   tickDone: { backgroundColor: theme.colors.primary, borderColor: theme.colors.primary },
@@ -289,7 +291,7 @@ const styles = themedStyles(() => ({
   numeralText: { fontFamily: theme.typography.families.display, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi, fontSize: 14 },
   numeralTextDone: { color: theme.colors.textSecondary },
   chapterBody: { flex: 1 },
-  chapterName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  chapterName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   chapterMeta: { fontSize: 11.5, color: theme.colors.textTertiary, marginTop: 2, fontWeight: theme.typography.weights.semibold },
   claimedText: { fontSize: theme.typography.sizes.caption, color: theme.colors.success, fontWeight: theme.typography.weights.semibold },
   claim: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 12, paddingVertical: 8, borderRadius: theme.radii.pill, backgroundColor: theme.colors.primary },
@@ -298,7 +300,7 @@ const styles = themedStyles(() => ({
   rungCurrent: { backgroundColor: theme.colors.surfaceHi, borderWidth: 1.5, borderColor: theme.colors.accent },
   rungAhead: { opacity: 0.5 },
   rungBody: { flex: 1 },
-  rungTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  rungTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   rungMeta: { fontSize: 11.5, color: theme.colors.textTertiary, marginTop: 2, fontWeight: theme.typography.weights.semibold },
   rungTick: { color: theme.colors.success, fontSize: 16, fontWeight: theme.typography.weights.bold },
   shopButton: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: theme.spacing.md, borderRadius: theme.radii.pill, backgroundColor: theme.colors.primary },
@@ -310,7 +312,7 @@ const styles = themedStyles(() => ({
     alignItems: 'center',
     gap: 4,
     paddingHorizontal: 8,
-    paddingVertical: 3,
+    paddingVertical: 4,
     borderRadius: theme.radii.pill,
     backgroundColor: theme.colors.surfaceHi,
     borderWidth: 1,

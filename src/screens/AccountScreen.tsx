@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { BackLabel } from '../components/Icon';
-import { ActivityIndicator, Animated, Easing, Platform, ScrollView, Text, View } from 'react-native';
+import { ActivityIndicator, Animated, Platform, ScrollView, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Group, Path } from '@shopify/react-native-skia';
 import { PressableScale } from '../components';
@@ -13,6 +14,7 @@ import { triggerFeedback, useReducedMotion } from '../game/rendering';
 import { usePlayerProgress } from '../progression';
 import { useAppearance, useSettings } from '../settings';
 import { theme, themedStyles } from '../theme';
+import { curve } from '../theme/motion';
 
 export interface AccountScreenProps {
   onExit: () => void;
@@ -108,7 +110,7 @@ export function AccountScreen({ onExit }: AccountScreenProps): React.JSX.Element
   const enter = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   useEffect(() => {
     if (reduced) return;
-    Animated.timing(enter, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(enter, { toValue: 1, duration: 420, easing: curve.arrive, useNativeDriver: true }).start();
   }, [enter, reduced]);
   const rise = (from: number) => ({
     opacity: enter.interpolate({ inputRange: [from, Math.min(1, from + 0.5)], outputRange: [0, 1], extrapolate: 'clamp' }),
@@ -413,7 +415,7 @@ const styles = themedStyles(() => ({
   providerText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   panel: { marginTop: theme.spacing.xl, padding: theme.spacing.md, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
   panelRow: { flexDirection: 'row', gap: 12 },
-  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 5, backgroundColor: theme.colors.success },
+  dot: { width: 10, height: 10, borderRadius: 5, marginTop: 4, backgroundColor: theme.colors.success },
   panelTitle: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   panelText: { marginTop: 2, fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textSecondary },
   secondary: { marginTop: theme.spacing.lg, height: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 25, borderWidth: 1, borderColor: theme.colors.borderStrong },
@@ -423,13 +425,13 @@ const styles = themedStyles(() => ({
   offerYes: { height: 44, alignItems: 'center', justifyContent: 'center', borderRadius: 22, paddingHorizontal: theme.spacing.sm, backgroundColor: theme.colors.primary },
   offerYesText: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.surfaceHi },
   message: { marginTop: theme.spacing.lg, padding: theme.spacing.md, borderRadius: 16, backgroundColor: theme.colors.surfaceAlt },
-  detailText: { marginTop: 6, fontSize: theme.typography.sizes.micro + 1, lineHeight: 15, color: theme.colors.textTertiary, textAlign: 'center' },
+  detailText: { marginTop: 6, fontSize: theme.typography.sizes.caption, lineHeight: 15, color: theme.colors.textTertiary, textAlign: 'center' },
   messageText: { fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textPrimary, textAlign: 'center' },
   dangerZone: { marginTop: theme.spacing.xxl, alignItems: 'center' },
   deleteLink: { padding: 4 },
   deleteText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.danger },
   confirm: { alignSelf: 'stretch', padding: theme.spacing.md, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.danger, backgroundColor: theme.colors.surface },
-  confirmTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  confirmTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   confirmActions: { flexDirection: 'row', gap: theme.spacing.sm, marginTop: theme.spacing.md },
   confirmButton: { marginTop: 0 },
   danger: { height: 50, alignItems: 'center', justifyContent: 'center', borderRadius: 25, backgroundColor: theme.colors.danger },

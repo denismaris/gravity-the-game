@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useEquipped } from '../progression/PlayerProgressProvider';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 import { Canvas, Circle, Group, Path, Rect } from '@shopify/react-native-skia';
 import { shade, useReducedMotion } from '../game/rendering';
 import { theme, themedStyles, nightTone } from '../theme';
+import { curve } from '../theme/motion';
 
 export interface CardRect {
   readonly x: number;
@@ -195,7 +196,7 @@ function Swaying({
     // Out to one side, back through rest to the other, and home - a sine
     // ease on each leg, so it never visibly stops at the ends.
     const quarter = periodMs / 4;
-    const ease = Easing.inOut(Easing.sin);
+    const ease = curve.breathe;
     const loop = Animated.loop(
       Animated.sequence([
         Animated.timing(sway, { toValue: 1, duration: quarter, easing: ease, useNativeDriver: true }),

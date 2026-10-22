@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { RoundKey } from './RoundKey';
-import { Animated, Text, View } from 'react-native';
+import { Animated, View } from 'react-native';
+import { Text } from './Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';

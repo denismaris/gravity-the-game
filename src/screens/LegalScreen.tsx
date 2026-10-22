@@ -1,6 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { BackLabel } from '../components/Icon';
-import { FlatList, ScrollView, Text, View } from 'react-native';
+import { FlatList, ScrollView, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '../components';
 import { LegalDocument, privacyPolicy, termsOfUse } from '../legal/documents';
@@ -118,15 +119,15 @@ const styles = themedStyles(() => ({
   headerCenter: { flex: 1, alignItems: 'center' },
   title: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   content: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm },
-  docTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 4, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  docTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.headline, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   lede: { marginTop: theme.spacing.sm, marginBottom: theme.spacing.md, fontSize: theme.typography.sizes.body, lineHeight: 22, color: theme.colors.textSecondary },
   section: { marginTop: theme.spacing.lg },
-  heading: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  heading: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   paragraph: { marginTop: theme.spacing.sm, fontSize: theme.typography.sizes.body, lineHeight: 22, color: theme.colors.textPrimary },
   licence: { paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   licenceRow: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
   licenceName: { flex: 1, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   licenceVersion: { fontWeight: theme.typography.weights.regular, color: theme.colors.textTertiary },
   licenceKind: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
-  licenceText: { marginTop: theme.spacing.sm, fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro + 1, lineHeight: 16, color: theme.colors.textSecondary },
+  licenceText: { marginTop: theme.spacing.sm, fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.caption, lineHeight: 16, color: theme.colors.textSecondary },
 }));

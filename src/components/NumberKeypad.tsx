@@ -1,5 +1,6 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from './Text';
 import { PressableScale } from './PressableScale';
 import { theme, themedStyles } from '../theme';
 

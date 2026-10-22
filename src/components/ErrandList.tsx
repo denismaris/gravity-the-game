@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { Canvas, Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
 import { dailyKeyOf, nextDayStart } from '../game/journey';
 import { shade, triggerFeedback } from '../game/rendering';
@@ -10,6 +11,7 @@ import { GameEmblem } from './GameEmblem';
 import { Icon } from './Icon';
 import { PressableScale, sunkKey } from './PressableScale';
 import { XpBar } from './XpBar';
+import { curve } from '../theme/motion';
 
 /** Hours and minutes until today's errands turn over (local midnight, the
  * same clock the Daily runs on). */
@@ -115,7 +117,7 @@ function ErrandRow({ errand, done, progress, claimed, onClaim, compact, dense }:
   const claim = () => {
     triggerFeedback('coin');
     float.setValue(0);
-    Animated.timing(float, { toValue: 1, duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(float, { toValue: 1, duration: 900, easing: curve.arrive, useNativeDriver: true }).start();
     onClaim();
   };
   const shown = Math.min(progress, errand.target);
@@ -279,14 +281,14 @@ const styles = themedStyles(() => ({
   pips: { flexDirection: 'row', gap: 3 },
   pip: { width: 12, height: 4, borderRadius: 2, backgroundColor: theme.colors.border },
   pipOn: { backgroundColor: theme.colors.success },
-  headClock: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
-  rowCompact: { paddingVertical: 9, paddingHorizontal: 0, borderRadius: 0, borderWidth: 0, backgroundColor: 'transparent' },
+  headClock: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
+  rowCompact: { paddingVertical: 8, paddingHorizontal: 0, borderRadius: 0, borderWidth: 0, backgroundColor: 'transparent' },
   divider: { height: StyleSheet.hairlineWidth, backgroundColor: theme.colors.borderStrong, opacity: 0.6, marginLeft: MARK.compact + theme.spacing.sm + 2 },
   rowDense: { paddingVertical: 4 },
   listDense: { gap: 0 },
   rowBodyCompact: { gap: 6 },
   rowBodyDense: { gap: 0 },
-  titleCompact: { fontSize: theme.typography.sizes.caption + 1 },
+  titleCompact: { fontSize: theme.typography.sizes.body },
   rowClaimed: { backgroundColor: theme.colors.surface, opacity: 0.72 },
   claimedFade: { opacity: 0.5 },
   mark: {
@@ -325,9 +327,9 @@ const styles = themedStyles(() => ({
     gap: 4,
     minWidth: 52,
     justifyContent: 'center',
-    paddingHorizontal: 9,
+    paddingHorizontal: 8,
     paddingTop: 4,
-    paddingBottom: 3,
+    paddingBottom: 4,
     borderRadius: theme.radii.pill,
     borderWidth: 1,
     borderBottomWidth: 3,
@@ -339,13 +341,13 @@ const styles = themedStyles(() => ({
   rewardText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, color: theme.colors.textSecondary },
   claim: {
     gap: 3,
-    paddingHorizontal: 9,
+    paddingHorizontal: 8,
     backgroundColor: theme.colors.primary,
     borderColor: theme.colors.primary,
     borderBottomColor: shade(theme.colors.primary, 0.6),
   },
   claimText: { color: theme.colors.surfaceHi, fontWeight: theme.typography.weights.bold, fontSize: theme.typography.sizes.caption },
-  doneStand: { width: 26, height: 26 + DONE_LIP, marginHorizontal: 13 },
+  doneStand: { width: 26, height: 26 + DONE_LIP, marginHorizontal: 12 },
   doneTick: {
     position: 'absolute',
     top: 0,

@@ -1,7 +1,8 @@
 import React, { useMemo } from 'react';
 import { BackLabel } from '../components/Icon';
-import { ScrollView, Text, View, useWindowDimensions } from 'react-native';
-import Animated, { Easing, FadeInDown } from 'react-native-reanimated';
+import { ScrollView, View, useWindowDimensions } from 'react-native';
+import { Text } from '../components/Text';
+import Animated, { FadeInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '../components';
 import { GameEmblem } from '../components/GameEmblem';
@@ -10,6 +11,7 @@ import { LESSON_GUIDES } from '../components/lessons/guides';
 import { accentColorForKind, gameDisplayName, GameKind } from '../game/journey';
 import { INTRO_ORDER, ledgerOf, nextGameToArrive, unlockedGames, usePlayerProgress } from '../progression';
 import { theme, themedStyles } from '../theme';
+import { curve } from '../theme/motion';
 
 export interface CollectionScreenProps {
   onExit: () => void;
@@ -46,7 +48,7 @@ export function CollectionScreen({ onExit, onReplayLesson }: CollectionScreenPro
       </View>
 
       <ScrollView contentContainerStyle={[styles.content, { paddingBottom: insets.bottom + theme.spacing.xxl }]}>
-        <Animated.View entering={FadeInDown.duration(420).easing(Easing.out(Easing.cubic))} style={styles.hero}>
+        <Animated.View entering={FadeInDown.duration(420).easing(curve.arrive)} style={styles.hero}>
           <Text style={styles.count}>
             {roster.length}
             <Text style={styles.countOf}>{` of ${INTRO_ORDER.length}`}</Text>
@@ -67,7 +69,7 @@ export function CollectionScreen({ onExit, onReplayLesson }: CollectionScreenPro
             return (
               <Animated.View
                 key={kind}
-                entering={FadeInDown.duration(380).delay(120 + i * 35).easing(Easing.out(Easing.cubic))}
+                entering={FadeInDown.duration(380).delay(120 + i * 35).easing(curve.arrive)}
                 style={[styles.card, { width: cardWidth }, have && { borderColor: accentColorForKind(kind) }, !have && styles.cardLocked]}
               >
                 <View style={!have && styles.dim}>
@@ -115,14 +117,14 @@ const styles = themedStyles(() => ({
   hero: { padding: theme.spacing.md, borderRadius: 24, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
   count: { fontFamily: theme.typography.families.display, fontSize: 44, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   countOf: { fontSize: theme.typography.sizes.title, color: theme.colors.textTertiary },
-  countLabel: { marginTop: 2, fontSize: theme.typography.sizes.caption + 1, lineHeight: 19, color: theme.colors.textSecondary },
+  countLabel: { marginTop: 2, fontSize: theme.typography.sizes.body, lineHeight: 19, color: theme.colors.textSecondary },
   track: { flexDirection: 'row', gap: 4, marginTop: theme.spacing.md },
   trackCell: { flex: 1, height: 6, borderRadius: 3, backgroundColor: theme.colors.border },
   grid: { flexDirection: 'row', flexWrap: 'wrap', gap: theme.spacing.sm, marginTop: theme.spacing.md },
   card: { padding: 14, borderRadius: 20, borderWidth: 1, borderColor: theme.colors.border, backgroundColor: theme.colors.surface, gap: 6 },
   cardLocked: { backgroundColor: theme.colors.background },
   dim: { opacity: 0.28 },
-  name: { marginTop: 4, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  name: { marginTop: 4, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   nameLocked: { color: theme.colors.textTertiary },
   stat: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   next: { color: theme.colors.accentText, fontWeight: theme.typography.weights.semibold },

@@ -1,5 +1,6 @@
 import React, { useContext, useRef } from 'react';
-import { StyleProp, Text, View, ViewStyle } from 'react-native';
+import { StyleProp, View, ViewStyle } from 'react-native';
+import { Text } from './Text';
 import { useCurrentBatch } from '../progression/PlayerProgressProvider';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { theme, themedStyles } from '../theme';

@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BackLabel } from '../components/Icon';
-import { Animated, Easing, ScrollView, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, ScrollView, View, useWindowDimensions } from 'react-native';
+import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, RoundedRect } from '@shopify/react-native-skia';
 import { ConfettiBurst, PressableScale } from '../components';
@@ -13,6 +14,7 @@ import { triggerFeedback } from '../game/rendering';
 import { AptitudeChart } from '../components/AptitudeChart';
 import { GameLedger, computeAptitude, STAMP_COINS, STAMP_NAMES, STAMP_STEPS, Stamp, cosmeticsFor, ledgerOf, owns, skinSlot, stampsOf, usePlayerProgress } from '../progression';
 import { theme, themedStyles } from '../theme';
+import { curve } from '../theme/motion';
 
 export interface LedgerScreenProps {
   onExit: () => void;
@@ -136,7 +138,7 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
 
   const mount = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(mount, { toValue: 1, duration: 520, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(mount, { toValue: 1, duration: 520, easing: curve.arrive, useNativeDriver: true }).start();
   }, [mount]);
 
   const totals = useMemo(() => {
@@ -289,7 +291,7 @@ const styles = themedStyles(() => ({
   figures: { flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.md },
   figure: { flex: 1, alignItems: 'center' },
   figureRule: { width: 1, alignSelf: 'stretch', backgroundColor: theme.colors.border },
-  figureValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 4, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  figureValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.headline, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   figureOf: { fontSize: theme.typography.sizes.body, color: theme.colors.textTertiary },
   figureLabel: { fontSize: 11.5, color: theme.colors.textTertiary, marginTop: 2, fontWeight: theme.typography.weights.semibold },
   iqHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
@@ -297,7 +299,7 @@ const styles = themedStyles(() => ({
   iqNumber: { fontFamily: theme.typography.families.display, fontSize: 56, lineHeight: 62, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   iqPending: { fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   iqChart: { alignItems: 'center', marginVertical: theme.spacing.md },
-  iqFigureValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  iqFigureValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   sectionLabel: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary, marginBottom: theme.spacing.sm, fontWeight: theme.typography.weights.semibold },
   albumHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   sectionTitle: { fontSize: theme.typography.sizes.caption, color: theme.colors.secondary, marginBottom: theme.spacing.sm, fontWeight: theme.typography.weights.semibold },
@@ -319,12 +321,12 @@ const styles = themedStyles(() => ({
   pageTitleBox: { flex: 1 },
   pageTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   pageSwatch: { width: 10, height: 10, borderRadius: 3 },
-  pageTitle: { flexShrink: 1, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  collector: { fontSize: 8.5, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold, backgroundColor: theme.colors.goldFill, borderRadius: 4, paddingHorizontal: 5, paddingVertical: 1, overflow: 'hidden' },
+  pageTitle: { flexShrink: 1, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  collector: { fontSize: 8.5, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold, backgroundColor: theme.colors.goldFill, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
   retired: { fontSize: 8.5, color: theme.colors.textTertiary, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, fontWeight: theme.typography.weights.semibold },
   pageStats: { marginTop: 4, fontSize: 11.5, color: theme.colors.textSecondary, fontWeight: theme.typography.weights.semibold },
   pageCount: { alignItems: 'flex-end' },
-  pageCountValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 2, lineHeight: theme.typography.sizes.title + 6, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  pageCountValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, lineHeight: theme.typography.sizes.headline, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   pageCountLabel: { fontSize: 8.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   pageFoot: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
   /** The footer's words in a fixed width, so the track beside them stays

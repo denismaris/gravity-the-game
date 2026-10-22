@@ -1,6 +1,7 @@
 /* eslint-disable react-native/no-inline-styles -- cell geometry is derived from `size` at render time */
 import React, { useMemo, useRef } from 'react';
-import { GestureResponderEvent, PanResponder, StyleSheet, Text, View } from 'react-native';
+import { GestureResponderEvent, PanResponder, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { Canvas } from '@shopify/react-native-skia';
 import {
   ArukoneCell,

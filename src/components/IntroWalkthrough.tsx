@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Text } from './Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Group, Path, RoundedRect } from '@shopify/react-native-skia';
 import { accentColorForKind, GameKind, ROTATION } from '../game/journey';
@@ -7,6 +8,7 @@ import { triggerFeedback } from '../game/rendering';
 import { theme, themedStyles } from '../theme';
 import { GameEmblemGlyph } from './GameEmblem';
 import { PressableScale } from './PressableScale';
+import { curve } from '../theme/motion';
 
 /** The coin, as Skia content - the same strike as `CoinGlyph`. */
 function CoinMark({ x, y, size }: { x: number; y: number; size: number }): React.JSX.Element {
@@ -162,14 +164,14 @@ export function IntroWalkthrough({ onDone }: IntroWalkthroughProps): React.JSX.E
   const leaving = useRef(false);
 
   useEffect(() => {
-    Animated.timing(appear, { toValue: 1, duration: 420, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(appear, { toValue: 1, duration: 420, easing: curve.arrive, useNativeDriver: true }).start();
   }, [appear]);
 
   const finish = () => {
     if (leaving.current) return;
     leaving.current = true;
     triggerFeedback('tap');
-    Animated.timing(appear, { toValue: 0, duration: 260, easing: Easing.in(Easing.cubic), useNativeDriver: true }).start(() => onDone());
+    Animated.timing(appear, { toValue: 0, duration: 260, easing: curve.leave, useNativeDriver: true }).start(() => onDone());
   };
 
   const goTo = (next: number) => {
@@ -269,11 +271,11 @@ const styles = themedStyles(() => ({
   skip: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   page: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.md },
   art: { alignItems: 'center', justifyContent: 'center', minHeight: 150, marginBottom: theme.spacing.md },
-  kicker: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary },
+  kicker: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary },
   title: {
     marginTop: 4,
     fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.title + 2,
+    fontSize: theme.typography.sizes.title,
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
   },

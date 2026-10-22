@@ -1,7 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Circle, Group, Path, Rect, RoundedRect, Skia, SkPath } from '@shopify/react-native-skia';
 import {
-  Easing,
   SharedValue,
   cancelAnimation,
   useDerivedValue,
@@ -14,11 +13,13 @@ import {
 } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { BridgeLink, BridgesPuzzle, BridgesState, bridgeLinks, islandLoads, linksByIsland } from '../game/bridges';
-import { BoardLayout, computeBoardLayout, shade, useReducedMotion } from '../game/rendering';
-import { getColorScheme, lightColors, theme } from '../theme';
+import { BoardLayout, computeBoardLayout, REFUSE_MS, shade, useReducedMotion } from '../game/rendering';
+import { getColorScheme, inkWash, lightColors, theme } from '../theme';
+import { accentColorForKind } from '../game/journey';
 import { useEquipped } from '../progression/PlayerProgressProvider';
 import { DEFAULT_EQUIPPED, cosmeticById } from '../progression/shop';
 import { REMOVE_DURATION_MS, buildDurationMs, buildEase, clamp01, easeOutCubic, laneSpan, plankScale } from './bridgesMotion';
+import { curve } from '../theme/motion';
 
 /**
  * Bridges, drawn as a hand-made harbour chart - so it looks like nothing
@@ -445,7 +446,7 @@ function LaneChange({ geo, link, from, to, origin, onDone }: { geo: Geometry; li
   useEffect(() => {
     // Built: quick off the mark, easing into the far shore (`buildEase`);
     // the screen times its plank-by-plank haptics to the same curve.
-    progress.value = withTiming(1, { duration: building ? buildDurationMs(squares) : REMOVE_DURATION_MS, easing: building ? buildEase : Easing.out(Easing.cubic) }, finished => {
+    progress.value = withTiming(1, { duration: building ? buildDurationMs(squares) : REMOVE_DURATION_MS, easing: building ? buildEase : curve.arrive }, finished => {
       'worklet';
       if (finished) scheduleOnRN(onDone);
     });
@@ -525,7 +526,7 @@ const LaneBridges = React.memo(function LaneBridgesImpl({
     else flash.value = withTiming(0, { duration: 150 });
   }, [flashOn, flash]);
   useEffect(() => {
-    if (blockedAt !== null) refuse.value = withSequence(withTiming(0.85, { duration: 90 }), withTiming(0, { duration: 380 }));
+    if (blockedAt !== null) refuse.value = withSequence(withTiming(0.85, { duration: 90 }), withTiming(0, { duration: REFUSE_MS - 90 }));
   }, [blockedAt, refuse]);
   useEffect(() => {
     if (glowDelay !== null && !reduced) wave.value = withDelay(glowDelay, withSequence(withTiming(0.9, { duration: 150 }), withTiming(0, { duration: 300 })));
@@ -547,7 +548,7 @@ const LaneBridges = React.memo(function LaneBridgesImpl({
       )}
       {count > 0 && <LaneGlow geo={geo} lane={lane} link={link} count={count} color={WOOD_GLOW} opacity={flash} />}
       {count > 0 && <LaneGlow geo={geo} lane={lane} link={link} count={count} color={WOOD_GLOW} opacity={wave} />}
-      {blockedAt !== null && <LaneGlow geo={geo} lane={lane} link={link} count={count} color={theme.colors.danger} opacity={refuse} />}
+      {blockedAt !== null && <LaneGlow geo={geo} lane={lane} link={link} count={count} color={theme.colors.textSecondary} opacity={refuse} />}
     </>
   );
 });
@@ -636,7 +637,7 @@ const IslandSprite = React.memo(function IslandSpriteImpl({
   const foam = useSharedValue(1);
 
   const rollFoam = (delay: number) => {
-    foam.value = withDelay(delay, withSequence(withTiming(0, { duration: 0 }), withTiming(1, { duration: FOAM_MS, easing: Easing.out(Easing.cubic) })));
+    foam.value = withDelay(delay, withSequence(withTiming(0, { duration: 0 }), withTiming(1, { duration: FOAM_MS, easing: curve.arrive })));
   };
 
   // The entrance: rising out of the water, then a ring of foam.
@@ -646,7 +647,7 @@ const IslandSprite = React.memo(function IslandSpriteImpl({
       return;
     }
     rise.value = 0;
-    rise.value = withDelay(introDelay, withTiming(1, { duration: INTRO_MS, easing: Easing.out(Easing.back(1.6)) }));
+    rise.value = withDelay(introDelay, withTiming(1, { duration: INTRO_MS, easing: curve.reward }));
     rollFoam(introDelay + INTRO_MS * 0.4);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [introKey]);
@@ -662,7 +663,7 @@ const IslandSprite = React.memo(function IslandSpriteImpl({
         flag.value = 1;
         return;
       }
-      hop.value = withSequence(withTiming(1, { duration: 150, easing: Easing.out(Easing.quad) }), withSpring(0, { damping: 9, stiffness: 240 }));
+      hop.value = withSequence(withTiming(1, { duration: 150, easing: curve.arrive }), withSpring(0, { damping: 9, stiffness: 240 }));
       flag.value = withDelay(130, withSpring(1, { damping: 7, stiffness: 170 }));
       rollFoam(60);
     } else {
@@ -682,7 +683,7 @@ const IslandSprite = React.memo(function IslandSpriteImpl({
 
   // A met island's pennant never quite stops moving.
   useEffect(() => {
-    if (tone === 'done' && !reduced) flutter.value = withRepeat(withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }), -1, true);
+    if (tone === 'done' && !reduced) flutter.value = withRepeat(withTiming(1, { duration: 900, easing: curve.breathe }), -1, true);
     else {
       cancelAnimation(flutter);
       flutter.value = 0;
@@ -706,7 +707,7 @@ const IslandSprite = React.memo(function IslandSpriteImpl({
   useEffect(() => {
     if (solveDelay === null || reduced) return;
     glow.value = withDelay(solveDelay, withSequence(withTiming(1, { duration: 140 }), withTiming(0, { duration: 320 })));
-    hop.value = withDelay(solveDelay, withSequence(withTiming(0.6, { duration: 140, easing: Easing.out(Easing.quad) }), withSpring(0, { damping: 9, stiffness: 240 })));
+    hop.value = withDelay(solveDelay, withSequence(withTiming(0.6, { duration: 140, easing: curve.arrive }), withSpring(0, { damping: 9, stiffness: 240 })));
     rollFoam(solveDelay);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [solveDelay, reduced]);
@@ -868,11 +869,14 @@ function Bushes({ R, index }: { R: number; index: number }): React.JSX.Element {
  * survey dot, neatline, mat]. */
 type ChartColors = ReadonlyArray<string>;
 
+/** The tray's corner, the same as every other board's. */
+const TRAY_R = 12;
+
 const Chart = React.memo(function ChartImpl({ geo, puzzle, coasts, coveredKey, colors }: { geo: Geometry; puzzle: BridgesPuzzle; coasts: ReadonlyArray<SkPath | null>; coveredKey: string; colors: ChartColors }): React.JSX.Element {
   const [water, contour, dot, neatline, mat] = [colors[0] ?? WATER, colors[1] ?? CONTOUR, colors[2] ?? SURVEY_DOT, colors[3] ?? INK, colors[4] ?? PAPER];
   const size = geo.layout.boardSize;
   const outer = geo.cell * 0.09;
-  const band = geo.cell * 0.075;
+  const band = geo.cell * 0.06;
   const inner = outer + band;
   const line = Math.max(1, geo.cell * 0.022);
   const span = size - 2 * inner;
@@ -903,8 +907,12 @@ const Chart = React.memo(function ChartImpl({ geo, puzzle, coasts, coveredKey, c
   const waveW = geo.cell * 0.34;
   return (
     <>
-      <RoundedRect x={0} y={geo.cell * 0.05} width={size} height={size} r={geo.cell * 0.18} color={theme.colors.sandDeep} />
-      <RoundedRect x={0} y={0} width={size} height={size} r={geo.cell * 0.18} color={mat} />
+      <RoundedRect x={0} y={geo.cell * 0.05} width={size} height={size} r={TRAY_R} color={theme.colors.sandDeep} />
+      <RoundedRect x={0} y={0} width={size} height={size} r={TRAY_R} color={mat} />
+      {/* The frame every board shares: a dark rule on the shaded edges and
+          the game's accent rim. */}
+      <Path path={`M ${size - 1.5} ${TRAY_R} L ${size - 1.5} ${size - TRAY_R} Q ${size - 1.5} ${size - 1.5} ${size - TRAY_R} ${size - 1.5} L ${TRAY_R} ${size - 1.5}`} color={inkWash(0.16)} style="stroke" strokeWidth={1.5} strokeCap="round" />
+      <RoundedRect x={1} y={1} width={size - 2} height={size - 2} r={TRAY_R - 1} color={accentColorForKind('bridges')} style="stroke" strokeWidth={1.5} opacity={0.55} />
       <Rect x={inner} y={inner} width={span} height={span} color={water} />
       <Group clip={{ x: inner, y: inner, width: span, height: span }}>
         {puzzle.islands.map((island, i) => {

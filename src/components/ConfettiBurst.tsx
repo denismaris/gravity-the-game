@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
 import { theme, themedStyles } from '../theme';
 import { useEquipped } from '../progression/PlayerProgressProvider';
+import { curve } from '../theme/motion';
+import { isReducedMotion } from '../game/rendering';
 
 /** Kept inside the palette instead of introducing new colour - this is a
  * celebration, not a rebrand. */
@@ -42,16 +44,19 @@ export function ConfettiBurst(): React.JSX.Element {
   // by default.
   const worn = useEquipped('confetti');
   const pieces = useRef(makePieces(worn.colors.length > 0 ? worn.colors : houseColors())).current;
+  // Reduced motion: no burst at all. The finish card says it.
+  const still = useRef(isReducedMotion()).current;
 
   useEffect(() => {
     Animated.timing(progress, {
       toValue: 1,
       duration: 720,
-      easing: Easing.out(Easing.cubic),
+      easing: curve.arrive,
       useNativeDriver: true,
     }).start();
   }, [progress]);
 
+  if (still) return <View pointerEvents="none" />;
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       {pieces.map((p, i) => {

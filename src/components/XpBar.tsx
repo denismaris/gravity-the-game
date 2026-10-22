@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { Animated, Easing, StyleProp, View, ViewStyle } from 'react-native';
+import { Animated, StyleProp, View, ViewStyle } from 'react-native';
 import { theme, themedStyles } from '../theme';
+import { curve } from '../theme/motion';
 
 /**
  * A progress bar that fills to `share` on the native driver - a scaled
@@ -12,7 +13,7 @@ export function XpBar({ share, color = theme.colors.accent, ticks = 10, height =
   const [width, setWidth] = useState(0);
   const fill = useRef(new Animated.Value(0)).current;
   useEffect(() => {
-    Animated.timing(fill, { toValue: Math.max(0, Math.min(1, share)), duration: 900, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(fill, { toValue: Math.max(0, Math.min(1, share)), duration: 900, easing: curve.arrive, useNativeDriver: true }).start();
   }, [share, fill]);
   return (
     <View style={[styles.track, { height, borderRadius: height / 2 }, style]} onLayout={e => setWidth(e.nativeEvent.layout.width)}>

@@ -34,7 +34,7 @@ export function GameMark({ name, size = 26, color = theme.colors.textSecondary }
             height: 9 * u,
             borderRadius: 5 * u,
             backgroundColor: color,
-            marginBottom: 3 * u,
+            marginBottom: 4 * u,
           }}
         />
         <View

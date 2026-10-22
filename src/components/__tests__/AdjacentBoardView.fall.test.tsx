@@ -88,7 +88,19 @@ function fallingTileRow(renderer: ReactTestRenderer.ReactTestRenderer): number |
   if (faces.length === 0) return null;
   expect(faces).toHaveLength(1);
   expect(faces[0].props.x).toBeCloseTo(1 * CELL + inset, 1);
-  return (faces[0].props.y - inset) / CELL;
+  // A falling tile is drawn where it lands and lifted by a UI-thread
+  // translate on a group above it (a lone translate: the deal's own
+  // entrance, which a fresh mount also plays, pairs one with a scale).
+  let lift = 0;
+  const seen = new Set<unknown>();
+  for (let node = faces[0].parent; node; node = node.parent) {
+    const transform = node.props.transform;
+    const translate = transform?.value?.length === 1 ? transform.value[0].translateY : undefined;
+    if (typeof translate !== 'number' || seen.has(transform)) continue;
+    seen.add(transform);
+    lift += translate;
+  }
+  return (faces[0].props.y + lift - inset) / CELL;
 }
 
 function renderAt(elapsed: number): ReactTestRenderer.ReactTestRenderer {

@@ -6,6 +6,7 @@ import { Easing, SharedValue, useDerivedValue, useSharedValue, withDelay, withRe
 import { clashes, GlassColor, GlassPuzzle, GlassState } from '../game/glass';
 import { shade, useReducedMotion } from '../game/rendering';
 import { inkWash, theme } from '../theme';
+import { curve } from '../theme/motion';
 
 /**
  * The window, in the same hand as every other board here: a paper tray
@@ -480,7 +481,7 @@ function Glaze({
 }): React.JSX.Element {
   const u = useSharedValue(animate ? 0 : 1);
   useEffect(() => {
-    if (animate) u.value = withTiming(1, { duration: FILL_MS, easing: Easing.out(Easing.cubic) });
+    if (animate) u.value = withTiming(1, { duration: FILL_MS, easing: curve.arrive });
   }, [animate, u]);
 
   const { x, y } = centre;
@@ -628,7 +629,7 @@ function FinishLight({ size, geo, t }: { size: number; geo: Geometry; t: SharedV
   const glass = useMemo(() => Skia.Path.MakeFromSVGString(geo.svg.join(' ')), [geo]);
   const band = useDerivedValue(() => {
     const k = Math.max(0, Math.min(1, t.value / 0.62));
-    const d = -size * 0.9 + size * 1.8 * Easing.inOut(Easing.cubic)(k);
+    const d = -size * 0.9 + size * 1.8 * curve.glide(k);
     return [{ translateX: d }, { translateY: d }];
   });
   const bandO = useDerivedValue(() => (t.value <= 0 || t.value >= 0.62 ? 0 : 1));

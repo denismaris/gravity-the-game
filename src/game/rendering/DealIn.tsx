@@ -1,7 +1,7 @@
 import React, { useEffect } from 'react';
 import { Group, vec } from '@shopify/react-native-skia';
-import { Easing, SharedValue, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
-import { useReducedMotion } from './useReducedMotion';
+import { Easing, ReduceMotion, SharedValue, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import { reducedMotionFlag } from './useReducedMotion';
 import { motion } from '../../theme';
 import { whenDealsReleased } from './dealGate';
 
@@ -17,6 +17,8 @@ export const DEAL_STEP_MS = 32;
 export const DEAL_SPREAD_MS = 420;
 /** The whole deal, start to last piece settled. */
 const DEAL_TOTAL_MS = DEAL_BASE_MS + DEAL_SPREAD_MS + DEAL_MS;
+/** With reduced motion the board does not deal: it fades in, whole. */
+const REDUCED_FADE_MS = 240;
 
 /** A board's one deal clock: milliseconds since the board opened, run once
  * on the UI thread. Every piece reads its own moment off it. */
@@ -29,17 +31,17 @@ export type DealClock = SharedValue<number>;
  * in the same frame the board mounted, and made a puzzle open heavily.
  */
 export function useDealing(): DealClock {
-  const reduced = useReducedMotion();
-  const clock = useSharedValue(reduced ? DEAL_TOTAL_MS : 0);
+  const clock = useSharedValue(0);
   useEffect(() => {
-    if (reduced) return;
     let held = false;
     const cancel = whenDealsReleased(() => {
       // Held under the hand-off veil: once it lifts, the deal starts at
       // once - the board's frame is already in place.
       const from = held ? DEAL_BASE_MS - 60 : 0;
       clock.value = from;
-      clock.value = withTiming(DEAL_TOTAL_MS, { duration: DEAL_TOTAL_MS - from, easing: Easing.linear });
+      // Never skipped for reduced motion: the pieces then fade in off this
+      // clock instead of dealing (see `DealIn`).
+      clock.value = withTiming(DEAL_TOTAL_MS, { duration: DEAL_TOTAL_MS - from, easing: Easing.linear, reduceMotion: ReduceMotion.Never });
     });
     held = true;
     return cancel;
@@ -67,6 +69,7 @@ export function DealIn({ x, y, delay, dealing, children }: { x: number; y: numbe
   const fallback = useSharedValue(DEAL_TOTAL_MS);
   const clock = dealing ?? fallback;
   const transform = useDerivedValue(() => {
+    if (reducedMotionFlag.value) return [{ translateY: 0 }, { scale: 1 }];
     const local = (clock.value - DEAL_BASE_MS - delay) / DEAL_MS;
     if (local >= 1) return [{ translateY: 0 }, { scale: 1 }];
     if (local <= 0) return [{ translateY: -7 }, { scale: 0 }];
@@ -76,8 +79,9 @@ export function DealIn({ x, y, delay, dealing, children }: { x: number; y: numbe
     const p = 1 + c3 * (local - 1) ** 3 + c1 * (local - 1) ** 2;
     return [{ translateY: (1 - p) * -7 }, { scale: 0.45 + 0.55 * p }];
   });
+  const opacity = useDerivedValue(() => (reducedMotionFlag.value ? Math.min(1, Math.max(0, (clock.value - DEAL_BASE_MS) / REDUCED_FADE_MS)) : 1));
   return (
-    <Group origin={vec(x, y)} transform={transform}>
+    <Group origin={vec(x, y)} transform={transform} opacity={opacity}>
       {children}
     </Group>
   );

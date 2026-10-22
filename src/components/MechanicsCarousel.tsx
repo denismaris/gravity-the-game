@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { Canvas } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
 import { TutorialSlide } from '../game/tutorials';
@@ -179,7 +180,7 @@ const styles = themedStyles(() => ({
     overflow: 'hidden',
   },
   eyebrow: {
-    fontSize: theme.typography.sizes.caption + 1,
+    fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
     color: theme.colors.secondary,
     marginBottom: theme.spacing.sm,

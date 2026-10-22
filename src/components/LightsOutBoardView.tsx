@@ -1,9 +1,10 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Circle, Group, Path, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
-import { Easing, useDerivedValue, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
+import { useDerivedValue, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { LightsOutCell, LightsOutPuzzle, LightsOutState } from '../game/lightsout';
 import { BoardLayout, computeBoardLayout, getCellOrigin, useReducedMotion, DealIn, dealDelay, useDealing } from '../game/rendering';
 import { theme } from '../theme';
+import { curve } from '../theme/motion';
 
 const TILE_GAP = 6;
 /** The light spreads from the lamp that was pressed to its neighbours,
@@ -105,21 +106,21 @@ const Lamp = React.memo(function LampImpl({ lit, delay, rippleDelay, x, y, size,
     if (lit) {
       // Catching: the flame first, the glass after it with one small dip,
       // and the halo swelling over and settling back.
-      ember.value = withDelay(delay, withTiming(1, { duration: 160, easing: Easing.out(Easing.quad) }));
+      ember.value = withDelay(delay, withTiming(1, { duration: 160, easing: curve.arrive }));
       level.value = withDelay(
         delay,
         withSequence(
-          withTiming(1, { duration: 240, easing: Easing.out(Easing.cubic) }),
-          withTiming(0.8, { duration: 70, easing: Easing.inOut(Easing.quad) }),
-          withTiming(1, { duration: 180, easing: Easing.out(Easing.quad) }),
+          withTiming(1, { duration: 240, easing: curve.arrive }),
+          withTiming(0.8, { duration: 70, easing: curve.glide }),
+          withTiming(1, { duration: 180, easing: curve.arrive }),
         ),
       );
-      bloom.value = withDelay(delay, withSequence(withTiming(1, { duration: 220, easing: Easing.out(Easing.cubic) }), withTiming(0, { duration: 520, easing: Easing.inOut(Easing.cubic) })));
+      bloom.value = withDelay(delay, withSequence(withTiming(1, { duration: 220, easing: curve.arrive }), withTiming(0, { duration: 520, easing: curve.glide })));
     } else {
       // Going out: a small puff, the glass dims, and the ember fades last.
       bloom.value = withDelay(delay, withSequence(withTiming(0.35, { duration: 110 }), withTiming(0, { duration: 260 })));
-      level.value = withDelay(delay, withTiming(0, { duration: 280, easing: Easing.out(Easing.cubic) }));
-      ember.value = withDelay(delay + 40, withTiming(0, { duration: 340, easing: Easing.in(Easing.quad) }));
+      level.value = withDelay(delay, withTiming(0, { duration: 280, easing: curve.arrive }));
+      ember.value = withDelay(delay + 40, withTiming(0, { duration: 340, easing: curve.leave }));
     }
     // A lamp's own change is the only thing that restarts it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -129,8 +130,8 @@ const Lamp = React.memo(function LampImpl({ lit, delay, rippleDelay, x, y, size,
   useEffect(() => {
     if (rippleDelay === null || reducedMotion) return;
     const rest = lit ? 1 : 0;
-    level.value = withDelay(rippleDelay, withSequence(withTiming(0.75, { duration: 180, easing: Easing.out(Easing.quad) }), withTiming(rest, { duration: 520, easing: Easing.inOut(Easing.cubic) })));
-    ember.value = withDelay(rippleDelay, withSequence(withTiming(0.9, { duration: 160 }), withTiming(rest, { duration: 620, easing: Easing.in(Easing.quad) })));
+    level.value = withDelay(rippleDelay, withSequence(withTiming(0.75, { duration: 180, easing: curve.arrive }), withTiming(rest, { duration: 520, easing: curve.glide })));
+    ember.value = withDelay(rippleDelay, withSequence(withTiming(0.9, { duration: 160 }), withTiming(rest, { duration: 620, easing: curve.leave })));
     bloom.value = withDelay(rippleDelay, withSequence(withTiming(0.8, { duration: 200 }), withTiming(0, { duration: 560 })));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rippleDelay]);

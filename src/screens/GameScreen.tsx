@@ -2,7 +2,8 @@ import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { BackLabel } from '../components/Icon';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
-import { AccessibilityActionEvent, AccessibilityInfo, Animated, Text, View, useWindowDimensions } from 'react-native';
+import { AccessibilityActionEvent, AccessibilityInfo, Animated, View, useWindowDimensions } from 'react-native';
+import { Text, MAX_TEXT_SCALE } from '../components/Text';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { triggerFeedback } from '../game/rendering';
@@ -149,7 +150,7 @@ function AnimatedMoveCount({ moves }: { moves: number }): React.JSX.Element {
   }, [moves, scale]);
 
   return (
-    <Animated.Text style={[styles.levelMoves, { transform: [{ scale }] }]}>{moves}</Animated.Text>
+    <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[styles.levelMoves, { transform: [{ scale }] }]}>{moves}</Animated.Text>
   );
 }
 

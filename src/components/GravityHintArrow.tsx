@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet } from 'react-native';
+import { Animated, StyleSheet } from 'react-native';
 import { Canvas, Group, Path, RoundedRect } from '@shopify/react-native-skia';
 import { Direction } from '../game/engine';
 import { useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
+import { curve } from '../theme/motion';
 
 export interface GravityHintArrowProps {
   /** The board's pixel size - the arrow is drawn over it. */
@@ -30,8 +31,8 @@ export function GravityHintArrow({ size, direction, onDone }: GravityHintArrowPr
 
   useEffect(() => {
     const pulse = Animated.sequence([
-      Animated.timing(opacity, { toValue: 1, duration: PULSE_IN_MS, easing: Easing.out(Easing.quad), useNativeDriver: true }),
-      Animated.timing(opacity, { toValue: reducedMotion ? 1 : 0.25, duration: PULSE_OUT_MS, easing: Easing.inOut(Easing.quad), useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: 1, duration: PULSE_IN_MS, easing: curve.arrive, useNativeDriver: true }),
+      Animated.timing(opacity, { toValue: reducedMotion ? 1 : 0.25, duration: PULSE_OUT_MS, easing: curve.glide, useNativeDriver: true }),
     ]);
     const run = Animated.sequence([
       ...Array.from({ length: PULSES }, () => pulse),

@@ -1,9 +1,10 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { GameKind } from '../game/journey';
 import { holdDeals, releaseDeals, useReducedMotion } from '../game/rendering';
 import { theme, themedStyles } from '../theme';
 import { GameEmblem } from './GameEmblem';
+import { curve } from '../theme/motion';
 
 /** The emblem settling in, and the name and bar with it. */
 const ARRIVE_MS = 320;
@@ -34,7 +35,7 @@ export function EmblemHandoff({ kind, ready, onDone }: { kind: GameKind; ready: 
     const st = state.current;
     if (st.leaving || !st.arrived || !st.ready) return;
     st.leaving = true;
-    Animated.timing(lift, { toValue: 1, duration: LIFT_MS, easing: Easing.inOut(Easing.cubic), useNativeDriver: true }).start(() => onDone());
+    Animated.timing(lift, { toValue: 1, duration: LIFT_MS, easing: curve.glide, useNativeDriver: true }).start(() => onDone());
     // The board deals as the veil opens.
     setTimeout(releaseDeals, LIFT_MS * 0.35);
   };
@@ -45,7 +46,7 @@ export function EmblemHandoff({ kind, ready, onDone }: { kind: GameKind; ready: 
       return;
     }
     holdDeals();
-    Animated.timing(arrive, { toValue: 1, duration: ARRIVE_MS, easing: Easing.out(Easing.back(1.5)), useNativeDriver: true }).start(() => {
+    Animated.timing(arrive, { toValue: 1, duration: ARRIVE_MS, easing: curve.reward, useNativeDriver: true }).start(() => {
       state.current.arrived = true;
       leaveRef.current();
     });

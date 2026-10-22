@@ -1,9 +1,14 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, StyleProp, Text, View, ViewStyle } from 'react-native';
+import { Animated, StyleProp, View, ViewStyle } from 'react-native';
+import { Text } from './Text';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { triggerFeedback, useReducedMotion } from '../game/rendering';
 import { usePlayerProgress } from '../progression';
 import { motion, theme, themedStyles } from '../theme';
+
+/** Figures inside a key or pill of fixed height grow only this far with
+ * the player's text size: past it they clip at the key's edge. */
+export const FIGURE_SCALE = 1.1;
 
 /**
  * The coin: an ochre disc with a tessera - the app's own diamond - struck
@@ -29,7 +34,7 @@ export function CoinCost({ cost, muted = false }: { cost: number; muted?: boolea
   return (
     <View style={[styles.cost, muted && styles.muted]}>
       <CoinGlyph size={12} />
-      <Text style={styles.costText}>{cost}</Text>
+      <Text style={styles.costText} maxFontSizeMultiplier={FIGURE_SCALE}>{cost}</Text>
     </View>
   );
 }
@@ -117,7 +122,7 @@ export function CoinBalance({
     <View style={[styles.balance, style]} accessibilityLiveRegion="polite">
       <Animated.View style={[styles.balanceRow, { transform: [{ scale: pop }] }]}>
         <CoinGlyph size={14} />
-        <Text style={styles.balanceText} accessibilityLabel={`${coins} coins`}>
+        <Text style={styles.balanceText} maxFontSizeMultiplier={FIGURE_SCALE} accessibilityLabel={`${coins} coins`}>
           {shown}
         </Text>
       </Animated.View>

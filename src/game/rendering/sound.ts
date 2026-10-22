@@ -72,6 +72,8 @@ const FILES: Record<HapticKind, string> = {
   bridgesRemove: 'sfx_bridges_remove.wav',
   bridgesIsland: 'sfx_bridges_island.wav',
   bridgesBlocked: 'sfx_bridges_blocked.wav',
+  // One soft no for a move any board will not take (see `RefuseMark`).
+  refuse: 'sfx_bridges_blocked.wav',
   bridgesSolve: 'sfx_bridges_solve.wav',
   // Adjacent is bubbles: a pop per group, a double pop and a sparkle for
   // a multiplying run, a rising fizz for the cleared board.

@@ -1,11 +1,13 @@
 /* eslint-disable react-native/no-inline-styles -- cell geometry is derived from `size` at render time */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Animated, Pressable, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { Canvas } from '@shopify/react-native-skia';
 import { BinairoCell, BinairoPuzzle, BinairoState, constraintPartner, isConstraintViolated, isGiven } from '../game/binairo';
-import { computeBoardLayout, getCellOrigin, triggerFeedback } from '../game/rendering';
+import { computeBoardLayout, getCellOrigin, REFUSE_MS, REFUSE_PX, refuseFade, refuseShake, triggerFeedback, useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
 import { BinairoBoardView } from './BinairoBoardView';
+import { curve } from '../theme/motion';
 
 export interface BinairoBoardProps {
   puzzle: BinairoPuzzle;
@@ -99,11 +101,19 @@ const CellTarget = React.memo(function CellTargetImpl({
   );
 });
 
-/** The outline that shakes round a cell set from the start when tapped. */
+/** The shared refusal (`RefuseMark`) sampled for the native driver. */
+const REFUSE_STEPS = Array.from({ length: 21 }, (_, i) => i / 20);
+const REFUSE_X = REFUSE_STEPS.map(t => refuseShake(t) * REFUSE_PX);
+const REFUSE_OPACITY = REFUSE_STEPS.map(t => refuseFade(t));
+
+/** The outline that shakes round a cell set from the start when tapped:
+ * the same refusal every board gives, drawn over the canvas here because
+ * this board's cells are views. */
 function LockedFlash({ x, y, size }: { x: number; y: number; size: number }): React.JSX.Element {
   const t = useRef(new Animated.Value(0)).current;
+  const reduced = useReducedMotion();
   useEffect(() => {
-    Animated.timing(t, { toValue: 1, duration: 520, easing: Easing.out(Easing.quad), useNativeDriver: true }).start();
+    Animated.timing(t, { toValue: 1, duration: REFUSE_MS, easing: curve.linear, useNativeDriver: true }).start();
   }, [t]);
   return (
     <Animated.View
@@ -114,11 +124,11 @@ function LockedFlash({ x, y, size }: { x: number; y: number; size: number }): Re
         top: y + 2,
         width: size - 4,
         height: size - 4,
-        borderRadius: 10,
+        borderRadius: size * 0.18,
         borderWidth: 2,
         borderColor: theme.colors.textSecondary,
-        opacity: t.interpolate({ inputRange: [0, 0.6, 1], outputRange: [1, 1, 0] }),
-        transform: [{ translateX: t.interpolate({ inputRange: [0, 0.15, 0.3, 0.45, 0.6, 1], outputRange: [0, -4, 4, -3, 2, 0] }) }],
+        opacity: t.interpolate({ inputRange: REFUSE_STEPS, outputRange: REFUSE_OPACITY }),
+        transform: [{ translateX: reduced ? 0 : t.interpolate({ inputRange: REFUSE_STEPS, outputRange: REFUSE_X }) }],
       }}
     />
   );
@@ -149,7 +159,7 @@ export function BinairoBoard({ puzzle, state, size, solved, onToggleCell, flashC
     return cells;
   }, [puzzle]);
   const tapGiven = useCallback((row: number, col: number) => {
-    triggerFeedback('bridgesBlocked');
+    triggerFeedback('refuse');
     setLocked({ row, col, key: Date.now() });
   }, []);
 

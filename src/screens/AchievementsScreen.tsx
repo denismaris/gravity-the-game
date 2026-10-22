@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { BackLabel } from '../components/Icon';
-import { Animated, Easing, ScrollView, Text, View } from 'react-native';
+import { Animated, ScrollView, View } from 'react-native';
+import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Path, Skia } from '@shopify/react-native-skia';
 import { PressableScale } from '../components';
@@ -9,6 +10,7 @@ import { PageBloom } from '../components/PageBloom';
 import { useReducedMotion } from '../game/rendering';
 import { ACHIEVEMENTS, ACHIEVEMENT_GROUPS, Achievement, nearestAchievements, usePlayerProgress } from '../progression';
 import { theme, themedStyles } from '../theme';
+import { curve } from '../theme/motion';
 
 export interface AchievementsScreenProps {
   onExit: () => void;
@@ -96,7 +98,7 @@ export function AchievementsScreen({ onExit }: AchievementsScreenProps): React.J
   const mount = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   useEffect(() => {
     if (reduced) return;
-    Animated.timing(mount, { toValue: 1, duration: 700, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(mount, { toValue: 1, duration: 700, easing: curve.arrive, useNativeDriver: true }).start();
   }, [mount, reduced]);
   let beat = 0;
   const rise = () => {
@@ -195,7 +197,7 @@ const styles = themedStyles(() => ({
     marginTop: theme.spacing.xl,
     marginBottom: theme.spacing.sm,
     fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.subtitle + 1,
+    fontSize: theme.typography.sizes.subtitle,
     fontWeight: theme.typography.weights.bold,
     color: theme.colors.textPrimary,
   },

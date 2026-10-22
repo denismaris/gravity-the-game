@@ -20,6 +20,7 @@ import { useReducedMotion } from './useReducedMotion';
 import { DealClock, DealIn, dealDelay, useDealing } from './DealIn';
 import { landingCurve, SlidePlan, TeleportTiming } from './useAnimatedMovables';
 import { theme } from '../../theme';
+import { curve } from '../../theme/motion';
 
 export interface BoardViewProps {
   /** The current game state to draw. `state.movables` positions may be
@@ -709,7 +710,7 @@ function BreakIn({ cx, cy, radius, children }: { cx: number; cy: number; radius:
   const reduced = useReducedMotion();
   const t = useSharedValue(reduced ? 1 : 0);
   useEffect(() => {
-    if (!reduced) t.value = withTiming(1, { duration: 420, easing: Easing.out(Easing.cubic) });
+    if (!reduced) t.value = withTiming(1, { duration: 420, easing: curve.arrive });
   }, [t, reduced]);
   const transform = useDerivedValue(() => {
     const k = t.value;

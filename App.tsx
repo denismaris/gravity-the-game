@@ -27,6 +27,8 @@ import {
   BinairoScreen,
   GameScreen,
   HomeScreen,
+  holdHomeEntrance,
+  releaseHomeEntrance,
   MirrorMazeScreen,
   SettingsScreen,
 } from './src/screens';
@@ -63,8 +65,6 @@ import { motion, theme, themedStyles } from './src/theme';
 /** How long after a set rolls over, mid-game, before its first board is
  * built: past the solve card's arrival and the level card's tally. */
 const IN_GAME_PREPARE_MS = motion.beat.prepareInGame;
-/** Behind the launch animation, the set's boards start building at once. */
-const LAUNCH_PREPARE_MS = 120;
 
 interface Selected {
   kind: GameKind;
@@ -136,12 +136,33 @@ function Boot(): React.JSX.Element {
   const scheme = useAppearance();
   const [launched, setLaunched] = useState(false);
   const finishLaunch = useCallback(() => setLaunched(true), []);
+  // Home's first arrival waits for the launch tile to start lifting away,
+  // then places itself under it.
+  const heldHome = useRef(false);
+  if (!launched && !heldHome.current) {
+    heldHome.current = true;
+    holdHomeEntrance();
+  }
+  // Home is built only once the launch's name has landed, in the still
+  // moment before the hand-off: built at once, its first commit froze the
+  // pieces mid-flight. The hand-off then waits for Home's first frame.
+  const [launchSettled, setLaunchSettled] = useState(false);
+  const settleLaunch = useCallback(() => setLaunchSettled(true), []);
+  const [homeDrawn, setHomeDrawn] = useState(false);
+  const markHomeDrawn = useCallback(() => setHomeDrawn(true), []);
+  useEffect(() => {
+    // Never hold the launch on Home: if it is not the first screen, or is
+    // slow to draw, go anyway.
+    if (!launchSettled) return;
+    const timer = setTimeout(markHomeDrawn, 1500);
+    return () => clearTimeout(timer);
+  }, [launchSettled, markHomeDrawn]);
 
   return (
     <>
       <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} />
-      <AppRoutes launched={launched} />
-      {!launched && <LaunchSequence appReady={settingsReady && progressReady} onDone={finishLaunch} />}
+      <AppRoutes launched={launched} mountHome={launched || launchSettled} onHomeDrawn={markHomeDrawn} />
+      {!launched && <LaunchSequence appReady={settingsReady && progressReady && homeDrawn} onSettled={settleLaunch} onHandoff={releaseHomeEntrance} onDone={finishLaunch} />}
     </>
   );
 }
@@ -152,7 +173,15 @@ function Boot(): React.JSX.Element {
  * interstitial (see `src/interstitial/`). There is no level select. A real
  * navigator can replace this state switch later.
  */
-function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
+function AppRoutes({
+  launched,
+  mountHome,
+  onHomeDrawn,
+}: {
+  launched: boolean;
+  mountHome: boolean;
+  onHomeDrawn: () => void;
+}): React.JSX.Element {
   const { settings, ready: settingsReady, markTutorialSeen } = useSettings();
   const { progress, ready: progressReady, markIntroSeen, addInsights } = usePlayerProgress();
   // A lesson replayed from Your games.
@@ -231,12 +260,14 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
   // second to build on a phone, and built on the tap it made the next
   // puzzle open heavily.
   const inGameSolved = !!selected && (setKey !== setAtOpen.current || doneKey !== doneAtOpen.current);
-  // During the launch animation too: it runs off the JavaScript thread, so
-  // the set's boards can be built behind it before Home is even shown.
+  // Not during the launch: the launch draws on the UI thread, but its
+  // hand-off and Home's first build need the JavaScript thread, and boards
+  // built behind it held the finished tile on screen most of a second too
+  // long. Home's own wait (`prepareOnHome`) starts once it is up.
   usePrepareUpcoming(
     inGameSolved ? upcoming.slice(0, 1) : upcoming,
-    progressReady && (!selected || inGameSolved),
-    inGameSolved ? IN_GAME_PREPARE_MS : !launched ? LAUNCH_PREPARE_MS : undefined,
+    progressReady && launched && (!selected || inGameSolved),
+    inGameSolved ? IN_GAME_PREPARE_MS : undefined,
   );
   const openFromHome = useCallback((target: Selected) => {
     // The veil first, the puzzle a couple of frames later, under it. Both
@@ -322,8 +353,11 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
     setPendingNext(null);
   }, [pendingNext]);
 
-  const homeScreen = (
+  const homeScreen = !mountHome ? (
+    <View style={styles.unbuilt} />
+  ) : (
     <HomeScreen
+      onDrawn={onHomeDrawn}
       onOpen={openFromHome}
       onOpenSettings={() => setOverlayRoute('settings')}
       onOpenAchievements={() => setOverlayRoute('achievements')}
@@ -557,6 +591,8 @@ const styles = themedStyles(() => ({
     flex: 1,
     backgroundColor: theme.colors.background,
   },
+  /** Where Home will be, until the launch has set its name. */
+  unbuilt: { flex: 1 },
 }));
 
 export default App;

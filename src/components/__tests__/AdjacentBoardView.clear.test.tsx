@@ -40,8 +40,13 @@ describe('AdjacentBoardView - the clear ripples out from the tap', () => {
     };
     const board = () => <AdjacentBoardView puzzle={PUZZLE} state={EMPTY} maxWidth={300} maxHeight={300} animation={animation} solved={false} />;
     let renderer!: ReactTestRenderer.ReactTestRenderer;
-    const tileAt = (col: number) =>
-      renderer.root.findAll(n => n.props.colour === 1 && typeof n.props.scale === 'number' && n.props.x !== undefined).find(n => n.props.x === col * n.props.cell);
+    // A cleared tile pops on the UI thread: its scale and opacity are shared
+    // values on the group around it.
+    const tileAt = (col: number) => {
+      const tile = renderer.root.findAll(n => n.props.colour === 1 && n.props.cell !== undefined && n.props.x !== undefined).find(n => n.props.x === col * n.props.cell);
+      const group = tile?.parent;
+      return group ? { scale: group.props.transform.value[0].scale, opacity: group.props.opacity.value } : undefined;
+    };
 
     now += 40; // the tapped tile is popping; the far end has not started
     act(() => {
@@ -49,8 +54,8 @@ describe('AdjacentBoardView - the clear ripples out from the tap', () => {
     });
     const far = tileAt(3)!;
     expect(far).toBeDefined();
-    expect(far.props.scale).toBe(1);
-    expect(far.props.opacity).toBe(1);
+    expect(far.scale).toBe(1);
+    expect(far.opacity).toBe(1);
 
     now += 2000; // long after every tile's pop
     act(() => renderer.update(board()));

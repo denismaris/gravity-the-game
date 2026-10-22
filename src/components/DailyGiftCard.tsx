@@ -1,12 +1,14 @@
 import React, { useEffect, useRef } from 'react';
 import { Icon } from './Icon';
-import { Animated, Easing, Text, View } from 'react-native';
+import { Animated, View } from 'react-native';
+import { Text } from './Text';
 import { triggerFeedback, useReducedMotion } from '../game/rendering';
 import { GIFT_COINS, GIFT_DAYS, GIFT_EXTRAS, Gift, LUCKY_CHARM_CHARGES } from '../progression';
 import { motion, theme, themedStyles } from '../theme';
 import { CoinGlyph, CoinsEarned } from './Coins';
 import { MODAL_EXIT_MS, ModalLayer } from './ModalLayer';
 import { DialogActions, dialogStyles } from './dialog';
+import { curve } from '../theme/motion';
 
 /**
  * The day's gift, on the first visit of the day: the week of gifts as a
@@ -24,7 +26,7 @@ export function DailyGiftCard({ gift, onCollect }: { gift: Gift; onCollect: () =
     if (reduced) return;
     // Every popup waits for the one before it to finish leaving (the
     // welcome walkthrough, on a first day).
-    Animated.sequence([Animated.delay(MODAL_EXIT_MS), Animated.timing(enter, { toValue: 1, duration: 340, easing: Easing.out(Easing.cubic), useNativeDriver: true })]).start();
+    Animated.sequence([Animated.delay(MODAL_EXIT_MS), Animated.timing(enter, { toValue: 1, duration: 340, easing: curve.arrive, useNativeDriver: true })]).start();
     Animated.sequence([Animated.delay(MODAL_EXIT_MS + 240), Animated.spring(lift, { toValue: 1, useNativeDriver: true, ...motion.spring.pop })]).start();
   }, [enter, lift, reduced]);
 
@@ -139,7 +141,7 @@ const styles = themedStyles(() => ({
   extras: { marginTop: theme.spacing.sm, alignItems: 'center', gap: 4 },
   extra: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   extraText: { fontSize: theme.typography.sizes.caption, color: theme.colors.accentText, textAlign: 'center' },
-  ticketExtras: { height: 10, marginTop: 3, flexDirection: 'row', alignItems: 'center', gap: 2 },
+  ticketExtras: { height: 10, marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 2 },
   ticketExtrasPast: { opacity: 0.4 },
   ticketSpark: { fontSize: 9, lineHeight: 10, color: theme.colors.secondary },
   bonusRow: { flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.sm },

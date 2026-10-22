@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
 import { motion, theme, themedStyles } from '../theme';
+import { MAX_TEXT_SCALE } from './Text';
 
 export interface AnimatedMarkProps {
   size: number;
@@ -22,7 +23,7 @@ export function AnimatedMark({ size }: AnimatedMarkProps): React.JSX.Element {
     // Mount-only pop - `scale` is a stable ref.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  return <Animated.Text style={[styles.mark, { fontSize: size, transform: [{ scale }] }]}>×</Animated.Text>;
+  return <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[styles.mark, { fontSize: size, transform: [{ scale }] }]}>×</Animated.Text>;
 }
 
 const styles = themedStyles(() => ({

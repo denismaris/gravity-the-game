@@ -36,11 +36,11 @@ export const typography = {
   },
 
   sizes: {
-    micro: 11,
-    caption: 12.5,
+    micro: 12,
+    caption: 13,
     body: 15,
     subtitle: 17,
-    title: 21,
+    title: 22,
     headline: 28,
     display: 40,
     mega: 54,
@@ -54,11 +54,11 @@ export const typography = {
   },
 
   lineHeights: {
-    micro: 14,
-    caption: 16,
+    micro: 15,
+    caption: 17,
     body: 21,
     subtitle: 23,
-    title: 27,
+    title: 28,
     headline: 33,
     display: 44,
     mega: 56,

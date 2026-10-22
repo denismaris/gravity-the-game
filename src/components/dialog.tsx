@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { motion, getColorScheme, theme, themedStyles } from '../theme';
 import { Canvas, Path } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
@@ -41,7 +42,7 @@ export const dialogStyles = themedStyles(() => ({
     elevation: 14,
   },
   kicker: {
-    fontSize: theme.typography.sizes.caption + 1,
+    fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
     color: theme.colors.secondary,
     textAlign: 'center',
@@ -64,7 +65,7 @@ export const dialogStyles = themedStyles(() => ({
   },
   actions: { alignSelf: 'stretch', alignItems: 'stretch', gap: 10, marginTop: theme.spacing.lg },
   primaryWrap: { alignSelf: 'stretch' },
-  primaryText: { fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, letterSpacing: 0.3, color: theme.colors.surfaceHi },
+  primaryText: { fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, letterSpacing: 0.3, color: theme.colors.surfaceHi },
   /** The arrow's disc, at the key's right end - the label stays centred. */
   onward: { position: 'absolute', right: 8, width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   quietText: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Text, View } from 'react-native';
+import { Animated, Easing, View } from 'react-native';
+import { Text } from './Text';
 import { Canvas, Path } from '@shopify/react-native-skia';
 import { triggerFeedback, useReducedMotion } from '../game/rendering';
 import { rankTitle } from '../progression/rank';
@@ -9,6 +10,7 @@ import { ConfettiBurst } from './ConfettiBurst';
 import { medalMetal, RankMedal } from './RankMedal';
 import { MODAL_EXIT_MS, ModalLayer } from './ModalLayer';
 import { DialogActions, dialogStyles } from './dialog';
+import { curve } from '../theme/motion';
 
 const RAYS = 18;
 /** The sunburst's size - inside the card, never spilling onto the scrim. */
@@ -44,7 +46,7 @@ export function RankUpCard({ rank, ranksGained, coins, onDone }: { rank: number;
     triggerFeedback('solved');
     if (reduced) return;
     // It can follow the day's gift: it arrives once that card has gone.
-    Animated.sequence([Animated.delay(MODAL_EXIT_MS), Animated.timing(enter, { toValue: 1, duration: 340, easing: Easing.out(Easing.cubic), useNativeDriver: true })]).start();
+    Animated.sequence([Animated.delay(MODAL_EXIT_MS), Animated.timing(enter, { toValue: 1, duration: 340, easing: curve.arrive, useNativeDriver: true })]).start();
     Animated.sequence([Animated.delay(MODAL_EXIT_MS + 160), Animated.spring(medal, { toValue: 1, useNativeDriver: true, damping: 9, stiffness: 120, mass: 1 })]).start();
     const loop = Animated.loop(Animated.timing(spin, { toValue: 1, duration: 16000, easing: Easing.linear, useNativeDriver: true }));
     loop.start();

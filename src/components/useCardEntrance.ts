@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
 import { motion } from '../theme';
+import { isReducedMotion } from '../game/rendering';
 
 /** Gap between consecutive rows arriving. Long enough to read as a
  * deliberate cascade, short enough that the last row lands well inside
@@ -83,6 +84,17 @@ export function useCardEntrance(rowCount: number, options: CardEntranceOptions =
   const delay = useRef(options.delay ?? 0).current;
 
   useEffect(() => {
+    if (isReducedMotion()) {
+      // Reduced motion: nothing rises, springs or gleams. The card is
+      // already in its place and only fades in over its ground.
+      [card, hero, ...rows].forEach(value => value.setValue(1));
+      const fade = Animated.parallel([
+        Animated.timing(backdrop, { toValue: 1, duration: 220, easing: motion.cardEnter.easing, useNativeDriver: true }),
+        Animated.timing(cardOpacity, { toValue: 1, duration: CARD_FADE_MS + 80, easing: motion.cardEnter.easing, useNativeDriver: true }),
+      ]);
+      (delay > 0 ? Animated.sequence([Animated.delay(delay), fade]) : fade).start();
+      return;
+    }
     const entrance = Animated.parallel([
       Animated.timing(backdrop, {
         toValue: 1,

@@ -3,7 +3,8 @@ import { LEVELS_PER_CHAPTER, chapterAt } from '../progression/chapters';
 import { toRoman } from '../progression/rank';
 import { SET_BONUS } from '../progression/coins';
 import { CoinGlyph } from './Coins';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, View } from 'react-native';
+import { Text, MAX_TEXT_SCALE } from './Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
 import { ConfettiBurst } from './ConfettiBurst';
@@ -149,7 +150,7 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
                 <Text style={styles.chapterNote}>Its reward is waiting in your Almanac.</Text>
               </Animated.View>
             ) : (
-              <Animated.Text style={[styles.closing, rowStyle(2)]}>
+              <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[styles.closing, rowStyle(2)]}>
                 The next set is ready when you are.
               </Animated.Text>
             )}
@@ -237,7 +238,7 @@ function TallyTile({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JS
           <Icon name="check" size={10} color={theme.colors.surfaceHi} />
         </Animated.View>
       </View>
-      <Animated.Text
+      <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE}
         numberOfLines={2}
         style={[
           styles.tileLabel,
@@ -273,7 +274,7 @@ const styles = themedStyles(() => ({
     borderWidth: 1.5,
     borderColor: theme.colors.accent,
   },
-  chapterKicker: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.accentText },
+  chapterKicker: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.accentText },
   // At the foot of the page, where the thumb already is.
   actions: { marginTop: theme.spacing.md, alignSelf: 'center', width: '100%', maxWidth: 420 },
   chapterName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, marginTop: 2 },
@@ -322,7 +323,7 @@ const styles = themedStyles(() => ({
   heading: { alignItems: 'center', marginBottom: theme.spacing.lg },
   subline: { marginTop: 6, fontFamily: theme.typography.families.display, fontSize: 19, lineHeight: 26, color: theme.colors.textSecondary, textAlign: 'center' },
   eyebrow: {
-    fontSize: theme.typography.sizes.micro + 1,
+    fontSize: theme.typography.sizes.caption,
     fontWeight: theme.typography.weights.bold,
     letterSpacing: 1.4,
     textTransform: 'uppercase',
@@ -341,7 +342,7 @@ const styles = themedStyles(() => ({
     marginBottom: theme.spacing.lg,
   },
   tile: { width: 62, alignItems: 'center' },
-  tileLabel: { marginTop: 6, fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.semibold, textAlign: 'center' },
+  tileLabel: { marginTop: 6, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, textAlign: 'center' },
   // What the set paid, as a clean row between two fine rules - the same
   // ledger line a solved puzzle's card uses.
   // What the set paid, as an index line: label, dotted leader, figure.

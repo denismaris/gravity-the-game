@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackLabel } from '../components/Icon';
-import { Animated, Easing, KeyboardAvoidingView, Platform, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
+import { Text, MAX_TEXT_SCALE } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '../components';
 import { PageBloom } from '../components/PageBloom';
@@ -26,6 +27,7 @@ import { dailyKeyOf, getDailyEntry } from '../game/journey';
 import { triggerFeedback, useReducedMotion } from '../game/rendering';
 import { formatDuration, usePlayerProgress } from '../progression';
 import { theme, themedStyles } from '../theme';
+import { curve } from '../theme/motion';
 
 export interface LeaderboardScreenProps {
   onExit: () => void;
@@ -52,7 +54,7 @@ function Row({ row, kind, index, hidden, onMore }: { row: BoardRow; kind: BoardK
   const enter = useRef(new Animated.Value(reduced ? 1 : 0)).current;
   useEffect(() => {
     if (reduced) return;
-    Animated.timing(enter, { toValue: 1, duration: 260, delay: Math.min(index, 12) * 28, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
+    Animated.timing(enter, { toValue: 1, duration: 260, delay: Math.min(index, 12) * 28, easing: curve.arrive, useNativeDriver: true }).start();
   }, [enter, index, reduced]);
   const metal = medal(row.place);
   const name = hidden ? 'Hidden player' : row.name;
@@ -140,7 +142,7 @@ function ProfileEditor({ profile, onClose, onSaved }: { profile: Profile; onClos
           <Text style={styles.sheetLede}>Your name and place on the leaderboards. Your city is up to you.</Text>
 
           <Text style={styles.label}>Name</Text>
-          <TextInput value={name} onChangeText={setName} placeholder="Leave empty to stay anonymous" placeholderTextColor={theme.colors.textTertiary} maxLength={24} style={[styles.input, !nameOk && styles.inputBad]} autoCorrect={false} />
+          <TextInput maxFontSizeMultiplier={MAX_TEXT_SCALE} value={name} onChangeText={setName} placeholder="Leave empty to stay anonymous" placeholderTextColor={theme.colors.textTertiary} maxLength={24} style={[styles.input, !nameOk && styles.inputBad]} autoCorrect={false} />
 
           <Text style={styles.label}>Country</Text>
           {country && !picking ? (
@@ -152,7 +154,7 @@ function ProfileEditor({ profile, onClose, onSaved }: { profile: Profile; onClos
             </View>
           ) : (
             <View>
-              <TextInput value={search} onChangeText={setSearch} placeholder="Search for your country" placeholderTextColor={theme.colors.textTertiary} style={styles.input} autoFocus={country !== null} autoCorrect={false} />
+              <TextInput maxFontSizeMultiplier={MAX_TEXT_SCALE} value={search} onChangeText={setSearch} placeholder="Search for your country" placeholderTextColor={theme.colors.textTertiary} style={styles.input} autoFocus={country !== null} autoCorrect={false} />
               {matches.map(([code, label]) => (
                 <PressableScale
                   key={code}
@@ -175,7 +177,7 @@ function ProfileEditor({ profile, onClose, onSaved }: { profile: Profile; onClos
           {country && (
             <>
               <Text style={styles.label}>City</Text>
-              <TextInput value={city} onChangeText={setCity} placeholder="Optional" placeholderTextColor={theme.colors.textTertiary} maxLength={40} style={[styles.input, !cityOk && styles.inputBad]} autoCorrect={false} />
+              <TextInput maxFontSizeMultiplier={MAX_TEXT_SCALE} value={city} onChangeText={setCity} placeholder="Optional" placeholderTextColor={theme.colors.textTertiary} maxLength={40} style={[styles.input, !cityOk && styles.inputBad]} autoCorrect={false} />
               {cities.length > 0 && (
                 <View style={styles.suggestions}>
                   {cities
@@ -484,13 +486,13 @@ const styles = themedStyles(() => ({
   content: { paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.sm },
   flex: { flex: 1 },
   boards: { flexDirection: 'row', padding: 4, borderRadius: theme.radii.pill, backgroundColor: theme.colors.surfaceAlt },
-  board: { paddingVertical: 9, borderRadius: theme.radii.pill, alignItems: 'center' },
+  board: { paddingVertical: 8, borderRadius: theme.radii.pill, alignItems: 'center' },
   boardOn: { backgroundColor: theme.colors.textPrimary },
   boardText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   boardTextOn: { color: theme.colors.background },
   scopesScroll: { marginHorizontal: -theme.spacing.lg, marginTop: theme.spacing.md },
   scopes: { paddingHorizontal: theme.spacing.lg, gap: 8 },
-  scope: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.border, maxWidth: 200 },
+  scope: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.border, maxWidth: 200 },
   scopeOn: { borderColor: theme.colors.secondary, backgroundColor: theme.colors.surfaceHi },
   scopeText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   scopeTextOn: { color: theme.colors.textPrimary },
@@ -509,7 +511,7 @@ const styles = themedStyles(() => ({
   avatar: { width: 40, height: 40, borderRadius: 20, backgroundColor: theme.colors.primary, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
   meName: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
-  edit: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong },
+  edit: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong },
   editText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   list: { marginTop: theme.spacing.lg, gap: 6 },
   row: {
@@ -543,7 +545,7 @@ const styles = themedStyles(() => ({
   ghostBlock: { backgroundColor: theme.colors.surfaceAlt },
   ghostLine: { height: 12, borderRadius: 6, backgroundColor: theme.colors.surfaceAlt },
   notice: { marginTop: theme.spacing.lg, padding: theme.spacing.lg, borderRadius: 20, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, alignItems: 'center' },
-  noticeTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, textAlign: 'center' },
+  noticeTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, textAlign: 'center' },
   noticeText: { marginTop: 4, fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textSecondary, textAlign: 'center' },
   noticeButton: { marginTop: theme.spacing.md, paddingHorizontal: theme.spacing.lg },
   footer: { marginTop: theme.spacing.md, alignItems: 'center' },
@@ -576,7 +578,7 @@ const styles = themedStyles(() => ({
   chosen: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.md, paddingVertical: 12, borderRadius: 14, backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
   chosenText: { fontSize: theme.typography.sizes.body, color: theme.colors.textPrimary },
   link: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary },
-  option: { paddingHorizontal: theme.spacing.md, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
+  option: { paddingHorizontal: theme.spacing.md, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: theme.colors.border },
   optionText: { fontSize: theme.typography.sizes.body, color: theme.colors.textPrimary },
   suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: theme.spacing.sm },
   suggestion: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: theme.radii.pill, backgroundColor: theme.colors.surfaceAlt },

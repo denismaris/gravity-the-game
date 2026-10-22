@@ -1,12 +1,13 @@
 /* eslint-disable react-native/no-inline-styles -- every position here is derived from the board's own geometry at render time */
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing as RNEasing, PanResponder, StyleSheet, View } from 'react-native';
-import { Easing, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Animated, PanResponder, StyleSheet, View } from 'react-native';
+import { useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Canvas, Group, RoundedRect } from '@shopify/react-native-skia';
 import { canPlace, MosaicCell, MosaicPuzzle, MosaicState, occupancy, orient } from '../game/mosaic';
 import { useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
 import { mosaicGeometry, MosaicBoardView, pieceColor, Tesserae } from './MosaicBoardView';
+import { curve } from '../theme/motion';
 
 export type MosaicFeedback = 'pickup' | 'place' | 'return' | 'turn';
 
@@ -332,8 +333,8 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
       // for a moment before it counted - the lag. The board's own press
       // (`MosaicBoardView`'s `pressing`) gives it its give.
       Animated.parallel([
-        Animated.timing(base, { toValue: to, duration: still ? 0 : PLACE_MS, easing: RNEasing.out(RNEasing.cubic), useNativeDriver: true }),
-        Animated.timing(scale, { toValue: 1, duration: still ? 0 : PLACE_MS, easing: RNEasing.out(RNEasing.cubic), useNativeDriver: true }),
+        Animated.timing(base, { toValue: to, duration: still ? 0 : PLACE_MS, easing: curve.arrive, useNativeDriver: true }),
+        Animated.timing(scale, { toValue: 1, duration: still ? 0 : PLACE_MS, easing: curve.arrive, useNativeDriver: true }),
       ]).start(() => {
         live.current.onPlace(carried.index, target.row, target.col);
         live.current.onFeedback?.('place');
@@ -352,8 +353,8 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
     const to = { x: o.x + size / 2 - (w * geo.cellSize) / 2 - m, y: o.y + size / 2 - (h * geo.cellSize) / 2 - m };
     live.current.onFeedback?.('return');
     Animated.parallel([
-      Animated.timing(base, { toValue: to, duration: still ? 0 : RETURN_MS, easing: RNEasing.bezier(0.2, 0.8, 0.2, 1), useNativeDriver: true }),
-      Animated.timing(scale, { toValue: tc / geo.cellSize, duration: still ? 0 : RETURN_MS, easing: RNEasing.bezier(0.2, 0.8, 0.2, 1), useNativeDriver: true }),
+      Animated.timing(base, { toValue: to, duration: still ? 0 : RETURN_MS, easing: curve.arrive, useNativeDriver: true }),
+      Animated.timing(scale, { toValue: tc / geo.cellSize, duration: still ? 0 : RETURN_MS, easing: curve.arrive, useNativeDriver: true }),
     ]).start(() => finish());
   }
 
@@ -470,7 +471,7 @@ function TrayPiece({
   const scale = useSharedValue(reducedMotion ? 1 : 0.9);
   useEffect(() => {
     // Arriving home: a small give, as it settles into the slot.
-    if (!reducedMotion) scale.value = withTiming(1, { duration: SETTLE_MS, easing: Easing.out(Easing.back(2)) });
+    if (!reducedMotion) scale.value = withTiming(1, { duration: SETTLE_MS, easing: curve.reward });
   }, [scale, reducedMotion]);
   useLayoutEffect(() => {
     // Always onward, a quarter at a time, however the count wraps.
@@ -478,7 +479,7 @@ function TrayPiece({
     if (step === 0) return;
     turns.current += step;
     const to = (turns.current * Math.PI) / 2;
-    angle.value = reducedMotion ? to : withTiming(to, { duration: TURN_MS, easing: Easing.out(Easing.back(1.3)) });
+    angle.value = reducedMotion ? to : withTiming(to, { duration: TURN_MS, easing: curve.reward });
   }, [rotation, angle, reducedMotion]);
   const transform = useDerivedValue(() => [
     { translateX: cx },

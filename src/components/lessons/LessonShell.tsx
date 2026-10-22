@@ -1,12 +1,14 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
-import { StyleSheet, Text, View, useWindowDimensions } from 'react-native';
-import Animated, { Easing, FadeIn, FadeInDown, FadeInUp, FadeOut, Keyframe, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import { StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Text, MAX_TEXT_SCALE } from '../Text';
+import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut, Keyframe, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { triggerFeedback } from '../../game/rendering';
 import { theme, themedStyles } from '../../theme';
 import { PressableScale } from '../PressableScale';
 import { GameEmblem } from '../GameEmblem';
 import { LessonGesture, LessonGuideContext } from './guides';
+import { curve } from '../../theme/motion';
 
 /**
  * One step of a hands-on lesson: what the instruction card says, what the
@@ -91,20 +93,20 @@ export function useLessonFlow(
 }
 
 /** The instruction card, down from the top. */
-const CARD_IN = FadeInDown.duration(420).easing(Easing.out(Easing.cubic));
+const CARD_IN = FadeInDown.duration(420).easing(curve.arrive);
 /** The guide card, up from the bottom, a beat after the instruction. */
-const GUIDE_IN = FadeInUp.duration(380).delay(160).easing(Easing.out(Easing.cubic));
+const GUIDE_IN = FadeInUp.duration(380).delay(160).easing(curve.arrive);
 /** The praise, up at once - it answers the player's move. */
-const PRAISE_IN = FadeInUp.duration(300).easing(Easing.out(Easing.cubic));
+const PRAISE_IN = FadeInUp.duration(300).easing(curve.arrive);
 /** The board settles in once, at the start. */
 /** The game's emblem, on the opening card: a soft pop. */
 const EMBLEM_IN = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.6 }] },
-  100: { opacity: 1, transform: [{ scale: 1 }], easing: Easing.out(Easing.back(1.8)) },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: curve.reward },
 }).duration(560);
 const BOARD_IN = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.94 }] },
-  100: { opacity: 1, transform: [{ scale: 1 }], easing: Easing.out(Easing.back(1.4)) },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: curve.reward },
 }).duration(520);
 
 /**
@@ -181,10 +183,10 @@ export function LessonShell({
           <Animated.View entering={EMBLEM_IN}>
             {guide.emblem ?? (guide.kind ? <GameEmblem kind={guide.kind} size={96} /> : null)}
           </Animated.View>
-          <Animated.Text entering={FadeInDown.duration(420).delay(120)} style={styles.introName} accessibilityRole="header">
+          <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} entering={FadeInDown.duration(420).delay(120)} style={styles.introName} accessibilityRole="header">
             {gameName}
           </Animated.Text>
-          <Animated.Text entering={FadeInDown.duration(420).delay(200)} style={styles.introGoal}>
+          <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} entering={FadeInDown.duration(420).delay(200)} style={styles.introGoal}>
             {guide.goal}
           </Animated.Text>
         </View>
@@ -275,7 +277,7 @@ export function LessonShell({
 function GestureCue({ gesture, color }: { gesture: LessonGesture; color: string }): React.JSX.Element {
   const t = useSharedValue(0);
   useEffect(() => {
-    t.value = withRepeat(withSequence(withTiming(1, { duration: gesture === 'tap' ? 900 : 1100, easing: Easing.out(Easing.quad) }), withDelay(250, withTiming(0, { duration: 0 }))), -1);
+    t.value = withRepeat(withSequence(withTiming(1, { duration: gesture === 'tap' ? 900 : 1100, easing: curve.arrive }), withDelay(250, withTiming(0, { duration: 0 }))), -1);
   }, [t, gesture]);
   const ring = useAnimatedStyle(() => ({ opacity: 1 - t.value, transform: [{ scale: 0.4 + t.value * 1.1 }] }));
   const tip = useAnimatedStyle(() =>
@@ -299,8 +301,8 @@ const styles = themedStyles(() => ({
   bar: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: theme.colors.border },
   barFill: { ...StyleSheet.absoluteFill },
   instruction: { marginTop: theme.spacing.md, minHeight: 150 },
-  title: { marginTop: 6, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 4, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  say: { marginTop: 6, fontSize: theme.typography.sizes.body + 1, lineHeight: 24, color: theme.colors.textSecondary },
+  title: { marginTop: 6, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.headline, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  say: { marginTop: 6, fontSize: theme.typography.sizes.subtitle, lineHeight: 24, color: theme.colors.textSecondary },
   boardWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   footer: { minHeight: 72, justifyContent: 'center' },
   guide: {
@@ -319,8 +321,8 @@ const styles = themedStyles(() => ({
   guideDotTextOn: { color: theme.colors.surfaceHi },
   guideBody: { flex: 1 },
   introBody: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 14 },
-  introName: { marginTop: 10, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title + 12, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, textAlign: 'center' },
-  introGoal: { fontSize: theme.typography.sizes.body + 2, lineHeight: 26, color: theme.colors.textSecondary, textAlign: 'center', paddingHorizontal: theme.spacing.md },
+  introName: { marginTop: 10, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.display, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, textAlign: 'center' },
+  introGoal: { fontSize: theme.typography.sizes.subtitle, lineHeight: 26, color: theme.colors.textSecondary, textAlign: 'center', paddingHorizontal: theme.spacing.md },
   cue: { width: 32, height: 32, alignItems: 'center', justifyContent: 'center' },
   cueRing: { position: 'absolute', width: 22, height: 22, borderRadius: 11, borderWidth: 1.5 },
   cueTip: { width: 9, height: 9, borderRadius: 4.5 },
@@ -332,6 +334,6 @@ const styles = themedStyles(() => ({
   recapText: { flex: 1, fontSize: theme.typography.sizes.body, lineHeight: 22, color: theme.colors.textPrimary },
   guideText: { fontSize: theme.typography.sizes.body, lineHeight: 22, color: theme.colors.textPrimary },
   start: { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary },
-  startText: { fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.surfaceHi },
+  startText: { fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.semibold, color: theme.colors.surfaceHi },
   pressed: { opacity: 0.85 },
 }));

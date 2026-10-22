@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { PressableScale } from './PressableScale';
 import { TutorialCopy } from '../game/tutorials';
 import { motion, theme, themedStyles } from '../theme';
@@ -94,7 +95,7 @@ const styles = themedStyles(() => ({
     elevation: 12,
   },
   eyebrow: {
-    fontSize: theme.typography.sizes.caption + 1,
+    fontSize: theme.typography.sizes.body,
     fontWeight: theme.typography.weights.semibold,
     color: theme.colors.secondary,
     marginBottom: theme.spacing.sm,

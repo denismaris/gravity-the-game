@@ -274,6 +274,28 @@ export function piecePointsAt(piece: LaunchPiece, progress: number): Array<reado
   });
 }
 
+/**
+ * The same flight as `piecePointsAt`, as one rigid move of the piece:
+ * where its centre is, its turn (radians) and its size. The launch draws
+ * each piece once and moves it with this, instead of rebuilding and
+ * re-parsing its outline every frame on a cold start's busiest second.
+ * Unit coordinates, like the points.
+ */
+export function pieceMoveAt(piece: LaunchPiece, progress: number): { x: number; y: number; cx: number; cy: number; rotate: number; scale: number } {
+  'worklet';
+  const p = clamp01(progress);
+  const [cx, cy] = centroid(piece.points);
+  const travel = (1 - p) * PIECE_TRAVEL;
+  return {
+    x: cx + piece.from[0] * travel,
+    y: cy + piece.from[1] * travel,
+    cx,
+    cy,
+    rotate: ((1 - p) * piece.spin * Math.PI) / 180,
+    scale: piece.startScale + (1 - piece.startScale) * p,
+  };
+}
+
 /** 0..1 opacity through a piece's flight - fully opaque well before it
  * lands, so the settle is read as motion, not as a fade finishing. */
 export function pieceOpacity(progress: number): number {

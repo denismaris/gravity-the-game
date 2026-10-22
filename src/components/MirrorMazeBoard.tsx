@@ -4,6 +4,7 @@ import { Canvas } from '@shopify/react-native-skia';
 import { isEligible, MirrorKind, MirrorMazeCell, MirrorMazePuzzle, MirrorMazeState } from '../game/mirror';
 import { getCellOrigin } from '../game/rendering';
 import { mazeGrid, MirrorMazeBoardView } from './MirrorMazeBoardView';
+import { cellDip } from './cellDip';
 
 export interface MirrorMazeBoardProps {
   puzzle: MirrorMazePuzzle;
@@ -82,18 +83,13 @@ export function MirrorMazeBoard({
               accessibilityRole="button"
               accessibilityLabel={`Cell ${row + 1}, ${col + 1}, ${mirrorLabel(state.mirrors[row][col])}`}
               onPress={() => onCycleCell(row, col)}
-              // Sits above the Canvas, so this tint gives the cell an
-              // instant touch-down response without the Skia layer having
-              // to track press state. A warm mid-tone, so it reads on the
-              // paper tray and the dark one alike.
               style={({ pressed }) => ({
                 position: 'absolute',
                 left: origin.x + margin,
                 top: origin.y + margin,
                 width: layout.cellSize,
                 height: layout.cellSize,
-                borderRadius: layout.cellSize * 0.18,
-                backgroundColor: pressed ? 'rgba(120,100,70,0.12)' : 'transparent',
+                ...cellDip(pressed, layout.cellSize),
               })}
             />
           );

@@ -1,5 +1,6 @@
 import React from 'react';
-import { StyleProp, Text, TextStyle, View } from 'react-native';
+import { StyleProp, TextStyle, View } from 'react-native';
+import { Text } from './Text';
 import { Canvas, Group, Path } from '@shopify/react-native-skia';
 import { theme, themedStyles } from '../theme';
 

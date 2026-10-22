@@ -4,7 +4,8 @@ import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, View, useWindowDimensions } from 'react-native';
+import { Text, MAX_TEXT_SCALE } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
@@ -307,7 +308,7 @@ function AnimatedKicker({ left, solved, difficulty }: { left: number; solved: bo
   return (
     <View style={styles.kickerRow}>
       <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
-      <Animated.Text numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
+      <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
         {solved ? 'Mosaic · complete' : `Mosaic · ${left} ${left === 1 ? 'piece' : 'pieces'} left`}
       </Animated.Text>
       {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
@@ -360,7 +361,7 @@ const styles = themedStyles(() => ({
     height: 10,
     borderRadius: 5,
     backgroundColor: theme.colors.primary,
-    marginLeft: 5,
+    marginLeft: 4,
   },
   batchDots: {
     marginTop: theme.spacing.sm,

@@ -1,6 +1,6 @@
 export { GameScreen } from './GameScreen';
 export type { GameScreenProps } from './GameScreen';
-export { HomeScreen } from './HomeScreen';
+export { HomeScreen, holdHomeEntrance, releaseHomeEntrance } from './HomeScreen';
 export type { HomeScreenProps } from './HomeScreen';
 export { MirrorMazeScreen } from './MirrorMazeScreen';
 export type { MirrorMazeScreenProps } from './MirrorMazeScreen';

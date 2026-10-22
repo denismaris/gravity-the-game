@@ -6,7 +6,8 @@ import { dailyKeyOf, gameDisplayName, gameShortName, getDailyEntry } from '../ga
 import { cosmeticById } from '../progression/shop';
 import { formatDuration } from '../progression/timing';
 import { CosmeticPreview } from './CosmeticPreview';
-import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
+import { Animated, StyleSheet, View } from 'react-native';
+import { Text } from './Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GameEmblem } from './GameEmblem';
 import { triggerFeedback } from '../game/rendering';
@@ -17,6 +18,7 @@ import { CoinGlyph } from './Coins';
 import { GOLDEN_MULTIPLIER } from '../progression/coins';
 import { ModalLayer } from './ModalLayer';
 import { DialogActions } from './dialog';
+import { curve } from '../theme/motion';
 
 export interface PuzzleSolvedProps {
   title?: string;
@@ -279,7 +281,7 @@ function CountUp({ value, style, delay = 0 }: { value: number; style: React.Comp
     const t = new Animated.Value(0);
     const id = t.addListener(({ value: v }) => setShown(Math.round(v)));
     let live = true;
-    Animated.sequence([Animated.delay(420 + delay), Animated.timing(t, { toValue: value, duration: 620, easing: Easing.out(Easing.cubic), useNativeDriver: false })]).start(({ finished }) => {
+    Animated.sequence([Animated.delay(420 + delay), Animated.timing(t, { toValue: value, duration: 620, easing: curve.arrive, useNativeDriver: false })]).start(({ finished }) => {
       // The coins, heard as they land.
       if (finished && live && value > 0) triggerFeedback('coin');
     });
@@ -299,12 +301,12 @@ const styles = themedStyles(() => ({
   sealPlate: { position: 'absolute', width: 124, height: 124, borderRadius: 62, opacity: 0.1 },
   page: { alignSelf: 'center', width: '100%', maxWidth: 420, alignItems: 'center' },
   head: { marginBottom: 2 },
-  line: { flexDirection: 'row', alignItems: 'baseline', gap: 6, paddingVertical: 7 },
+  line: { flexDirection: 'row', alignItems: 'baseline', gap: 6, paddingVertical: 8 },
   lineLabel: { fontSize: theme.typography.sizes.body, color: theme.colors.textSecondary },
   leader: { flex: 1, fontSize: theme.typography.sizes.caption, color: theme.colors.borderStrong, letterSpacing: 1 },
-  lineValue: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  lineValue: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   coinValue: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  coinNumber: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.body + 3, fontWeight: theme.typography.weights.bold, color: theme.colors.accentText },
+  coinNumber: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.accentText },
   /** A paper ring the emblem sits in, cut into the sheet's top edge. */
   seat: { position: 'absolute', top: -46, alignSelf: 'center', width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
   praiseBlock: { alignItems: 'center', gap: 10 },
@@ -318,7 +320,7 @@ const styles = themedStyles(() => ({
   cardShadow: { width: '100%', shadowColor: theme.colors.shadow, shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: -6 }, elevation: 12 },
   card: { alignItems: 'center', paddingTop: 58, paddingHorizontal: theme.spacing.xl, backgroundColor: theme.colors.surface, borderTopLeftRadius: 34, borderTopRightRadius: 34, borderTopWidth: 1, borderColor: theme.colors.border },
   emblem: { marginBottom: theme.spacing.sm, alignItems: 'center', justifyContent: 'center' },
-  kicker: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.bold, letterSpacing: 1.6, textTransform: 'uppercase', textAlign: 'center' },
+  kicker: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, letterSpacing: 1.6, textTransform: 'uppercase', textAlign: 'center' },
   /** A short rule in the game's colour under the title, as every Home card has. */
   titleRule: { alignSelf: 'center', width: 36, height: 2, borderRadius: 1, marginTop: 8 },
   title: { fontFamily: theme.typography.families.display, fontSize: 52, lineHeight: 58, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, textAlign: 'center' },
@@ -336,7 +338,7 @@ const styles = themedStyles(() => ({
   bonusLine: { marginTop: 6, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.accentText },
   daily: { alignItems: 'center', gap: 3, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.borderStrong },
   dailyHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
-  dailyLabel: { fontSize: theme.typography.sizes.caption + 1, color: theme.colors.textSecondary },
+  dailyLabel: { fontSize: theme.typography.sizes.body, color: theme.colors.textSecondary },
   dailyTime: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   dailyNote: { marginTop: 4, fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   dailyWorld: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary, textAlign: 'center' },
@@ -344,12 +346,12 @@ const styles = themedStyles(() => ({
   shareText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   wonRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.borderStrong },
   wonPreview: { width: 36, height: 36, borderRadius: 10, backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center' },
-  wonText: { flex: 1, fontSize: theme.typography.sizes.caption + 1, lineHeight: 17, color: theme.colors.textPrimary },
+  wonText: { flex: 1, fontSize: theme.typography.sizes.body, lineHeight: 17, color: theme.colors.textPrimary },
   toward: { alignSelf: 'center', width: '100%', maxWidth: 380, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: theme.spacing.md, paddingHorizontal: 4 },
   towardBody: { flex: 1, gap: 6 },
   towardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  towardText: { flex: 1, fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
-  towardCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
+  towardText: { flex: 1, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  towardCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   towardTrack: { height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: theme.colors.border },
   towardFill: { height: 6, borderRadius: 3 },
   // At the foot of the page, where the thumb already is.
@@ -357,7 +359,7 @@ const styles = themedStyles(() => ({
   primaryWrap: { alignSelf: 'stretch' },
   button: { height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: theme.radii.pill },
   primary: { backgroundColor: theme.colors.primary },
-  primaryLabel: { color: theme.colors.surfaceHi, fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.semibold },
+  primaryLabel: { color: theme.colors.surfaceHi, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.semibold },
   quiet: { paddingHorizontal: theme.spacing.md, paddingVertical: 8 },
   quietLabel: { color: theme.colors.textSecondary, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold },
   pressed: { opacity: 0.85 },

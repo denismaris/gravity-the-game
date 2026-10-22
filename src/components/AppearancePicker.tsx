@@ -1,5 +1,6 @@
 import React from 'react';
-import { Text, View } from 'react-native';
+import { View } from 'react-native';
+import { Text } from './Text';
 import { AppearancePreference } from '../settings';
 import { paletteFor, Palette, theme, themedStyles } from '../theme';
 import { PressableScale } from './PressableScale';
@@ -101,10 +102,10 @@ const styles = themedStyles(() => ({
     overflow: 'hidden',
   },
   frameOn: { borderColor: theme.colors.secondary, borderWidth: 2 },
-  page: { flex: 1, padding: 9, justifyContent: 'center' },
-  card: { borderRadius: 8, borderWidth: 1, padding: 7, overflow: 'hidden' },
+  page: { flex: 1, padding: 8, justifyContent: 'center' },
+  card: { borderRadius: 8, borderWidth: 1, padding: 8, overflow: 'hidden' },
   band: { position: 'absolute', top: 0, left: 0, right: 0, height: 3 },
-  line: { height: 4, borderRadius: 2, marginTop: 5 },
+  line: { height: 4, borderRadius: 2, marginTop: 4 },
   lineLong: { width: '72%' },
   lineShort: { width: '48%' },
   lineSoft: { opacity: 0.8 },

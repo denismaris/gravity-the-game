@@ -1,4 +1,5 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef } from 'react';
+import { Easing, SharedValue, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Circle, Group, LinearGradient, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import { AdjacentCoord, AdjacentFall, AdjacentPuzzle, AdjacentState, GOLD, STONE } from '../game/adjacent';
 import { DealClock, DealIn, dealDelay, shade, useAnimationClock, useDealing, useReducedMotion } from '../game/rendering';
@@ -105,10 +106,12 @@ const CHIP_DIRECTIONS: ReadonlyArray<readonly [number, number]> = [
 ];
 
 function clamp01(t: number): number {
+  'worklet';
   return t < 0 ? 0 : t > 1 ? 1 : t;
 }
 
 function easeOutCubic(t: number): number {
+  'worklet';
   return 1 - (1 - t) ** 3;
 }
 
@@ -123,6 +126,7 @@ function easeOutCubic(t: number): number {
  * this app's motion is restrained everywhere else.
  */
 function fallEase(t: number): number {
+  'worklet';
   const c = clamp01(t);
   if (c < 0.82) {
     const a = c / 0.82;
@@ -515,6 +519,101 @@ const StaticTiles = React.memo(function StaticTilesImpl({ layout, grid, activeKe
   return <Group>{nodes}</Group>;
 });
 
+/**
+ * One move, on the UI thread: the cleared run pops - swelling, then
+ * shrinking away as chips of its colour burst out and fall - rippling out
+ * from the tapped tile, and the tiles above drop into the gaps. One clock
+ * for the whole move; each piece reads its own moment from it. A column
+ * with a stone breaking in it holds its tiles until the stone has broken.
+ */
+function MoveLayer({ move, grid, cell }: { move: AdjacentAnimation; grid: AdjacentState['grid']; cell: number }): React.JSX.Element {
+  // Starts at the move's own age, so a board mounted mid-move shows that
+  // moment rather than replaying it from the top.
+  const clock = useSharedValue(Math.max(0, Date.now() - move.at));
+  const span = 2000;
+  useEffect(() => {
+    clock.value = withTiming(span, { duration: Math.max(0, span - clock.value), easing: Easing.linear });
+    // Once: this layer is keyed by its move.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const origin = move.removed[0];
+  const holding = new Set(move.removed.filter(t => t.colour === STONE).map(t => t.col));
+  return (
+    <Group>
+      {move.falls.map(fall => {
+        const colour = grid[fall.toRow][fall.col];
+        if (colour === null) return null;
+        return <FallingTile key={`fall-${fall.col}-${fall.toRow}`} fall={fall} colour={colour} cell={cell} delay={holding.has(fall.col) ? COLUMN_HOLD_MS : FALL_DELAY_MS} clock={clock} />;
+      })}
+      {move.removed.map(tile =>
+        tile.colour === STONE ? null : (
+          <ClearingTile key={`clear-${tile.row}-${tile.col}`} tile={tile} cell={cell} delay={origin ? (Math.abs(tile.row - origin.row) + Math.abs(tile.col - origin.col)) * CLEAR_RIPPLE_MS : 0} clock={clock} />
+        ),
+      )}
+    </Group>
+  );
+}
+
+/** A tile dropping from where it was to where it lands, held until its
+ * column's turn. Drawn where it lands and lifted back up. */
+function FallingTile({ fall, colour, cell, delay, clock }: { fall: AdjacentFall; colour: number; cell: number; delay: number; clock: SharedValue<number> }): React.JSX.Element {
+  const rise = (fall.fromRow - fall.toRow) * cell;
+  const transform = useDerivedValue(() => [{ translateY: rise * (1 - fallEase((clock.value - delay) / FALL_MS)) }]);
+  return (
+    <Group transform={transform}>
+      <Tile colour={colour} x={fall.col * cell} y={fall.toRow * cell} cell={cell} />
+    </Group>
+  );
+}
+
+/** A cleared tile's pop and its four chips. */
+function ClearingTile({ tile, cell, delay, clock }: { tile: AdjacentRemoved; cell: number; delay: number; clock: SharedValue<number> }): React.JSX.Element {
+  const cx = tile.col * cell + cell / 2;
+  const cy = tile.row * cell + cell / 2;
+  const chip = cell * 0.13;
+  const colour = adjacentTileColor(tile.colour);
+  const local = useDerivedValue(() => (clock.value - delay) / CLEAR_MS);
+  const tileTransform = useDerivedValue(() => {
+    const t = local.value;
+    if (t <= 0) return [{ scale: 1 }];
+    if (t >= 1) return [{ scale: 0 }];
+    const swell = t < CLEAR_SWELL ? 1 + 0.12 * easeOutCubic(t / CLEAR_SWELL) : 1.12 * (1 - ((t - CLEAR_SWELL) / (1 - CLEAR_SWELL)) ** 2);
+    return [{ scale: Math.max(0, swell) }];
+  });
+  const tileOpacity = useDerivedValue(() => {
+    const t = local.value;
+    return t <= 0.55 ? 1 : t >= 1 ? 0 : 1 - (t - 0.55) / 0.45;
+  });
+  return (
+    <Group>
+      <Group origin={vec(cx, cy)} transform={tileTransform} opacity={tileOpacity}>
+        <Tile colour={tile.colour} x={tile.col * cell} y={tile.row * cell} cell={cell} />
+      </Group>
+      {CHIP_DIRECTIONS.map(([dx, dy], i) => (
+        <Chip key={i} cx={cx} cy={cy} dx={dx} dy={dy} cell={cell} size={chip} colour={colour} local={local} />
+      ))}
+    </Group>
+  );
+}
+
+function Chip({ cx, cy, dx, dy, cell, size, colour, local }: { cx: number; cy: number; dx: number; dy: number; cell: number; size: number; colour: string; local: SharedValue<number> }): React.JSX.Element {
+  const transform = useDerivedValue(() => {
+    const burst = clamp01((local.value - CLEAR_SWELL) / (1 - CLEAR_SWELL));
+    const reach = cell * 0.62 * easeOutCubic(burst);
+    return [{ translateX: dx * reach }, { translateY: dy * reach + cell * 0.4 * burst * burst }];
+  });
+  const opacity = useDerivedValue(() => {
+    const t = local.value;
+    if (t <= CLEAR_SWELL || t >= 1) return 0;
+    return 1 - (t - CLEAR_SWELL) / (1 - CLEAR_SWELL);
+  });
+  return (
+    <Group transform={transform} opacity={opacity}>
+      <RoundedRect x={cx - size / 2} y={cy - size / 2} width={size} height={size} r={size * 0.3} color={colour} />
+    </Group>
+  );
+}
+
 /** A tile that has just been cleared: where it was, and what colour it
  * was, since it is already gone from the grid by the time this renders. */
 export interface AdjacentRemoved extends AdjacentCoord {
@@ -566,9 +665,18 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
   const hasStones = !!animation?.removed.some(t => t.colour === STONE);
   const moveWindow = Math.max(hasStones ? FALL_DELAY_MS + FALL_MS + CRUMBLE_MS + COLUMN_HOLD_MS : FALL_DELAY_MS + FALL_MS, clearWindow);
   const sweepWindow = SWEEP_MS + puzzle.size * SWEEP_STAGGER_MS;
-  const animating =
-    !reducedMotion &&
-    ((animation != null && now - animation.at < moveWindow) || (solvedAt !== null && now - solvedAt < sweepWindow));
+  // The move itself - falls and the clear - runs on the UI thread (see
+  // `MoveLayer`); the JavaScript clock is left only for a breaking stone
+  // and the finish, which are rare. Every ordinary move used to redraw the
+  // board from JavaScript sixty times a second for half a second.
+  const moveLive = !reducedMotion && animation != null && now - animation.at < moveWindow ? animation : null;
+  const [, settle] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (!moveLive) return;
+    const timer = setTimeout(settle, moveWindow - (Date.now() - moveLive.at) + 20);
+    return () => clearTimeout(timer);
+  }, [moveLive, moveWindow]);
+  const animating = !reducedMotion && ((moveLive != null && hasStones) || (solvedAt !== null && now - solvedAt < sweepWindow));
   useAnimationClock(animating, 60);
 
   const frame = Date.now();
@@ -589,21 +697,9 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
    * which is also the honest reading of the move: the run goes, *then*
    * the column drops.
    */
-  const falling = useMemo(() => {
-    const map = new Map<string, { fall: AdjacentFall; progress: number }>();
-    if (!animation || reducedMotion) return map;
-    const since = frame - animation.at;
-    if (since < 0) return map;
-    // A column with a stone breaking in it holds its tiles until the stone
-    // has broken - they fall into the space it leaves, not through it.
-    const holding = new Set(animation.removed.filter(t => t.colour === STONE).map(t => t.col));
-    for (const fall of animation.falls) {
-      const delay = holding.has(fall.col) ? COLUMN_HOLD_MS : FALL_DELAY_MS;
-      if (since >= delay + FALL_MS) continue;
-      map.set(cellKey(fall.toRow, fall.col), { fall, progress: fallEase(Math.max(0, since - delay) / FALL_MS) });
-    }
-    return map;
-  }, [animation, frame, reducedMotion]);
+  /** The squares tiles are falling into this move: the static layer
+   * leaves them to `MoveLayer` until the move is over. */
+  const fallingKeys = useMemo(() => (moveLive ? moveLive.falls.map(f => cellKey(f.toRow, f.col)) : []), [moveLive]);
 
   /** Stones on their way down and breaking up: the drop to the floor, then
    * the crumble (see `CRUMBLE_MS`). */
@@ -625,40 +721,6 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
       .filter(c => c.crumble < 1);
   }, [animation, frame, reducedMotion, puzzle.size]);
 
-  /**
-   * The clear: each tile swells a little, then pops - shrinking away while
-   * four chips of its colour burst outward and fall. It ripples out from
-   * the tile that was tapped (the run's first tile), one step of distance
-   * at a time, so a big run visibly *spreads* rather than vanishing all at
-   * once. A tile whose turn has not come yet is drawn untouched - it is
-   * already gone from the grid, so skipping it would make it vanish early.
-   */
-  const clearing = useMemo(() => {
-    if (!animation || reducedMotion || animation.removed.length === 0) return [];
-    const since = frame - animation.at;
-    if (since < 0) return [];
-    const origin = animation.removed[0];
-    const out: Array<{ tile: AdjacentRemoved; opacity: number; scale: number; burst: number }> = [];
-    for (const tile of animation.removed) {
-      if (tile.colour === STONE) continue;
-      const distance = Math.abs(tile.row - origin.row) + Math.abs(tile.col - origin.col);
-      const t = (since - distance * CLEAR_RIPPLE_MS) / CLEAR_MS;
-      if (t >= 1) continue;
-      if (t <= 0) {
-        out.push({ tile, opacity: 1, scale: 1, burst: 0 });
-        continue;
-      }
-      const swell = t < CLEAR_SWELL ? 1 + 0.12 * easeOutCubic(t / CLEAR_SWELL) : 1.12 * (1 - ((t - CLEAR_SWELL) / (1 - CLEAR_SWELL)) ** 2);
-      out.push({
-        tile,
-        scale: Math.max(0, swell),
-        opacity: t < 0.55 ? 1 : 1 - (t - 0.55) / 0.45,
-        burst: t < CLEAR_SWELL ? 0 : (t - CLEAR_SWELL) / (1 - CLEAR_SWELL),
-      });
-    }
-    return out;
-  }, [animation, frame, reducedMotion]);
-
   const sweep = useMemo(() => {
     if (solvedAt === null || reducedMotion) return new Map<string, number>();
     const map = new Map<string, number>();
@@ -677,7 +739,7 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
     return map;
   }, [solvedAt, frame, reducedMotion, puzzle.size, state.grid]);
 
-  const activeKeys = useMemo(() => [...new Set([...falling.keys(), ...sweep.keys()])].join(','), [falling, sweep]);
+  const activeKeys = useMemo(() => [...new Set([...fallingKeys, ...sweep.keys()])].join(','), [fallingKeys, sweep]);
   const previewKeys = useMemo(() => (preview ?? []).map(c => cellKey(c.row, c.col)).join(','), [preview]);
 
   return (
@@ -690,48 +752,11 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
 
       <StaticTiles layout={layout} grid={state.grid} activeKeys={activeKeys} previewKeys={previewKeys} dealing={dealing} />
 
-      {/* Tiles still falling, drawn back toward where they came from. */}
-      {[...falling.entries()].map(([key, { fall, progress }]) => {
-        const colour = state.grid[fall.toRow][fall.col];
-        if (colour === null) return null;
-        const y = (fall.fromRow + (fall.toRow - fall.fromRow) * progress) * cell;
-        return <Tile key={`fall-${key}`} colour={colour} x={fall.col * cell} y={y} cell={cell} />;
-      })}
+      {moveLive && <MoveLayer key={moveLive.at} move={moveLive} grid={state.grid} cell={cell} />}
 
       {crumbling.map(({ tile, y, crumble }) => (
         <CrumblingStone key={`crumble-${tile.row}-${tile.col}`} x={tile.col * cell} y={y * cell} cell={cell} t={crumble} />
       ))}
-
-      {/* Tiles on their way out: the pop, and its chips. */}
-      {clearing.map(({ tile, opacity, scale, burst }) => {
-        const key = cellKey(tile.row, tile.col);
-        const cx = tile.col * cell + cell / 2;
-        const cy = tile.row * cell + cell / 2;
-        const chip = cell * 0.13;
-        const colour = adjacentTileColor(tile.colour);
-        return (
-          <Group key={`clear-${key}`}>
-            {scale > 0.02 && <Tile colour={tile.colour} x={tile.col * cell} y={tile.row * cell} cell={cell} opacity={opacity} scale={scale} />}
-            {burst > 0 &&
-              CHIP_DIRECTIONS.map(([dx, dy], i) => {
-                const reach = cell * 0.62 * easeOutCubic(burst);
-                const drop = cell * 0.4 * burst * burst;
-                return (
-                  <RoundedRect
-                    key={`chip-${key}-${i}`}
-                    x={cx + dx * reach - chip / 2}
-                    y={cy + dy * reach + drop - chip / 2}
-                    width={chip}
-                    height={chip}
-                    r={chip * 0.3}
-                    color={colour}
-                    opacity={1 - burst}
-                  />
-                );
-              })}
-          </Group>
-        );
-      })}
 
       {/* The finish: a ripple out from the middle over the tiles that are
           left - each hops and lands back in place with a little give, a

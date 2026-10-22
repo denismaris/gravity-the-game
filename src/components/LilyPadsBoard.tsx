@@ -3,7 +3,6 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { GestureResponderEvent, StyleSheet, View } from 'react-native';
 import { Canvas, Circle, DashPathEffect, Group, LinearGradient, Oval, Path, RoundedRect, Skia, vec } from '@shopify/react-native-skia';
 import {
-  Easing,
   runOnUI,
   SharedValue,
   useDerivedValue,
@@ -15,8 +14,9 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 import { Cell, DIRECTIONS, LilyPuzzle, LilyState, padCell } from '../game/lilypads';
-import { DealIn, dealDelay, shade, useDealing, useReducedMotion } from '../game/rendering';
+import { DealIn, dealDelay, REFUSE_MS, REFUSE_PX, refuseShake, shade, useDealing, useReducedMotion } from '../game/rendering';
 import { inkWash, theme } from '../theme';
+import { curve } from '../theme/motion';
 
 /**
  * The pond, in the same hand as every other board: Twos' paper tray with
@@ -95,6 +95,17 @@ export function LilyPadsBoard({
   const geo = useMemo(() => lilyGeometry(size, puzzle.size), [size, puzzle.size]);
   const reduced = useReducedMotion();
   const r = geo.cell * 0.42;
+  // A hop that leads nowhere: the frog shakes its head, the same shake
+  // every board gives a move it will not take.
+  const refusal = useSharedValue(1);
+  const headShake = useDerivedValue(() => [{ translateX: refuseShake(refusal.value) * REFUSE_PX }]);
+  const refuse = () => {
+    if (!reduced) {
+      refusal.value = 0;
+      refusal.value = withTiming(1, { duration: REFUSE_MS, easing: curve.linear });
+    }
+    onRefused?.();
+  };
   // Where each pad is now: drifting pads move, so never `puzzle.pads`.
   const cellOf = (i: number) => padCell(puzzle, state, i);
 
@@ -166,7 +177,7 @@ export function LilyPadsBoard({
       toY.value = ty;
       if (run) {
         t.value = 0;
-        t.value = withTiming(1, { duration: HOP_MS, easing: Easing.inOut(Easing.quad) });
+        t.value = withTiming(1, { duration: HOP_MS, easing: curve.glide });
       } else {
         t.value = 1;
       }
@@ -182,7 +193,7 @@ export function LilyPadsBoard({
   const joy = useSharedValue(0);
   useEffect(() => {
     if (reduced) return;
-    breath.value = withRepeat(withSequence(withTiming(1, { duration: 1300, easing: Easing.inOut(Easing.sin) }), withTiming(0, { duration: 1300, easing: Easing.inOut(Easing.sin) })), -1, false);
+    breath.value = withRepeat(withSequence(withTiming(1, { duration: 1300, easing: curve.breathe }), withTiming(0, { duration: 1300, easing: curve.breathe })), -1, false);
     blink.value = withRepeat(withSequence(withDelay(2600, withTiming(0.12, { duration: 70 })), withTiming(1, { duration: 90 })), -1, false);
   }, [reduced, breath, blink]);
   useEffect(() => {
@@ -194,7 +205,7 @@ export function LilyPadsBoard({
       joy.value = 0;
       return;
     }
-    joy.value = withDelay(HOP_MS + 380, withSequence(withTiming(1, { duration: 200, easing: Easing.out(Easing.quad) }), withTiming(0, { duration: 220, easing: Easing.in(Easing.quad) })));
+    joy.value = withDelay(HOP_MS + 380, withSequence(withTiming(1, { duration: 200, easing: curve.arrive }), withTiming(0, { duration: 220, easing: curve.leave })));
   }, [solved, reduced, joy]);
 
   const frogTransform = useDerivedValue(() => {
@@ -233,7 +244,7 @@ export function LilyPadsBoard({
       const frog = cellOf(state.at);
       const pad = reach.find(p => Math.sign(cellOf(p).row - frog.row) === DIRECTIONS[d].row && Math.sign(cellOf(p).col - frog.col) === DIRECTIONS[d].col);
       if (pad !== undefined) onHop(pad);
-      else onRefused?.();
+      else refuse();
       return;
     }
     const col = Math.floor((x - geo.inset) / geo.cell);
@@ -241,7 +252,7 @@ export function LilyPadsBoard({
     const pad = puzzle.pads.findIndex((_p, i) => state.afloat[i] && cellOf(i).row === row && cellOf(i).col === col);
     if (pad < 0 || pad === state.at) return;
     if (reach.includes(pad)) onHop(pad);
-    else onRefused?.();
+    else refuse();
   };
 
   const frogPad = cellOf(state.at);
@@ -291,7 +302,9 @@ export function LilyPadsBoard({
           <Oval x={-geo.cell * 0.21} y={-geo.cell * 0.12} width={geo.cell * 0.42} height={geo.cell * 0.24} color={inkWash(0.2)} />
         </Group>
         <Group transform={frogTransform}>
-          <Frog cell={geo.cell} blink={blink} />
+          <Group transform={headShake}>
+            <Frog cell={geo.cell} blink={blink} />
+          </Group>
         </Group>
       </Canvas>
       <View
@@ -416,7 +429,7 @@ export function Lotus({ x, y, r }: { x: number; y: number; r: number }): React.J
 function LotusFall({ x, y, r }: { x: number; y: number; r: number }): React.JSX.Element {
   const u = useSharedValue(0);
   useEffect(() => {
-    u.value = withDelay(HOP_MS * 0.3, withTiming(1, { duration: 650, easing: Easing.in(Easing.quad) }));
+    u.value = withDelay(HOP_MS * 0.3, withTiming(1, { duration: 650, easing: curve.leave }));
   }, [u]);
   const cx = x + r * 0.3;
   const cy = y + r * 0.22;
@@ -547,7 +560,7 @@ function Trail({ points, lift }: { points: ReadonlyArray<{ x: number; y: number 
 function Splash({ x, y, r }: { x: number; y: number; r: number }): React.JSX.Element {
   const u = useSharedValue(0);
   useEffect(() => {
-    u.value = withDelay(HOP_MS - 30, withTiming(1, { duration: 520, easing: Easing.out(Easing.cubic) }));
+    u.value = withDelay(HOP_MS - 30, withTiming(1, { duration: 520, easing: curve.arrive }));
   }, [u]);
   const ringR = useDerivedValue(() => r * (1 + 0.55 * u.value));
   const ringO = useDerivedValue(() => (u.value === 0 ? 0 : 0.8 * (1 - u.value)));
@@ -559,7 +572,7 @@ function ReachRings({ geo, pads, r, reduced }: { geo: LilyGeo; pads: ReadonlyArr
   const b = useSharedValue(0);
   useEffect(() => {
     if (reduced) return;
-    b.value = withDelay(HOP_MS, withRepeat(withSequence(withTiming(1, { duration: 900, easing: Easing.inOut(Easing.sin) }), withTiming(0, { duration: 900, easing: Easing.inOut(Easing.sin) })), -1, false));
+    b.value = withDelay(HOP_MS, withRepeat(withSequence(withTiming(1, { duration: 900, easing: curve.breathe }), withTiming(0, { duration: 900, easing: curve.breathe })), -1, false));
   }, [b, reduced]);
   const opacity = useDerivedValue(() => 0.45 + 0.35 * b.value);
   return (
@@ -587,7 +600,7 @@ function Sinking({ geo, pad, r }: { geo: LilyGeo; pad: { row: number; col: numbe
   const { x, y } = geo.centre(pad.row, pad.col);
   const u = useSharedValue(0);
   useEffect(() => {
-    u.value = withDelay(HOP_MS * 0.35, withTiming(1, { duration: 700, easing: Easing.out(Easing.cubic) }));
+    u.value = withDelay(HOP_MS * 0.35, withTiming(1, { duration: 700, easing: curve.arrive }));
   }, [u]);
   const leaf = useDerivedValue(() => [{ translateX: x }, { translateY: y + r * 0.1 * u.value }, { scale: 1 - 0.5 * u.value }, { translateX: -x }, { translateY: -y }]);
   const leafO = useDerivedValue(() => 1 - u.value);
@@ -620,7 +633,7 @@ function Ripples({ x, y, reach }: { x: number; y: number; reach: number }): Reac
 function Ripple({ x, y, reach, delay }: { x: number; y: number; reach: number; delay: number }): React.JSX.Element {
   const u = useSharedValue(0);
   useEffect(() => {
-    u.value = withDelay(delay, withTiming(1, { duration: 1500, easing: Easing.out(Easing.quad) }));
+    u.value = withDelay(delay, withTiming(1, { duration: 1500, easing: curve.arrive }));
   }, [u, delay]);
   const rr = useDerivedValue(() => reach * u.value);
   const o = useDerivedValue(() => (u.value === 0 ? 0 : 0.7 * (1 - u.value)));
@@ -664,7 +677,7 @@ function Bloom({ x, y, r, reduced }: { x: number; y: number; r: number; reduced:
   const sway = useSharedValue(0);
   useEffect(() => {
     if (reduced) return;
-    t.value = withDelay(HOP_MS, withTiming(1, { duration: 700, easing: Easing.out(Easing.back(1.6)) }));
+    t.value = withDelay(HOP_MS, withTiming(1, { duration: 700, easing: curve.reward }));
     sway.value = withDelay(HOP_MS + 700, withRepeat(withSequence(withTiming(1, { duration: 1400 }), withTiming(0, { duration: 1400 })), -1, false));
   }, [t, sway, reduced]);
   const petals = useDerivedValue(() => [{ translateX: x }, { translateY: y }, { rotate: sway.value * 0.08 }, { scale: t.value }]);

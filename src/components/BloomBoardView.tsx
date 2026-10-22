@@ -1,10 +1,11 @@
 import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { Circle, Group, Path, RoundedRect, Skia, SkPath, vec } from '@shopify/react-native-skia';
-import { Easing, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import { useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { BloomArcStep, BloomCell, BloomEdge, BloomPuzzle, BloomState, joinedArcs, tileArcs, traceLoops } from '../game/bloom';
 import { BoardLayout, computeBoardLayout, DealIn, dealDelay, useAnimationClock, useDealing, useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
 import { CellWell, PaperTray } from './boardChrome';
+import { curve } from '../theme/motion';
 
 /** A quarter turn, eased - short enough that a run of taps never queues
  * up behind itself, long enough to read as the tile turning rather than
@@ -192,9 +193,9 @@ const TileView = React.memo(function TileViewImpl({
     }
     // A tap turns one quarter; a hint may turn two or three - the same
     // easy swing, a little longer, never a jump.
-    angle.value = withTiming(to, { duration: TURN_MS * (1 + (step - 1) * 0.45), easing: Easing.out(Easing.back(1.4)) });
+    angle.value = withTiming(to, { duration: TURN_MS * (1 + (step - 1) * 0.45), easing: curve.reward });
     flush.value = 1;
-    flush.value = withTiming(0, { duration: TURN_MS + 120, easing: Easing.out(Easing.cubic) });
+    flush.value = withTiming(0, { duration: TURN_MS + 120, easing: curve.arrive });
   }, [rotation, turns, reducedMotion, angle, flush, quarter]);
   const transform = useDerivedValue(() => [{ rotate: angle.value }]);
   return (

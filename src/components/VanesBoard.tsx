@@ -6,6 +6,8 @@ import { Easing, SharedValue, useDerivedValue, useSharedValue, withDelay, withRe
 import { Dir, loops, STEP, targets, troubles, VanePuzzle, VaneState } from '../game/vanes';
 import { DealIn, dealDelay, shade, useDealing, useReducedMotion } from '../game/rendering';
 import { inkWash, theme } from '../theme';
+import { curve } from '../theme/motion';
+import { cellDip } from './cellDip';
 
 /**
  * The roof, in the same hand as every other board: Twos' paper tray with
@@ -56,17 +58,26 @@ export function VanesBoard({
 }): React.JSX.Element {
   const geo = useMemo(() => vaneGeometry(size, puzzle.size), [size, puzzle.size]);
   const at = useMemo(() => new Map(puzzle.vanes.map((v, i) => [`${v.row},${v.col}`, i])), [puzzle]);
+  // The vane under the finger, dipped until it lifts.
+  const [down, setDown] = useState<{ row: number; col: number } | null>(null);
+  const cellAt = (x: number, y: number) => ({ col: Math.floor((x - geo.inset) / geo.cell), row: Math.floor((y - geo.inset) / geo.cell) });
   return (
     <View style={{ width: size, height: size }}>
       <Canvas style={StyleSheet.absoluteFill}>
         <VanesRoof puzzle={puzzle} state={state} geo={geo} solved={solved} glow={glow} touched={touched} live />
       </Canvas>
+      {down && <View pointerEvents="none" style={{ position: 'absolute', left: geo.inset + down.col * geo.cell, top: geo.inset + down.row * geo.cell, width: geo.cell, height: geo.cell, ...cellDip(true, geo.cell) }} />}
       <View
         style={{ position: 'absolute', left: 0, top: 0, width: size, height: size }}
         onStartShouldSetResponder={() => true}
+        onResponderGrant={e => {
+          const cell = cellAt(e.nativeEvent.locationX, e.nativeEvent.locationY);
+          setDown(at.has(`${cell.row},${cell.col}`) ? cell : null);
+        }}
+        onResponderTerminate={() => setDown(null)}
         onResponderRelease={e => {
-          const col = Math.floor((e.nativeEvent.locationX - geo.inset) / geo.cell);
-          const row = Math.floor((e.nativeEvent.locationY - geo.inset) / geo.cell);
+          setDown(null);
+          const { row, col } = cellAt(e.nativeEvent.locationX, e.nativeEvent.locationY);
           const vane = at.get(`${row},${col}`);
           if (vane !== undefined) onTurn(vane);
         }}
@@ -265,7 +276,7 @@ function Puff({ k, x, top, cell, smoke, live }: { k: number; x: number; top: num
 function LoopGlow({ points, cell }: { points: ReadonlyArray<{ x: number; y: number }>; cell: number }): React.JSX.Element {
   const u = useSharedValue(0);
   useEffect(() => {
-    u.value = withTiming(1, { duration: 900, easing: Easing.out(Easing.cubic) });
+    u.value = withTiming(1, { duration: 900, easing: curve.arrive });
   }, [u]);
   const r = useDerivedValue(() => cell * (0.2 + 0.4 * u.value));
   const o = useDerivedValue(() => 0.8 * (1 - u.value));
@@ -344,10 +355,10 @@ function Vane({
       return;
     }
     tick.value = 0;
-    tick.value = withTiming(1, { duration: 380, easing: Easing.out(Easing.cubic) });
+    tick.value = withTiming(1, { duration: 380, easing: curve.arrive });
   }, [dir, angle, tick, reduced]);
   useEffect(() => {
-    if (gust) spin.value = withDelay(250 + delay, withSequence(withTiming(Math.PI * 2 + 0.25, { duration: 850, easing: Easing.inOut(Easing.cubic) }), withSpring(Math.PI * 2, { damping: 8 })));
+    if (gust) spin.value = withDelay(250 + delay, withSequence(withTiming(Math.PI * 2 + 0.25, { duration: 850, easing: curve.glide }), withSpring(Math.PI * 2, { damping: 8 })));
     else spin.value = 0;
   }, [gust, delay, spin]);
   const transform = useDerivedValue(() => [{ translateX: x }, { translateY: y }, { rotate: angle.value + spin.value }]);

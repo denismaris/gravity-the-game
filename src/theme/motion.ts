@@ -1,4 +1,42 @@
-import { Easing } from 'react-native';
+/**
+ * The app's curves. Every eased moment uses one of these, so a card, a
+ * tile and a coin arriving all move with the same hand. Plain worklet
+ * functions: the same curve drives Animated, Reanimated and the boards'
+ * own clocks, on either thread.
+ */
+export const curve = {
+  /** Something arriving and settling: fast in, gentle at rest. */
+  arrive(t: number): number {
+    'worklet';
+    return 1 - (1 - t) ** 3;
+  },
+  /** Something leaving: slow to go, quick once it is going. */
+  leave(t: number): number {
+    'worklet';
+    return t * t * t;
+  },
+  /** Something moving from one place to another on the board. */
+  glide(t: number): number {
+    'worklet';
+    return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+  },
+  /** A reward landing: one small overshoot, then home. Rare moments only. */
+  reward(t: number): number {
+    'worklet';
+    const u = t - 1;
+    return 1 + 2.5 * u * u * u + 1.5 * u * u;
+  },
+  /** An ambient loop breathing in and out. */
+  breathe(t: number): number {
+    'worklet';
+    return (1 - Math.cos(Math.PI * t)) / 2;
+  },
+  linear(t: number): number {
+    'worklet';
+    return t;
+  },
+};
+
 
 /**
  * Shared animation "physics" for the whole app - one place so every card,
@@ -38,12 +76,12 @@ export const motion = {
   cardEnter: {
     duration: 220,
     scaleFrom: 0.9,
-    easing: Easing.out(Easing.cubic),
+    easing: curve.arrive,
   },
   /** A whole screen fading/rising into view on navigation. */
   screenEnter: {
     duration: 280,
-    easing: Easing.out(Easing.cubic),
+    easing: curve.arrive,
   },
   /**
    * The app's pace, in one place: every beat that decides how long the

@@ -4,7 +4,8 @@ import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, View, useWindowDimensions } from 'react-native';
+import { Text, MAX_TEXT_SCALE } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
@@ -28,7 +29,7 @@ import {
 } from '../components';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
-import { triggerFeedback } from '../game/rendering';
+import { REFUSE_MS, triggerFeedback } from '../game/rendering';
 import { ARUKONE_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
@@ -42,7 +43,8 @@ import { HelpHalo } from '../components/HelpHalo';
 const TUTORIAL_ID = tutorialIdForGame('arukone');
 const ICON_SIZE = 14;
 /** How long a refused move stays marked on the board. */
-const REJECT_MS = 260;
+/** How long a refused square stays marked: its whole shake. */
+const REJECT_MS = REFUSE_MS;
 
 /** The same simple-stroke "?" every other screen's header carries. */
 function HelpIcon(): React.JSX.Element {
@@ -171,7 +173,7 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
 
   const rejectMove = useCallback((cell: ArukoneCell) => {
     setRejected(cell);
-    triggerFeedback('arukoneReject');
+    triggerFeedback('refuse');
     if (rejectTimeoutRef.current) clearTimeout(rejectTimeoutRef.current);
     rejectTimeoutRef.current = setTimeout(() => setRejected(null), REJECT_MS);
   }, []);
@@ -333,7 +335,7 @@ function AnimatedKicker({ left, cellsLeft, solved, difficulty }: { left: number;
   return (
     <View style={styles.kickerRow}>
       <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
-      <Animated.Text numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
+      <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
         {solved
           ? 'Twinpath · solved'
           : left > 0
@@ -390,7 +392,7 @@ const styles = themedStyles(() => ({
     height: 10,
     borderRadius: 5,
     backgroundColor: theme.colors.primary,
-    marginLeft: 5,
+    marginLeft: 4,
   },
   batchDots: {
     marginTop: theme.spacing.sm,

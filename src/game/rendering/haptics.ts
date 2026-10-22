@@ -78,13 +78,23 @@ export type HapticKind =
   | 'vaneSolve'
   // A check or seal stamping onto a finish card: light and crisp, one per
   // thing counted in.
-  | 'stamp';
+  | 'stamp'
+  // A move the board will not take, in any game: a wall, a fixed square,
+  // a lane crossed. One knock everywhere, paired with `RefuseMark`.
+  | 'refuse';
 
 /**
  * Pattern in milliseconds passed to `Vibration.vibrate`. A single number is
  * one short pulse; an array alternates [wait, vibrate, wait, vibrate, ...].
  * Durations are intentionally tiny - this is meant to be felt, not heard.
  */
+/** Every game's finish on Android's vibrator: four pulses climbing. */
+const FINISH_PATTERN = [0, 12, 40, 14, 40, 18, 40, 26];
+/** A milestone inside the board, in every game. */
+const JOIN_PATTERN = [0, 10, 40, 14];
+/** A move refused or a rule broken: a soft double knock. */
+const REFUSE_PATTERN = [0, 8, 60, 8];
+
 const PATTERNS: Record<HapticKind, number | number[]> = {
   // A very short tick: "your input was received and something moved".
   gravityChange: 8,
@@ -110,8 +120,8 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   // milestone and gets noticeably more; the solve is a rising triple,
   // deliberately unlike the shared `solved` double-pulse.
   mirrorPlace: 6,
-  mirrorGem: 16,
-  mirrorSolve: [0, 12, 45, 16, 45, 28],
+  mirrorGem: JOIN_PATTERN,
+  mirrorSolve: FINISH_PATTERN,
 
   // Skyscrapers. A height entry is the core verb (as frequent as
   // `mirrorPlace`, same weight); a conflict is a soft "no" - present but
@@ -120,9 +130,9 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   // weight); the solve is a rising triple, its own shape rather than a
   // copy of `mirrorSolve`'s.
   towersPlace: 6,
-  towersConflict: 10,
-  towersRowComplete: 16,
-  towersSolve: [0, 15, 50, 15, 50, 25],
+  towersConflict: REFUSE_PATTERN,
+  towersRowComplete: JOIN_PATTERN,
+  towersSolve: FINISH_PATTERN,
 
   // Binairo. The highest-repetition tap in the whole app, so its toggle
   // stays the lightest haptic anywhere (lighter than `tap` itself); an
@@ -131,18 +141,18 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   // balancing is a small, real nudge; the solve is its own short rising
   // pair, distinct from (and gentler than) the other three games' solves.
   binairoToggle: 3,
-  binairoError: 8,
-  binairoRowBalance: 14,
-  binairoSolve: [0, 12, 40, 18],
+  binairoError: REFUSE_PATTERN,
+  binairoRowBalance: JOIN_PATTERN,
+  binairoSolve: FINISH_PATTERN,
 
   // Tents and Trees. Planting is a real, deliberate act (unlike Binairo's
   // rapid-fire toggle), so it sits a little firmer; a touching-tents
   // violation is a clear but not alarming "no"; a satisfied line is a
   // solid tick; the solve is its own short rising triple.
   tentsPlant: 9,
-  tentsError: 12,
-  tentsRowComplete: 15,
-  tentsSolve: [0, 14, 45, 14, 45, 22],
+  tentsError: REFUSE_PATTERN,
+  tentsRowComplete: JOIN_PATTERN,
+  tentsSolve: FINISH_PATTERN,
 
   // Arukone+. A drag fires `arukoneStep` once per square crossed - as
   // frequent as Binairo's own toggle, so it stays just as light (matching
@@ -153,9 +163,9 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   // the solve is its own short rising pair, distinct from every other
   // game's own shape.
   arukoneStep: 5,
-  arukoneJoin: 15,
-  arukoneReject: 11,
-  arukoneSolve: [0, 14, 42, 20],
+  arukoneJoin: JOIN_PATTERN,
+  arukoneReject: REFUSE_PATTERN,
+  arukoneSolve: FINISH_PATTERN,
 
   // Fill-a-Pix. A tap is a deliberate single action (not a drag), so it
   // sits with Mirror Maze's/Towers' own "place" weight rather than
@@ -166,8 +176,8 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   // kind - like Mirror Maze, there is no illegal move here. The solve is
   // its own short rising pair.
   fillapixToggle: 6,
-  fillapixClueSatisfied: 12,
-  fillapixSolve: [0, 13, 44, 19],
+  fillapixClueSatisfied: JOIN_PATTERN,
+  fillapixSolve: FINISH_PATTERN,
 
   // Lights Out. A press flips five lights at once, so its base tick sits
   // a touch firmer than the one-mark "place" actions elsewhere; a press
@@ -178,7 +188,7 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   // thinning out, lights going off one after another.
   lightsOutTap: 7,
   lightsOutDarker: 11,
-  lightsOutSolve: [0, 24, 38, 18, 38, 13, 38, 9],
+  lightsOutSolve: FINISH_PATTERN,
 
   // The calming interstitial's maze. A wall contact is a definite, felt
   // "thock" - firmer than any other game's per-move tick, since it fires
@@ -197,8 +207,8 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   // in the game, so the softest), a firmer tap when a loop closes, and a
   // rising triple for the whole board.
   bloomTurn: 5,
-  bloomClose: 14,
-  bloomSolve: [0, 14, 45, 18, 45, 26],
+  bloomClose: JOIN_PATTERN,
+  bloomSolve: FINISH_PATTERN,
 
   // Mosaic: the lightest touch to lift a piece, a firm set as it presses
   // into the grout, a soft nudge when one slides home, and a long rising
@@ -206,7 +216,7 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   mosaicPickup: 4,
   mosaicPlace: 16,
   mosaicReturn: 6,
-  mosaicSolve: [0, 16, 45, 18, 45, 22, 45, 30],
+  mosaicSolve: FINISH_PATTERN,
 
   // Bridges: a firm set as a bridge lands (iOS plays a richer plank-by-
   // plank pattern of its own - see `BridgesScreen`), a light lift when one
@@ -215,15 +225,15 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   // archipelago joining up.
   bridgesBuild: 14,
   bridgesRemove: 6,
-  bridgesIsland: 18,
-  bridgesBlocked: 10,
-  bridgesSolve: [0, 14, 45, 16, 45, 20, 45, 28],
+  bridgesIsland: JOIN_PATTERN,
+  bridgesBlocked: REFUSE_PATTERN,
+  bridgesSolve: FINISH_PATTERN,
 
   // Adjacent: a light pop for each group cleared, a fuller double for a
   // run big enough to multiply its score, and a bubbling finish.
   adjacentPop: 6,
-  adjacentCombo: [0, 10, 40, 14],
-  adjacentSolve: [0, 12, 40, 14, 40, 18, 40, 26],
+  adjacentCombo: JOIN_PATTERN,
+  adjacentSolve: FINISH_PATTERN,
 
   // The app's own UI: a page turned (a tab), and a coin landing (a claim
   // or a purchase) - a quick two-beat "clink".
@@ -239,21 +249,22 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   glassCobalt: 9,
   glassAmber: 9,
   glassLift: 4,
-  glassClash: [0, 8, 50, 8],
-  glassSolve: [0, 10, 110, 12, 110, 14, 110, 18, 160, 26],
+  glassClash: REFUSE_PATTERN,
+  glassSolve: FINISH_PATTERN,
   // Lily Pads: a light lift-off and a firmer landing; a soft double for a
   // pad cut off; a dull pair for a stranded frog; a rising, splashing run.
   lilyHop: [0, 5, 260, 12],
-  lilyWarn: [0, 8, 60, 8],
+  lilyWarn: REFUSE_PATTERN,
   lilyStranded: [0, 14, 110, 18],
-  lilySolve: [0, 10, 100, 12, 100, 14, 100, 18, 200, 24],
+  lilySolve: FINISH_PATTERN,
   // Weathervanes: a crisp tick per turn; a breath and two taps as a loop
   // closes; a muted refusal; a gust and a rising run when the roof is set.
   vaneTurn: 7,
-  vaneLoop: [0, 10, 80, 14],
-  vaneAstray: [0, 8, 50, 8],
-  vaneSolve: [0, 12, 140, 12, 110, 14, 110, 18, 160, 26],
+  vaneLoop: JOIN_PATTERN,
+  vaneAstray: REFUSE_PATTERN,
+  vaneSolve: FINISH_PATTERN,
   stamp: 5,
+  refuse: REFUSE_PATTERN,
 };
 
 /** A transient: one tap, at `time` ms. */
@@ -269,6 +280,19 @@ const hum = (time: number, duration: number, intensity: number, sharpness: numbe
 function finale(sharpness: number): HapticEvent[] {
   return [tap(0, 0.45, sharpness), tap(85, 0.62, sharpness), tap(170, 0.85, sharpness), hum(190, 240, 0.22, sharpness * 0.6)];
 }
+
+/**
+ * The moment kinds, one shape each, in the game's own material
+ * (`sharpness`): every game's join feels like every other's join, and its
+ * finish like every other's finish, the way they sound alike in kind.
+ */
+/** A milestone inside the board: a pair joined, a loop closed, an island
+ * filled. Two taps, the second firmer. */
+const join = (sharpness: number): HapticEvent[] => [tap(0, 0.55, sharpness), tap(55, 0.78, sharpness)];
+/** A move that applied but breaks a rule: softer than a refusal, dull. */
+const WARN: HapticEvent[] = [tap(0, 0.42, 0.15), tap(60, 0.32, 0.15)];
+/** A move the board will not take. */
+const REFUSE: HapticEvent[] = [tap(0, 0.5, 0.1), tap(65, 0.4, 0.1)];
 
 /**
  * Each game's own feel on the Taptic Engine, designed the way the sounds
@@ -299,44 +323,44 @@ const TEXTURES: Partial<Record<HapticKind, HapticEvent[]>> = {
   adjacentSolve: finale(0.55),
   // Tents: a peg driven into soft ground - a dull thump and its settle.
   tentsPlant: [tap(0, 0.75, 0.08), tap(38, 0.3, 0.05)],
-  tentsRowComplete: [tap(0, 0.5, 0.2), tap(70, 0.6, 0.25), tap(140, 0.75, 0.3)],
-  tentsError: [hum(0, 90, 0.45, 0.05)],
+  tentsRowComplete: join(0.15),
+  tentsError: WARN,
   // Binairo: a rubber stamp - the crisp strike, then the press.
   binairoToggle: [tap(0, 0.8, 0.85), hum(8, 45, 0.25, 0.1)],
-  binairoRowBalance: [tap(0, 0.55, 0.7), tap(60, 0.7, 0.75)],
-  binairoError: [tap(0, 0.6, 0.1), tap(70, 0.45, 0.1)],
+  binairoRowBalance: join(0.75),
+  binairoError: WARN,
   // Lights Out: a lamp coming on hums, a lamp going off clicks.
   lightsOutTap: [tap(0, 0.55, 0.5), hum(10, 110, 0.22, 0.12)],
   lightsOutDarker: [tap(0, 0.45, 0.35)],
   // Mirror Maze: glass - a fine, bright tick; a gem rings.
   mirrorPlace: [tap(0, 0.45, 1)],
-  mirrorGem: [tap(0, 0.7, 1), hum(10, 160, 0.18, 0.9)],
+  mirrorGem: join(1),
   // Skyscrapers: a block set down - a solid, woody thunk.
   towersPlace: [tap(0, 0.8, 0.4), tap(30, 0.25, 0.2)],
-  towersConflict: [tap(0, 0.55, 0.1), tap(60, 0.45, 0.1)],
-  towersRowComplete: [tap(0, 0.5, 0.5), tap(60, 0.65, 0.55), tap(120, 0.8, 0.6)],
+  towersConflict: WARN,
+  towersRowComplete: join(0.45),
   // Arukone+: a cord pulled over pegs - the faintest catch per square.
   arukoneStep: [tap(0, 0.28, 0.6)],
-  arukoneJoin: [tap(0, 0.6, 0.5), tap(50, 0.8, 0.6)],
-  arukoneReject: [hum(0, 70, 0.4, 0.05)],
+  arukoneJoin: join(0.6),
+  arukoneReject: REFUSE,
   // Fill-a-Pix: a pencil - a short scratch across the paper.
   fillapixToggle: [hum(0, 40, 0.38, 0.95), tap(42, 0.3, 0.6)],
-  fillapixClueSatisfied: [tap(0, 0.5, 0.8)],
+  fillapixClueSatisfied: join(0.85),
   // Bloom: a petal turning on its stem - a soft swish.
   bloomTurn: [hum(0, 55, 0.3, 0.25)],
-  bloomClose: [tap(0, 0.55, 0.45), hum(15, 140, 0.2, 0.3)],
+  bloomClose: join(0.3),
   // Mosaic: ceramic - a light clink to lift, a firm clack to set.
   mosaicPickup: [tap(0, 0.35, 0.95)],
   mosaicPlace: [tap(0, 0.8, 0.8), tap(24, 0.35, 0.9)],
   mosaicReturn: [tap(0, 0.4, 0.6)],
   // Adjacent: bubbles - a pop, and a run of pops for a combo.
   adjacentPop: [tap(0, 0.55, 0.3), tap(18, 0.3, 0.8)],
-  adjacentCombo: [tap(0, 0.6, 0.3), tap(45, 0.7, 0.5), tap(90, 0.85, 0.7)],
+  adjacentCombo: join(0.55),
   // Bridges: a plank laid (the full plank-by-plank lay is BridgesScreen's).
   bridgesBuild: [tap(0, 0.7, 0.35)],
   bridgesRemove: [tap(0, 0.4, 0.3)],
-  bridgesIsland: [tap(0, 0.6, 0.9), hum(10, 180, 0.15, 0.8)],
-  bridgesBlocked: [tap(0, 0.5, 0.1), tap(70, 0.4, 0.1)],
+  bridgesIsland: join(0.4),
+  bridgesBlocked: REFUSE,
   // The app: a page, and a coin.
   uiPage: [tap(0, 0.3, 0.7)],
   coin: [tap(0, 0.6, 1), tap(55, 0.75, 1)],
@@ -346,19 +370,20 @@ const TEXTURES: Partial<Record<HapticKind, HapticEvent[]>> = {
   glassCobalt: [tap(0, 0.5, 0.95)],
   glassAmber: [tap(0, 0.5, 1)],
   glassLift: [tap(0, 0.3, 0.6)],
-  glassClash: [tap(0, 0.45, 0.2), tap(60, 0.35, 0.2)],
-  glassSolve: [tap(0, 0.4, 0.9), tap(120, 0.5, 0.9), tap(240, 0.6, 0.95), tap(360, 0.7, 1), hum(480, 700, 0.25, 0.9)],
+  glassClash: WARN,
+  glassSolve: finale(0.95),
   // Lily Pads: water - a light push off, a soft wet landing, a bubble.
   lilyHop: [tap(0, 0.3, 0.6), tap(270, 0.65, 0.2), hum(285, 70, 0.2, 0.1), tap(430, 0.2, 0.5)],
-  lilyWarn: [tap(0, 0.4, 0.2), tap(70, 0.3, 0.2)],
+  lilyWarn: WARN,
   lilyStranded: [hum(0, 90, 0.4, 0.05), tap(130, 0.45, 0.1)],
-  lilySolve: [tap(0, 0.4, 0.3), tap(110, 0.5, 0.35), tap(220, 0.6, 0.4), tap(330, 0.7, 0.45), tap(500, 0.8, 0.2), hum(510, 260, 0.25, 0.15)],
+  lilySolve: finale(0.25),
   // Weathervanes: metal and air - a crisp tick, a breath for a loop.
   vaneTurn: [tap(0, 0.55, 0.95), hum(6, 35, 0.12, 0.6)],
-  vaneLoop: [hum(0, 120, 0.18, 0.5), tap(30, 0.5, 0.9), tap(120, 0.6, 0.95)],
-  vaneAstray: [tap(0, 0.45, 0.15), tap(55, 0.35, 0.15)],
-  vaneSolve: [hum(0, 400, 0.22, 0.4), tap(180, 0.45, 0.9), tap(300, 0.55, 0.9), tap(420, 0.65, 0.95), tap(540, 0.8, 1)],
+  vaneLoop: join(0.9),
+  vaneAstray: WARN,
+  vaneSolve: finale(0.9),
   stamp: [tap(0, 0.42, 0.95)],
+  refuse: REFUSE,
 };
 
 let hapticsEnabled = true;

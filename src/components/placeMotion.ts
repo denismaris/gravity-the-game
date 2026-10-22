@@ -1,4 +1,5 @@
-import { Animated, Easing } from 'react-native';
+import { Animated } from 'react-native';
+import { curve } from '../theme/motion';
 
 /**
  * The "placed" motion both completion cards share: a game's emblem drops
@@ -23,5 +24,5 @@ export function slice(t: Animated.Value, from: number, to: number, easing: (x: n
   return t.interpolate({ inputRange, outputRange, extrapolate: 'clamp' });
 }
 
-export const settle = Easing.out(Easing.back(1.5));
-export const glide = Easing.out(Easing.cubic);
+export const settle = curve.reward;
+export const glide = curve.arrive;

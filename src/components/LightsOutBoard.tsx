@@ -5,6 +5,7 @@ import { Canvas } from '@shopify/react-native-skia';
 import { LightsOutCell, LightsOutPuzzle, LightsOutState } from '../game/lightsout';
 import { getCellOrigin } from '../game/rendering';
 import { lanternGrid, LightsOutBoardView } from './LightsOutBoardView';
+import { cellDip } from './cellDip';
 
 export interface LightsOutBoardProps {
   puzzle: LightsOutPuzzle;
@@ -55,13 +56,14 @@ export function LightsOutBoard({ puzzle, state, size, solved, onPressCell, flash
                 accessibilityLabel={`Row ${row + 1}, column ${col + 1}, ${state.lights[row][col] ? 'lit' : 'off'}`}
                 accessibilityHint="Toggles this light and the four beside it"
                 onPress={() => onPressCell(row, col)}
-                style={{
+                style={({ pressed }) => ({
                   position: 'absolute',
                   left: origin.x + margin,
                   top: origin.y + margin,
                   width: layout.cellSize,
                   height: layout.cellSize,
-                }}
+                  ...cellDip(pressed, layout.cellSize),
+                })}
               />
             );
           }),

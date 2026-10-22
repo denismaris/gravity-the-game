@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
-import { Text, View, ViewStyle } from 'react-native';
+import { View, ViewStyle } from 'react-native';
+import { Text } from './Text';
 import { grandWeekOf, isTodaysDaily } from '../game/journey';
 import { useIsPractice } from '../progression/PlayerProgressProvider';
 import type { BatchState } from '../progression/batches';
@@ -36,7 +37,7 @@ export function PuzzleProgressMark({ batch, puzzleId, style }: { batch: BatchSta
 }
 
 const styles = themedStyles(() => ({
-  daily: { alignSelf: 'center', paddingHorizontal: 10, paddingVertical: 3, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.secondary },
+  daily: { alignSelf: 'center', paddingHorizontal: 10, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.secondary },
   dailyText: { fontSize: 11.5, fontWeight: theme.typography.weights.bold, color: theme.colors.secondary },
   grand: { borderColor: theme.colors.goldRim },
   grandText: { color: theme.colors.gold },
