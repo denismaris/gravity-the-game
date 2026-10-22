@@ -84,22 +84,19 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
   return (
     <ModalLayer>
       <View style={styles.overlay} pointerEvents="box-none">
-        <Animated.View style={[styles.scrim, { opacity: backdrop }]} pointerEvents="none" />
+        {/* The whole screen, see-through paper, the level's medal and its
+            count laid out on it: no sheet, no rules. */}
+        <Animated.View style={[styles.veil, { opacity: backdrop }]} pointerEvents="none" />
         <ConfettiBurst />
         <Animated.View
           style={[
-            styles.cardShadow,
-            {
-              opacity: cardOpacity,
-              transform: [
-                { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [90, 0] }) },
-              ],
-            },
+            styles.page,
+            { paddingTop: insets.top + theme.spacing.lg, paddingBottom: insets.bottom + theme.spacing.md },
+            { opacity: cardOpacity, transform: [{ translateY: card.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) }] },
           ]}
         >
-          {/* A page, not a card: the paper over the whole screen, a little
-              see-through, the level's medal and its count laid out on it. */}
-          <View style={[styles.card, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
+          <View style={styles.above} />
+          <View style={styles.column}>
             {/* The level's medal: a gold face standing on a deeper gold
                 disc, the same way every raised thing in the app stands on
                 its edge - two shapes, not a bottom border, which pinched to
@@ -107,13 +104,13 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
             <Animated.View style={[styles.crestStand, { opacity: hero, transform: [{ scale: hero }] }]}>
               <View style={[styles.crestDisc, styles.crestEdge]} />
               <View style={[styles.crestDisc, styles.crest]}>
-              <View pointerEvents="none" style={styles.crestInner} />
-              {/* Sized by its digits, never shrunk to fit: iOS measured the
-                  fit against the line height and shrank even a short
-                  number to the minimum. */}
-              <Text style={[styles.crestNumber, String(levelNumber).length >= 3 && styles.crestNumberLong]} numberOfLines={1}>
-                {levelNumber}
-              </Text>
+                <View pointerEvents="none" style={styles.crestInner} />
+                {/* Sized by its digits, never shrunk to fit: iOS measured
+                    the fit against the line height and shrank even a short
+                    number to the minimum. */}
+                <Text style={[styles.crestNumber, String(levelNumber).length >= 3 && styles.crestNumberLong]} numberOfLines={1}>
+                  {levelNumber}
+                </Text>
               </View>
             </Animated.View>
 
@@ -130,17 +127,13 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
             </View>
 
             {/* The level's own reward, counted up once every game is ticked
-                off - paid with the set's last solve, shown here as the
-                prize for the set as a whole. */}
+                off: one figure, the prize for the set as a whole. */}
             <Animated.View style={[styles.reward, rowStyle(2)]}>
-              <Text style={styles.rewardLabel}>Level reward</Text>
-              <Text style={styles.leader} numberOfLines={1} ellipsizeMode="clip">
-                {' . '.repeat(40)}
-              </Text>
               <View style={styles.rewardFigure}>
-                <CoinGlyph size={15} />
+                <CoinGlyph size={22} />
                 <RewardCount to={SET_BONUS} after={PLACE_DELAY_MS + ARRIVE_AFTER_MS + kinds.length * PLACE_STAGGER_MS + 300} />
               </View>
+              <Text style={styles.rewardLabel}>Level reward</Text>
             </Animated.View>
 
             {levelNumber % LEVELS_PER_CHAPTER === 0 ? (
@@ -154,11 +147,12 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
                 The next set is ready when you are.
               </Animated.Text>
             )}
-
-            <Animated.View style={[styles.actions, rowStyle(3)]}>
-              <DialogActions primary={{ label: 'Continue', onPress: onContinue, onward: true }} />
-            </Animated.View>
           </View>
+          <View style={styles.below} />
+
+          <Animated.View style={[styles.actions, rowStyle(3)]}>
+            <DialogActions primary={{ label: 'Continue', onPress: onContinue, onward: true }} />
+          </Animated.View>
         </Animated.View>
       </View>
     </ModalLayer>
@@ -261,33 +255,23 @@ const CREST_LIP = 5;
 const COUNT_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve'];
 
 const styles = themedStyles(() => ({
-  chapter: {
-    alignSelf: 'stretch',
-    alignItems: 'center',
-    marginTop: theme.spacing.sm,
-    // Room to breathe before the Continue button below it.
-    marginBottom: theme.spacing.lg,
-    paddingVertical: theme.spacing.md,
-    paddingHorizontal: theme.spacing.md,
-    borderRadius: 16,
-    backgroundColor: theme.colors.surfaceHi,
-    borderWidth: 1.5,
-    borderColor: theme.colors.accent,
-  },
+  chapter: { alignItems: 'center', marginTop: theme.spacing.xs },
   chapterKicker: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.accentText },
   // At the foot of the page, where the thumb already is.
   actions: { marginTop: theme.spacing.md, alignSelf: 'center', width: '100%', maxWidth: 420 },
   chapterName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, marginTop: 2 },
   chapterNote: { marginTop: 2, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
-  overlay: { ...StyleSheet.absoluteFill, justifyContent: 'flex-end' },
+  overlay: { ...StyleSheet.absoluteFill },
   /** The page's paper, a touch see-through: the board stays faintly there. */
-  scrim: { ...StyleSheet.absoluteFill, backgroundColor: `${theme.colors.background}8C` },
-  cardShadow: { width: '100%', shadowColor: theme.colors.shadow, shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: -6 }, elevation: 12 },
-  card: { alignItems: 'center', paddingTop: CREST / 2 + theme.spacing.lg, paddingHorizontal: theme.spacing.xl, backgroundColor: theme.colors.surface, borderTopLeftRadius: 34, borderTopRightRadius: 34, borderTopWidth: 1.5, borderColor: theme.colors.goldRim },
+  veil: { ...StyleSheet.absoluteFill, backgroundColor: `${theme.colors.background}F5` },
+  page: { flex: 1, paddingHorizontal: theme.spacing.xl },
+  above: { flex: 1 },
+  below: { flex: 1.3 },
+  column: { alignSelf: 'center', width: '100%', maxWidth: 420, alignItems: 'center' },
   /** The level's own number, as a struck medal - this card belongs to a
    * level rather than to any one game, so it takes the app's ink and ochre
    * rather than borrowing a single game's accent. */
-  crestStand: { position: 'absolute', top: -(CREST / 2) - 6, alignSelf: 'center', width: CREST, height: CREST + CREST_LIP },
+  crestStand: { width: CREST, height: CREST + CREST_LIP, marginBottom: theme.spacing.lg },
   crestDisc: { position: 'absolute', left: 0, width: CREST, height: CREST, borderRadius: CREST / 2 },
   crestEdge: { top: CREST_LIP, backgroundColor: shade(theme.colors.goldRim, 0.62) },
   crest: {
@@ -322,16 +306,7 @@ const styles = themedStyles(() => ({
   crestInner: { position: 'absolute', top: 4, left: 4, right: 4, bottom: 4, borderRadius: CREST / 2 - 6, borderWidth: 1, borderColor: theme.colors.goldRim, opacity: 0.6 },
   heading: { alignItems: 'center', marginBottom: theme.spacing.lg },
   subline: { marginTop: 6, fontFamily: theme.typography.families.display, fontSize: 19, lineHeight: 26, color: theme.colors.textSecondary, textAlign: 'center' },
-  eyebrow: {
-    fontSize: theme.typography.sizes.caption,
-    fontWeight: theme.typography.weights.bold,
-    letterSpacing: 1.4,
-    textTransform: 'uppercase',
-    color: theme.colors.gold,
-    textAlign: 'center',
-  },
   headline: { fontFamily: theme.typography.families.display, fontSize: 36, lineHeight: 42, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, textAlign: 'center' },
-  headRule: { width: 36, height: 2, borderRadius: 1, marginTop: 10, backgroundColor: theme.colors.goldRim },
   tally: {
     alignSelf: 'center',
     flexDirection: 'row',
@@ -343,30 +318,11 @@ const styles = themedStyles(() => ({
   },
   tile: { width: 62, alignItems: 'center' },
   tileLabel: { marginTop: 6, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, textAlign: 'center' },
-  // What the set paid, as a clean row between two fine rules - the same
-  // ledger line a solved puzzle's card uses.
-  // What the set paid, as an index line: label, dotted leader, figure.
-  reward: {
-    alignSelf: 'center',
-    width: '100%',
-    maxWidth: 380,
-    flexDirection: 'row',
-    alignItems: 'baseline',
-    gap: 6,
-    marginBottom: theme.spacing.md,
-    paddingVertical: 12,
-    borderTopWidth: StyleSheet.hairlineWidth,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    borderColor: theme.colors.borderStrong,
-  },
-  rewardFigure: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  leader: { flex: 1, fontSize: theme.typography.sizes.caption, color: theme.colors.borderStrong, letterSpacing: 1 },
-  rewardValue: { fontFamily: theme.typography.families.figures, fontVariant: ['lining-nums', 'tabular-nums'], fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.accentText, minWidth: 44 },
-  rewardLabel: { fontSize: theme.typography.sizes.body, color: theme.colors.textSecondary },
-  cardRule: {
-    alignSelf: 'stretch',
-    marginBottom: theme.spacing.md,
-  },
+  // What the set paid: one figure with its label under it.
+  reward: { alignItems: 'center', marginBottom: theme.spacing.md },
+  rewardFigure: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  rewardValue: { fontFamily: theme.typography.families.figures, fontVariant: ['lining-nums', 'tabular-nums'], fontSize: theme.typography.sizes.headline, lineHeight: 34, fontWeight: theme.typography.weights.bold, color: theme.colors.accentText, minWidth: 56 },
+  rewardLabel: { marginTop: 2, fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.2, textTransform: 'uppercase', color: theme.colors.textTertiary },
   check: {
     position: 'absolute',
     right: -5,
@@ -394,17 +350,5 @@ const styles = themedStyles(() => ({
     color: theme.colors.textSecondary,
     textAlign: 'center',
     maxWidth: 300,
-  },
-  button: {
-    paddingHorizontal: theme.spacing.xl,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.primary,
-  },
-  pressed: { opacity: 0.85 },
-  buttonLabel: {
-    color: theme.colors.surfaceHi,
-    fontSize: theme.typography.sizes.body,
-    fontWeight: theme.typography.weights.semibold,
   },
 }));

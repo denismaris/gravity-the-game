@@ -25,6 +25,26 @@ const KEY_LIP = 3;
 /** The game's emblem in the header, where the hand-off's lands. */
 const EMBLEM = 30;
 
+/**
+ * Where the header's emblem stands on screen (its box's centre, in window
+ * points), and a way to lend it: the solve screen takes it out of the
+ * header and carries it down into its own page (`PuzzleSolved`), so the
+ * same emblem that came in from Home goes on to the finish.
+ */
+interface EmblemSpot {
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+}
+let spot: EmblemSpot | null = null;
+const lendListeners = new Set<(lent: boolean) => void>();
+export function headerEmblemSpot(): EmblemSpot | null {
+  return spot;
+}
+export function lendHeaderEmblem(lent: boolean): void {
+  lendListeners.forEach(listener => listener(lent));
+}
+
 export interface PlayHeaderProps {
   kind: GameKind;
   difficulty: PuzzleDifficulty;
@@ -62,9 +82,20 @@ export function PlayHeader({ kind, difficulty, status, solved, puzzleId, onExit,
   const emblemRef = useRef<React.ElementRef<typeof View>>(null);
   const [emblemShown, setEmblemShown] = useState(false);
   useEffect(() => whenEmblemLanded(() => setEmblemShown(true)), []);
+  // Lent to the solve screen while it shows.
+  const [lent, setLent] = useState(false);
+  useEffect(() => {
+    lendListeners.add(setLent);
+    return () => {
+      lendListeners.delete(setLent);
+      spot = null;
+    };
+  }, []);
   const measureEmblem = () => {
-    emblemRef.current?.measureInWindow((x: number, y: number, w: number) => {
-      if (w > 0) setEmblemTarget({ x: x + w / 2, y: y + EMBLEM / 2, size: EMBLEM });
+    emblemRef.current?.measureInWindow((x: number, y: number, w: number, h: number) => {
+      if (w <= 0) return;
+      setEmblemTarget({ x: x + w / 2, y: y + EMBLEM / 2, size: EMBLEM });
+      spot = { x: x + w / 2, y: y + h / 2, width: w };
     });
   };
 
@@ -104,7 +135,7 @@ export function PlayHeader({ kind, difficulty, status, solved, puzzleId, onExit,
         </Animated.View>
 
         <View style={styles.title}>
-          <View ref={emblemRef} collapsable={false} onLayout={measureEmblem} style={!emblemShown && styles.hidden}>
+          <View ref={emblemRef} collapsable={false} onLayout={measureEmblem} style={(!emblemShown || lent) && styles.hidden}>
             <GameEmblem kind={kind} size={EMBLEM} raised />
           </View>
           <Animated.View style={rise(0, 0.6, 5)}>
