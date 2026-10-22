@@ -12,6 +12,45 @@ const ARRIVE_MS = 320;
 const LIFT_MS = 380;
 /** Never held longer than this, whatever the game is doing. */
 const LONGEST_MS = 2600;
+/** The emblem's size on the veil. */
+const VEIL_EMBLEM = 88;
+/** Flying to the header: a touch longer than a plain lift. */
+const LAND_MS = 520;
+
+/**
+ * Where the game screen's own emblem sits (its header's, see
+ * `PlayHeader`), so the hand-off's emblem can fly up and land on it
+ * rather than fading away: one emblem, carried from the Home card into
+ * the game. A header that mounts while a hand-off is under way stays
+ * hidden until the flyer lands on it (`whenEmblemLanded`).
+ */
+interface EmblemTarget {
+  readonly x: number;
+  readonly y: number;
+  readonly size: number;
+}
+let flying = false;
+let target: EmblemTarget | null = null;
+const landedWaiters = new Set<() => void>();
+
+export function setEmblemTarget(next: EmblemTarget | null): void {
+  target = next;
+}
+export function whenEmblemLanded(show: () => void): () => void {
+  if (!flying) {
+    show();
+    return () => {};
+  }
+  landedWaiters.add(show);
+  return () => {
+    landedWaiters.delete(show);
+  };
+}
+function land(): void {
+  flying = false;
+  landedWaiters.forEach(show => show());
+  landedWaiters.clear();
+}
 
 /**
  * The way into a puzzle: a short loading moment that is honest about it.
@@ -25,9 +64,13 @@ const LONGEST_MS = 2600;
  */
 export function EmblemHandoff({ kind, ready, onDone }: { kind: GameKind; ready: boolean; onDone: () => void }): React.JSX.Element | null {
   const reduced = useReducedMotion();
-  const { height } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
   const arrive = useRef(new Animated.Value(0)).current;
   const lift = useRef(new Animated.Value(0)).current;
+  /** Where the flight ends, once known: offset from the veil's centre and
+   * the scale that makes the veil's emblem the header's size. */
+  const flight = useRef({ dx: new Animated.Value(0), dy: new Animated.Value(-height * 0.3), scale: new Animated.Value(0.6), landing: new Animated.Value(0) }).current;
+
   const state = useRef({ arrived: false, ready: false, leaving: false });
   const leaveRef = useRef<() => void>(() => {});
 
@@ -35,16 +78,34 @@ export function EmblemHandoff({ kind, ready, onDone }: { kind: GameKind; ready: 
     const st = state.current;
     if (st.leaving || !st.arrived || !st.ready) return;
     st.leaving = true;
-    Animated.timing(lift, { toValue: 1, duration: LIFT_MS, easing: curve.glide, useNativeDriver: true }).start(() => onDone());
+    const to = target;
+    if (to) {
+      // Fly to the header's emblem: the veil's centre is the screen's.
+      flight.landing.setValue(1);
+      flight.dx.setValue(to.x - width / 2);
+      flight.dy.setValue(to.y - height / 2);
+      flight.scale.setValue(to.size / VEIL_EMBLEM);
+    }
+    Animated.timing(lift, { toValue: 1, duration: to ? LAND_MS : LIFT_MS, easing: curve.glide, useNativeDriver: true }).start(() => {
+      // The header's emblem shows under the flyer, then the flyer goes:
+      // two frames, so the two overlap rather than leave a gap.
+      land();
+      requestAnimationFrame(() => requestAnimationFrame(() => onDone()));
+    });
     // The board deals as the veil opens.
     setTimeout(releaseDeals, LIFT_MS * 0.35);
   };
 
   useEffect(() => {
     if (reduced) {
+      land();
       onDone();
       return;
     }
+    // A flight is under way: the game screen mounts a couple of frames
+    // after this, and its header waits for the emblem to land on it.
+    flying = true;
+    target = null;
     holdDeals();
     Animated.timing(arrive, { toValue: 1, duration: ARRIVE_MS, easing: curve.reward, useNativeDriver: true }).start(() => {
       state.current.arrived = true;
@@ -58,6 +119,7 @@ export function EmblemHandoff({ kind, ready, onDone }: { kind: GameKind; ready: 
     return () => {
       clearTimeout(safety);
       releaseDeals();
+      land();
     };
     // Once, on mount.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -70,7 +132,11 @@ export function EmblemHandoff({ kind, ready, onDone }: { kind: GameKind; ready: 
   }, [ready]);
 
   if (reduced) return null;
-  const out = (from: number, to: number) => lift.interpolate({ inputRange: [0, 1], outputRange: [from, to], extrapolate: 'clamp' });
+  // Landing, it stays solid all the way (the header's emblem takes over
+  // under it); lifting away with nowhere to land, it fades as before.
+  const fadeAway = lift.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1, 0] });
+  const flyerOpacity = Animated.add(flight.landing, Animated.multiply(Animated.subtract(1, flight.landing), fadeAway));
+  const toward = (end: Animated.Value, from: number) => Animated.add(from, Animated.multiply(lift, Animated.subtract(end, from)));
   return (
     <View style={StyleSheet.absoluteFill} pointerEvents="none">
       <Animated.View style={[styles.veil, { opacity: lift.interpolate({ inputRange: [0, 0.25, 1], outputRange: [1, 1, 0] }) }]} />
@@ -78,12 +144,16 @@ export function EmblemHandoff({ kind, ready, onDone }: { kind: GameKind; ready: 
         style={[
           styles.center,
           {
-            opacity: Animated.multiply(arrive.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1], extrapolate: 'clamp' }), lift.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1, 1, 0] })),
-            transform: [{ translateY: out(0, -height * 0.3) }, { scale: Animated.multiply(arrive.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }), out(1, 0.6)) }],
+            opacity: Animated.multiply(arrive.interpolate({ inputRange: [0, 0.4, 1], outputRange: [0, 1, 1], extrapolate: 'clamp' }), flyerOpacity),
+            transform: [
+              { translateX: toward(flight.dx, 0) },
+              { translateY: toward(flight.dy, 0) },
+              { scale: Animated.multiply(arrive.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1] }), toward(flight.scale, 1)) },
+            ],
           },
         ]}
       >
-        <GameEmblem kind={kind} size={88} raised />
+        <GameEmblem kind={kind} size={VEIL_EMBLEM} raised />
       </Animated.View>
     </View>
   );

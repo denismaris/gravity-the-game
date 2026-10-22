@@ -1,19 +1,16 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { RoundKey } from '../components/RoundKey';
 import { Animated, View, useWindowDimensions } from 'react-native';
-import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Canvas, Circle, Group, Path, rect, RoundedRect, rrect } from '@shopify/react-native-skia';
-import { DifficultyChip, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, renderGlassIllustration, useSolveCelebration } from '../components';
+import { Canvas, Group, Path, rect, RoundedRect, rrect } from '@shopify/react-native-skia';
+import { LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, renderGlassIllustration, useSolveCelebration } from '../components';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { GLASS_ARCH, GlassBoard, glassColor, glassTexture, StrokePhase } from '../components/GlassBoard';
-import { HelpHalo } from '../components/HelpHalo';
 import { MechanicIntro } from '../components/MechanicIntro';
-import { BackLabel, Icon } from '../components/Icon';
+import { Icon } from '../components/Icon';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { PageBloom } from '../components/PageBloom';
-import { StageTopGap } from '../components/StageTopGap';
-import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
+import { DockFloor, DockGap, dockPlate, StageTopGap } from '../components/StageTopGap';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { clashes, GLASS_COLOR_NAMES, glassesFor, trayOf, GlassColor, glassHint, GlassPuzzle, GlassState, initialGlassState, isGlassSolved, paint, panesLeft } from '../game/glass';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
@@ -24,22 +21,12 @@ import { GLASS_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
+import { PlayHeader } from '../components/PlayHeader';
 
 const ICON_SIZE = 14;
 const RESERVED = 330;
 const STAGE_H_PADDING = theme.spacing.sm;
 const TUTORIAL_ID = tutorialIdForGame('glass');
-
-/** The same simple-stroke "?" every other game's header carries. */
-function HelpIcon(): React.JSX.Element {
-  return (
-    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
-      <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
-      <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
-    </Canvas>
-  );
-}
 
 export interface GlassScreenProps {
   puzzle: GlassPuzzle;
@@ -166,32 +153,20 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
   }, [nextEntry, onNextPuzzle]);
 
   // The window stands taller than it is wide: the arch sits on top.
-  const boardSize = Math.max(0, Math.min(width - theme.spacing.lg * 2 - STAGE_H_PADDING * 2, (height - insets.top - insets.bottom - RESERVED) / (1 + GLASS_ARCH)));
+  const boardSize = Math.max(0, Math.min(width - theme.spacing.md * 2 - STAGE_H_PADDING * 2, (height - insets.top - insets.bottom - RESERVED) / (1 + GLASS_ARCH)));
 
   return (
     <View style={styles.container}>
       <PageBloom />
-      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
-        <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
-          <BackLabel label="Home" style={styles.back} />
-        </PressableScale>
-        <View style={styles.headerCenter}>
-          <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {puzzle.name}
-          </Text>
-          <View style={styles.kickerRow}>
-            <DifficultyChip difficulty={puzzle.difficulty} style={styles.kickerChip} />
-            <Text style={styles.kicker} numberOfLines={1}>
-              {solved ? 'Stained Glass · finished' : clashCount > 0 ? `Stained Glass · ${clashCount} ${clashCount === 1 ? 'clash' : 'clashes'}` : `Stained Glass · ${left} left`}
-            </Text>
-          </View>
-          <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
-        </View>
-        <PressableScale accessibilityRole="button" accessibilityLabel="How to play" onPress={() => setShowHelp(true)} hitSlop={8} containerStyle={styles.headerRightSpacer}>
-          <HelpHalo />
-          <HelpIcon />
-        </PressableScale>
-      </View>
+      <PlayHeader
+        kind="glass"
+        difficulty={puzzle.difficulty}
+        status={solved ? 'Finished' : clashCount > 0 ? `${clashCount} ${clashCount === 1 ? 'clash' : 'clashes'}` : `${left} left`}
+        solved={solved}
+        puzzleId={puzzle.id}
+        onExit={onExit}
+        onHelp={() => setShowHelp(true)}
+      />
 
       <View style={styles.boardArea}>
         <StageTopGap />
@@ -212,7 +187,8 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
           ))}
         </Animated.View>
 
-        <Animated.View style={[styles.controls, controlsIn]}>
+        <DockGap />
+        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
           <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
           <RoundKey accessibilityLabel="Undo" onPress={undo} disabled={history.length === 0} dim={history.length === 0}>
@@ -227,6 +203,7 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
+        <DockFloor />
       </View>
 
       {showSolved && stars && !showSetComplete && (
@@ -292,43 +269,12 @@ function Swatch({ color, selected, onPress }: { color: GlassColor | null; select
 
 const styles = themedStyles(() => ({
   container: { flex: 1, alignItems: 'center', backgroundColor: theme.colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', paddingHorizontal: theme.spacing.md },
-  back: { color: theme.colors.textPrimary, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerRightSpacer: { width: 56, alignItems: 'center' },
-  name: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.headline, lineHeight: theme.typography.lineHeights.headline, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  kickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch', marginTop: 2 },
-  kickerChip: { marginRight: 6 },
-  kicker: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.glassAccent, flexShrink: 1 },
-  batchDots: { marginTop: theme.spacing.sm },
   quiet: { opacity: 0 },
   coinBalance: { marginTop: theme.spacing.sm },
   boardArea: { flex: 1, alignItems: 'center', justifyContent: 'flex-start' },
-  stage: { borderRadius: 28, paddingHorizontal: STAGE_H_PADDING, paddingVertical: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.borderStrong },
+  stage: { borderRadius: 28, paddingHorizontal: STAGE_H_PADDING, paddingVertical: theme.spacing.md },
   palette: { flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.md },
   swatch: { padding: 4, borderRadius: 14, borderWidth: 1.5, borderColor: 'transparent' },
   swatchOn: { borderColor: theme.colors.glassAccent, backgroundColor: theme.colors.surface },
-  controls: { flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.lg },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderTopColor: theme.colors.highlightEdge,
-    borderLeftColor: theme.colors.border,
-    borderRightColor: theme.colors.border,
-    borderBottomColor: theme.colors.border,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 2, height: 3 },
-    elevation: 2,
-  },
-  pillPressed: { backgroundColor: theme.colors.surfaceAlt, shadowOpacity: 0.04, shadowOffset: { width: 1, height: 1 }, elevation: 1 },
-  roundKey: { width: 46, height: 46, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
-  disabled: { opacity: 0.4 },
+  controls: { flexDirection: 'row', gap: theme.spacing.md },
 }));

@@ -1,13 +1,10 @@
-import { BackLabel } from '../components/Icon';
 import { RoundKey } from '../components/RoundKey';
-import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
-import { StageTopGap } from '../components/StageTopGap';
+import { DockFloor, DockGap, dockPlate, StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, View, useWindowDimensions } from 'react-native';
-import { Text, MAX_TEXT_SCALE } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Canvas, Circle, Path } from '@shopify/react-native-skia';
+import { Canvas, Path } from '@shopify/react-native-skia';
 import {
   initialLightsOutState,
   isLightsOutSolved,
@@ -17,45 +14,24 @@ import {
   litCount,
   press,
   explainLightsOutHint } from '../game/lightsout';
-import {
-  DifficultyChip,
-  LevelSetComplete,
-  LightsOutBoard,
-  MechanicsCarousel,
-  PressableScale,
-  PuzzleSolved,
-  useSolveCelebration,
-  renderLightsOutIllustration,
-} from '../components';
-import { PuzzleDifficulty } from '../game/puzzleDifficulty';
+import { LevelSetComplete, LightsOutBoard, MechanicsCarousel, PuzzleSolved, useSolveCelebration, renderLightsOutIllustration } from '../components';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
 import { LIGHTSOUT_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { motion, theme, themedStyles } from '../theme';
+import { theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
-import { HelpHalo } from '../components/HelpHalo';
+import { PlayHeader } from '../components/PlayHeader';
 
 const TUTORIAL_ID = tutorialIdForGame('lightsout');
 const ICON_SIZE = 14;
 const RESERVED = 300;
 const STAGE_H_PADDING = theme.spacing.sm;
 const HINT_FLASH_MS = 1500;
-
-/** The same simple-stroke "?" every other screen's header carries. */
-function HelpIcon(): React.JSX.Element {
-  return (
-    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
-      <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
-      <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
-    </Canvas>
-  );
-}
 
 /** A restart-arrow glyph, same treatment as `HintIcon` above. */
 function RestartIcon(): React.JSX.Element {
@@ -207,35 +183,22 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
 
   const boardSize = Math.max(
     0,
-    Math.min(width - theme.spacing.lg * 2 - STAGE_H_PADDING * 2, height - insets.top - insets.bottom - RESERVED),
+    Math.min(width - theme.spacing.md * 2 - STAGE_H_PADDING * 2, height - insets.top - insets.bottom - RESERVED),
   );
 
 
   return (
     <View style={styles.container}>
       <PageBloom />
-      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
-        <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
-          <BackLabel label="Home" style={styles.back} />
-        </PressableScale>
-        <View style={styles.headerCenter}>
-          <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {puzzle.name ?? 'Lanterns'}
-          </Text>
-          <AnimatedKicker presses={presses} par={puzzle.par} solved={solved} difficulty={puzzle.difficulty} />
-          <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
-        </View>
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="How to play"
-          onPress={reopenTutorial}
-          hitSlop={8}
-          containerStyle={styles.headerRightSpacer}
-        >
-          <HelpHalo />
-          <HelpIcon />
-        </PressableScale>
-      </View>
+      <PlayHeader
+        kind="lightsout"
+        difficulty={puzzle.difficulty}
+        status={`${presses} of par ${puzzle.par}`}
+        solved={solved}
+        puzzleId={puzzle.id}
+        onExit={onExit}
+        onHelp={reopenTutorial}
+      />
 
       <View style={styles.boardArea}>
         <StageTopGap />
@@ -249,7 +212,8 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
           </View>
         </Animated.View>
 
-        <Animated.View style={[styles.controls, controlsIn]}>
+        <DockGap />
+        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
           <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
           <RoundKey
@@ -263,6 +227,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
+        <DockFloor />
       </View>
 
       {showSolvedCard && stars && !showSetComplete && (
@@ -290,90 +255,11 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
   );
 }
 
-/** The kicker: presses against par, the same shape Gravity's own header
- * uses. It pops when a solve lands on or under par - the one moment in
- * this game genuinely worth marking, since the running count itself only
- * ever climbs. */
-function AnimatedKicker({ presses, par, solved, difficulty }: { presses: number; par: number; solved: boolean; difficulty: PuzzleDifficulty }): React.JSX.Element {
-  const scale = useRef(new Animated.Value(1)).current;
-  const solvedScale = useRef(new Animated.Value(0)).current;
-  const previousSolved = useRef(solved);
-
-  useEffect(() => {
-    if (solved && !previousSolved.current && presses <= par) {
-      scale.setValue(0.85);
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
-    }
-  }, [solved, presses, par, scale]);
-
-  useEffect(() => {
-    if (solved && !previousSolved.current) {
-      solvedScale.setValue(0);
-      Animated.spring(solvedScale, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
-    }
-    previousSolved.current = solved;
-  }, [solved, solvedScale]);
-
-  return (
-    <View style={styles.kickerRow}>
-      <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
-      <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
-        {`Lanterns · ${presses} of par ${par}`}
-      </Animated.Text>
-      {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
-    </View>
-  );
-}
-
 const styles = themedStyles(() => ({
   container: {
     flex: 1,
     alignItems: 'center',
     backgroundColor: theme.colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    paddingHorizontal: theme.spacing.md,
-  },
-  back: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.sizes.body,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerRightSpacer: { width: 56, alignItems: 'center' },
-  name: {
-    fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.headline,
-    lineHeight: theme.typography.lineHeights.headline,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-  },
-  kickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'stretch',
-    marginTop: 2,
-  },
-  kicker: {
-    fontSize: theme.typography.sizes.caption,
-    color: theme.colors.lightsOutAccent,
-    flexShrink: 1,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  kickerChip: { marginRight: 6 },
-  solvedBadge: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: theme.colors.primary,
-    marginLeft: 4,
-  },
-  batchDots: {
-    marginTop: theme.spacing.sm,
   },
   boardArea: {
     flex: 1,
@@ -384,42 +270,11 @@ const styles = themedStyles(() => ({
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
     paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderStrong,
   },
   controls: {
     flexDirection: 'row',
     gap: theme.spacing.md,
-    marginTop: theme.spacing.xl,
   },
   coinBalance: { marginTop: theme.spacing.md },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderTopColor: theme.colors.highlightEdge,
-    borderLeftColor: theme.colors.border,
-    borderRightColor: theme.colors.border,
-    borderBottomColor: theme.colors.border,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 2, height: 3 },
-    elevation: 2,
-  },
-  pillPressed: { backgroundColor: theme.colors.surfaceAlt, shadowOpacity: 0.04, shadowOffset: { width: 1, height: 1 }, elevation: 1 },
-  pillText: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.sizes.body,
-    fontWeight: theme.typography.weights.semibold,
-  },
   quiet: { opacity: 0 },
-  // Restart (and Undo, where a game has one) as a round icon key beside
-  // the one labelled button, Insight - the same row on every game.
-  roundKey: { width: 46, height: 46, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
 }));

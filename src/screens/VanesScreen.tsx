@@ -119,14 +119,13 @@ function Roof({ puzzle, mode, onExit }: { puzzle: VanePuzzle; mode: TrialMode | 
     triggerFeedback('targetReached');
   }, [puzzle, state]);
 
-  const boardSize = Math.max(0, Math.min(width - theme.spacing.lg * 2 - theme.spacing.sm * 2, height - insets.top - insets.bottom - RESERVED));
+  const boardSize = Math.max(0, Math.min(width - theme.spacing.md * 2 - theme.spacing.sm * 2, height - insets.top - insets.bottom - RESERVED));
   const kicker = solved ? 'the wind is set' : trouble > 0 ? `${trouble} astray` : `${waiting} still calm`;
 
   return (
     <PlayShell
       kind="vanes"
       mode={mode}
-      name={puzzle.name}
       difficulty={puzzle.difficulty}
       kicker={kicker}
       introduce={puzzle.chimneys?.length ? CHIMNEY_INTRO : null}

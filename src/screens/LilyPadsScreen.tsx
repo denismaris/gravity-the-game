@@ -156,7 +156,7 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
     return true;
   }, [puzzle, history, state]);
 
-  const boardSize = Math.max(0, Math.min(width - theme.spacing.lg * 2 - theme.spacing.sm * 2, height - insets.top - insets.bottom - RESERVED));
+  const boardSize = Math.max(0, Math.min(width - theme.spacing.md * 2 - theme.spacing.sm * 2, height - insets.top - insets.bottom - RESERVED));
   const kicker = solved
     ? 'pond cleared'
     : stranded
@@ -169,7 +169,6 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
     <PlayShell
       kind="lilypads"
       mode={mode}
-      name={puzzle.name}
       difficulty={puzzle.difficulty}
       kicker={kicker}
       introduce={puzzle.lotus?.some(Boolean) ? LOTUS_INTRO : null}

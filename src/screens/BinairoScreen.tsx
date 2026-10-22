@@ -1,14 +1,12 @@
 import { SOLVE_CELEBRATION_MS } from '../components/useSolveCelebration';
 import { RoundKey } from '../components/RoundKey';
-import { BackLabel } from '../components/Icon';
-import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
-import { StageTopGap } from '../components/StageTopGap';
+import { DockFloor, DockGap, dockPlate, StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, View, useWindowDimensions } from 'react-native';
-import { Text, MAX_TEXT_SCALE } from '../components/Text';
+import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Canvas, Circle, Path } from '@shopify/react-native-skia';
+import { Canvas, Path } from '@shopify/react-native-skia';
 import {
   BinairoCell,
   BinairoPuzzle,
@@ -22,19 +20,18 @@ import {
   remainingCells,
   setValue,
 } from '../game/binairo';
-import { PuzzleDifficulty } from '../game/puzzleDifficulty';
-import { BinairoBoard, DifficultyChip, LevelSetComplete, MechanicsCarousel, PressableScale, PuzzleSolved, renderBinairoIllustration, useSolveCelebration } from '../components';
+import { BinairoBoard, LevelSetComplete, MechanicsCarousel, PuzzleSolved, renderBinairoIllustration, useSolveCelebration } from '../components';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
 import { BINAIRO_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { motion, theme, themedStyles } from '../theme';
+import { theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
-import { HelpHalo } from '../components/HelpHalo';
+import { PlayHeader } from '../components/PlayHeader';
 
 const TUTORIAL_ID = tutorialIdForGame('binairo');
 /** Matches the board's own delay before it shows a mistake. */
@@ -73,23 +70,6 @@ function RestartIcon(): React.JSX.Element {
     <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
       <Path path="M 4.17 3.63 A 4.4 4.4 0 1 0 10.37 4.17" color={theme.colors.binairoAccent} style="stroke" strokeWidth={1.6} />
       <Path path="M 9.66 3.33 L 12.79 4.1 L 9.88 6.54 Z" color={theme.colors.binairoAccent} />
-    </Canvas>
-  );
-}
-
-/** A plain "?" glyph, ring plus stem plus dot - the same simple-stroke
- * treatment `RestartIcon` use, so this reads as one family of
- * header icons rather than a generic help symbol dropped in from
- * elsewhere. Sits in the header's own right-hand slot (see
- * `styles.headerRightSpacer`) and reopens the exact same
- * `MechanicsCarousel` the first-run auto-open shows - see
- * `reopenTutorial` below. */
-function HelpIcon(): React.JSX.Element {
-  return (
-    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
-      <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
-      <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
     </Canvas>
   );
 }
@@ -267,7 +247,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
 
   const boardSize = Math.max(
     0,
-    Math.min(width - theme.spacing.lg * 2 - STAGE_H_PADDING * 2, height - insets.top - insets.bottom - RESERVED),
+    Math.min(width - theme.spacing.md * 2 - STAGE_H_PADDING * 2, height - insets.top - insets.bottom - RESERVED),
   );
 
   const constraintKinds = useMemo(() => new Set((puzzle.constraints ?? []).map(c => c.kind)), [puzzle]);
@@ -276,28 +256,15 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
   return (
     <View style={styles.container}>
       <PageBloom />
-      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
-        <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
-          <BackLabel label="Home" style={styles.back} />
-        </PressableScale>
-        <View style={styles.headerCenter}>
-          <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {puzzle.name ?? 'Twos'}
-          </Text>
-          <AnimatedKicker left={left} solved={solved} difficulty={puzzle.difficulty} />
-          <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
-        </View>
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="How to play"
-          onPress={reopenTutorial}
-          hitSlop={8}
-          containerStyle={styles.headerRightSpacer}
-        >
-          <HelpHalo />
-          <HelpIcon />
-        </PressableScale>
-      </View>
+      <PlayHeader
+        kind="binairo"
+        difficulty={puzzle.difficulty}
+        status={solved ? 'Solved' : `${left} left`}
+        solved={solved}
+        puzzleId={puzzle.id}
+        onExit={onExit}
+        onHelp={reopenTutorial}
+      />
 
       <View style={styles.boardArea}>
         <StageTopGap />
@@ -328,7 +295,8 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
           </View>
         )}
 
-        <Animated.View style={[styles.controls, controlsIn]}>
+        <DockGap />
+        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
           <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
           <RoundKey
@@ -342,6 +310,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
+        <DockFloor />
       </View>
 
 
@@ -370,96 +339,11 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
   );
 }
 
-/** The "N LEFT" kicker, popping (`spring.pop`) on each decrement only -
- * reusing the existing header rather than inventing a board-level effect
- * for what is, after all, just a number changing. On solve, it swaps to
- * "SOLVED" with a small filled dot popping in beside it, matching the
- * board's own filled-circle symbol. */
-function AnimatedKicker({ left, solved, difficulty }: { left: number; solved: boolean; difficulty: PuzzleDifficulty }): React.JSX.Element {
-  const scale = useRef(new Animated.Value(1)).current;
-  const previous = useRef(left);
-  const solvedScale = useRef(new Animated.Value(0)).current;
-  const previousSolved = useRef(solved);
-
-  useEffect(() => {
-    if (left < previous.current) {
-      scale.setValue(0.85);
-      // `kick`, not `pop` - this fires on every correct placement, up to
-      // ~100 times on a 10x10 board, far too often for `pop`'s reward-tier
-      // bounce (see `theme/motion.ts`).
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...motion.spring.kick }).start();
-    }
-    previous.current = left;
-  }, [left, scale]);
-
-  useEffect(() => {
-    if (solved && !previousSolved.current) {
-      solvedScale.setValue(0);
-      Animated.spring(solvedScale, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
-    }
-    previousSolved.current = solved;
-  }, [solved, solvedScale]);
-
-  return (
-    <View style={styles.kickerRow}>
-      <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
-      <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} numberOfLines={1} style={[styles.kicker, { transform: [{ scale }] }]}>
-        {solved ? 'Twos · solved' : `Twos · ${left} left`}
-      </Animated.Text>
-      {solved && <Animated.View style={[styles.solvedBadge, { transform: [{ scale: solvedScale }] }]} />}
-    </View>
-  );
-}
-
 const styles = themedStyles(() => ({
   container: {
     flex: 1,
     alignItems: 'center',
     backgroundColor: theme.colors.background,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    alignSelf: 'stretch',
-    paddingHorizontal: theme.spacing.md,
-  },
-  back: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.sizes.body,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerRightSpacer: { width: 56, alignItems: 'center' },
-  name: {
-    fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.headline,
-    lineHeight: theme.typography.lineHeights.headline,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-  },
-  kickerRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'stretch',
-    marginTop: 2,
-  },
-  kicker: {
-    fontSize: theme.typography.sizes.caption,
-    color: theme.colors.binairoAccent,
-    flexShrink: 1,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  kickerChip: { marginRight: 6 },
-  solvedBadge: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: theme.colors.primary,
-    marginLeft: 4,
-  },
-  batchDots: {
-    marginTop: theme.spacing.sm,
   },
   // Anchored to the header, not centred in whatever space happens to be
   // left over - `flex: 1` still lets this area claim all the room between
@@ -486,8 +370,6 @@ const styles = themedStyles(() => ({
     borderRadius: 28,
     paddingHorizontal: STAGE_H_PADDING,
     paddingVertical: theme.spacing.md,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderStrong,
   },
   legend: {
     flexDirection: 'row',
@@ -517,41 +399,7 @@ const styles = themedStyles(() => ({
   controls: {
     flexDirection: 'row',
     gap: theme.spacing.md,
-    marginTop: theme.spacing.xl,
   },
   coinBalance: { marginTop: theme.spacing.md },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    // A slightly lighter top edge than the other three sides - the same
-    // small "catching the light" cue the board's own tiles use - rather
-    // than one flat border colour on all sides.
-    borderTopColor: theme.colors.highlightEdge,
-    borderLeftColor: theme.colors.border,
-    borderRightColor: theme.colors.border,
-    borderBottomColor: theme.colors.border,
-    // Offset down-right, matching the one light source every other
-    // element in this screen now shades toward.
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 2, height: 3 },
-    elevation: 2,
-  },
-  pillPressed: { backgroundColor: theme.colors.surfaceAlt, shadowOpacity: 0.04, shadowOffset: { width: 1, height: 1 }, elevation: 1 },
-  pillText: {
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.sizes.body,
-    fontWeight: theme.typography.weights.semibold,
-  },
   quiet: { opacity: 0 },
-  // Restart (and Undo, where a game has one) as a round icon key beside
-  // the one labelled button, Insight - the same row on every game.
-  roundKey: { width: 46, height: 46, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
 }));

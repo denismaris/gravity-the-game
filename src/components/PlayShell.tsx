@@ -1,27 +1,20 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { RoundKey } from './RoundKey';
 import { Animated, View } from 'react-native';
-import { Text } from './Text';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
-import { accentColorForKind, gameDisplayName, GameKind, NextPuzzleOptions } from '../game/journey';
+import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { tutorialIdForGame } from '../game/tutorials';
 import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { CoinBalance, useCoinPurchase } from './Coins';
 import { GameLesson } from './lessons';
 import { LevelSetComplete } from './LevelSetComplete';
-import { PuzzleProgressMark } from './PuzzleProgressMark';
 import { theme, themedStyles } from '../theme';
-import { DifficultyChip } from './DifficultyChip';
-import { HelpHalo } from './HelpHalo';
-import { BackLabel, Icon } from './Icon';
+import { Icon } from './Icon';
 import { InsightButton, useInsightPower } from './InsightPower';
 import { PageBloom } from './PageBloom';
-import { PressableScale } from './PressableScale';
 import { PuzzleSolved } from './PuzzleSolved';
-import { StageTopGap } from './StageTopGap';
+import { DockFloor, DockGap, dockPlate, StageTopGap } from './StageTopGap';
 import { MechanicsCarousel } from './MechanicsCarousel';
 import { MechanicIntro, MechanicIntroCopy } from './MechanicIntro';
 import { TutorialOverlay } from './TutorialOverlay';
@@ -29,19 +22,9 @@ import { TutorialSlide } from '../game/tutorials';
 import { useSettings } from '../settings';
 import { useSolveCelebration } from './useSolveCelebration';
 import { useStageEntrance } from './useStageEntrance';
+import { PlayHeader } from './PlayHeader';
 
 const ICON_SIZE = 14;
-
-/** The same simple-stroke "?" every game's header carries. */
-function HelpIcon(): React.JSX.Element {
-  return (
-    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
-      <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
-      <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
-    </Canvas>
-  );
-}
 
 /** A board played from the Home test button: a fixed run of boards, with
  * the game's lesson before the first one the first time. */
@@ -73,7 +56,6 @@ export interface SetMode {
 export function PlayShell({
   kind,
   mode,
-  name,
   difficulty,
   kicker,
   slides,
@@ -91,7 +73,6 @@ export function PlayShell({
 }: {
   kind: GameKind;
   mode: TrialMode | SetMode;
-  name: string;
   difficulty: PuzzleDifficulty;
   kicker: string;
   /** A rule this board brings for the first time, explained once. */
@@ -113,13 +94,11 @@ export function PlayShell({
   onRestart: () => void;
   children: React.ReactNode;
 }): React.JSX.Element {
-  const insets = useSafeAreaInsets();
   const stageIn = useStageEntrance();
   const controlsIn = useStageEntrance(110);
   const insight = useInsightPower();
   const { coins, shortBy } = useCoinPurchase();
   const accent = accentColorForKind(kind);
-  const game = gameDisplayName(kind);
   const tutorialId = tutorialIdForGame(kind);
   const [showHelp, setShowHelp] = useState(false);
   const { ready, hasSeenTutorial, markTutorialSeen } = useSettings();
@@ -181,40 +160,22 @@ export function PlayShell({
   return (
     <View style={styles.container}>
       <PageBloom />
-      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]}>
-        <PressableScale accessibilityRole="button" accessibilityLabel="Back to home" onPress={onExit} hitSlop={8}>
-          <BackLabel label="Home" style={styles.back} />
-        </PressableScale>
-        <View style={styles.headerCenter}>
-          <Text style={styles.name} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {name}
-          </Text>
-          <View style={styles.kickerRow}>
-            <DifficultyChip difficulty={difficulty} style={styles.kickerChip} />
-            <Text style={[styles.kicker, { color: accent }]} numberOfLines={1}>
-              {`${game} · ${kicker}`}
-            </Text>
-          </View>
-          {mode.type === 'set' ? (
-            <PuzzleProgressMark batch={player.currentBatch} puzzleId={mode.puzzleId} style={styles.batchDots} />
-          ) : (
-            <View style={styles.dots}>
-              {Array.from({ length: mode.total }, (_v, i) => (
-                <View key={i} style={[styles.dot, { borderColor: accent }, i < mode.index && { backgroundColor: accent, opacity: 1 }, i === mode.index && styles.dotNow]} />
-              ))}
-            </View>
-          )}
-        </View>
-        <PressableScale accessibilityRole="button" accessibilityLabel="How to play" onPress={() => setShowHelp(true)} hitSlop={8} containerStyle={styles.headerRightSpacer}>
-          <HelpHalo />
-          <HelpIcon />
-        </PressableScale>
-      </View>
+      <PlayHeader
+        kind={kind}
+        difficulty={difficulty}
+        status={kicker}
+        solved={solved}
+        puzzleId={mode.type === 'set' ? mode.puzzleId : ''}
+        onExit={onExit}
+        onHelp={() => setShowHelp(true)}
+        dots={mode.type === 'set' ? undefined : <TrialDots total={mode.total} index={mode.index} accent={accent} />}
+      />
 
       <View style={styles.boardArea}>
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>{children}</Animated.View>
-        <Animated.View style={[styles.controls, controlsIn]}>
+        <DockGap />
+        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
           <InsightButton count={insight.count} onPress={() => !solved && insight.spend(onHint)} />
           {insight.sheet}
           <RoundKey accessibilityLabel="Undo" onPress={onUndo} disabled={!canUndo} dim={!canUndo}>
@@ -229,6 +190,7 @@ export function PlayShell({
         <View style={insight.count > 0 && !shortBy ? styles.quiet : undefined} accessibilityElementsHidden={insight.count > 0 && !shortBy} importantForAccessibility={insight.count > 0 && !shortBy ? 'no-hide-descendants' : 'auto'}>
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
+        <DockFloor />
       </View>
 
       {showSolved && stars && !showSetComplete && (
@@ -261,45 +223,26 @@ export function PlayShell({
   );
 }
 
+/** A trial's own run of boards, in place of a set's dots. */
+function TrialDots({ total, index, accent }: { total: number; index: number; accent: string }): React.JSX.Element {
+  return (
+    <View style={styles.dots}>
+      {Array.from({ length: total }, (_v, i) => (
+        <View key={i} style={[styles.dot, { borderColor: accent }, i < index && [styles.dotDone, { backgroundColor: accent }], i === index && styles.dotNow]} />
+      ))}
+    </View>
+  );
+}
+
 const styles = themedStyles(() => ({
   container: { flex: 1, alignItems: 'center', backgroundColor: theme.colors.background },
-  header: { flexDirection: 'row', alignItems: 'center', alignSelf: 'stretch', paddingHorizontal: theme.spacing.md },
-  back: { color: theme.colors.textPrimary, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold },
-  headerCenter: { flex: 1, alignItems: 'center' },
-  headerRightSpacer: { width: 56, alignItems: 'center' },
-  name: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.headline, lineHeight: theme.typography.lineHeights.headline, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  kickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch', marginTop: 2 },
-  kickerChip: { marginRight: 6 },
-  kicker: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, flexShrink: 1 },
-  batchDots: { marginTop: theme.spacing.sm },
   quiet: { opacity: 0 },
   coinBalance: { marginTop: theme.spacing.sm },
   dots: { flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: theme.spacing.sm },
   dot: { width: 7, height: 7, borderRadius: 4, borderWidth: 1.5, opacity: 0.6 },
+  dotDone: { opacity: 1 },
   dotNow: { width: 9, height: 9, borderRadius: 5, opacity: 1 },
   boardArea: { flex: 1, alignItems: 'center', justifyContent: 'flex-start' },
-  stage: { borderRadius: 28, paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.md, borderBottomWidth: 1, borderBottomColor: theme.colors.borderStrong },
-  controls: { flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.lg },
-  pill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderTopColor: theme.colors.highlightEdge,
-    borderLeftColor: theme.colors.border,
-    borderRightColor: theme.colors.border,
-    borderBottomColor: theme.colors.border,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 2, height: 3 },
-    elevation: 2,
-  },
-  pillPressed: { backgroundColor: theme.colors.surfaceAlt, shadowOpacity: 0.04, shadowOffset: { width: 1, height: 1 }, elevation: 1 },
-  roundKey: { width: 46, height: 46, paddingHorizontal: 0, paddingVertical: 0, justifyContent: 'center' },
-  disabled: { opacity: 0.4 },
+  stage: { borderRadius: 28, paddingHorizontal: theme.spacing.sm, paddingVertical: theme.spacing.md },
+  controls: { flexDirection: 'row', gap: theme.spacing.md },
 }));

@@ -1,10 +1,6 @@
-import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
-import { BackLabel } from '../components/Icon';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import React, { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import { AccessibilityActionEvent, AccessibilityInfo, Animated, View, useWindowDimensions } from 'react-native';
-import { Text, MAX_TEXT_SCALE } from '../components/Text';
-import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { triggerFeedback } from '../game/rendering';
 import {
@@ -19,51 +15,22 @@ import {
   StaticCellType,
 } from '../game/engine';
 import { createGameStateFromLevel, getStarThresholds, gravityTierOf, LevelDefinition } from '../game/levels';
-import {
-  DifficultyChip,
-  directionForAccessibilityAction,
-  GravityBoard,
-  PuzzleSolved,
-  useSolveCelebration,
-  LevelFailedCard,
-  LevelSetComplete,
-  MechanicsCarousel,
-  PressableScale,
-  renderGravityIllustration,
-  SessionControls,
-  TutorialOverlay,
-  useSwipeGesture,
-} from '../components';
+import { directionForAccessibilityAction, GravityBoard, PuzzleSolved, useSolveCelebration, LevelFailedCard, LevelSetComplete, MechanicsCarousel, renderGravityIllustration, SessionControls, TutorialOverlay, useSwipeGesture } from '../components';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { copyForTutorial, GRAVITY_MECHANICS_SLIDES, mechanicsOf, pickTutorial, tutorialIdForGame, tutorialIdForMechanic } from '../game/tutorials';
 import { BatchState, CompletionOutcome, gamesPlayed, getLevelResult, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
-import { motion, theme, themedStyles } from '../theme';
+import { theme, themedStyles } from '../theme';
 import { PageBloom } from '../components/PageBloom';
 import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { useInsightPower } from '../components/InsightPower';
 import { UNDO_COST } from '../progression/coins';
 import { findShortestSolution } from '../game/engine';
 import { useStageEntrance } from '../components/useStageEntrance';
-import { HelpHalo } from '../components/HelpHalo';
+import { PlayHeader } from '../components/PlayHeader';
+import { DockFloor, DockGap, StageTopGap } from '../components/StageTopGap';
 
 const GAME_TUTORIAL_ID = tutorialIdForGame('gravity');
-const ICON_SIZE = 14;
-
-/** A plain "?" glyph - see `BinairoScreen.tsx`'s identical `HelpIcon` for
- * the full rationale. Always reopens the base "how to play Gravity"
- * carousel, never one of the progressive per-mechanic overlays - those
- * stay tied to the level that introduces them, not to a general-purpose
- * reopen button. */
-function HelpIcon(): React.JSX.Element {
-  return (
-    <Canvas style={{ width: ICON_SIZE, height: ICON_SIZE }}>
-      <Circle cx={7} cy={7} r={6.3} color={theme.colors.textPrimary} style="stroke" strokeWidth={1.4} />
-      <Path path="M 5.1 5.6 A 1.9 1.9 0 1 1 7.9 7.3 C 7.15 7.75 7 8.1 7 8.9" color={theme.colors.textPrimary} style="stroke" strokeWidth={1.3} strokeCap="round" />
-      <Circle cx={7} cy={10.9} r={0.75} color={theme.colors.textPrimary} />
-    </Canvas>
-  );
-}
 
 /** Approximate height reserved below the board for the header text above it
  * and the Undo/Restart row beneath it - there is no direction pad any more,
@@ -127,33 +94,6 @@ function computeOnTargetIds(state: ReturnType<typeof getCurrentState>): Readonly
  * changes what the "current state" is, only what is drawn on the way
  * there, so engine determinism/testability is untouched.
  */
-/**
- * The live move count, popping on each move.
- *
- * Gravity grades every attempt on moves against the level's PAR, but the
- * header only ever showed PAR and BEST - both fixed for the whole attempt
- * - so the one number actually being scored was the one the player could
- * not see. `kick` rather than `pop`: this ticks on every single move, far
- * too often for the reward-tier bounce, matching how the other four
- * screens animate their own "N LEFT" kickers.
- */
-function AnimatedMoveCount({ moves }: { moves: number }): React.JSX.Element {
-  const scale = useRef(new Animated.Value(1)).current;
-  const previous = useRef(moves);
-
-  useEffect(() => {
-    if (moves !== previous.current) {
-      scale.setValue(moves > previous.current ? 0.85 : 1.1);
-      Animated.spring(scale, { toValue: 1, useNativeDriver: true, ...motion.spring.kick }).start();
-    }
-    previous.current = moves;
-  }, [moves, scale]);
-
-  return (
-    <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[styles.levelMoves, { transform: [{ scale }] }]}>{moves}</Animated.Text>
-  );
-}
-
 export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): React.JSX.Element {
   const { width, height } = useWindowDimensions();
   const insets = useSafeAreaInsets();
@@ -508,12 +448,11 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   );
   const boardAccessibilityValue = `${onTargetIds.size} of ${gameState.movables.length} pieces on target, ${moveCount} move${moveCount === 1 ? '' : 's'} so far.`;
 
-  // The stage starts the same distance under the header as every other
-  // game's (see `StageTopGap`), so moving between games in a set the board
-  // never jumps up or down; the board takes the room that leaves.
-  const topGap = Math.round(Math.max(8, Math.min(88, (height - 640) * 0.45)));
-  const stageTop = headerHeight + topGap;
-  const padding = theme.spacing.lg;
+  // The same rhythm as every other game (see `StageTopGap`): header, the
+  // board centred in the room left, the keys docked at the bottom. The
+  // board takes all the room the gaps can spare down to their minimums.
+  const stageTop = headerHeight + theme.spacing.sm;
+  const padding = theme.spacing.md;
   const availableWidth = width - padding * 2 - STAGE_H_PADDING * 2;
   const availableHeight = height - stageTop - insets.bottom - CONTROLS_AREA_HEIGHT;
   const boardSize = Math.max(0, Math.floor(Math.min(availableWidth, availableHeight)));
@@ -521,49 +460,25 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   return (
     <View style={styles.container}>
       <PageBloom />
-      <View style={[styles.header, { paddingTop: insets.top + theme.spacing.md }]} onLayout={e => setHeaderHeight(e.nativeEvent.layout.height)}>
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="Back to home"
-          onPress={onExit}
-          hitSlop={8}
-          style={styles.backButton}
-        >
-          <BackLabel label="Home" style={styles.backButtonLabel} />
-        </PressableScale>
-        <View style={styles.headerCenter}>
-          <Text style={styles.levelName} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.75}>
-            {level.name}
-          </Text>
-          <View style={styles.levelStats}>
-            {/* The tier it is dealt at, not its authored label: a short
-              board labelled "expert" is dealt (and shown) as medium. */}
-            <DifficultyChip difficulty={gravityTierOf(level) ?? 'easy'} style={styles.difficultyChip} />
-            <Text style={styles.levelPar}>Moves </Text>
-            <AnimatedMoveCount moves={moveCount} />
-            <Text style={styles.levelPar} numberOfLines={1}>
-              {' · '}par {par}
-              {priorBest !== null ? ` · best ${priorBest}` : ''}
-            </Text>
-          </View>
-          <PuzzleProgressMark batch={progress.currentBatch} puzzleId={level.id} style={styles.batchDots} />
-        </View>
-        <PressableScale
-          accessibilityRole="button"
-          accessibilityLabel="How to play"
-          onPress={reopenTutorial}
-          hitSlop={8}
-          containerStyle={styles.backButtonSpacer}
-        >
-          <HelpHalo />
-          <HelpIcon />
-        </PressableScale>
+      <View style={styles.headerWrap} onLayout={e => setHeaderHeight(e.nativeEvent.layout.height)}>
+        {/* The tier it is dealt at, not its authored label: a short board
+            labelled "expert" is dealt (and shown) as medium. */}
+        <PlayHeader
+          kind="gravity"
+          difficulty={gravityTierOf(level) ?? 'easy'}
+          status={`${moveCount} ${moveCount === 1 ? 'move' : 'moves'} · par ${par}${priorBest !== null ? ` · best ${priorBest}` : ''}`}
+          solved={solved}
+          puzzleId={level.id}
+          onExit={onExit}
+          onHelp={reopenTutorial}
+        />
       </View>
 
       {/* Swipes are read across the whole stage, not just the board: a
           swipe that starts a finger's width outside the board is still
           plainly a swipe, and ignoring it read as the game not listening. */}
-      <Animated.View style={[styles.stage, { marginTop: stageTop }, stageIn]} {...swipeHandlers}>
+      <StageTopGap />
+      <Animated.View style={[styles.stage, stageIn]} {...swipeHandlers}>
         <Animated.View
           style={[
             styles.board,
@@ -594,6 +509,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
         </Animated.View>
       </Animated.View>
 
+      <DockGap />
       <Animated.View style={[styles.sessionControls, controlsIn]}>
         <SessionControls
           onUndo={handleUndo}
@@ -616,6 +532,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           <CoinBalance coins={coins} shortBy={shortBy} style={styles.coinBalance} />
         </View>
       </Animated.View>
+      <DockFloor />
 
       {/* Both outcome cards sit at the screen root, not inside the board.
           They cover the screen with `absoluteFill`, so nested inside the
@@ -661,71 +578,12 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
 
 
 const styles = themedStyles(() => ({
+  headerWrap: { alignSelf: 'stretch' },
   container: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'flex-start',
     backgroundColor: theme.colors.background,
-  },
-  header: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.md,
-  },
-  backButton: {
-    paddingVertical: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.sm,
-  },
-  backButtonSpacer: {
-    minWidth: 60,
-    alignItems: 'center',
-  },
-  backButtonLabel: {
-    color: theme.colors.primary,
-    fontSize: theme.typography.sizes.body,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  headerCenter: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  levelName: {
-    textAlign: 'center',
-    fontFamily: theme.typography.families.display,
-    color: theme.colors.textPrimary,
-    fontSize: theme.typography.sizes.headline,
-    lineHeight: theme.typography.lineHeights.headline,
-    fontWeight: theme.typography.weights.bold,
-  },
-  levelStats: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    alignSelf: 'stretch',
-    marginTop: 2,
-  },
-  levelPar: {
-    fontSize: theme.typography.sizes.caption,
-    color: theme.colors.secondary,
-    // The chip is fixed-width and the back/help buttons are immovable, so
-    // PAR/BEST is the one thing on this row that may give ground.
-    flexShrink: 1,
-    fontWeight: theme.typography.weights.semibold,
-  },
-  difficultyChip: { marginRight: 6 },
-  /** The one number that changes during an attempt, so it carries a touch
-   * more weight than the fixed PAR/BEST either side of it. */
-  levelMoves: {
-    fontSize: theme.typography.sizes.caption,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.secondary,
-  },
-  batchDots: {
-    marginTop: theme.spacing.sm,
   },
   // The board's own plinth - see `BinairoScreen.tsx`'s `styles.stage`.
   stage: {
@@ -737,18 +595,12 @@ const styles = themedStyles(() => ({
     paddingVertical: theme.spacing.md,
     borderTopWidth: 1,
     borderTopColor: theme.colors.border,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.borderStrong,
   },
   board: {
     borderRadius: theme.radii.md,
     overflow: 'hidden',
   },
-  canvas: {
-    flex: 1,
-  },
   sessionControls: {
-    marginTop: theme.spacing.xl,
     alignItems: 'center',
   },
   coinBalance: { marginTop: theme.spacing.md },

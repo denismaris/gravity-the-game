@@ -8,6 +8,7 @@ import { ROUND_KEY } from './RoundKey';
 import { theme, themedStyles } from '../theme';
 import { CoinCost } from './Coins';
 import { InsightButton } from './InsightPower';
+import { dockPlate } from './StageTopGap';
 
 export interface SessionControlsProps {
   onUndo: () => void;
@@ -41,7 +42,7 @@ function SessionControlsImpl({
   insightCount,
 }: SessionControlsProps): React.JSX.Element {
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, dockPlate.plate]}>
       {onHint && (
         <>
           {insightCount !== undefined ? (
