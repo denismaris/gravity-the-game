@@ -16,7 +16,7 @@ const RESERVED = 300;
 const LOTUS_INTRO = {
   id: 'mechanic:lotus',
   title: 'Lotus pads',
-  body: 'A pad with a flower does not sink the first time. When the frog leaves, only the flower sinks. Come back to it later. While it floats, it stops jumps like any pad.',
+  body: 'A pad with a flower does not sink the first time. When the frog leaves, only the flower sinks. Come back to it later. Until then the frog cannot jump over it, the same as any other pad.',
 };
 
 export interface LilyPadsScreenProps {
@@ -61,7 +61,6 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
   const reach = useMemo(() => hopsFrom(puzzle, state), [puzzle, state]);
   const lonely = useMemo(() => cutOff(puzzle, state), [puzzle, state]);
   const left = padsLeft(state) - (state.stones?.[state.at] ? 0 : 1);
-  const total = puzzle.pads.filter((_p, i) => !puzzle.stones?.[i]).length;
 
   // Sounds land with the frog, not with the finger.
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -173,7 +172,6 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
       name={puzzle.name}
       difficulty={puzzle.difficulty}
       kicker={kicker}
-      progress={(total - 1 - left) / Math.max(1, total - 1)}
       introduce={puzzle.lotus?.some(Boolean) ? LOTUS_INTRO : null}
       intros={puzzle.stones?.some(Boolean) ? [mechanic('mechanic:lily-stones')] : []}
       slides={LILY_MECHANICS_SLIDES}

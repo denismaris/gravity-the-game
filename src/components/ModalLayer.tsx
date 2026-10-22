@@ -1,10 +1,11 @@
 import React from 'react';
 import { StyleSheet } from 'react-native';
 import Animated, { Easing, Keyframe } from 'react-native-reanimated';
+import { motion } from '../theme';
 
 /** How long a card takes to leave. A following card waits this long
  * (see `useCardEntrance`'s `delay`), so one has gone before the next comes. */
-export const MODAL_EXIT_MS = 240;
+export const MODAL_EXIT_MS = motion.beat.cardExit;
 
 /** Out: a fade, and a slight settle back into the page. */
 const EXIT = new Keyframe({

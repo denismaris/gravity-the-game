@@ -1,9 +1,10 @@
 import { BackLabel } from '../components/Icon';
+import { RoundKey } from '../components/RoundKey';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
@@ -47,9 +48,6 @@ const RESERVED = 300;
  * the stage's vertical padding (below) is generous: width is what caps
  * the board's size on a phone, so every point here is a point of board. */
 const STAGE_H_PADDING = theme.spacing.sm;
-/** How long the progress track's fill animates to its new width on a
- * placement - a quiet "state indication" beat, not a celebration. */
-const TRACK_MS = 220;
 
 function gemKey(cell: MirrorMazeCell): string {
   return `${cell.row}:${cell.col}`;
@@ -151,18 +149,6 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
   const left = remainingGems(puzzle, state);
   const totalGems = puzzle.gems.length;
 
-  // The header's own progress track - see `styles.track`. Animates toward
-  // its new fraction on every gem lit rather than jumping.
-  const trackFill = useRef(new Animated.Value(totalGems ? (totalGems - left) / totalGems : 0)).current;
-  useEffect(() => {
-    if (!totalGems) return;
-    Animated.timing(trackFill, {
-      toValue: (totalGems - left) / totalGems,
-      duration: TRACK_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true, // a scaleX from the left edge, so it runs on the UI thread
-    }).start();
-  }, [left, totalGems, trackFill]);
 
   useEffect(() => {
     if (solved && !recorded.current) {
@@ -246,18 +232,6 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
             {puzzle.name ?? 'Mirror Maze'}
           </Text>
           <AnimatedKicker left={left} total={totalGems} solved={solved} difficulty={puzzle.difficulty} />
-          {totalGems > 0 && (
-            <View style={styles.track}>
-              <Animated.View
-                style={[
-                  styles.trackFill,
-                  {
-                    width: '100%', transformOrigin: 'left', transform: [{ scaleX: trackFill.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }) }],
-                  },
-                ]}
-              />
-            </View>
-          )}
           <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale
@@ -296,14 +270,11 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
         <Animated.View style={[styles.controls, controlsIn]}>
           <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
-          <PressableScale
-            accessibilityRole="button"
+          <RoundKey
             accessibilityLabel="Restart puzzle"
-            onPress={restart}
-            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}
-          >
+            onPress={restart}>
             <RestartIcon />
-          </PressableScale>
+          </RoundKey>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
           line keeps its place but stays out of sight. */}
@@ -422,23 +393,6 @@ const styles = themedStyles(() => ({
     borderRadius: 5,
     backgroundColor: theme.colors.primary,
     marginLeft: 5,
-  },
-  // The header's own progress track - see `BinairoScreen.tsx`'s identical
-  // pattern (itself following `HomeScreen.tsx`'s hero-card track), tinted
-  // with this game's own identity colour instead of the app-wide
-  // `secondary`.
-  track: {
-    width: 140,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: theme.colors.surfaceAlt,
-    marginTop: theme.spacing.sm,
-    overflow: 'hidden',
-  },
-  trackFill: {
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: theme.colors.mirrorAccent,
   },
   batchDots: {
     marginTop: theme.spacing.sm,

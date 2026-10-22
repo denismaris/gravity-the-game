@@ -14,7 +14,8 @@ import { CoinPile } from '../components/CoinPile';
 import { TesseraMark } from '../components/TesseraMark';
 import { PageBloom } from '../components/PageBloom';
 import { AD_RULES, VIDEO_COINS, coinVideosLeft, watchCoinVideo } from '../ads';
-import { previewChime, triggerFeedback, useReducedMotion } from '../game/rendering';
+import { hexToRgb, previewChime, shade, triggerFeedback, useReducedMotion } from '../game/rendering';
+import { RaisedKey } from '../components/RaisedKey';
 import {
   COSMETICS,
   Cosmetic,
@@ -66,7 +67,7 @@ import {
   purchase,
   restorePurchases,
 } from '../progression';
-import { motion, theme, themedStyles } from '../theme';
+import { getColorScheme, motion, theme, themedStyles } from '../theme';
 
 export interface ShopScreenProps {
   onExit: () => void;
@@ -265,9 +266,11 @@ function CoinsTab({ onNotice, onPaid }: { onNotice: (title: string, text: string
               accessibilityLabel={confirming === pack.id ? `Confirm buying ${pack.coins} coins for ${pack.price}` : `Buy ${pack.name}, ${pack.coins} coins, for ${pack.price}`}
               accessibilityState={{ busy: buying === pack.id }}
               onPress={() => press(pack.id)}
-              style={({ pressed }) => [styles.action, styles.packBuy, confirming === pack.id && styles.actionConfirm, pressed && styles.pressed]}
+              scaleTo={1} style={styles.actionBox}
             >
+              <ShopKey tone={confirming === pack.id ? 'confirm' : 'wear'}>
               <Text style={styles.actionConfirmText}>{label(pack.id, pack.price)}</Text>
+              </ShopKey>
             </PressableScale>
             <Text style={styles.packDays}>{playDays(pack.coins)}</Text>
           </View>
@@ -651,12 +654,14 @@ function RetireCard({ onRetired }: { onRetired: () => void }): React.JSX.Element
           accessibilityRole="button"
           accessibilityLabel={picked && price !== null ? `Confirm retiring ${gameShortName(picked)} for ${price} coins` : 'Confirm'}
           onPress={confirm}
-          style={({ pressed }) => [styles.action, affordable ? styles.actionConfirm : styles.actionShort, pressed && styles.pressed]}
+          scaleTo={1} style={styles.actionBox}
         >
+          <ShopKey tone={affordable ? 'confirm' : 'short'}>
           <View style={styles.priceRow}>
             <CoinGlyph size={13} />
             <Text style={affordable ? styles.actionConfirmText : styles.actionShortText}>{price ?? '-'}</Text>
           </View>
+          </ShopKey>
         </PressableScale>
       </Animated.View>
       <Text style={styles.passFoot}>{full ? `${MAX_RETIRED} of ${MAX_RETIRED} retired · bring one back to swap` : `${progress.retired.length} of ${MAX_RETIRED} retired · next costs ${price}`}</Text>
@@ -775,7 +780,9 @@ function ItemCard({ item, onBought, featured = false, wide = false, style }: { i
       </View>
     </PressableScale>
   );
-  const ribbon = rarity ? (
+  // Only the rare pieces wear a tag: a label on every card is a label on
+  // none of them, and "Fine" on every other item meant nothing.
+  const ribbon = rarity === 'rare' || rarity === 'masterwork' ? (
     <View style={[styles.ribbon, wide && styles.ribbonInline, { borderColor: rarityColor(rarity) }]}>
       <Text style={[styles.ribbonText, { color: rarityColor(rarity) }]}>{RARITY_NAMES[rarity]}</Text>
     </View>
@@ -786,8 +793,9 @@ function ItemCard({ item, onBought, featured = false, wide = false, style }: { i
       accessibilityLabel={worn ? `${item.name}, worn` : own ? `Wear ${item.name}` : locked ? `${item.name}, ${lockedSpoken}` : confirming ? `Confirm buying ${item.name} for ${price} coins` : `Buy ${item.name} for ${price} coins`}
       onPress={press}
       containerStyle={wide && styles.actionWideWrap}
-      style={({ pressed }) => [styles.action, wide && styles.actionWide, worn ? styles.actionWorn : own ? styles.actionWear : locked ? styles.actionLocked : confirming ? styles.actionConfirm : affordable ? styles.actionBuy : styles.actionShort, pressed && styles.pressed]}
+      scaleTo={1} style={styles.actionBox}
     >
+      <ShopKey tone={worn ? 'worn' : own ? 'wear' : locked ? 'locked' : confirming ? 'confirm' : affordable ? 'buy' : 'short'} wide={wide}>
       {worn ? (
         <Text style={styles.actionWornText}>{'WORN ✓︎'}</Text>
       ) : own ? (
@@ -803,6 +811,7 @@ function ItemCard({ item, onBought, featured = false, wide = false, style }: { i
           <Text style={[styles.actionText, wide && styles.actionTextWide, !affordable && styles.actionShortText]}>{price}</Text>
         </View>
       )}
+      </ShopKey>
     </PressableScale>
   );
   const hint = locked ? (
@@ -811,8 +820,6 @@ function ItemCard({ item, onBought, featured = false, wide = false, style }: { i
     <Text style={styles.hint} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>{`${price - coins} more · hold the picture to save up`}</Text>
   ) : chapter ? (
     <Text style={[styles.hint, chapterDone && styles.hintReady]}>{chapterDone ? 'Free in your Almanac' : `Or finish chapter ${chapter}`}</Text>
-  ) : item.season && !own ? (
-    <Text style={[styles.hint, styles.hintSeason]} accessibilityLabel={`${SEASON_NAMES[item.season]} only, ${seasonDaysLeft()} days left`}>{`Only ${seasonDaysLeft()} days left`}</Text>
   ) : set ? (
     <Text style={styles.hint} numberOfLines={1}>{`Part of ${set.name}`}</Text>
   ) : (
@@ -917,11 +924,13 @@ function SetCard({ set, onClaimed }: { set: CosmeticSet; onClaimed: () => void }
           {p.claimed ? 'Complete · bonus paid' : ready ? 'Complete · your bonus is ready' : `${p.total - p.owned} to go for the bonus`}
         </Text>
         {ready ? (
-          <PressableScale accessibilityRole="button" accessibilityLabel={`Claim ${set.reward} coins for completing ${set.name}`} onPress={claim} style={({ pressed }) => [styles.action, styles.actionConfirm, pressed && styles.pressed]}>
+          <PressableScale accessibilityRole="button" accessibilityLabel={`Claim ${set.reward} coins for completing ${set.name}`} onPress={claim} scaleTo={1} style={styles.actionBox}>
+            <ShopKey tone={'confirm'}>
             <View style={styles.priceRow}>
               <CoinGlyph size={13} />
               <Text style={styles.actionConfirmText}>{`Claim ${set.reward}`}</Text>
             </View>
+            </ShopKey>
           </PressableScale>
         ) : (
           <View style={[styles.setReward, p.claimed && styles.setRewardPaid]}>
@@ -1239,8 +1248,9 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
                       accessibilityRole="button"
                       accessibilityLabel={freezesFull ? 'Streak freezes full' : `Buy a streak freeze for ${STREAK_FREEZE_PRICE} coins`}
                       onPress={buyFreeze}
-                      style={({ pressed }) => [styles.action, freezesFull ? styles.actionWorn : coins >= STREAK_FREEZE_PRICE ? styles.actionBuy : styles.actionShort, pressed && styles.pressed]}
+                      scaleTo={1} style={styles.actionBox}
                     >
+                      <ShopKey tone={freezesFull ? 'worn' : coins >= STREAK_FREEZE_PRICE ? 'buy' : 'short'}>
                       {freezesFull ? (
                         <Text style={styles.actionWornText}>Full</Text>
                       ) : (
@@ -1249,6 +1259,7 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
                           <Text style={styles.actionText}>{STREAK_FREEZE_PRICE}</Text>
                         </View>
                       )}
+                      </ShopKey>
                     </PressableScale>
                   </View>
                 </View>
@@ -1275,12 +1286,14 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
                         celebrate();
                       } else triggerFeedback('tap');
                     }}
-                    style={({ pressed }) => [styles.action, coins >= LUCKY_CHARM_PRICE && progress.luckyCharges + LUCKY_CHARM_CHARGES <= MAX_LUCKY_CHARGES ? styles.actionBuy : styles.actionShort, pressed && styles.pressed]}
+                    scaleTo={1} style={styles.actionBox}
                   >
+                    <ShopKey tone={coins >= LUCKY_CHARM_PRICE && progress.luckyCharges + LUCKY_CHARM_CHARGES <= MAX_LUCKY_CHARGES ? 'buy' : 'short'}>
                     <View style={styles.priceRow}>
                       <CoinGlyph size={13} />
                       <Text style={styles.actionText}>{LUCKY_CHARM_PRICE}</Text>
                     </View>
+                    </ShopKey>
                   </PressableScale>
                 </View>
               </View>
@@ -1306,12 +1319,14 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
                         celebrate();
                       } else triggerFeedback('tap');
                     }}
-                    style={({ pressed }) => [styles.action, coins >= INSIGHT_PACK.cost ? styles.actionBuy : styles.actionShort, pressed && styles.pressed]}
+                    scaleTo={1} style={styles.actionBox}
                   >
+                    <ShopKey tone={coins >= INSIGHT_PACK.cost ? 'buy' : 'short'}>
                     <View style={styles.priceRow}>
                       <CoinGlyph size={13} />
                       <Text style={styles.actionText}>{INSIGHT_PACK.cost}</Text>
                     </View>
+                    </ShopKey>
                   </PressableScale>
                 </View>
               </View>
@@ -1339,6 +1354,42 @@ export function ShopScreen({ onExit }: ShopScreenProps): React.JSX.Element {
   );
 }
 
+type ShopTone = 'buy' | 'short' | 'wear' | 'confirm' | 'worn' | 'locked';
+
+/** `a` moved `t` of the way to `b` (both `#rrggbb`), opaque - a key's face
+ * must be, or its edge shows through it. */
+function mixHex(a: string, b: string, t: number): string {
+  const x = hexToRgb(a);
+  const y = hexToRgb(b);
+  const ch = (u: number, v: number) => Math.round(u + (v - u) * t).toString(16).padStart(2, '0');
+  return `#${ch(x.r, y.r)}${ch(x.g, y.g)}${ch(x.b, y.b)}`;
+}
+
+/**
+ * Every buy button in the shop: the same raised key as the rest of the
+ * app, in the tone of what pressing it would do - paper to buy, faded when
+ * it cannot be afforded, ink to wear, the garden's colour to confirm, a
+ * green wash once worn, and set back when it is not for sale.
+ */
+function ShopKey({ tone, wide = false, children }: { tone: ShopTone; wide?: boolean; children: React.ReactNode }): React.JSX.Element {
+  const c = theme.colors;
+  const dark = getColorScheme() === 'dark';
+  const look: Record<ShopTone, { face: string; edge: string; rim?: string }> = {
+    buy: { face: c.surfaceHi, edge: c.borderStrong, rim: c.border },
+    short: { face: c.surfaceHi, edge: c.borderStrong, rim: c.border },
+    wear: { face: c.primary, edge: shade(c.primary, dark ? 0.72 : 0.5) },
+    confirm: { face: c.secondary, edge: shade(c.secondary, 0.62) },
+    worn: { face: mixHex(c.surfaceHi, c.success, 0.16), edge: mixHex(c.surfaceHi, c.success, 0.42) },
+    locked: { face: c.surfaceAlt, edge: shade(c.surfaceAlt, 0.82) },
+  };
+  const t = look[tone];
+  return (
+    <RaisedKey height={wide ? 42 : 34} lip={3} face={t.face} edge={t.edge} rim={t.rim} padding={14} idle={tone === 'short'} style={styles.actionKey}>
+      {children}
+    </RaisedKey>
+  );
+}
+
 const styles = themedStyles(() => ({
   adPlate: { width: 64, height: 64, borderRadius: 18, backgroundColor: theme.colors.surfaceAlt, alignItems: 'center', justifyContent: 'center' },
   noAds: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 7, borderWidth: 2, borderColor: theme.colors.textSecondary, alignItems: 'center', justifyContent: 'center' },
@@ -1350,7 +1401,7 @@ const styles = themedStyles(() => ({
   adOptionWrap: { flex: 1 },
   adOption: { alignItems: 'center', paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: theme.colors.borderStrong, backgroundColor: theme.colors.surface, gap: 2 },
   adOptionLabel: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
-  adOptionPrice: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  adOptionPrice: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'],  fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   purse: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingLeft: 10, paddingRight: 4, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.goldRim, backgroundColor: theme.colors.surfaceHi },
   /** No "+" disc to sit beside: the balance alone, centred in the pill. */
   purseBare: { paddingLeft: 10, paddingRight: 10, paddingVertical: 5 },
@@ -1450,7 +1501,7 @@ const styles = themedStyles(() => ({
   featuredKicker: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, color: theme.colors.gold },
   featuredClock: { fontSize: 11.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
   itemFeatured: { borderColor: theme.colors.goldRim, borderWidth: 1.5 },
-  wasPrice: { fontSize: theme.typography.sizes.micro, color: theme.colors.textTertiary, textDecorationLine: 'line-through', marginRight: 2 },
+  wasPrice: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'],  fontSize: theme.typography.sizes.micro, color: theme.colors.textTertiary, textDecorationLine: 'line-through', marginRight: 2 },
   pinned: { position: 'absolute', top: 10, right: 10, paddingHorizontal: 6, paddingVertical: 2, borderRadius: 5, backgroundColor: theme.colors.goldFill },
   pinnedText: { fontSize: 8, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold },
   shimmerClip: { ...StyleSheet.absoluteFill, borderRadius: 20, overflow: 'hidden' },
@@ -1569,14 +1620,16 @@ const styles = themedStyles(() => ({
   itemName: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   itemBlurb: { marginTop: 2, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textSecondary, textAlign: 'center', minHeight: 30 },
   action: { marginTop: theme.spacing.sm, minWidth: 96, alignItems: 'center', paddingHorizontal: 14, paddingVertical: 8, borderRadius: theme.radii.pill },
+  actionBox: { marginTop: theme.spacing.sm },
+  actionKey: { minWidth: 96 },
   actionBuy: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.borderStrong },
   actionShort: { backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border, opacity: 0.6 },
   actionWear: { backgroundColor: theme.colors.primary },
   actionConfirm: { backgroundColor: theme.colors.secondary },
   actionWorn: { backgroundColor: 'rgba(92,124,74,0.14)' },
-  actionText: { fontWeight: theme.typography.weights.semibold, fontSize: theme.typography.sizes.caption, color: theme.colors.textPrimary },
+  actionText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'],  fontWeight: theme.typography.weights.semibold, fontSize: theme.typography.sizes.caption, color: theme.colors.textPrimary },
   actionShortText: { color: theme.colors.textSecondary },
-  actionConfirmText: { fontWeight: theme.typography.weights.semibold, fontSize: theme.typography.sizes.caption, color: theme.colors.surfaceHi },
+  actionConfirmText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'],  fontWeight: theme.typography.weights.semibold, fontSize: theme.typography.sizes.caption, color: theme.colors.surfaceHi },
   actionWornText: { fontSize: theme.typography.sizes.caption, color: theme.colors.success, fontWeight: theme.typography.weights.semibold },
   priceRow: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   pressed: { opacity: 0.85 },

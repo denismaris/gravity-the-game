@@ -50,6 +50,59 @@ export const SILHOUETTES: Record<PuzzleDifficulty, ReadonlyArray<Silhouette>> = 
   ],
 };
 
+/**
+ * More pictures, for the endless boards only - each a subject of its own,
+ * so the run after the curated pool meets new things rather than the
+ * curated pictures turned and mirrored (which read as the same board
+ * again). The curated pictures come back only once all of these are used.
+ */
+export const ENDLESS_SILHOUETTES: Record<PuzzleDifficulty, ReadonlyArray<Silhouette>> = {
+  easy: [
+    { key: 'e-star', name: 'Star', theme: 'dusk', art: ['..##..', '..##..', '######', '.####.', '.####.', '##..##'] },
+    { key: 'e-bell', name: 'Bell', theme: 'hearth', art: ['..##..', '.####.', '.####.', '.####.', '######', '..##..'] },
+    { key: 'e-apple', name: 'Apple', theme: 'garden', art: ['...#..', '.####.', '######', '######', '######', '.####.'] },
+    { key: 'e-mug', name: 'Mug', theme: 'hearth', art: ['#####.', '######', '####.#', '######', '#####.', '.###..'] },
+    { key: 'e-fir', name: 'Fir', theme: 'meadow', art: ['..##..', '.####.', '######', '.####.', '######', '..##..'] },
+    { key: 'e-crown', name: 'Crown', theme: 'dusk', art: ['#.##.#', '######', '######', '.####.', '######'] },
+    { key: 'e-rabbit', name: 'Rabbit', theme: 'meadow', art: ['.#..#.', '.#..#.', '.####.', '######', '######', '.####.'] },
+    { key: 'e-gem', name: 'Gem', theme: 'sea', art: ['..##..', '.####.', '######', '######', '.####.', '..##..'] },
+    { key: 'e-lighthouse', name: 'Lighthouse', theme: 'sea', art: ['..##..', '.####.', '..##..', '..##..', '.####.', '######'] },
+    { key: 'e-cactus', name: 'Cactus', theme: 'meadow', art: ['..##..', '#.##..', '####.#', '.#####', '..##..', '..##..'] },
+    { key: 'e-acorn', name: 'Acorn', theme: 'meadow', art: ['..##..', '######', '######', '.####.', '.####.', '..##..'] },
+    { key: 'e-pot', name: 'Flowerpot', theme: 'garden', art: ['.#..#.', '######', '.####.', '######', '.####.', '.####.'] },
+  ],
+  medium: [
+    { key: 'e-anchor', name: 'Anchor', theme: 'sea', art: ['...##...', '..####..', '...##...', '...##...', '#..##..#', '##.##.##', '.######.', '..####..'] },
+    { key: 'e-rocket', name: 'Rocket', theme: 'dusk', art: ['...##...', '..####..', '..####..', '..####..', '.######.', '########', '##.##.##', '...##...'] },
+    { key: 'e-balloon', name: 'Balloon', theme: 'garden', art: ['..####..', '.######.', '########', '########', '.######.', '..####..', '...##...', '..####..'] },
+    { key: 'e-kingcrown', name: "King's Crown", theme: 'dusk', art: ['#..##..#', '##.##.##', '########', '########', '.######.', '########'] },
+    { key: 'e-kite', name: 'Kite', theme: 'meadow', art: ['...##...', '..####..', '.######.', '########', '.######.', '..####..', '...##...', '....##..'] },
+    { key: 'e-penguin', name: 'Penguin', theme: 'sea', art: ['..####..', '.######.', '.##..##.', '.######.', '########', '.######.', '.######.', '..#..#..'] },
+    { key: 'e-snowman', name: 'Snowman', theme: 'dusk', art: ['...##...', '..####..', '...##...', '..####..', '.######.', '.######.', '..####..'] },
+    { key: 'e-hourglass', name: 'Hourglass', theme: 'hearth', art: ['########', '.######.', '..####..', '...##...', '..####..', '.######.', '########'] },
+    { key: 'e-lamp', name: 'Lamp', theme: 'hearth', art: ['..####..', '.######.', '########', '...##...', '...##...', '..####..', '.######.'] },
+    { key: 'e-guitar', name: 'Guitar', theme: 'hearth', art: ['...##...', '...##...', '..####..', '.######.', '..####..', '.######.', '.######.', '..####..'] },
+    { key: 'e-strawberry', name: 'Strawberry', theme: 'garden', art: ['..#..#..', '.######.', '########', '########', '.######.', '.######.', '..####..', '...##...'] },
+    { key: 'e-whale', name: 'Whale', theme: 'sea', art: ['......##', '.####.#.', '#######.', '########', '########', '.######.'] },
+    { key: 'e-turtle', name: 'Turtle', theme: 'meadow', art: ['..####..', '.######.', '########', '########', '.######.', '##....##'] },
+    { key: 'e-lantern', name: 'Lantern', theme: 'dusk', art: ['...##...', '..####..', '.######.', '.######.', '.######.', '.######.', '..####..', '...##...'] },
+  ],
+  hard: [
+    { key: 'e-castle', name: 'Castle', theme: 'hearth', art: ['#.#.#.#.#', '#########', '#########', '##.###.##', '#########', '###...###', '###...###', '#########'] },
+    { key: 'e-fox', name: 'Fox', theme: 'meadow', art: ['#.......#', '##.....##', '###...###', '#########', '##.###.##', '#########', '.#######.', '..#####..', '...###...', '....#....'] },
+    { key: 'e-harbourlight', name: 'Harbour Light', theme: 'sea', art: ['....#....', '...###...', '...#.#...', '...###...', '...###...', '..#####..', '..#####..', '..#####..', '.#######.', '#########'] },
+    { key: 'e-elephant', name: 'Elephant', theme: 'dusk', art: ['..#####...', '.#######..', '#########.', '#########.', '##.######.', '#..######.', '#..##..##.', '...##..##.'] },
+    { key: 'e-mountain', name: 'Mountain', theme: 'meadow', art: ['....##....', '...####...', '..######..', '..#######.', '.#########', '##########', '##########'] },
+    { key: 'e-teapot', name: 'Teapot', theme: 'hearth', art: ['.....##...', '....####..', '..#######.', '#.########', '##########', '.#########', '..#######.', '...#####..'] },
+    { key: 'e-beetle', name: 'Beetle', theme: 'garden', art: ['.#.....#.', '.##...##.', '..#####..', '.#######.', '#########', '####.####', '#########', '.#######.', '..#####..'] },
+    { key: 'e-sunflower', name: 'Sunflower', theme: 'garden', art: ['..##.##..', '.#######.', '#########', '#########', '.#######.', '..#####..', '....#....', '..###....', '....#....'] },
+    { key: 'e-rooster', name: 'Rooster', theme: 'hearth', art: ['..##.....', '.####....', '..###...#', '..####.##', '.########', '#########', '.#######.', '..#####..', '...#.#...'] },
+    { key: 'e-bear', name: 'Bear', theme: 'meadow', art: ['##.....##', '#########', '#########', '##.###.##', '#########', '#########', '.#######.', '.##...##.'] },
+    { key: 'e-cathedral', name: 'Cathedral', theme: 'dusk', art: ['....#....', '...###...', '...###...', '#..###..#', '##.###.##', '#########', '#########', '###.#.###', '###.#.###'] },
+    { key: 'e-pagoda', name: 'Pagoda', theme: 'dusk', art: ['....#....', '...###...', '.#######.', '...###...', '..#####..', '#########', '...###...', '..#####..', '.#######.'] },
+  ],
+};
+
 /** A picture as a grid of booleans, rows padded to its widest line. */
 export function silhouetteGrid(silhouette: Silhouette): boolean[][] {
   const cols = Math.max(...silhouette.art.map(line => line.length));

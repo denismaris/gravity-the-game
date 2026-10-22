@@ -37,9 +37,9 @@ export interface LaunchSequenceProps {
 const WORDMARK = 'TESSELLATUM';
 const LETTERS = WORDMARK.split('');
 
-/** The short ochre rule drawing out under the name once it has set - the
- * same closing stroke the finish card puts under "Solved". */
-const RULE = { start: ACTS.wordmark.end - 220, end: ACTS.handoff.start - 20 } as const;
+/** The loading bar under the name: in once the tile has landed. */
+const BAR_IN = { start: ACTS.tileIn.end - 120, end: ACTS.tileIn.end + 220 } as const;
+const BAR_W = 128;
 
 const landedGlyphs = (): ReadonlyArray<{ glyph: string; landed: boolean }> => LETTERS.map(glyph => ({ glyph, landed: true }));
 
@@ -134,10 +134,20 @@ export function LaunchSequence({ appReady, onDone }: LaunchSequenceProps): React
   });
   const sheen = useDerivedValue(() => sheenOpacity(t.value));
 
-  const ruleStyle = useAnimatedStyle(() => {
-    const drawn = easeOut(actProgress(t.value, RULE));
+  // The loading bar under the name. It fills toward most of the way as the
+  // mark builds and the name sets, and finishes only once the app behind
+  // is ready - the clock does not pass the handoff until it is - so it is
+  // a true account of the wait, not a decoration.
+  const barTrackStyle = useAnimatedStyle(() => {
+    const shown = easeOut(actProgress(t.value, BAR_IN));
     const handoff = easeInOut(actProgress(t.value, ACTS.handoff));
-    return { opacity: drawn > 0 ? 1 - handoff : 0, transform: [{ scaleX: drawn }] };
+    return { opacity: shown * (1 - handoff) };
+  });
+  const barFillStyle = useAnimatedStyle(() => {
+    const loading = easeOut(actProgress(t.value, { start: ACTS.tileIn.start, end: ACTS.handoff.start })) * 0.86;
+    const finishing = easeOut(actProgress(t.value, { start: ACTS.handoff.start, end: ACTS.handoff.start + 180 })) * 0.14;
+    const p = loading + finishing;
+    return { transform: [{ translateX: (-BAR_W / 2) * (1 - p) }, { scaleX: Math.max(0.001, p) }] };
   });
 
   // The layer's own fade, on the native driver.
@@ -209,9 +219,11 @@ export function LaunchSequence({ appReady, onDone }: LaunchSequenceProps): React
           ))}
         </View>
         <Reanimated.View
-          style={[styles.rule, { top: cy + half + lip + theme.spacing.xl + theme.typography.sizes.headline * 1.45 }, ruleStyle]}
+          style={[styles.barTrack, { top: cy + half + lip + theme.spacing.xl + theme.typography.sizes.headline * 1.7 }, barTrackStyle]}
           pointerEvents="none"
-        />
+        >
+          <Reanimated.View style={[styles.barFill, barFillStyle]} />
+        </Reanimated.View>
       </Pressable>
     </Animated.View>
   );
@@ -272,7 +284,8 @@ const styles = themedStyles(() => ({
   overlay: { position: 'absolute', left: 0, right: 0, textAlign: 'center' },
   /** Rolling letters are set lighter; each darkens to ink as it lands. */
   rolling: { color: theme.colors.textTertiary },
-  rule: { position: 'absolute', alignSelf: 'center', left: '50%', width: 40, marginLeft: -20, height: 2.5, borderRadius: 1.25, backgroundColor: OCHRE },
+  barTrack: { position: 'absolute', left: '50%', width: BAR_W, marginLeft: -BAR_W / 2, height: 3, borderRadius: 1.5, overflow: 'hidden', backgroundColor: theme.colors.border },
+  barFill: { width: BAR_W, height: 3, borderRadius: 1.5, backgroundColor: OCHRE },
   wordmark: {
     fontFamily: theme.typography.families.display,
     fontSize: theme.typography.sizes.headline,

@@ -28,3 +28,6 @@ export type { HapticKind } from './haptics';
 export { previewChime, setSoundEnabled, setSolveChime, triggerSound } from './sound';
 export { setMusicEnabled } from './music';
 export { triggerFeedback } from './feedback';
+export { DealIn, dealDelay, useDealing, DEAL_MS, DEAL_SPREAD_MS } from './DealIn';
+export type { DealClock } from './DealIn';
+export { holdDeals, releaseDeals } from './dealGate';

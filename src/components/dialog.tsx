@@ -1,6 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { getColorScheme, theme, themedStyles } from '../theme';
+import { motion, getColorScheme, theme, themedStyles } from '../theme';
 import { Canvas, Path } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
 import { RaisedKey } from './RaisedKey';
@@ -88,7 +88,7 @@ export function DialogActions({ primary, secondary }: { primary: DialogAction; s
         accessibilityLabel={primary.accessibilityLabel ?? primary.label}
         onPress={primary.onPress}
         scaleTo={1}
-        holdMs={140}
+        holdMs={motion.beat.pressHold}
         containerStyle={dialogStyles.primaryWrap}
       >
         <RaisedKey height={52} lip={PRIMARY_LIP} face={theme.colors.primary} edge={primaryEdge()}>
@@ -106,7 +106,7 @@ export function DialogActions({ primary, secondary }: { primary: DialogAction; s
           accessibilityLabel={secondary.accessibilityLabel ?? secondary.label}
           onPress={secondary.onPress}
           scaleTo={1}
-          holdMs={140}
+          holdMs={motion.beat.pressHold}
           containerStyle={dialogStyles.primaryWrap}
         >
           <RaisedKey height={44} lip={QUIET_LIP} face={theme.colors.surfaceHi} edge={theme.colors.borderStrong} rim={theme.colors.border}>

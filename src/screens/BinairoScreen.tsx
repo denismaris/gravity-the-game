@@ -1,10 +1,11 @@
 import { SOLVE_CELEBRATION_MS } from '../components/useSolveCelebration';
+import { RoundKey } from '../components/RoundKey';
 import { BackLabel } from '../components/Icon';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
@@ -54,12 +55,6 @@ const ICON_SIZE = 14;
  * actually caps the board's size on a phone, so every point here is a
  * point of board. */
 const STAGE_H_PADDING = theme.spacing.sm;
-/** How long the progress track's fill animates to its new width on a
- * toggle - the same "state indication" budget as a dropdown, not a
- * celebratory spring: this fires on ordinary cell taps, tens of times a
- * puzzle, so it has to stay quiet. */
-const TRACK_MS = 220;
-const TRACK_WIDTH = 140;
 /** How long the completion popup waits after solve detection before
  * appearing - tuned to `BinairoBoardView`'s own `WAVE_TOTAL_MS` (650ms),
  * the board's ripple-celebration duration, so the popup doesn't cut the
@@ -172,23 +167,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
   // play - without this it drops a scrim straight over the top of it.
   const showSolvedCard = useSolveCelebration(solved);
   const left = remainingCells(state);
-  const totalCells = puzzle.size * puzzle.size;
 
-  // The header's own progress track - see `styles.track`. Animates toward
-  // its new fraction on every toggle rather than jumping, so filling the
-  // last few cells of a row reads as continuous progress instead of a
-  // stepped counter.
-  const trackFill = useRef(new Animated.Value(totalCells ? (totalCells - left) / totalCells : 0)).current;
-  useEffect(() => {
-    Animated.timing(trackFill, {
-      toValue: totalCells ? (totalCells - left) / totalCells : 0,
-      duration: TRACK_MS,
-      easing: Easing.out(Easing.cubic),
-      // A transform, so it runs on the native driver: a JS-driven width
-      // animation after every tap competed with the board for the frame.
-      useNativeDriver: true,
-    }).start();
-  }, [left, totalCells, trackFill]);
 
   useEffect(() => {
     if (solved && !recorded.current) {
@@ -305,20 +284,6 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
             {puzzle.name ?? 'Twos'}
           </Text>
           <AnimatedKicker left={left} solved={solved} difficulty={puzzle.difficulty} />
-          <View style={styles.track}>
-            <Animated.View
-              style={[
-                styles.trackFill,
-                {
-                  // Full width, scaled from its left edge.
-                  transform: [
-                    { translateX: trackFill.interpolate({ inputRange: [0, 1], outputRange: [-TRACK_WIDTH / 2, 0], extrapolate: 'clamp' }) },
-                    { scaleX: trackFill.interpolate({ inputRange: [0, 1], outputRange: [0.0001, 1], extrapolate: 'clamp' }) },
-                  ],
-                },
-              ]}
-            />
-          </View>
           <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale
@@ -365,14 +330,11 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
         <Animated.View style={[styles.controls, controlsIn]}>
           <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
-          <PressableScale
-            accessibilityRole="button"
+          <RoundKey
             accessibilityLabel="Restart puzzle"
-            onPress={restart}
-            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}
-          >
+            onPress={restart}>
             <RestartIcon />
-          </PressableScale>
+          </RoundKey>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
           line keeps its place but stays out of sight. */}
@@ -494,24 +456,6 @@ const styles = themedStyles(() => ({
     borderRadius: 5,
     backgroundColor: theme.colors.primary,
     marginLeft: 5,
-  },
-  // The header's own progress track - same shape as Home's hero-card track
-  // (`HomeScreen.tsx`'s `styles.track`/`trackFill`), tinted with this game's
-  // own identity colour instead of the app-wide `secondary` so it reads as
-  // "this screen's" progress, not a borrowed piece of chrome.
-  track: {
-    width: TRACK_WIDTH,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: theme.colors.surfaceAlt,
-    marginTop: theme.spacing.sm,
-    overflow: 'hidden',
-  },
-  trackFill: {
-    width: TRACK_WIDTH,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: theme.colors.binairoAccent,
   },
   batchDots: {
     marginTop: theme.spacing.sm,

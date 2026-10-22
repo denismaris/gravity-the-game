@@ -2,8 +2,10 @@ import {
   EncouragementTier,
   encouragementsFor,
   encouragementTier,
+  gameLinesFor,
   pickEncouragement,
 } from '../encouragement';
+import { ROTATION } from '../gameKind';
 
 const TIERS: ReadonlyArray<EncouragementTier> = ['flawless', 'strong', 'solid'];
 
@@ -79,5 +81,31 @@ describe('pickEncouragement', () => {
       seen.add(previous);
     }
     expect(seen.size).toBeGreaterThan(1);
+  });
+});
+
+describe('each game\'s own lines', () => {
+  test('every game has a few, all distinct, plain sentences with no dashes', () => {
+    for (const kind of ROTATION) {
+      const lines = gameLinesFor(kind);
+      expect(lines.length).toBeGreaterThanOrEqual(3);
+      expect(new Set(lines).size).toBe(lines.length);
+      for (const line of lines) {
+        expect(line).toMatch(/\.$/);
+        expect(line).not.toMatch(/[\u2013\u2014]| - /);
+      }
+    }
+  });
+
+  test('half the time the line is the game\'s own, and never the last one again', () => {
+    const own = gameLinesFor('lilypads');
+    expect(own).toContain(pickEncouragement('flawless', undefined, () => 0.2, 'lilypads'));
+    expect(own).not.toContain(pickEncouragement('flawless', undefined, () => 0.7, 'lilypads'));
+    let previous: string | undefined;
+    for (let i = 0; i < 40; i += 1) {
+      const line = pickEncouragement('solid', previous, Math.random, 'bridges');
+      expect(line).not.toBe(previous);
+      previous = line;
+    }
   });
 });

@@ -1,4 +1,4 @@
-import { GameKind, ROTATION, gameShortName } from '../game/journey';
+import { GameKind, ROTATION, gameDisplayName } from '../game/journey';
 import { PuzzleDifficulty } from '../game/puzzleDifficulty';
 import { PlayerProgress } from './playerProgress';
 
@@ -65,32 +65,39 @@ function make(kind: ErrandKind, random: () => number, allowed: ReadonlyArray<Gam
   switch (kind) {
     case 'solve': {
       const n = pick([3, 4, 5]);
-      return { kind, target: n, game: null, coins: 8 + n * 2, title: `Solve ${n} puzzles` };
+      return { kind, target: n, game: null, coins: 8 + n * 2, title: `${countWord(n)} boards today` };
     }
     case 'solveGame': {
       const game = pick(allowed.length > 0 ? allowed : ROTATION);
       const n = pick([1, 2]);
-      return { kind, target: n, game, coins: 10 + n * 3, title: n === 1 ? `Solve a ${gameShortName(game)} puzzle` : `Solve ${n} ${gameShortName(game)} puzzles` };
+      return { kind, target: n, game, coins: 10 + n * 3, title: `${countWord(n)} ${gameDisplayName(game)} ${n === 1 ? 'board' : 'boards'}` };
     }
     case 'stars': {
       const n = pick([6, 8, 10]);
-      return { kind, target: n, game: null, coins: 6 + n, title: `Earn ${n} stars` };
+      return { kind, target: n, game: null, coins: 6 + n, title: `${countWord(n)} stars to earn` };
     }
     case 'clean': {
       const n = pick([2, 3]);
-      return { kind, target: n, game: null, coins: 10 + n * 3, title: `Solve ${n} puzzles without a hint` };
+      return { kind, target: n, game: null, coins: 10 + n * 3, title: `${countWord(n)} boards, no hints` };
     }
     case 'hard':
-      return { kind, target: 1, game: null, coins: 35, title: 'Solve a hard puzzle' };
+      return { kind, target: 1, game: null, coins: 35, title: 'One hard board' };
     case 'daily':
-      return { kind, target: 1, game: null, coins: 20, title: "Solve today's Daily" };
+      return { kind, target: 1, game: null, coins: 20, title: "Today's Daily" };
     case 'set':
-      return { kind, target: 1, game: null, coins: 30, title: 'Finish a level set' };
+      return { kind, target: 1, game: null, coins: 30, title: 'One whole set' };
   }
 }
 
 /** The day's three errands - always one kind of each: a volume goal, a
  * game to visit, and a quality or occasion goal. */
+/** A count as a word, for errand titles read like a note ("Four boards
+ * today") rather than a form ("Solve 4 puzzles"). */
+const COUNT_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve'];
+function countWord(n: number): string {
+  return COUNT_WORDS[n] ?? String(n);
+}
+
 export function errandsFor(dayKey: string, retired: ReadonlyArray<GameKind> = []): Errand[] {
   const random = seeded(`errands:${dayKey}`);
   // A retired game is never an errand's destination.

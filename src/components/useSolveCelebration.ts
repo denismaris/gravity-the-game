@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { motion } from '../theme';
 
 /**
  * One beat, shared by every game, between a board being solved and its
@@ -29,7 +30,7 @@ import { useEffect, useRef, useState } from 'react';
  */
 /** Every game's finish plays this long before its card comes in - the
  * same beat in every game, unhurried enough to watch the finish. */
-export const SOLVE_CELEBRATION_MS = 1600;
+export const SOLVE_CELEBRATION_MS = motion.beat.solveCelebration;
 
 /**
  * `true` once `solved` has been set for a full celebration beat.

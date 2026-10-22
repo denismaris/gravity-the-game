@@ -1,4 +1,5 @@
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
+import { RoundKey } from '../components/RoundKey';
 import { BackLabel } from '../components/Icon';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
@@ -335,7 +336,6 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
             {puzzle.name ?? 'Adjacent'}
           </Text>
           <AnimatedKicker score={state.score} target={puzzle.targetScore} solved={solved} difficulty={puzzle.difficulty} />
-          <ScoreTrack score={state.score} target={puzzle.targetScore} />
           <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale
@@ -372,27 +372,22 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
         <Animated.View style={[styles.controls, controlsIn]}>
           <InsightButton count={insight.count} onPress={revealInsight} />
           {insight.sheet}
-          <PressableScale
-            accessibilityRole="button"
+          <RoundKey
             accessibilityLabel={`Undo the last clear, ${undosLeft} of ${MAX_UNDOS} left`}
             accessibilityState={{ disabled: !canUndo }}
             onPress={undo}
-            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed, !canUndo && styles.pillDisabled]}
-          >
+            dim={!canUndo}>
             <UndoIcon muted={!canUndo} />
             {/* Undos left, as a small count on the key. */}
             <View style={[styles.keyBadge, !canUndo && styles.keyBadgeMuted]}>
               <Text style={[styles.keyBadgeText, !canUndo && styles.keyBadgeTextMuted]}>{undosLeft}</Text>
             </View>
-          </PressableScale>
-          <PressableScale
-            accessibilityRole="button"
+          </RoundKey>
+          <RoundKey
             accessibilityLabel="Restart puzzle"
-            onPress={restart}
-            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}
-          >
+            onPress={restart}>
             <RestartIcon />
-          </PressableScale>
+          </RoundKey>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
           line keeps its place but stays out of sight. */}
@@ -473,32 +468,6 @@ function AnimatedKicker({ score, target, solved, difficulty }: { score: number; 
   );
 }
 
-/** A bar toward the target. Honest here in a way it would not be in
- * Lights Out: a score only ever climbs, so this never slides backwards. */
-function ScoreTrack({ score, target }: { score: number; target: number }): React.JSX.Element {
-  const fill = useRef(new Animated.Value(0)).current;
-  const pct = Math.min(1, target > 0 ? score / target : 0);
-
-  useEffect(() => {
-    Animated.timing(fill, {
-      toValue: pct,
-      duration: 420,
-      useNativeDriver: true, // a scaleX from the left edge, so it runs on the UI thread
-    }).start();
-  }, [pct, fill]);
-
-  return (
-    <View style={styles.track}>
-      <Animated.View
-        style={[
-          styles.trackFill,
-          { width: '100%', transformOrigin: 'left', transform: [{ scaleX: fill.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }) }] },
-        ]}
-      />
-    </View>
-  );
-}
-
 const styles = themedStyles(() => ({
   container: {
     flex: 1,
@@ -545,19 +514,6 @@ const styles = themedStyles(() => ({
     borderRadius: 5,
     backgroundColor: theme.colors.primary,
     marginLeft: 5,
-  },
-  track: {
-    height: 3,
-    width: 132,
-    borderRadius: 1.5,
-    backgroundColor: theme.colors.surfaceAlt,
-    overflow: 'hidden',
-    marginTop: 6,
-  },
-  trackFill: {
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: theme.colors.adjacentAccent,
   },
   batchDots: {
     marginTop: theme.spacing.sm,

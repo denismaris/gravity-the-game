@@ -75,7 +75,10 @@ export type HapticKind =
   | 'vaneTurn'
   | 'vaneLoop'
   | 'vaneAstray'
-  | 'vaneSolve';
+  | 'vaneSolve'
+  // A check or seal stamping onto a finish card: light and crisp, one per
+  // thing counted in.
+  | 'stamp';
 
 /**
  * Pattern in milliseconds passed to `Vibration.vibrate`. A single number is
@@ -250,6 +253,7 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   vaneLoop: [0, 10, 80, 14],
   vaneAstray: [0, 8, 50, 8],
   vaneSolve: [0, 12, 140, 12, 110, 14, 110, 18, 160, 26],
+  stamp: 5,
 };
 
 /** A transient: one tap, at `time` ms. */
@@ -354,6 +358,7 @@ const TEXTURES: Partial<Record<HapticKind, HapticEvent[]>> = {
   vaneLoop: [hum(0, 120, 0.18, 0.5), tap(30, 0.5, 0.9), tap(120, 0.6, 0.95)],
   vaneAstray: [tap(0, 0.45, 0.15), tap(55, 0.35, 0.15)],
   vaneSolve: [hum(0, 400, 0.22, 0.4), tap(180, 0.45, 0.9), tap(300, 0.55, 0.9), tap(420, 0.65, 0.95), tap(540, 0.8, 1)],
+  stamp: [tap(0, 0.42, 0.95)],
 };
 
 let hapticsEnabled = true;

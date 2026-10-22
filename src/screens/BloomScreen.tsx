@@ -1,4 +1,5 @@
 import { BackLabel } from '../components/Icon';
+import { RoundKey } from '../components/RoundKey';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
@@ -231,14 +232,11 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
         <Animated.View style={[styles.controls, controlsIn]}>
           <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
-          <PressableScale
-            accessibilityRole="button"
+          <RoundKey
             accessibilityLabel="Restart puzzle"
-            onPress={restart}
-            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}
-          >
+            onPress={restart}>
             <RestartIcon />
-          </PressableScale>
+          </RoundKey>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
           line keeps its place but stays out of sight. */}

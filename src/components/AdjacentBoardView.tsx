@@ -1,7 +1,7 @@
 import React, { useMemo, useRef } from 'react';
 import { Circle, Group, LinearGradient, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import { AdjacentCoord, AdjacentFall, AdjacentPuzzle, AdjacentState, GOLD, STONE } from '../game/adjacent';
-import { shade, useAnimationClock, useReducedMotion } from '../game/rendering';
+import { DealClock, DealIn, dealDelay, shade, useAnimationClock, useDealing, useReducedMotion } from '../game/rendering';
 import { theme, inkWash } from '../theme';
 
 /**
@@ -481,6 +481,8 @@ interface StaticTilesProps {
    * actually bail out between clock ticks. */
   activeKeys: string;
   previewKeys: string;
+  /** The board's opening second: tiles are dealt in, not shown. */
+  dealing: DealClock;
 }
 
 /**
@@ -489,7 +491,7 @@ interface StaticTilesProps {
  * redrawing all forty-nine wells on every frame of a fall is exactly the
  * waste that had to be retrofitted out of two earlier boards here.
  */
-const StaticTiles = React.memo(function StaticTilesImpl({ layout, grid, activeKeys, previewKeys }: StaticTilesProps) {
+const StaticTiles = React.memo(function StaticTilesImpl({ layout, grid, activeKeys, previewKeys, dealing }: StaticTilesProps) {
   const skip = useMemo(() => new Set(activeKeys ? activeKeys.split(',') : []), [activeKeys]);
   const preview = useMemo(() => new Set(previewKeys ? previewKeys.split(',') : []), [previewKeys]);
   const { cell, cols, rows } = layout;
@@ -503,7 +505,9 @@ const StaticTiles = React.memo(function StaticTilesImpl({ layout, grid, activeKe
       nodes.push(<Well key={`well-${key}`} x={col * cell} y={row * cell} cell={cell} empty={colour === null || hidden} />);
       if (colour === null || hidden) continue;
       nodes.push(
-        <Tile key={`tile-${key}`} colour={colour} x={col * cell} y={row * cell} cell={cell} highlighted={preview.has(key)} />,
+        <DealIn key={`tile-${key}`} x={col * cell + cell / 2} y={row * cell + cell / 2} delay={dealDelay(Math.max(row, col), Math.max(rows, cols) - 1)} dealing={dealing}>
+          <Tile colour={colour} x={col * cell} y={row * cell} cell={cell} highlighted={preview.has(key)} />
+        </DealIn>,
       );
     }
   }
@@ -539,6 +543,7 @@ export interface AdjacentBoardViewProps {
 }
 
 export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview, animation, solved }: AdjacentBoardViewProps): React.JSX.Element {
+  const dealing = useDealing();
   const layout = useMemo(() => computeAdjacentLayout(puzzle, maxWidth, maxHeight), [puzzle, maxWidth, maxHeight]);
   const reducedMotion = useReducedMotion();
   const { cell, width, height } = layout;
@@ -683,7 +688,7 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
           stray white stripes beside the rim, and is gone.) */}
       <TrayChrome width={width} height={height} />
 
-      <StaticTiles layout={layout} grid={state.grid} activeKeys={activeKeys} previewKeys={previewKeys} />
+      <StaticTiles layout={layout} grid={state.grid} activeKeys={activeKeys} previewKeys={previewKeys} dealing={dealing} />
 
       {/* Tiles still falling, drawn back toward where they came from. */}
       {[...falling.entries()].map(([key, { fall, progress }]) => {

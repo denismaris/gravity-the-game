@@ -3,7 +3,7 @@ import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { generateMosaic } from './generator';
 import { chooseFixedPieces } from './logic';
 import { endlessSilhouette } from './shapes';
-import { MosaicTheme, SILHOUETTES, Silhouette, silhouetteGrid } from './silhouettes';
+import { ENDLESS_SILHOUETTES, MosaicTheme, SILHOUETTES, Silhouette, silhouetteGrid } from './silhouettes';
 import { MosaicPuzzle } from './types';
 
 /**
@@ -11,10 +11,10 @@ import { MosaicPuzzle } from './types';
  * a hard cut takes up to a second and sometimes several tries, which is
  * fine once at build time and not fine as a phone opens a puzzle.
  *
- * Two in three are the hand-drawn pictures again, turned or mirrored and
- * cut into a *new* set of pieces - the same heart cut differently is a
- * different puzzle, and a recognisable picture is most of the pleasure.
- * The third is a symmetric emblem (see `shapes.ts`), for variety.
+ * Half are hand-drawn pictures - first a set made for the endless run,
+ * then the curated ones mirrored - and half symmetric emblems (see
+ * `shapes.ts`), each different. Curated pictures turned and mirrored were
+ * two boards in three once, and read as the same boards repeating.
  */
 
 const VARIANTS = ['', 'II', 'III', 'IV', 'V', 'VI', 'VII', 'VIII'];
@@ -28,21 +28,32 @@ function transform(art: ReadonlyArray<string>, t: number): string[] {
   return rows.map(r => r.join(''));
 }
 
-/** The picture board `index` of a tier is cut from. */
+/** The picture board `index` of a tier is cut from.
+ *
+ * Every other board is a symmetric emblem (see `shapes.ts`), each one
+ * different. The rest walk the endless pictures - new subjects the
+ * curated pool never shows - and only then the curated ones, mirrored so
+ * none is ever the curated board's own picture.
+ * The same picture comes round again only after the whole list. */
 export function endlessMosaicSilhouette(tier: PuzzleDifficulty, index: number): Silhouette {
   const id = `mosaic-e-${tier}-${index}`;
-  if (index % 3 === 2) return endlessSilhouette(id, tier, endlessName(index, 'mosaic'));
-  const pictures = SILHOUETTES[tier];
-  const k = index - Math.floor(index / 3);
-  const picture = pictures[k % pictures.length];
-  const round = Math.floor(k / pictures.length);
+  if (index % 2 === 1) return endlessSilhouette(id, tier, endlessName(index, 'mosaic'));
+  const fresh = ENDLESS_SILHOUETTES[tier];
+  const curated = SILHOUETTES[tier];
+  const all = [...fresh, ...curated];
+  const k = Math.floor(index / 2);
+  const slot = k % all.length;
+  const picture = all[slot];
+  const round = Math.floor(k / all.length) + (slot >= fresh.length ? 1 : 0);
+  const variant = VARIANTS[round % VARIANTS.length];
   return {
     key: picture.key,
-    name: `${picture.name}${VARIANTS[round % VARIANTS.length] ? ` ${VARIANTS[round % VARIANTS.length]}` : ''}`,
+    name: `${picture.name}${variant ? ` ${variant}` : ''}`,
     theme: picture.theme,
-    // Turned or mirrored on alternate rounds, so a repeat picture is
-    // also a different shape to fill.
-    art: transform(picture.art, round + 1),
+    // Mirrored when it comes round again, so it is a different shape to
+    // fill - never turned upside down, which made a cat or a teapot look
+    // like the same board, broken.
+    art: transform(picture.art, round % 2),
   };
 }
 

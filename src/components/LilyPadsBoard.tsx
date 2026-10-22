@@ -15,7 +15,7 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 import { Cell, DIRECTIONS, LilyPuzzle, LilyState, padCell } from '../game/lilypads';
-import { shade, useReducedMotion } from '../game/rendering';
+import { DealIn, dealDelay, shade, useDealing, useReducedMotion } from '../game/rendering';
 import { inkWash, theme } from '../theme';
 
 /**
@@ -91,6 +91,7 @@ export function LilyPadsBoard({
    * last few hops are drawn as a faint dotted trail over the water. */
   trail?: ReadonlyArray<number>;
 }): React.JSX.Element {
+  const dealing = useDealing();
   const geo = useMemo(() => lilyGeometry(size, puzzle.size), [size, puzzle.size]);
   const reduced = useReducedMotion();
   const r = geo.cell * 0.42;
@@ -258,8 +259,13 @@ export function LilyPadsBoard({
         {puzzle.pads.map((p, i) => {
           if (!state.afloat[i] || i === state.at) return null;
           const c = cellOf(i);
-          if (state.stones?.[i]) return <Stone key={i} geo={geo} row={c.row} col={c.col} r={r} />;
-          return <Leaf key={i} geo={geo} row={c.row} col={c.col} r={r} lotus={state.lotus?.[i] ?? false} />;
+          const at = geo.centre(c.row, c.col);
+          // Dealt onto the pond as it opens, corner to corner.
+          return (
+            <DealIn key={i} x={at.x} y={at.y} delay={dealDelay(Math.max(c.row, c.col), puzzle.size - 1)} dealing={dealing}>
+              {state.stones?.[i] ? <Stone geo={geo} row={c.row} col={c.col} r={r} /> : <Leaf geo={geo} row={c.row} col={c.col} r={r} lotus={state.lotus?.[i] ?? false} />}
+            </DealIn>
+          );
         })}
         {falling.map(f => {
           const c = geo.centre(cellOf(f.pad).row, cellOf(f.pad).col);

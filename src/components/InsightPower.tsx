@@ -4,12 +4,14 @@ import { Modal, Pressable, Text, View } from 'react-native';
 import Reanimated, { Easing as ReEasing, SlideInDown } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { coinVideosLeft, watchRewardedVideo } from '../ads';
-import { triggerFeedback } from '../game/rendering';
+import { shade, triggerFeedback } from '../game/rendering';
 import { usePlayerProgress } from '../progression';
 import { HINT_COST, INSIGHT_PACK, INSIGHTS_PER_VIDEO } from '../progression/coins';
-import { theme, themedStyles } from '../theme';
+import { getColorScheme, theme, themedStyles } from '../theme';
 import { CoinGlyph, useCoinPurchase } from './Coins';
 import { PressableScale } from './PressableScale';
+import { RaisedKey } from './RaisedKey';
+import { ROUND_KEY } from './RoundKey';
 
 /** The sheet rises from the foot of the screen as its backdrop fades in. */
 const SHEET_IN = SlideInDown.duration(320).easing(ReEasing.out(ReEasing.cubic));
@@ -121,6 +123,7 @@ function InsightSheet({ visible, onClose, onEarned, onPaid, onPack }: { visible:
   };
   const noVideos = left === 0;
   const affordable = coins >= HINT_COST;
+  const leadVideo = !noVideos;
 
   return (
     <Modal transparent visible={visible} animationType="fade" onRequestClose={onClose} statusBarTranslucent>
@@ -131,68 +134,58 @@ function InsightSheet({ visible, onClose, onEarned, onPaid, onPack }: { visible:
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={[styles.scrim, styles.scrimFill]} />
         <Reanimated.View entering={SHEET_IN} style={[styles.sheet, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
           <View style={styles.grabber} />
-          <View style={styles.mark}>
-            <InsightMark />
+          {/* The heading, set like the pages: the mark beside it, left. */}
+          <View style={styles.sheetHead}>
+            <View style={styles.sheetMark}>
+              <Icon name="spark" size={20} color={theme.colors.accent} />
+            </View>
+            <View style={styles.sheetHeadText}>
+              <Text style={styles.sheetTitle} accessibilityRole="header">
+                Out of Insight
+              </Text>
+              <Text style={styles.sheetBody}>Insight shows your next move on the board.</Text>
+            </View>
           </View>
-          <Text style={styles.title} accessibilityRole="header">
-            Out of Insight
-          </Text>
-          <Text style={styles.body}>Insight shows your next move on the board.</Text>
 
-          <View style={styles.options}>
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={noVideos ? 'No more videos today' : `Watch a short video for ${INSIGHTS_PER_VIDEO} Insight`}
-              accessibilityState={{ disabled: noVideos || watching, busy: watching }}
-              onPress={watch}
-              containerStyle={styles.optionWrap}
-              style={({ pressed }) => [styles.option, styles.optionLead, (noVideos || watching) && styles.dim, pressed && styles.pressed]}
-            >
-              <View style={[styles.optionIcon, styles.optionIconLead]}>
-                <Text style={styles.playGlyph}>{'\u25B6\uFE0E'}</Text>
-              </View>
-              <Text style={styles.optionTitle}>{noVideos ? 'Back tomorrow' : watching ? 'Loading\u2026' : `+${INSIGHTS_PER_VIDEO} Insight`}</Text>
-              <Text style={styles.optionSub}>{noVideos ? 'No videos left today' : 'Watch a short video'}</Text>
-              {!noVideos && <Text style={styles.optionFree}>Free</Text>}
+          {/* Three keys, one weight each: the free video in ink while there
+              is one, the two coin offers in paper - label left, what it
+              costs or gives right, like a price list. */}
+          <View style={styles.offers}>
+            {leadVideo && (
+              <PressableScale accessibilityRole="button" accessibilityLabel={`Watch a short video for ${INSIGHTS_PER_VIDEO} Insight`} accessibilityState={{ disabled: watching, busy: watching }} onPress={watch} scaleTo={1}>
+                <RaisedKey height={56} lip={5} face={theme.colors.primary} edge={shade(theme.colors.primary, getColorScheme() === 'dark' ? 0.72 : 0.5)} padding={20} idle={watching} style={styles.offerKey}>
+                  <View style={styles.offerRow}>
+                    <Text style={styles.offerLabelInk}>{watching ? 'Loading\u2026' : 'Watch a short video'}</Text>
+                    <Text style={styles.offerValueInk}>{`+${INSIGHTS_PER_VIDEO}`}</Text>
+                  </View>
+                </RaisedKey>
+              </PressableScale>
+            )}
+            <PressableScale accessibilityRole="button" accessibilityLabel={`Use ${HINT_COST} coins for one Insight`} onPress={() => buy(HINT_COST, onPaid)} scaleTo={1}>
+              <RaisedKey height={52} lip={3} face={theme.colors.surfaceHi} edge={theme.colors.borderStrong} rim={theme.colors.border} padding={20} idle={!affordable} style={styles.offerKey}>
+                <View style={styles.offerRow}>
+                  <Text style={styles.offerLabel}>One, for this move</Text>
+                  <View style={styles.offerPrice}>
+                    <CoinGlyph size={14} />
+                    <Text style={styles.offerValue}>{HINT_COST}</Text>
+                  </View>
+                </View>
+              </RaisedKey>
             </PressableScale>
-
-            <PressableScale
-              accessibilityRole="button"
-              accessibilityLabel={`Use ${HINT_COST} coins for one Insight`}
-              onPress={() => buy(HINT_COST, onPaid)}
-              containerStyle={styles.optionWrap}
-              style={({ pressed }) => [styles.option, !affordable && styles.dim, pressed && styles.pressed]}
-            >
-              <View style={styles.optionIcon}>
-                <CoinGlyph size={20} />
-              </View>
-              <Text style={styles.optionTitle}>{`${HINT_COST} coins`}</Text>
-              <Text style={styles.optionSub}>{affordable ? 'For this move' : `You have ${coins}`}</Text>
+            <PressableScale accessibilityRole="button" accessibilityLabel={`Use ${INSIGHT_PACK.cost} coins for ${INSIGHT_PACK.count} Insight`} onPress={() => buy(INSIGHT_PACK.cost, onPack)} scaleTo={1}>
+              <RaisedKey height={52} lip={3} face={theme.colors.surfaceHi} edge={theme.colors.borderStrong} rim={theme.colors.border} padding={20} idle={coins < INSIGHT_PACK.cost} style={styles.offerKey}>
+                <View style={styles.offerRow}>
+                  <Text style={styles.offerLabel}>{`${INSIGHT_PACK.count}, kept for later`}</Text>
+                  <View style={styles.offerPrice}>
+                    <CoinGlyph size={14} />
+                    <Text style={styles.offerValue}>{INSIGHT_PACK.cost}</Text>
+                  </View>
+                </View>
+              </RaisedKey>
             </PressableScale>
+            <Text style={styles.purseLine}>{`You have ${coins} coins`}</Text>
           </View>
-          {/* Ten at once, for a fifth off: no coming back to this sheet after
-              every hint. */}
-          <PressableScale
-            accessibilityRole="button"
-            accessibilityLabel={`Use ${INSIGHT_PACK.cost} coins for ${INSIGHT_PACK.count} Insight`}
-            onPress={() => buy(INSIGHT_PACK.cost, onPack)}
-            containerStyle={styles.packWrap}
-            style={({ pressed }) => [styles.option, styles.pack, pressed && styles.pressed]}
-          >
-            <View style={styles.packMark}>
-              <Icon name="spark" size={18} color={theme.colors.accent} />
-            </View>
-            <View style={styles.packText}>
-              <Text style={styles.packTitle}>{`${INSIGHT_PACK.count} Insight`}</Text>
-              {/* Short of coins, it says by how much - the row stays
-                  readable rather than fading out. */}
-              <Text style={styles.packSub}>{coins >= INSIGHT_PACK.cost ? 'A fifth off, kept for later' : `${INSIGHT_PACK.cost - coins} more coins needed`}</Text>
-            </View>
-            <View style={[styles.packPrice, coins < INSIGHT_PACK.cost && styles.packPriceShort]}>
-              <CoinGlyph size={14} />
-              <Text style={[styles.packCost, coins < INSIGHT_PACK.cost && styles.packCostShort]}>{INSIGHT_PACK.cost}</Text>
-            </View>
-          </PressableScale>
+
           {missed && <Text style={styles.missed}>No video right now. Try again in a little while.</Text>}
 
           <PressableScale accessibilityRole="button" accessibilityLabel="Not now" onPress={onClose} hitSlop={8} containerStyle={styles.notNow}>
@@ -212,15 +205,13 @@ function InsightSheet({ visible, onClose, onEarned, onPaid, onPack }: { visible:
  */
 export function InsightButton({ count, onPress }: { count: number; onPress: () => void }): React.JSX.Element {
   return (
-    <PressableScale
-      accessibilityRole="button"
-      accessibilityLabel={`Insight: reveal the next move, ${count} left`}
-      onPress={onPress}
-      style={({ pressed }) => [styles.button, pressed && styles.buttonPressed]}
-    >
-      <Icon name="spark" size={14} color={theme.colors.accent} />
-      <Text style={styles.buttonText}>Insight</Text>
-      <InsightCount count={count} />
+    <PressableScale accessibilityRole="button" accessibilityLabel={`Insight: reveal the next move, ${count} left`} onPress={onPress} scaleTo={1}>
+      {/* The gold key on its gold edge: the power, not one more control. */}
+      <RaisedKey height={ROUND_KEY} lip={3} face={theme.colors.surfaceHi} edge={shade(theme.colors.goldRim, 0.72)} rim={theme.colors.goldRim} padding={theme.spacing.lg - 2} gap={theme.spacing.xs}>
+        <Icon name="spark" size={14} color={theme.colors.accent} />
+        <Text style={styles.buttonText}>Insight</Text>
+        <InsightCount count={count} />
+      </RaisedKey>
     </PressableScale>
   );
 }
@@ -248,6 +239,28 @@ const styles = themedStyles(() => ({
   countEmpty: { backgroundColor: theme.colors.surfaceAlt, borderWidth: 1, borderColor: theme.colors.borderStrong },
   countText: { fontSize: 12, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi, fontVariant: ['tabular-nums'] },
   countTextEmpty: { color: theme.colors.textPrimary },
+  sheetHead: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: theme.spacing.sm },
+  sheetMark: { width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceHi, borderWidth: 1.5, borderColor: theme.colors.goldRim, borderBottomWidth: 3, borderBottomColor: shade(theme.colors.goldRim, 0.68) },
+  sheetHeadText: { flex: 1 },
+  sheetTitle: { fontFamily: theme.typography.families.display, fontSize: 26, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  sheetBody: { marginTop: 2, fontSize: theme.typography.sizes.caption + 1, color: theme.colors.textSecondary },
+  offers: { alignSelf: 'stretch', gap: 10, marginTop: theme.spacing.lg },
+  offerKey: { alignSelf: 'stretch' },
+  offerRow: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  offerLabelInk: { fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
+  offerValueInk: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.body + 2, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
+  offerLabel: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
+  offerPrice: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  offerValue: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  purseLine: { alignSelf: 'flex-end', marginTop: 2, fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
+  leadWrap: { alignSelf: 'stretch', marginTop: theme.spacing.lg },
+  leadGlyph: { fontSize: 13, color: theme.colors.surfaceHi },
+  leadText: { fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
+  alts: { alignItems: 'center', gap: 12, marginTop: theme.spacing.md },
+  altText: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary, textDecorationLine: 'underline', textDecorationColor: theme.colors.borderStrong },
+  altShort: { color: theme.colors.textTertiary },
+  balance: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  balanceText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
   layer: { flex: 1, justifyContent: 'flex-end' },
   scrim: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 },
   scrimFill: { flex: 1, backgroundColor: theme.colors.overlay },
@@ -299,23 +312,6 @@ const styles = themedStyles(() => ({
   pressed: { opacity: 0.85 },
   notNow: { marginTop: theme.spacing.md, paddingVertical: 6 },
   notNowText: { fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.lg,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    borderWidth: 1.5,
-    borderColor: theme.colors.goldRim,
-    backgroundColor: theme.colors.surfaceHi,
-    shadowColor: theme.colors.accent,
-    shadowOpacity: 0.18,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2,
-  },
-  buttonPressed: { backgroundColor: theme.colors.surfaceAlt },
   buttonSpark: { fontSize: 14, color: theme.colors.accent },
   buttonText: { color: theme.colors.textPrimary, fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold },
 }));

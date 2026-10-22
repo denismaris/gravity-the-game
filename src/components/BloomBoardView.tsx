@@ -2,7 +2,7 @@ import React, { useLayoutEffect, useMemo, useRef } from 'react';
 import { Circle, Group, Path, RoundedRect, Skia, SkPath, vec } from '@shopify/react-native-skia';
 import { Easing, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { BloomArcStep, BloomCell, BloomEdge, BloomPuzzle, BloomState, joinedArcs, tileArcs, traceLoops } from '../game/bloom';
-import { BoardLayout, computeBoardLayout, useAnimationClock, useReducedMotion } from '../game/rendering';
+import { BoardLayout, computeBoardLayout, DealIn, dealDelay, useAnimationClock, useDealing, useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
 import { CellWell, PaperTray } from './boardChrome';
 
@@ -269,6 +269,7 @@ export interface BloomBoardViewProps {
  * motion at all: the clock runs only while something moves.
  */
 export function BloomBoardView({ puzzle, state, size, solved, flashCell }: BloomBoardViewProps): React.JSX.Element {
+  const dealing = useDealing();
   const layout = useMemo(() => computeBoardLayout(puzzle.rows, size), [puzzle.rows, size]);
   const reducedMotion = useReducedMotion();
   const now = Date.now();
@@ -374,19 +375,24 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
         />
       )}
 
-      {ink.map(tile => (
-        <TileView
-          key={tile.key}
-          turns={tile.turns}
-          rotation={tile.rotation}
-          base={tile}
-          cx={tile.cx}
-          cy={tile.cy}
-          wellSize={well}
-          strokeWidth={strokeWidth}
-          reducedMotion={reducedMotion}
-        />
-      ))}
+      {ink.map(tile => {
+        const [r, c] = tile.key.split(':').map(Number);
+        // Dealt onto the board as it opens, corner to corner.
+        return (
+          <DealIn key={tile.key} x={tile.cx} y={tile.cy} delay={dealDelay(Math.max(r, c), Math.max(puzzle.rows, puzzle.cols) - 1)} dealing={dealing}>
+            <TileView
+              turns={tile.turns}
+              rotation={tile.rotation}
+              base={tile}
+              cx={tile.cx}
+              cy={tile.cy}
+              wellSize={well}
+              strokeWidth={strokeWidth}
+              reducedMotion={reducedMotion}
+            />
+          </DealIn>
+        );
+      })}
 
       <StaticTop puzzle={puzzle} layout={layout} />
     </Group>

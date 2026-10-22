@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { DailyStanding, reportDaily } from '../backend';
 import { useIsPractice, useLastBonus, usePlayerProgress } from '../progression/PlayerProgressProvider';
 import { nextGameToArrive } from '../progression/batches';
@@ -7,10 +7,12 @@ import { cosmeticById } from '../progression/shop';
 import { formatDuration } from '../progression/timing';
 import { CosmeticPreview } from './CosmeticPreview';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import { GameEmblem, tint } from './GameEmblem';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { GameEmblem } from './GameEmblem';
+import { triggerFeedback } from '../game/rendering';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, encouragementTier, GameKind, pickEncouragement } from '../game/journey';
-import { motion, theme, themedStyles } from '../theme';
+import { theme, themedStyles } from '../theme';
 import { CoinGlyph } from './Coins';
 import { GOLDEN_MULTIPLIER } from '../progression/coins';
 import { ModalLayer } from './ModalLayer';
@@ -144,12 +146,13 @@ export function PuzzleSolved({
   // In place of stars, one quiet fact about how it went.
   const howItWent = note ? null : hintsUsed === 0 ? 'Without a hint' : hintsUsed === 1 ? 'With one hint' : `With ${hintsUsed} hints`;
   const accent = kind ? accentColorForKind(kind) : theme.colors.accent;
+  const insets = useSafeAreaInsets();
   const kicker = kind ? (practice ? `${gameDisplayName(kind)} · Practice` : gameDisplayName(kind)) : null;
 
   // Picked once per mount, not per render - a re-render mid-animation must
   // not swap the sentence out from under the player.
   const praise = useMemo(() => {
-    const line = pickEncouragement(encouragementTier(stars, hintsUsed), lastEncouragement);
+    const line = pickEncouragement(encouragementTier(stars, hintsUsed), lastEncouragement, Math.random, kind ?? undefined);
     lastEncouragement = line;
     return line;
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -160,85 +163,68 @@ export function PuzzleSolved({
     <ModalLayer>
       <View style={styles.overlay} pointerEvents="box-none">
         <Animated.View style={[styles.scrim, { opacity: backdrop }]} pointerEvents="none" />
-        {/* The shadow lives on an outer wrapper because the card itself
-            clips (`overflow: 'hidden'`), and a clipped view clips its own
-            shadow away with it. */}
+        {/* A page, not a card: the whole screen in the paper's own colour,
+            a little see-through, so the finished board shows faintly behind
+            what it earned. It rises in gently rather than popping. */}
         <Animated.View
           style={[
             styles.cardShadow,
             {
               opacity: cardOpacity,
               transform: [
-                { scale: card.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) },
-                { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [28, 0] }) },
+                { translateY: card.interpolate({ inputRange: [0, 1], outputRange: [90, 0] }) },
               ],
             },
           ]}
         >
-          <View style={styles.card}>
-            {kind && <EmblemSeal kind={kind} accent={accent} hero={hero} />}
-
-            <Animated.View style={rowStyle(0)}>
-              {kicker && <Text style={[styles.kicker, { color: accent }]}>{kicker}</Text>}
-              <Text style={styles.title}>{heading}</Text>
-              <View style={[styles.titleRule, { backgroundColor: accent }]} />
-            </Animated.View>
-
-            <Animated.View style={[styles.praiseBlock, rowStyle(1)]}>
-              <Text style={styles.praise}>{praise}</Text>
-              {howItWent && (
-                <View style={[styles.how, hintsUsed === 0 && { borderColor: tint(accent, 0.35), backgroundColor: tint(accent, 0.12) }]}>
-                  <Text style={[styles.howText, hintsUsed === 0 && { color: accent }]}>{howItWent}</Text>
-                </View>
-              )}
-            </Animated.View>
-
-            {/* What the solve paid: one quiet panel, a column per reward. */}
-            {(paid || note || bonusLine || daily || won) && (
-            <Animated.View style={[styles.ledger, rowStyle(2)]}>
-              <View style={styles.ledgerRow}>
-                {paid && (
-                  <View style={styles.stat}>
-                    <View style={styles.statValue}>
-                      <CoinGlyph size={15} />
-                      <CountUp value={coinsEarned} style={[styles.statNumber, styles.statGold]} />
-                    </View>
-                    <Text style={styles.statLabel}>coins</Text>
-                  </View>
-                )}
-                {note && (
-                  <>
-                    {paid && <View style={styles.statRule} />}
-                    <View style={styles.stat}>
-                      <Text style={styles.statNumber}>{note}</Text>
-                      <Text style={styles.statLabel}>{noteLabel.toLowerCase()}</Text>
-                    </View>
-                  </>
-                )}
-              </View>
-              {bonusLine && <Text style={styles.bonusLine}>{bonusLine}</Text>}
-              {daily && (
-                <View style={styles.daily}>
-                  <View style={styles.dailyHead}>
-                    <Text style={styles.dailyLabel}>{daily.official ? 'Daily time' : 'This time'}</Text>
-                    <Text style={styles.dailyTime}>{formatDuration(daily.ms)}</Text>
-                  </View>
-                  <Text style={styles.dailyNote}>{daily.note}</Text>
-                  {world && world.players > 1 && daily.official && (
-                    <Text style={styles.dailyWorld}>{`Faster than ${Math.round(world.fasterThan * 100)}% of ${world.players.toLocaleString('en-US')} players today`}</Text>
-                  )}
-                </View>
-              )}
-              {won && (
-                <View style={styles.wonRow}>
-                  <View style={styles.wonPreview}>
-                    <CosmeticPreview item={won} size={30} />
-                  </View>
-                  <Text style={styles.wonText}>{`You won ${won.name}. It is never sold in the shop.`}</Text>
-                </View>
-              )}
-            </Animated.View>
+          <View style={[styles.card, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
+            {/* The game's emblem, seated on the sheet's top edge. */}
+            {kind && (
+              <Animated.View style={[styles.seat, { opacity: hero, transform: [{ scale: hero.interpolate({ inputRange: [0, 0.7, 1], outputRange: [0.6, 1.08, 1] }) }] }]}>
+                <GameEmblem kind={kind} size={68} raised />
+              </Animated.View>
             )}
+            {/* Laid out like a page of the almanac rather than a centred
+                badge: the game and the puzzle at the head, one large word,
+                a line about how it went, then the facts as index lines with
+                dotted leaders - the way a printed results column reads. */}
+            <View style={styles.page}>
+              <Animated.View style={[styles.head, rowStyle(0)]}>
+                {kicker && <Text style={[styles.kicker, { color: accent }]}>{kicker}</Text>}
+              </Animated.View>
+              <Animated.View style={rowStyle(0)}>
+                <Text style={styles.title}>{heading === 'Solved' ? 'Solved.' : heading}</Text>
+              </Animated.View>
+              <Animated.View style={rowStyle(1)}>
+                <Text style={styles.praise}>{praise}</Text>
+              </Animated.View>
+
+              <Animated.View style={[styles.ledger, rowStyle(2)]}>
+                {howItWent && <LedgerLine label="Hints" value={hintsUsed === 0 ? 'none' : String(hintsUsed)} strong={hintsUsed === 0} accent={accent} />}
+                {note && <LedgerLine label={noteLabel.charAt(0) + noteLabel.slice(1).toLowerCase()} value={note} />}
+                {daily && <LedgerLine label={daily.official ? 'Daily time' : 'This time'} value={formatDuration(daily.ms)} />}
+                {paid && (
+                  <LedgerLine label="Coins" accent={accent}>
+                    <View style={styles.coinValue}>
+                      <CoinGlyph size={14} />
+                      <CountUp value={coinsEarned} style={styles.coinNumber} />
+                    </View>
+                  </LedgerLine>
+                )}
+                {bonusLine && <Text style={styles.bonusLine}>{bonusLine}</Text>}
+                {daily && <Text style={styles.dailyNote}>{daily.note}</Text>}
+                {daily && world && world.players > 1 && daily.official && (
+                  <Text style={styles.dailyNote}>{`Faster than ${Math.round(world.fasterThan * 100)}% of ${world.players.toLocaleString('en-US')} players today`}</Text>
+                )}
+                {won && (
+                  <View style={styles.wonRow}>
+                    <View style={styles.wonPreview}>
+                      <CosmeticPreview item={won} size={30} />
+                    </View>
+                    <Text style={styles.wonText}>{`You won ${won.name}. It is never sold in the shop.`}</Text>
+                  </View>
+                )}
+              </Animated.View>
 
             {towardNext && (
               <Animated.View style={[styles.toward, rowStyle(3)]}>
@@ -255,6 +241,8 @@ export function PuzzleSolved({
               </Animated.View>
             )}
 
+            </View>
+
             {/* One clear way on. Home stays a quiet second only when the
                 primary goes on to another puzzle. */}
             <Animated.View style={[styles.actions, rowStyle(4)]}>
@@ -270,41 +258,16 @@ export function PuzzleSolved({
   );
 }
 
-/**
- * The game's emblem, stamped onto the card: it lands a little large and a
- * touch turned, settles, and a ring of the game's colour spreads from it
- * once - a seal pressed, not an icon faded in.
- */
-function EmblemSeal({ kind, accent, hero }: { kind: GameKind; accent: string; hero: Animated.Value }): React.JSX.Element {
-  const ring = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.sequence([Animated.delay(260), Animated.timing(ring, { toValue: 1, duration: 760, easing: Easing.out(Easing.cubic), useNativeDriver: true })]).start();
-  }, [ring]);
+/** One fact on the page, index-style: the label, a dotted leader, the
+ * value - the way an almanac's tables read. */
+function LedgerLine({ label, value, strong = false, accent, children }: { label: string; value?: string; strong?: boolean; accent?: string; children?: React.ReactNode }): React.JSX.Element {
   return (
-    <View style={styles.seal}>
-      <Animated.View
-        pointerEvents="none"
-        style={[
-          styles.sealRing,
-          {
-            borderColor: accent,
-            opacity: ring.interpolate({ inputRange: [0, 0.15, 1], outputRange: [0, 0.6, 0] }),
-            transform: [{ scale: ring.interpolate({ inputRange: [0, 1], outputRange: [0.8, 1.9] }) }],
-          },
-        ]}
-      />
-      <View style={[styles.sealPlate, { backgroundColor: accent }]} />
-      <Animated.View
-        style={{
-          opacity: hero,
-          transform: [
-            { scale: hero.interpolate({ inputRange: [0, 0.7, 1], outputRange: [1.35, 0.94, 1] }) },
-            { rotate: hero.interpolate({ inputRange: [0, 1], outputRange: ['-10deg', '0deg'] }) },
-          ],
-        }}
-      >
-        <GameEmblem kind={kind} size={64} raised />
-      </Animated.View>
+    <View style={styles.line}>
+      <Text style={styles.lineLabel}>{label}</Text>
+      <Text style={styles.leader} numberOfLines={1} ellipsizeMode="clip">
+        {' . '.repeat(40)}
+      </Text>
+      {children ?? <Text style={[styles.lineValue, strong && accent ? { color: accent } : null]}>{value}</Text>}
     </View>
   );
 }
@@ -315,71 +278,54 @@ function CountUp({ value, style, delay = 0 }: { value: number; style: React.Comp
   useEffect(() => {
     const t = new Animated.Value(0);
     const id = t.addListener(({ value: v }) => setShown(Math.round(v)));
-    Animated.sequence([Animated.delay(420 + delay), Animated.timing(t, { toValue: value, duration: 620, easing: Easing.out(Easing.cubic), useNativeDriver: false })]).start();
-    return () => t.removeListener(id);
+    let live = true;
+    Animated.sequence([Animated.delay(420 + delay), Animated.timing(t, { toValue: value, duration: 620, easing: Easing.out(Easing.cubic), useNativeDriver: false })]).start(({ finished }) => {
+      // The coins, heard as they land.
+      if (finished && live && value > 0) triggerFeedback('coin');
+    });
+    return () => {
+      live = false;
+      t.removeListener(id);
+    };
   }, [value, delay]);
   return <Text style={style}>{`+${shown}`}</Text>;
 }
 
 const styles = themedStyles(() => ({
-  seal: { width: 96, height: 96, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.xs },
-  sealRing: { position: 'absolute', width: 80, height: 80, borderRadius: 40, borderWidth: 2 },
-  sealPlate: { position: 'absolute', width: 84, height: 84, borderRadius: 42, opacity: 0.08 },
+  // Pushed down by the space above it: the page's content sits a little
+  // above the middle, the way actions push from below.
+  seal: { marginTop: 'auto', width: 136, height: 136, alignItems: 'center', justifyContent: 'center', marginBottom: theme.spacing.md },
+  sealRing: { position: 'absolute', width: 112, height: 112, borderRadius: 56, borderWidth: 2 },
+  sealPlate: { position: 'absolute', width: 124, height: 124, borderRadius: 62, opacity: 0.1 },
+  page: { alignSelf: 'center', width: '100%', maxWidth: 420, alignItems: 'center' },
+  head: { marginBottom: 2 },
+  line: { flexDirection: 'row', alignItems: 'baseline', gap: 6, paddingVertical: 7 },
+  lineLabel: { fontSize: theme.typography.sizes.body, color: theme.colors.textSecondary },
+  leader: { flex: 1, fontSize: theme.typography.sizes.caption, color: theme.colors.borderStrong, letterSpacing: 1 },
+  lineValue: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.body + 1, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  coinValue: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  coinNumber: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.body + 3, fontWeight: theme.typography.weights.bold, color: theme.colors.accentText },
+  /** A paper ring the emblem sits in, cut into the sheet's top edge. */
+  seat: { position: 'absolute', top: -46, alignSelf: 'center', width: 96, height: 96, borderRadius: 48, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surface, borderWidth: 1, borderColor: theme.colors.border },
   praiseBlock: { alignItems: 'center', gap: 10 },
   how: { paddingHorizontal: 12, paddingVertical: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong },
   howText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
-  overlay: { ...StyleSheet.absoluteFill, alignItems: 'center', justifyContent: 'center' },
-  /** Separated from `overlay` so the dim can fade in on its own clock. */
-  scrim: { ...StyleSheet.absoluteFill, backgroundColor: theme.colors.overlay },
+  overlay: { ...StyleSheet.absoluteFill, justifyContent: 'flex-end' },
+  /** The page's paper, a touch see-through: the board stays faintly there. */
+  scrim: { ...StyleSheet.absoluteFill, backgroundColor: `${theme.colors.background}8C` },
   /** Carries the elevation only: the card clips, and a clipped view would
    * clip its own shadow away. */
-  cardShadow: {
-    width: '86%',
-    maxWidth: 340,
-    borderRadius: 30,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 0.26,
-    shadowRadius: 28,
-    shadowOffset: { width: 0, height: 14 },
-    elevation: 14,
-  },
-  /** Stands on its edge like the cards on Home: a fine rim, and the same
-   * rim deepened along the bottom. */
-  card: {
-    alignItems: 'center',
-    paddingHorizontal: theme.spacing.lg,
-    paddingTop: theme.spacing.xl,
-    paddingBottom: theme.spacing.lg,
-    borderRadius: 30,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderBottomWidth: 5,
-    borderColor: theme.colors.border,
-    borderBottomColor: theme.colors.borderStrong,
-    overflow: 'hidden',
-  },
+  cardShadow: { width: '100%', shadowColor: theme.colors.shadow, shadowOpacity: 0.16, shadowRadius: 24, shadowOffset: { width: 0, height: -6 }, elevation: 12 },
+  card: { alignItems: 'center', paddingTop: 58, paddingHorizontal: theme.spacing.xl, backgroundColor: theme.colors.surface, borderTopLeftRadius: 34, borderTopRightRadius: 34, borderTopWidth: 1, borderColor: theme.colors.border },
   emblem: { marginBottom: theme.spacing.sm, alignItems: 'center', justifyContent: 'center' },
-  kicker: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.bold, letterSpacing: 1.4, textTransform: 'uppercase', textAlign: 'center' },
+  kicker: { fontSize: theme.typography.sizes.micro + 1, fontWeight: theme.typography.weights.bold, letterSpacing: 1.6, textTransform: 'uppercase', textAlign: 'center' },
   /** A short rule in the game's colour under the title, as every Home card has. */
   titleRule: { alignSelf: 'center', width: 36, height: 2, borderRadius: 1, marginTop: 8 },
-  title: {
-    fontFamily: theme.typography.families.display,
-    fontSize: 36,
-    fontWeight: theme.typography.weights.bold,
-    textAlign: 'center',
-    color: theme.colors.textPrimary,
-    marginBottom: theme.spacing.sm,
-  },
+  title: { fontFamily: theme.typography.families.display, fontSize: 52, lineHeight: 58, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary, textAlign: 'center' },
   /** The line that changes every solve. */
-  praise: {
-    fontSize: theme.typography.sizes.body,
-    lineHeight: theme.typography.lineHeights.body,
-    color: theme.colors.textSecondary,
-    textAlign: 'center',
-    maxWidth: 260,
-  },
+  praise: { fontFamily: theme.typography.families.display, fontSize: 19, lineHeight: 26, color: theme.colors.textSecondary, marginTop: 2, textAlign: 'center' },
   // What it paid, as a clean row between two fine rules - not a slab.
-  ledger: { alignSelf: 'stretch', marginTop: theme.spacing.md, paddingVertical: 12, paddingHorizontal: 12, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.borderStrong, gap: 10 },
+  ledger: { alignSelf: 'stretch', marginTop: theme.spacing.lg, paddingVertical: 4, borderTopWidth: StyleSheet.hairlineWidth, borderBottomWidth: StyleSheet.hairlineWidth, borderColor: theme.colors.borderStrong },
   ledgerRow: { flexDirection: 'row', alignItems: 'center' },
   stat: { flex: 1, alignItems: 'center', gap: 3 },
   statValue: { flexDirection: 'row', alignItems: 'center', gap: 5 },
@@ -387,26 +333,27 @@ const styles = themedStyles(() => ({
   statGold: { color: theme.colors.accentText },
   statLabel: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.2, textTransform: 'uppercase', color: theme.colors.textTertiary },
   statRule: { width: StyleSheet.hairlineWidth, alignSelf: 'stretch', marginVertical: 4, backgroundColor: theme.colors.borderStrong },
-  bonusLine: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.accentText, textAlign: 'center' },
+  bonusLine: { marginTop: 6, fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.accentText },
   daily: { alignItems: 'center', gap: 3, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.borderStrong },
   dailyHead: { flexDirection: 'row', alignItems: 'baseline', gap: 8 },
   dailyLabel: { fontSize: theme.typography.sizes.caption + 1, color: theme.colors.textSecondary },
   dailyTime: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  dailyNote: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary, textAlign: 'center' },
+  dailyNote: { marginTop: 4, fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   dailyWorld: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.secondary, textAlign: 'center' },
   share: { marginTop: 6, paddingHorizontal: 14, paddingVertical: 6, borderRadius: theme.radii.pill, borderWidth: 1, borderColor: theme.colors.borderStrong },
   shareText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary },
   wonRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingTop: 10, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.borderStrong },
   wonPreview: { width: 36, height: 36, borderRadius: 10, backgroundColor: theme.colors.surface, alignItems: 'center', justifyContent: 'center' },
   wonText: { flex: 1, fontSize: theme.typography.sizes.caption + 1, lineHeight: 17, color: theme.colors.textPrimary },
-  toward: { alignSelf: 'stretch', flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: theme.spacing.md, paddingHorizontal: 4 },
+  toward: { alignSelf: 'center', width: '100%', maxWidth: 380, flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: theme.spacing.md, paddingHorizontal: 4 },
   towardBody: { flex: 1, gap: 6 },
   towardHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   towardText: { flex: 1, fontSize: theme.typography.sizes.caption + 1, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   towardCount: { fontFamily: theme.typography.families.mono, fontSize: theme.typography.sizes.micro + 1, color: theme.colors.textTertiary },
   towardTrack: { height: 6, borderRadius: 3, overflow: 'hidden', backgroundColor: theme.colors.border },
   towardFill: { height: 6, borderRadius: 3 },
-  actions: { alignSelf: 'stretch' },
+  // At the foot of the page, where the thumb already is.
+  actions: { marginTop: theme.spacing.lg, alignSelf: 'center', width: '100%', maxWidth: 420 },
   primaryWrap: { alignSelf: 'stretch' },
   button: { height: 52, alignItems: 'center', justifyContent: 'center', borderRadius: theme.radii.pill },
   primary: { backgroundColor: theme.colors.primary },

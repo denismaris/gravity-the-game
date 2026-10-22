@@ -13,6 +13,7 @@ import { getMirrorMazeById } from '../mirror';
 import { getMosaicById } from '../mosaic';
 import { getVanesById } from '../vanes';
 import { GameKind } from './gameKind';
+import { motion } from '../../theme';
 
 /**
  * Builds a puzzle the way opening it does, so the game's own cache holds
@@ -66,7 +67,7 @@ export function buildPuzzle(kind: GameKind, puzzleId: string): void {
 
 /** Before the first, and between each - so the hub's own entrance has
  * settled, and a tap never waits behind more than one board. */
-const FIRST_MS = 700;
+const FIRST_MS = motion.beat.prepareOnHome;
 const BETWEEN_MS = 450;
 
 /** React Native's idle callbacks, where the runtime has them. */
@@ -75,11 +76,11 @@ const idleApi = globalThis as { requestIdleCallback?: (run: () => void) => numbe
 /**
  * Builds the puzzles coming up - the rest of the set, today's Daily - one
  * at a time while nothing is moving, so each opens at once. `active` is
- * whether now is a quiet time for it: on Home, or while a solved card is
- * up (a set is dealt as its last puzzle is solved). Never mid-puzzle,
- * where a board being built would stall the player's moves.
+ * whether now is a quiet time for it: on Home, or (for the next board
+ * alone, `firstMs` later) once a finished set's cards have arrived. Never
+ * mid-puzzle, where a board being built would stall the player's moves.
  */
-export function usePrepareUpcoming(upcoming: ReadonlyArray<{ kind: GameKind; puzzleId: string }>, active: boolean): void {
+export function usePrepareUpcoming(upcoming: ReadonlyArray<{ kind: GameKind; puzzleId: string }>, active: boolean, firstMs: number = FIRST_MS): void {
   const key = upcoming.map(u => `${u.kind}:${u.puzzleId}`).join(',');
   useEffect(() => {
     if (!active || upcoming.length === 0) return;
@@ -99,7 +100,7 @@ export function usePrepareUpcoming(upcoming: ReadonlyArray<{ kind: GameKind; puz
       if (idleApi.requestIdleCallback) idle = idleApi.requestIdleCallback(run);
       else run();
     };
-    timer = setTimeout(step, FIRST_MS);
+    timer = setTimeout(step, firstMs);
     return () => {
       if (timer) clearTimeout(timer);
       if (idle !== null) idleApi.cancelIdleCallback?.(idle);
@@ -107,5 +108,5 @@ export function usePrepareUpcoming(upcoming: ReadonlyArray<{ kind: GameKind; puz
     // The list is read through `key`: a new array with the same puzzles
     // must not start the work again.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, active]);
+  }, [key, active, firstMs]);
 }

@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { RoundKey } from './RoundKey';
 import { Animated, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
@@ -29,7 +30,6 @@ import { useSolveCelebration } from './useSolveCelebration';
 import { useStageEntrance } from './useStageEntrance';
 
 const ICON_SIZE = 14;
-const TRACK_WIDTH = 160;
 
 /** The same simple-stroke "?" every game's header carries. */
 function HelpIcon(): React.JSX.Element {
@@ -75,7 +75,6 @@ export function PlayShell({
   name,
   difficulty,
   kicker,
-  progress,
   slides,
   renderIllustration,
   introduce,
@@ -94,8 +93,6 @@ export function PlayShell({
   name: string;
   difficulty: PuzzleDifficulty;
   kicker: string;
-  /** 0 to 1, for the header's track. */
-  progress: number;
   /** A rule this board brings for the first time, explained once. */
   introduce?: { id: string; title: string; body: string } | null;
   /** Later rules this board brings, each explained once after `introduce`. */
@@ -165,10 +162,6 @@ export function PlayShell({
     else if (nextEntry) mode.onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: batchCompleted.current });
   };
 
-  const track = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(track, { toValue: progress, duration: 380, useNativeDriver: true }).start();
-  }, [progress, track]);
 
   if (lesson) {
     return (
@@ -201,20 +194,6 @@ export function PlayShell({
               {`${game} · ${kicker}`}
             </Text>
           </View>
-          <View style={styles.track}>
-            <Animated.View
-              style={[
-                styles.trackFill,
-                {
-                  backgroundColor: accent,
-                  transform: [
-                    { translateX: track.interpolate({ inputRange: [0, 1], outputRange: [-TRACK_WIDTH / 2, 0], extrapolate: 'clamp' }) },
-                    { scaleX: track.interpolate({ inputRange: [0, 1], outputRange: [0.0001, 1], extrapolate: 'clamp' }) },
-                  ],
-                },
-              ]}
-            />
-          </View>
           {mode.type === 'set' ? (
             <PuzzleProgressMark batch={player.currentBatch} puzzleId={mode.puzzleId} style={styles.batchDots} />
           ) : (
@@ -237,12 +216,12 @@ export function PlayShell({
         <Animated.View style={[styles.controls, controlsIn]}>
           <InsightButton count={insight.count} onPress={() => !solved && insight.spend(onHint)} />
           {insight.sheet}
-          <PressableScale accessibilityRole="button" accessibilityLabel="Undo" onPress={onUndo} disabled={!canUndo} style={({ pressed }) => [styles.pill, styles.roundKey, !canUndo && styles.disabled, pressed && styles.pillPressed]}>
+          <RoundKey accessibilityLabel="Undo" onPress={onUndo} disabled={!canUndo} dim={!canUndo}>
             <Icon name="undo" size={ICON_SIZE} color={accent} />
-          </PressableScale>
-          <PressableScale accessibilityRole="button" accessibilityLabel="Restart" onPress={onRestart} style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}>
+          </RoundKey>
+          <RoundKey accessibilityLabel="Restart" onPress={onRestart}>
             <Icon name="restart" size={ICON_SIZE} color={accent} />
-          </PressableScale>
+          </RoundKey>
         </Animated.View>
         {/* Coins only matter once Insight runs out: until then the line
             keeps its place but stays out of sight. */}
@@ -291,8 +270,6 @@ const styles = themedStyles(() => ({
   kickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch', marginTop: 2 },
   kickerChip: { marginRight: 6 },
   kicker: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, flexShrink: 1 },
-  track: { width: TRACK_WIDTH, height: 3, borderRadius: 1.5, backgroundColor: theme.colors.surfaceAlt, marginTop: theme.spacing.sm, overflow: 'hidden' },
-  trackFill: { width: TRACK_WIDTH, height: 3, borderRadius: 1.5 },
   batchDots: { marginTop: theme.spacing.sm },
   quiet: { opacity: 0 },
   coinBalance: { marginTop: theme.spacing.sm },

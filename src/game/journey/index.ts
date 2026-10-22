@@ -7,4 +7,4 @@ export type { WeeklyGrand } from './weekly';
 export { daysLeftInWeek, getWeeklyGrand, grandIdFor, grandKindFor, grandWeekOf, weekIndexOf } from './weekly';
 export { accentColorForKind, gameLabelForKind } from './gameAccent';
 export type { EncouragementTier } from './encouragement';
-export { encouragementsFor, encouragementTier, pickEncouragement } from './encouragement';
+export { encouragementsFor, encouragementTier, gameLinesFor, pickEncouragement } from './encouragement';

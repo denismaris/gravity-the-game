@@ -58,7 +58,13 @@ import { PlayerProgressProvider, PracticeProvider, gamesPlayed, isAdFree, notePu
 import { learnedTutorials } from './src/progression/learnedTutorials';
 import { AD_RULES, betweenSets, startAds } from './src/ads';
 import { AppearanceProvider, SettingsProvider, useAppearance, useHoldAppearance, useSettings } from './src/settings';
-import { theme, themedStyles } from './src/theme';
+import { motion, theme, themedStyles } from './src/theme';
+
+/** How long after a set rolls over, mid-game, before its first board is
+ * built: past the solve card's arrival and the level card's tally. */
+const IN_GAME_PREPARE_MS = motion.beat.prepareInGame;
+/** Behind the launch animation, the set's boards start building at once. */
+const LAUNCH_PREPARE_MS = 120;
 
 interface Selected {
   kind: GameKind;
@@ -181,6 +187,14 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
 
   // The emblem hand-off, shown over a puzzle just opened from Home.
   const [handoff, setHandoff] = useState<GameKind | null>(null);
+  // Whether the puzzle under the hand-off has drawn its first frame: the
+  // hand-off's bar finishes, and its veil lifts, only then.
+  const [boardDrawn, setBoardDrawn] = useState(false);
+  useEffect(() => {
+    if (!selected) return;
+    const frame = requestAnimationFrame(() => setBoardDrawn(true));
+    return () => cancelAnimationFrame(frame);
+  }, [selected]);
   // The clock for the Daily Duel starts the moment a puzzle opens.
   useEffect(() => {
     if (selected) notePuzzleOpened(selected.puzzleId);
@@ -197,18 +211,40 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
     return [...list, { kind: daily.kind, puzzleId: daily.puzzleId }];
   }, [batch]);
   const setKey = (batch?.puzzles ?? []).map(p => p.puzzleId).join(',');
+  const doneKey = (batch?.completedPuzzleIds ?? []).join(',');
   const setAtOpen = useRef(setKey);
+  const doneAtOpen = useRef(doneKey);
   useEffect(() => {
     setAtOpen.current = setKey;
+    doneAtOpen.current = doneKey;
     // Only when a puzzle opens or closes: the set it was opened under.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selected]);
   // Not until the opening animation is over: building a hard board under
-  // it held the JavaScript thread and made the opening stutter.
-  usePrepareUpcoming(upcoming, launched && progressReady && (!selected || setKey !== setAtOpen.current));
+  // it held the JavaScript thread and made the opening stutter. And in a
+  // game whose solve just dealt a new set, only the one board Next opens,
+  // once the finish cards have long arrived: building the whole set there
+  // stalled the cards (half a second a board, on a phone) just as they
+  // came in and as the player reached for Next.
+  // After any solve (not only a set's last), the board Next opens, built
+  // once the solve card has settled: an endless board can take half a
+  // second to build on a phone, and built on the tap it made the next
+  // puzzle open heavily.
+  const inGameSolved = !!selected && (setKey !== setAtOpen.current || doneKey !== doneAtOpen.current);
+  // During the launch animation too: it runs off the JavaScript thread, so
+  // the set's boards can be built behind it before Home is even shown.
+  usePrepareUpcoming(
+    inGameSolved ? upcoming.slice(0, 1) : upcoming,
+    progressReady && (!selected || inGameSolved),
+    inGameSolved ? IN_GAME_PREPARE_MS : !launched ? LAUNCH_PREPARE_MS : undefined,
+  );
   const openFromHome = useCallback((target: Selected) => {
+    // The veil first, the puzzle a couple of frames later, under it. Both
+    // at once, the hand-off could not start until the whole game screen
+    // had mounted - the tap seemed to freeze, then jump.
     setHandoff(target.kind);
-    setSelected(target);
+    setBoardDrawn(false);
+    requestAnimationFrame(() => requestAnimationFrame(() => setSelected(target)));
   }, []);
   const endHandoff = useCallback(() => setHandoff(null), []);
 
@@ -506,7 +542,7 @@ function AppRoutes({ launched }: { launched: boolean }): React.JSX.Element {
           <React.Fragment key={scheme}>{screen}</React.Fragment>
         </FirstPuzzleContext.Provider>
       </ScreenTransition>
-      {handoff && selected && <EmblemHandoff kind={handoff} onDone={endHandoff} />}
+      {handoff && <EmblemHandoff kind={handoff} ready={boardDrawn && selected !== null} onDone={endHandoff} />}
       {/* The walkthrough, once, for a new player - after the launch mark,
           and only over Home: never over a game, the shop, or the sign-in
           screen (a sign-out or a reset makes the player new again while

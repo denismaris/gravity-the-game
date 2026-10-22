@@ -1,6 +1,6 @@
 import React, { useCallback, useState } from 'react';
-import { BinairoPuzzle, BinairoState, nextValue, setValue } from '../../game/binairo';
-import { BloomPuzzle, BloomState } from '../../game/bloom';
+import { BinairoPuzzle, BinairoState, isBinairoSolved, nextValue, setValue } from '../../game/binairo';
+import { BloomPuzzle, BloomState, isBloomSolved } from '../../game/bloom';
 import { LightsOutPuzzle, LightsOutState, press } from '../../game/lightsout';
 import { MirrorMazePuzzle, MirrorMazeState, isMirrorMazeSolved, nextMirror, setMirror, traceBeam } from '../../game/mirror';
 import { accentColorForKind } from '../../game/journey';
@@ -57,7 +57,7 @@ function useGridLesson<P, S>(first: { puzzle: P; state: S }, steps: ReadonlyArra
 
 // --- Twos ---------------------------------------------------------------------
 
-const TWOS: BinairoPuzzle = {
+export const TWOS: BinairoPuzzle = {
   id: 'lesson-twos',
   difficulty: 'easy',
   size: 4,
@@ -92,6 +92,14 @@ const TWOS_STEPS: ReadonlyArray<GridStep<BinairoPuzzle, BinairoState>> = [
     praise: 'Count as you go. When one shape is full, the rest is the other.',
     target: { row: 2, col: 3 },
     goal: s => s.values[2][3] === 0,
+  },
+  {
+    title: 'Your turn',
+    say: 'Finish the board on your own: no three in a row, and the same number of each shape in every row and column.',
+    hint: 'Fill every empty square.',
+    praise: 'A whole board, solved by you.',
+    target: null,
+    goal: s => isBinairoSolved(TWOS, s),
   },
 ];
 
@@ -128,6 +136,16 @@ const LANTERN_CROSS = lanterns([
   { row: 1, col: 2 },
   { row: 2, col: 1 },
 ]);
+// Two corner taps' worth, so it takes two taps to clear and the player
+// has to find which.
+export const LANTERN_PAIR = lanterns([
+  { row: 0, col: 0 },
+  { row: 0, col: 1 },
+  { row: 1, col: 0 },
+  { row: 2, col: 2 },
+  { row: 2, col: 1 },
+  { row: 1, col: 2 },
+]);
 const LANTERN_STEPS: ReadonlyArray<GridStep<LightsOutPuzzle, LightsOutState>> = [
   {
     title: 'A tap reaches its neighbours',
@@ -141,10 +159,19 @@ const LANTERN_STEPS: ReadonlyArray<GridStep<LightsOutPuzzle, LightsOutState>> = 
     title: 'Put them all out',
     say: 'In the middle, a tap switches five lanterns. Find the one that turns all five off.',
     hint: 'Tap the glowing lantern in the centre.',
-    praise: 'All the lanterns are off. You did it!',
+    praise: 'All the lanterns are off. That is how every board ends.',
     target: { row: 1, col: 1 },
     goal: allDark,
     board: LANTERN_CROSS,
+  },
+  {
+    title: 'Your turn',
+    say: 'Six lanterns are lit, and two taps put them all out. Find the two.',
+    hint: 'Tap any lantern. Tap it again to take a tap back.',
+    praise: 'Every lantern out. You solved a whole board.',
+    target: null,
+    goal: allDark,
+    board: LANTERN_PAIR,
   },
 ];
 
@@ -167,6 +194,8 @@ export function LanternsLesson({ onDone }: { onDone: () => void }): React.JSX.El
 const mirrorBoard = (puzzle: MirrorMazePuzzle) => ({ puzzle, state: { mirrors: Array.from({ length: puzzle.rows }, () => Array.from({ length: puzzle.cols }, () => null)) } as MirrorMazeState });
 const MIRROR_UP: MirrorMazePuzzle = { id: 'lesson-mirror-1', difficulty: 'easy', rows: 3, cols: 3, source: { row: 2, col: 0 }, sourceDirection: 'right', target: { row: 0, col: 2 }, gems: [], obstacles: [] };
 const MIRROR_DOWN: MirrorMazePuzzle = { id: 'lesson-mirror-2', difficulty: 'easy', rows: 3, cols: 3, source: { row: 0, col: 0 }, sourceDirection: 'right', target: { row: 2, col: 2 }, gems: [{ row: 1, col: 2 }], obstacles: [] };
+// The light has to turn twice - down, then left - through a gem on the way.
+export const MIRROR_TWICE: MirrorMazePuzzle = { id: 'lesson-mirror-3', difficulty: 'easy', rows: 3, cols: 3, source: { row: 0, col: 0 }, sourceDirection: 'right', target: { row: 2, col: 0 }, gems: [{ row: 1, col: 2 }], obstacles: [] };
 const MIRROR_STEPS: ReadonlyArray<GridStep<MirrorMazePuzzle, MirrorMazeState>> = [
   {
     title: 'Bend the beam',
@@ -180,10 +209,19 @@ const MIRROR_STEPS: ReadonlyArray<GridStep<MirrorMazePuzzle, MirrorMazeState>> =
     title: 'Flip it the other way',
     say: 'Tap a mirror again and it tilts the other way. This light needs to turn down, through the gem, to the gold ring.',
     hint: 'Tap the glowing square twice for a \\ mirror.',
-    praise: 'Gem lit, ring reached. You did it!',
+    praise: 'Gem lit, ring reached. The beam did the rest.',
     target: { row: 0, col: 2 },
     goal: s => s.mirrors[0][2] === 'back',
     board: mirrorBoard(MIRROR_DOWN),
+  },
+  {
+    title: 'Your turn',
+    say: 'This light has to turn twice: through the gem, then round to the gold ring. Place the mirrors yourself.',
+    hint: 'Tap any square to place a mirror, again to tilt it.',
+    praise: 'Two turns, gem and ring. You solved a whole board.',
+    target: null,
+    goal: s => isMirrorMazeSolved(MIRROR_TWICE, s),
+    board: mirrorBoard(MIRROR_TWICE),
   },
 ];
 
@@ -236,6 +274,8 @@ const BLOOM: BloomPuzzle = {
     [false, true],
   ],
 };
+// The same loop, scrambled, with only one tile pinned: three to turn.
+export const BLOOM_FREE: BloomPuzzle = { ...BLOOM, id: 'lesson-bloom-2', start: [[1, 0], [2, 1]], pinned: [[true, false], [false, false]] };
 const BLOOM_STEPS: ReadonlyArray<GridStep<BloomPuzzle, BloomState>> = [
   {
     title: 'Every line must meet a line',
@@ -253,12 +293,26 @@ const BLOOM_STEPS: ReadonlyArray<GridStep<BloomPuzzle, BloomState>> = [
     target: { row: 1, col: 0 },
     goal: s => s.rotations[1][0] % 4 === 0,
   },
+  {
+    title: 'Your turn',
+    say: 'Three tiles to turn this time. Start beside the gold dot and close the loop.',
+    hint: 'Tap any tile to turn it.',
+    praise: 'The loop is closed. You solved a whole board.',
+    target: null,
+    goal: s => isBloomSolved(BLOOM_FREE, s),
+    board: { puzzle: BLOOM_FREE, state: { rotations: BLOOM_FREE.start.map(r => r.slice()) } },
+  },
 ];
 
 export function BloomLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
-  const { board, flow, tap, flash } = useGridLesson({ puzzle: BLOOM, state: { rotations: BLOOM.start.map(r => r.slice()) } }, BLOOM_STEPS, (_p, s, r, c) => ({
-    rotations: s.rotations.map((line, ri) => (ri === r ? line.map((v, ci) => (ci === c ? (v + 1) % 4 : v)) : line)),
-  }));
+  const { board, flow, tap, flash } = useGridLesson({ puzzle: BLOOM, state: { rotations: BLOOM.start.map(r => r.slice()) } }, BLOOM_STEPS, (p, s, r, c) =>
+    // A gold-dot tile never turns - free play reaches it now.
+    p.pinned[r][c]
+      ? s
+      : {
+          rotations: s.rotations.map((line, ri) => (ri === r ? line.map((v, ci) => (ci === c ? (v + 1) % 4 : v)) : line)),
+        },
+  );
   return (
     <LessonShell
       gameName="Bloom"

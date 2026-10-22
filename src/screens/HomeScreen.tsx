@@ -76,7 +76,7 @@ import {
   TesseraMark,
 } from '../components';
 import { shade, triggerFeedback, useReducedMotion } from '../game/rendering';
-import { nightTone, theme, themedStyles } from '../theme';
+import { motion, nightTone, theme, themedStyles } from '../theme';
 import { useEquipped } from '../progression/PlayerProgressProvider';
 import { useToday } from '../components/useToday';
 import { CoinBalance, CoinGlyph } from '../components/Coins';
@@ -542,7 +542,7 @@ export function HomeScreen({
               onPress={onOpenShop}
               hitSlop={8}
               scaleTo={1}
-              holdMs={120}
+              holdMs={motion.beat.pressHold}
               style={({ pressed }) => [styles.statusKey, pressed && sunkKey(2.5)]}
             >
               <ShopBag />
@@ -562,7 +562,7 @@ export function HomeScreen({
               onPress={openDaily}
               hitSlop={8}
               scaleTo={1}
-              holdMs={120}
+              holdMs={motion.beat.pressHold}
               style={({ pressed }) => [styles.statusKey, pressed && sunkKey(2.5)]}
             >
               <Icon name="sun" size={14} color={dailyCompletedToday ? theme.colors.textSecondary : theme.colors.secondary} weight={1.5} />
@@ -619,7 +619,7 @@ export function HomeScreen({
                 onPress={openEntry}
                 scaleTo={1}
                 unstable_pressDelay={110}
-                holdMs={160}
+                holdMs={motion.beat.cardPressHold}
                 style={[styles.card,
                   { height: cardHeight },
                   entry.golden && !levelPoint.allDone && styles.cardGolden]}
@@ -908,7 +908,7 @@ export function HomeScreen({
                   onPress={openDaily}
                   scaleTo={1}
                 unstable_pressDelay={110}
-                holdMs={160}
+                holdMs={motion.beat.cardPressHold}
                   style={[styles.todayDaily, tight && styles.todayDailyTight]}
                 >
                   <View style={styles.todayDailyRow}>
@@ -975,7 +975,7 @@ export function HomeScreen({
                 onPress={openGrand}
                 scaleTo={1}
                 unstable_pressDelay={110}
-                holdMs={160}
+                holdMs={motion.beat.cardPressHold}
                 style={[styles.card, styles.cardGrand, { height: cardHeight }]}
               >
                 <View pointerEvents="none" style={[styles.cardKeyline, styles.cardKeylineGold]} />
@@ -1077,7 +1077,7 @@ export function HomeScreen({
                   onPress={onOpenJourney}
                   scaleTo={0.98}
                 unstable_pressDelay={110}
-                holdMs={120}
+                holdMs={motion.beat.pressHold}
                   style={[styles.youRank]}
                 >
                   <View style={styles.rankRow}>
@@ -1111,7 +1111,7 @@ export function HomeScreen({
                     onPress={onOpenCollection}
                     scaleTo={0.98}
                     unstable_pressDelay={110}
-                    holdMs={120}
+                    holdMs={motion.beat.pressHold}
                     containerStyle={styles.wellCentered}
                   >
                     <View style={styles.shelfHead}>
@@ -1139,7 +1139,7 @@ export function HomeScreen({
                       : { label: 'Puzzle IQ', value: aptitude.index !== null ? `${aptitude.index}` : '\u2013', a11y: `Open the ledger. ${iqLabel}`, onPress: onOpenLedger, dot: false },
                     { label: 'Top times', value: null, a11y: 'Open the leaderboards', onPress: onOpenLeaderboard, dot: false },
                   ].map(link => (
-                    <PressableScale key={link.label} accessibilityRole="button" accessibilityLabel={link.a11y} onPress={link.onPress} scaleTo={1} holdMs={120} containerStyle={[styles.youLinkWrap, !tight && styles.youLinkThird]} style={({ pressed }) => [styles.youLink, pressed && sunkKey(3)]}>
+                    <PressableScale key={link.label} accessibilityRole="button" accessibilityLabel={link.a11y} onPress={link.onPress} scaleTo={1} holdMs={motion.beat.pressHold} containerStyle={[styles.youLinkWrap, !tight && styles.youLinkThird]} style={({ pressed }) => [styles.youLink, pressed && sunkKey(3)]}>
                       <View style={styles.youLinkHead}>
                         {link.value !== null ? (
                           <Text style={styles.youLinkValue} numberOfLines={1}>
@@ -1310,7 +1310,7 @@ const styles = themedStyles(() => ({
     backgroundColor: theme.colors.surfaceHi,
   },
   // The same setting as the coin count beside it, so the two figures share a line.
-  statusText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  statusText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'],  fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   statusRule: { width: StyleSheet.hairlineWidth, height: 14, backgroundColor: theme.colors.borderStrong },
   statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.secondary },
   statusBadge: { position: 'absolute', top: -2, right: -2, width: 9, height: 9, borderRadius: 4.5, borderWidth: 1.5, borderColor: theme.colors.background },
@@ -1338,7 +1338,7 @@ const styles = themedStyles(() => ({
   youRank: { marginTop: theme.spacing.sm },
   youLinkThird: { width: '30%', flexBasis: 'auto' },
   shelfHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  shelfCount: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
+  shelfCount: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'],  fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   shelf: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
   shelfSlot: { width: '16.66%', alignItems: 'center' },
   shelfAhead: { opacity: 0.22 },
@@ -1527,6 +1527,7 @@ const styles = themedStyles(() => ({
   },
   grandCoins: { flexDirection: 'row', alignItems: 'center', gap: 5 },
   grandCoinsText: {
+    fontVariant: ['tabular-nums'],
     fontFamily: theme.typography.families.mono,
     fontSize: theme.typography.sizes.body + 1,
     fontWeight: theme.typography.weights.bold,

@@ -2,6 +2,8 @@ import React from 'react';
 import { Text, View } from 'react-native';
 import { Canvas, Circle, Group, Path } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
+import { RaisedKey } from './RaisedKey';
+import { ROUND_KEY } from './RoundKey';
 import { theme, themedStyles } from '../theme';
 import { CoinCost } from './Coins';
 import { InsightButton } from './InsightPower';
@@ -132,16 +134,23 @@ function SessionButton({ label, icon, cost, onPress, disabled = false, compact =
       onPress={disabled ? undefined : onPress}
       disabled={disabled}
       hitSlop={8}
-      style={({ pressed }) => [
-        styles.button,
-        compact && styles.buttonRound,
-        pressed && !disabled && styles.buttonPressed,
-        disabled && styles.buttonDisabled,
-      ]}
+      scaleTo={1}
     >
-      {compact && React.isValidElement<{ size?: number }>(icon) ? React.cloneElement(icon, { size: 19 }) : icon}
-      {!compact && <Text style={[styles.buttonLabel, disabled && styles.buttonLabelDisabled]}>{label}</Text>}
-      {cost}
+      <RaisedKey
+        height={ROUND_KEY}
+        width={compact ? ROUND_KEY : undefined}
+        padding={compact ? 0 : theme.spacing.md}
+        lip={3}
+        face={theme.colors.surfaceHi}
+        edge={theme.colors.borderStrong}
+        rim={theme.colors.border}
+        idle={disabled}
+        gap={theme.spacing.xs}
+      >
+        {compact && React.isValidElement<{ size?: number }>(icon) ? React.cloneElement(icon, { size: 19 }) : icon}
+        {!compact && <Text style={[styles.buttonLabel, disabled && styles.buttonLabelDisabled]}>{label}</Text>}
+        {cost}
+      </RaisedKey>
     </PressableScale>
   );
 }
@@ -156,44 +165,6 @@ const styles = themedStyles(() => ({
   },
   spacerTight: {
     width: theme.spacing.sm,
-  },
-  buttonRound: {
-    width: 46,
-    height: 46,
-    paddingHorizontal: 0,
-    paddingVertical: 0,
-    justifyContent: 'center',
-  },
-  button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: theme.spacing.xs,
-    paddingHorizontal: theme.spacing.md,
-    paddingVertical: theme.spacing.sm,
-    borderRadius: theme.radii.pill,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    // A slightly lighter top edge than the other three sides - see
-    // `BinairoScreen.tsx`'s identical `pill` style for why (a small
-    // "catching the light" cue rather than one flat border colour).
-    borderTopColor: theme.colors.highlightEdge,
-    borderLeftColor: theme.colors.border,
-    borderRightColor: theme.colors.border,
-    borderBottomColor: theme.colors.border,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    shadowOffset: { width: 2, height: 3 },
-    elevation: 2,
-  },
-  buttonPressed: {
-    backgroundColor: theme.colors.surfaceAlt,
-    shadowOpacity: 0.04,
-    shadowOffset: { width: 1, height: 1 },
-    elevation: 1,
-  },
-  buttonDisabled: {
-    opacity: 0.4,
   },
   buttonLabel: {
     color: theme.colors.textPrimary,

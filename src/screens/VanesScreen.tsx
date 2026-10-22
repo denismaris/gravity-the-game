@@ -58,7 +58,6 @@ function Roof({ puzzle, mode, onExit }: { puzzle: VanePuzzle; mode: TrialMode | 
   const solved = useMemo(() => isVaneSolved(puzzle, state), [puzzle, state]);
   const trouble = useMemo(() => troubles(puzzle, state).filter((t, i) => t !== null && touched[i]).length, [puzzle, state, touched]);
   const waiting = useMemo(() => unreached(puzzle, state), [puzzle, state]);
-  const free = puzzle.vanes.length;
 
   const solvedOnce = useRef(false);
   useEffect(() => {
@@ -130,7 +129,6 @@ function Roof({ puzzle, mode, onExit }: { puzzle: VanePuzzle; mode: TrialMode | 
       name={puzzle.name}
       difficulty={puzzle.difficulty}
       kicker={kicker}
-      progress={solved ? 1 : (free - waiting) / free}
       introduce={puzzle.chimneys?.length ? CHIMNEY_INTRO : null}
       slides={VANE_MECHANICS_SLIDES}
       renderIllustration={renderVanesIllustration}

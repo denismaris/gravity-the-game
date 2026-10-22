@@ -96,6 +96,8 @@ const FILES: Record<HapticKind, string> = {
   vaneLoop: 'sfx_vane_loop.wav',
   vaneAstray: 'sfx_vane_astray.wav',
   vaneSolve: 'sfx_vane_solve.wav',
+  // The soft tap's own sound: a stamp is a tap, landing.
+  stamp: 'sfx_tap.wav',
 };
 
 /** The same sound fired again within this many ms is skipped - a drag

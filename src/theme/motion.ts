@@ -45,4 +45,27 @@ export const motion = {
     duration: 280,
     easing: Easing.out(Easing.cubic),
   },
+  /**
+   * The app's pace, in one place: every beat that decides how long the
+   * player waits for something. Each was a constant in its own file, and
+   * they had drifted - one card waiting out another for longer than that
+   * one took to leave, presses held for four different times.
+   */
+  beat: {
+    /** A board's finish plays this long before its card comes in. */
+    solveCelebration: 1600,
+    /** A card takes this long to leave. */
+    cardExit: 240,
+    /** A press that leaves the screen waits this long, so the key is seen
+     * going down: a key in a dialog, a key in a card. */
+    pressHold: 110,
+    cardPressHold: 150,
+    /** The board deals in this long after its screen opens, once the
+     * stage has risen. */
+    dealBase: 320,
+    /** Work done in the background waits this long after Home opens, and
+     * this long after a set rolls over mid-game. */
+    prepareOnHome: 700,
+    prepareInGame: 2600,
+  },
 } as const;

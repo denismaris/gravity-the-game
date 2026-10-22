@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { Circle, Group, Path, RadialGradient, RoundedRect, vec } from '@shopify/react-native-skia';
 import { Easing, useDerivedValue, useSharedValue, withDelay, withSequence, withTiming } from 'react-native-reanimated';
 import { LightsOutCell, LightsOutPuzzle, LightsOutState } from '../game/lightsout';
-import { BoardLayout, computeBoardLayout, getCellOrigin, useReducedMotion } from '../game/rendering';
+import { BoardLayout, computeBoardLayout, getCellOrigin, useReducedMotion, DealIn, dealDelay, useDealing } from '../game/rendering';
 import { theme } from '../theme';
 
 const TILE_GAP = 6;
@@ -180,6 +180,7 @@ export interface LightsOutBoardViewProps {
 
 export function LightsOutBoardView({ puzzle, state, size, solved, flashCell }: LightsOutBoardViewProps): React.JSX.Element {
   const { layout, margin, outer } = useMemo(() => lanternGrid(puzzle.size, size), [puzzle.size, size]);
+  const dealing = useDealing();
   const reducedMotion = useReducedMotion();
   const delays = useChangeDelays(state.lights);
   const tileSize = Math.max(0, layout.cellSize - TILE_GAP * 2);
@@ -215,17 +216,19 @@ export function LightsOutBoardView({ puzzle, state, size, solved, flashCell }: L
         line.map((lit, c) => {
           const origin = getCellOrigin(layout, r, c);
           const ring = Math.round(Math.max(Math.abs(r - middle), Math.abs(c - middle)));
+          // Dealt onto the board as it opens, corner to corner.
           return (
-            <Lamp
-              key={cellKey(r, c)}
-              lit={lit}
-              delay={delays.get(cellKey(r, c)) ?? 0}
-              rippleDelay={solved ? ring * RIPPLE_STEP_MS : null}
-              x={origin.x + TILE_GAP}
-              y={origin.y + TILE_GAP}
-              size={tileSize}
-              reducedMotion={reducedMotion}
-            />
+            <DealIn key={cellKey(r, c)} x={origin.x + TILE_GAP + tileSize / 2} y={origin.y + TILE_GAP + tileSize / 2} delay={dealDelay(Math.max(r, c), puzzle.size - 1)} dealing={dealing}>
+              <Lamp
+                lit={lit}
+                delay={delays.get(cellKey(r, c)) ?? 0}
+                rippleDelay={solved ? ring * RIPPLE_STEP_MS : null}
+                x={origin.x + TILE_GAP}
+                y={origin.y + TILE_GAP}
+                size={tileSize}
+                reducedMotion={reducedMotion}
+              />
+            </DealIn>
           );
         }),
       )}

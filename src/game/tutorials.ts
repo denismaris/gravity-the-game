@@ -407,7 +407,7 @@ export const LILY_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
   {
     title: 'Clear the pond',
-    body: 'Visit every pad. When the frog lands on the last one, a flower opens. You did it!',
+    body: 'Visit every pad. When the frog lands on the last one, a flower opens.',
     illustration: 'clear',
     tip: 'Stuck? Insight finds a safe jump for you.',
   },
@@ -523,7 +523,7 @@ const MECHANIC_INTROS: Record<MechanicTutorialId, TutorialCopy> = {
   },
   hazard: {
     title: 'Hazard',
-    body: 'Careful! A ball that rolls onto this breaks, and you have to try again.',
+    body: 'Watch out for this one. A ball that rolls onto it breaks, and you try again.',
   },
   sand: {
     title: 'Soft sand',

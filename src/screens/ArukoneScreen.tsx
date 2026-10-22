@@ -1,9 +1,10 @@
 import { BackLabel } from '../components/Icon';
+import { RoundKey } from '../components/RoundKey';
 import { PuzzleProgressMark } from '../components/PuzzleProgressMark';
 import { isStandalonePuzzle } from '../game/journey/daily';
 import { StageTopGap } from '../components/StageTopGap';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Easing, Text, View, useWindowDimensions } from 'react-native';
+import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
 import {
@@ -74,7 +75,6 @@ export interface ArukoneScreenProps {
 
 const RESERVED = 300;
 const STAGE_H_PADDING = theme.spacing.sm;
-const TRACK_MS = 220;
 
 /**
  * Play screen for an Arukone+ puzzle. Drag from a number to its twin to
@@ -136,22 +136,6 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
   const showSolvedCard = useSolveCelebration(solved);
   const left = remainingPairs(puzzle, state);
   const cellsLeft = remainingCells(puzzle, state);
-  const freeCells = puzzle.size * puzzle.size - puzzle.obstacles.length;
-
-  // The track measures squares filled, not pairs joined. Pairs are the
-  // coarser of the two - a board can have every pair joined and still be a
-  // third empty - so counting squares is the honest reading of how close
-  // the board actually is to done.
-  const filled = freeCells > 0 ? (freeCells - cellsLeft) / freeCells : 0;
-  const trackFill = useRef(new Animated.Value(filled)).current;
-  useEffect(() => {
-    Animated.timing(trackFill, {
-      toValue: filled,
-      duration: TRACK_MS,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true, // a scaleX from the left edge, so it runs on the UI thread
-    }).start();
-  }, [filled, trackFill]);
 
   useEffect(() => {
     if (solved && !recorded.current) {
@@ -237,16 +221,6 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
             {puzzle.name ?? 'Arukone+'}
           </Text>
           <AnimatedKicker left={left} cellsLeft={cellsLeft} solved={solved} difficulty={puzzle.difficulty} />
-          <View style={styles.track}>
-            <Animated.View
-              style={[
-                styles.trackFill,
-                {
-                  width: '100%', transformOrigin: 'left', transform: [{ scaleX: trackFill.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: 'clamp' }) }],
-                },
-              ]}
-            />
-          </View>
           <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale
@@ -285,14 +259,11 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
         <Animated.View style={[styles.controls, controlsIn]}>
           <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
-          <PressableScale
-            accessibilityRole="button"
+          <RoundKey
             accessibilityLabel="Restart puzzle"
-            onPress={restart}
-            style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}
-          >
+            onPress={restart}>
             <RestartIcon />
-          </PressableScale>
+          </RoundKey>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
           line keeps its place but stays out of sight. */}
@@ -420,19 +391,6 @@ const styles = themedStyles(() => ({
     borderRadius: 5,
     backgroundColor: theme.colors.primary,
     marginLeft: 5,
-  },
-  track: {
-    width: 140,
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: theme.colors.surfaceAlt,
-    marginTop: theme.spacing.sm,
-    overflow: 'hidden',
-  },
-  trackFill: {
-    height: 3,
-    borderRadius: 1.5,
-    backgroundColor: theme.colors.arukoneAccent,
   },
   batchDots: {
     marginTop: theme.spacing.sm,

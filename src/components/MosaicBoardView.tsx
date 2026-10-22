@@ -2,7 +2,7 @@ import React, { useMemo, useRef } from 'react';
 import { Group, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import { SharedValue, useDerivedValue, useSharedValue } from 'react-native-reanimated';
 import { MosaicCell, MosaicPuzzle, MosaicState, MosaicTheme, orient } from '../game/mosaic';
-import { shade, useAnimationClock, useReducedMotion } from '../game/rendering';
+import { DealClock, DealIn, dealDelay, shade, useAnimationClock, useDealing, useReducedMotion } from '../game/rendering';
 import { darkColors, getColorScheme, inkWash, lightColors, theme } from '../theme';
 import { PaperTray } from './boardChrome';
 
@@ -267,13 +267,16 @@ interface PlacedProps {
   state: MosaicState;
   geometry: MosaicBoardGeometry;
   hiddenIndex: number | null;
+  /** The board's opening second: the set pieces are dealt in. */
+  dealing: DealClock;
 }
 
 /** Every piece on the board except one being carried, painted in layers
  * across the whole board - every shadow, then every side, then every top. Re-renders only
  * on a move, never per frame. */
-const Placed = React.memo(function PlacedImpl({ puzzle, state, geometry, hiddenIndex }: PlacedProps) {
+const Placed = React.memo(function PlacedImpl({ puzzle, state, geometry, hiddenIndex, dealing }: PlacedProps) {
   const { cellSize, pad } = geometry;
+  const far = Math.max(puzzle.rows, puzzle.cols) - 1;
   const pieces = state.pieces
     .map((piece, index) => {
       if (!piece.at || index === hiddenIndex) return null;
@@ -284,7 +287,17 @@ const Placed = React.memo(function PlacedImpl({ puzzle, state, geometry, hiddenI
   return (
     <Group transform={[{ translateX: pad }, { translateY: pad }]}>
       {(['shadow', 'sides', 'tops'] as const).map(part =>
-        pieces.map(p => <Tesserae key={`${part}-${p.index}`} cells={p.cells} color={p.color} cellSize={cellSize} seed={p.index} shadow set={p.set} part={part} />),
+        pieces.map(p => {
+          // The pieces already set are dealt onto the bed as it opens, each
+          // layer of a piece on the piece's own beat.
+          const cr = p.cells.reduce((a, c) => a + c.row, 0) / p.cells.length;
+          const cc = p.cells.reduce((a, c) => a + c.col, 0) / p.cells.length;
+          return (
+            <DealIn key={`${part}-${p.index}`} x={(cc + 0.5) * cellSize} y={(cr + 0.5) * cellSize} delay={dealDelay(Math.round(Math.max(cr, cc)), far)} dealing={dealing}>
+              <Tesserae cells={p.cells} color={p.color} cellSize={cellSize} seed={p.index} shadow set={p.set} part={part} />
+            </DealIn>
+          );
+        }),
       )}
     </Group>
   );
@@ -316,6 +329,7 @@ export interface MosaicBoardViewProps {
 const LANDED_MS = 380;
 
 export function MosaicBoardView({ puzzle, state, geometry, hiddenIndex = null, ghost = null, solved, flashCells = null, landed = null }: MosaicBoardViewProps): React.JSX.Element {
+  const dealing = useDealing();
   const reducedMotion = useReducedMotion();
   const { cellSize, pad } = geometry;
 
@@ -430,7 +444,7 @@ export function MosaicBoardView({ puzzle, state, geometry, hiddenIndex = null, g
           ))}
         </Group>
       )}
-      <Placed puzzle={puzzle} state={state} geometry={geometry} hiddenIndex={pressing ? pressing.index : hiddenIndex} />
+      <Placed puzzle={puzzle} state={state} geometry={geometry} hiddenIndex={pressing ? pressing.index : hiddenIndex} dealing={dealing} />
       {pressing && (
         <Group transform={[{ translateX: pad }, { translateY: pad }]}>
           <Group origin={vec(pressing.cx, pressing.cy)} transform={[{ scale: pressing.scale }]}>

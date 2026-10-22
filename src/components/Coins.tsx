@@ -95,6 +95,8 @@ export function CoinBalance({
       // Arrived from elsewhere (back on Home after a solve): the purse
       // pops as the count lands - the payout, seen arriving.
       else if (!changedHere) {
+        // Felt and heard as it lands - the payout arriving.
+        if (coins > from) triggerFeedback('coin');
         pop.setValue(0.82);
         Animated.spring(pop, { toValue: 1, useNativeDriver: true, ...motion.spring.pop }).start();
       }
@@ -235,6 +237,8 @@ const styles = themedStyles(() => ({
     gap: 5,
   },
   balanceText: {
+    fontFamily: theme.typography.families.figures,
+    fontVariant: ['tabular-nums'],
     fontSize: theme.typography.sizes.caption,
     color: theme.colors.textSecondary,
     fontWeight: theme.typography.weights.semibold,

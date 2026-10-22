@@ -17,6 +17,7 @@ import {
 } from './shapes';
 import { useAnimationClock } from './useAnimationClock';
 import { useReducedMotion } from './useReducedMotion';
+import { DealClock, DealIn, dealDelay, useDealing } from './DealIn';
 import { landingCurve, SlidePlan, TeleportTiming } from './useAnimatedMovables';
 import { theme } from '../../theme';
 
@@ -60,6 +61,8 @@ const TARGET_FLARE_MS = 640;
 const EMPTY_IDS: ReadonlySet<string> = new Set();
 
 interface StaticGridLayerProps {
+  /** The board's opening second: its cells are dealt in. */
+  dealing: DealClock;
   staticGrid: GameState['staticGrid'];
   portals: GameState['portals'];
   zone: GameState['zone'];
@@ -126,7 +129,9 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
   portalInnerRadius,
   portalStrokeWidth,
   hazardSize,
+  dealing,
 }: StaticGridLayerProps) {
+  const far = Math.max(staticGrid.length, staticGrid[0]?.length ?? 0) - 1;
   return (
     <Group>
       {staticGrid.map((row, rowIndex) =>
@@ -168,8 +173,9 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
           if (cellType === StaticCellType.Empty) return null;
           const origin = getCellOrigin(layout, rowIndex, colIndex);
           const center = getCellCenter(layout, rowIndex, colIndex);
+          // Dealt onto the board as it opens, corner to corner.
           return (
-            <Group key={`cell-${rowIndex}-${colIndex}`}>
+            <DealIn key={`cell-${rowIndex}-${colIndex}`} x={center.x} y={center.y} delay={dealDelay(Math.max(rowIndex, colIndex), far)} dealing={dealing}>
               {cellType === StaticCellType.Obstacle && (
                 <ObstacleBlock
                   x={origin.x + obstacleInset}
@@ -199,7 +205,7 @@ const StaticGridLayer = React.memo(function StaticGridLayerImpl({
               )}
               {cellType === StaticCellType.Sand && <SandPatch x={origin.x} y={origin.y} size={layout.cellSize} />}
 
-            </Group>
+            </DealIn>
           );
         }),
       )}
@@ -496,6 +502,7 @@ function TeleportingPiece({ approach, onward, from, enter, exit, to, squaresAfte
  *      destroyed pieces never move.
  */
 export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = EMPTY_IDS, solved = false, slide }: BoardViewProps) {
+  const dealing = useDealing();
   const layout = useMemo(() => computeBoardLayout(state.cols, size), [state.cols, size]);
   const reducedMotion = useReducedMotion();
 
@@ -538,6 +545,7 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
   return (
     <Group>
       <StaticGridLayer
+        dealing={dealing}
         staticGrid={state.staticGrid}
         portals={state.portals}
         zone={state.zone}
@@ -652,13 +660,14 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
         }
 
         return (
-          <MovablePiece
-            key={movable.id}
-            cx={center.x}
-            cy={center.y}
-            radius={pulsing ? pulseRadius : movableRadius}
-            color={onTarget ? theme.colors.success : theme.colors.pieceBlue}
-          />
+          <DealIn key={movable.id} x={center.x} y={center.y} delay={dealDelay(Math.max(movable.row, movable.col), Math.max(state.staticGrid.length, state.staticGrid[0]?.length ?? 0) - 1) + 60} dealing={dealing}>
+            <MovablePiece
+              cx={center.x}
+              cy={center.y}
+              radius={pulsing ? pulseRadius : movableRadius}
+              color={onTarget ? theme.colors.success : theme.colors.pieceBlue}
+            />
+          </DealIn>
         );
       })}
 

@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { RoundKey } from '../components/RoundKey';
 import { Animated, Text, View, useWindowDimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, Circle, Group, Path, rect, RoundedRect, rrect } from '@shopify/react-native-skia';
@@ -26,7 +27,6 @@ import { motion, theme, themedStyles } from '../theme';
 const ICON_SIZE = 14;
 const RESERVED = 330;
 const STAGE_H_PADDING = theme.spacing.sm;
-const TRACK_WIDTH = 160;
 const TUTORIAL_ID = tutorialIdForGame('glass');
 
 /** The same simple-stroke "?" every other game's header carries. */
@@ -100,12 +100,6 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
     }
   }, [solved, hints, puzzle.id, recordCompletion]);
 
-  // The header's progress track: panes coloured, of those to colour.
-  const toColour = puzzle.given.filter(g => g === null).length;
-  const track = useRef(new Animated.Value(0)).current;
-  useEffect(() => {
-    Animated.timing(track, { toValue: toColour ? (toColour - left) / toColour : 0, duration: 380, useNativeDriver: true }).start();
-  }, [left, toColour, track]);
 
   // A stroke: the first pane decides whether it lays glass or takes it
   // out (starting on a pane already in the chosen glass takes it out), and
@@ -190,19 +184,6 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
               {solved ? 'Stained Glass · finished' : clashCount > 0 ? `Stained Glass · ${clashCount} ${clashCount === 1 ? 'clash' : 'clashes'}` : `Stained Glass · ${left} left`}
             </Text>
           </View>
-          <View style={styles.track}>
-            <Animated.View
-              style={[
-                styles.trackFill,
-                {
-                  transform: [
-                    { translateX: track.interpolate({ inputRange: [0, 1], outputRange: [-TRACK_WIDTH / 2, 0], extrapolate: 'clamp' }) },
-                    { scaleX: track.interpolate({ inputRange: [0, 1], outputRange: [0.0001, 1], extrapolate: 'clamp' }) },
-                  ],
-                },
-              ]}
-            />
-          </View>
           <PuzzleProgressMark batch={progress.currentBatch} puzzleId={puzzle.id} style={styles.batchDots} />
         </View>
         <PressableScale accessibilityRole="button" accessibilityLabel="How to play" onPress={() => setShowHelp(true)} hitSlop={8} containerStyle={styles.headerRightSpacer}>
@@ -233,12 +214,12 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
         <Animated.View style={[styles.controls, controlsIn]}>
           <InsightButton count={insight.count} onPress={useHint} />
           {insight.sheet}
-          <PressableScale accessibilityRole="button" accessibilityLabel="Undo" onPress={undo} disabled={history.length === 0} style={({ pressed }) => [styles.pill, styles.roundKey, history.length === 0 && styles.disabled, pressed && styles.pillPressed]}>
+          <RoundKey accessibilityLabel="Undo" onPress={undo} disabled={history.length === 0} dim={history.length === 0}>
             <Icon name="undo" size={ICON_SIZE} color={theme.colors.glassAccent} />
-          </PressableScale>
-          <PressableScale accessibilityRole="button" accessibilityLabel="Restart window" onPress={restart} style={({ pressed }) => [styles.pill, styles.roundKey, pressed && styles.pillPressed]}>
+          </RoundKey>
+          <RoundKey accessibilityLabel="Restart window" onPress={restart}>
             <Icon name="restart" size={ICON_SIZE} color={theme.colors.glassAccent} />
-          </PressableScale>
+          </RoundKey>
         </Animated.View>
         {/* Coins only matter here once Insight runs out: until then the
           line keeps its place but stays out of sight. */}
@@ -286,6 +267,7 @@ function Swatch({ color, selected, onPress }: { color: GlassColor | null; select
         <Canvas style={{ width: size, height: size + depth }}>
           {color === null ? (
             <>
+              <RoundedRect x={0} y={depth} width={size} height={size} r={10} color={theme.colors.borderStrong} />
               <RoundedRect x={0.5} y={0.5} width={size - 1} height={size - 1} r={10} color={theme.colors.surfaceHi} />
               <RoundedRect x={0.5} y={0.5} width={size - 1} height={size - 1} r={10} color={theme.colors.borderStrong} style="stroke" strokeWidth={1} />
               <Path path={`M ${size * 0.32} ${size * 0.32} L ${size * 0.68} ${size * 0.68} M ${size * 0.68} ${size * 0.32} L ${size * 0.32} ${size * 0.68}`} color={theme.colors.textTertiary} style="stroke" strokeWidth={1.6} strokeCap="round" />
@@ -317,8 +299,6 @@ const styles = themedStyles(() => ({
   kickerRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch', marginTop: 2 },
   kickerChip: { marginRight: 6 },
   kicker: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.glassAccent, flexShrink: 1 },
-  track: { width: TRACK_WIDTH, height: 3, borderRadius: 1.5, backgroundColor: theme.colors.surfaceAlt, marginTop: theme.spacing.sm, overflow: 'hidden' },
-  trackFill: { width: TRACK_WIDTH, height: 3, borderRadius: 1.5, backgroundColor: theme.colors.glassAccent },
   batchDots: { marginTop: theme.spacing.sm },
   quiet: { opacity: 0 },
   coinBalance: { marginTop: theme.spacing.sm },

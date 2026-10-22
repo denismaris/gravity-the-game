@@ -4,7 +4,7 @@ import { StyleSheet, View } from 'react-native';
 import { Canvas, Circle, DashPathEffect, Group, LinearGradient, Line, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import { Easing, SharedValue, useDerivedValue, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { Dir, loops, STEP, targets, troubles, VanePuzzle, VaneState } from '../game/vanes';
-import { shade, useReducedMotion } from '../game/rendering';
+import { DealIn, dealDelay, shade, useDealing, useReducedMotion } from '../game/rendering';
 import { inkWash, theme } from '../theme';
 
 /**
@@ -101,6 +101,7 @@ export function VanesRoof({
   touched?: ReadonlyArray<boolean>;
   live?: boolean;
 }): React.JSX.Element {
+  const dealing = useDealing();
   const reducedPref = useReducedMotion();
   const reduced = reducedPref || !live;
   const { cell, centre } = geo;
@@ -173,9 +174,10 @@ export function VanesRoof({
       ))}
       {puzzle.vanes.map((v, i) => {
         const c = centre(v.row, v.col);
+        // Dealt onto the roof as it opens, corner to corner.
         return (
+          <DealIn key={i} x={c.x} y={c.y} delay={dealDelay(Math.max(v.row, v.col), puzzle.size - 1)} dealing={dealing}>
           <Vane
-            key={i}
             x={c.x}
             y={c.y}
             cell={cell}
@@ -188,6 +190,7 @@ export function VanesRoof({
             delay={(v.row + v.col) * 60}
             reduced={reduced}
           />
+          </DealIn>
         );
       })}
       {glow !== null && glow !== undefined && (

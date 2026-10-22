@@ -11,9 +11,12 @@ import {
 import {
   BoardLayout,
   computeBoardLayout,
+  DealClock, DealIn,
+  dealDelay,
   getCellCenter,
   getCellOrigin,
   shade,
+  useDealing,
   useReducedMotion,
 } from '../game/rendering';
 import { theme } from '../theme';
@@ -339,9 +342,12 @@ interface StaticMirrorsProps {
    * rest and genuinely never needs the clock again once its own flourish
    * finishes. */
   flourishingKey: string | null;
+  /** The board's opening second: the mirrors are dealt in. */
+  dealing: DealClock;
 }
 
-const StaticMirrors = React.memo(function StaticMirrorsImpl({ layout, mirrors, mirrorHalfLength, mirrorStrokeWidth, flourishingKey }: StaticMirrorsProps) {
+const StaticMirrors = React.memo(function StaticMirrorsImpl({ layout, mirrors, mirrorHalfLength, mirrorStrokeWidth, flourishingKey, dealing }: StaticMirrorsProps) {
+  const far = Math.max(mirrors.length, mirrors[0]?.length ?? 0) - 1;
   return (
     <Group>
       {mirrors.map((line, r) =>
@@ -349,7 +355,11 @@ const StaticMirrors = React.memo(function StaticMirrorsImpl({ layout, mirrors, m
           if (!mirror) return null;
           if (flourishingKey === positionKey(r, c)) return null;
           const center = getCellCenter(layout, r, c);
-          return renderMirror(`mirror-${r}-${c}`, center.x, center.y, mirrorHalfLength, mirror, 0, 1, mirrorStrokeWidth);
+          return (
+            <DealIn key={`mirror-${r}-${c}`} x={center.x} y={center.y} delay={dealDelay(Math.max(r, c), far)} dealing={dealing}>
+              {renderMirror(`mirror-${r}-${c}`, center.x, center.y, mirrorHalfLength, mirror, 0, 1, mirrorStrokeWidth)}
+            </DealIn>
+          );
         }),
       )}
     </Group>
@@ -410,6 +420,7 @@ export function MirrorMazeBoardView({
   solved,
   flashCell,
 }: MirrorMazeBoardViewProps): React.JSX.Element {
+  const dealing = useDealing();
   const { layout, margin, outer } = useMemo(() => mazeGrid(puzzle.rows, size), [puzzle.rows, size]);
   const panelRadius = 12;
   const reducedMotion = useReducedMotion();
@@ -576,8 +587,8 @@ export function MirrorMazeBoardView({
       {puzzle.gems.map((cell, i) => {
         const center = getCellCenter(layout, cell.row, cell.col);
         return (
+          <DealIn key={`gem-${cell.row}-${cell.col}`} x={center.x} y={center.y} delay={dealDelay(Math.max(cell.row, cell.col), Math.max(puzzle.rows, puzzle.cols) - 1)} dealing={dealing}>
           <MazeGem
-            key={`gem-${cell.row}-${cell.col}`}
             cx={center.x}
             cy={center.y}
             size={gemSize}
@@ -587,6 +598,7 @@ export function MirrorMazeBoardView({
             shimmerPhase={shimmerPhase}
             reducedMotion={reducedMotion}
           />
+          </DealIn>
         );
       })}
 
@@ -596,6 +608,7 @@ export function MirrorMazeBoardView({
         mirrorHalfLength={mirrorHalfLength}
         mirrorStrokeWidth={mirrorStrokeWidth}
         flourishingKey={flourishingKey}
+        dealing={dealing}
       />
       {/* The one mirror still mid-flourish, if any - every other placed
           mirror is `StaticMirrors`' job. */}
