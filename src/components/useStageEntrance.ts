@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { Animated } from 'react-native';
 import { useReducedMotion } from '../game/rendering';
 import { whenDealsReleased } from '../game/rendering/dealGate';
+import { isContinuing, isRepainting } from './playContinuity';
 
 /**
  * How a puzzle arrives. Every play screen mounts fresh for each puzzle, and
@@ -24,10 +25,14 @@ export function useStageEntrance(delayMs = 0): {
   transform: Array<{ translateY: Animated.AnimatedInterpolation<number> } | { scale: Animated.AnimatedInterpolation<number> }>;
 } {
   const reducedMotion = useReducedMotion();
-  const progress = useRef(new Animated.Value(reducedMotion ? 1 : 0)).current;
+  // Continuing board to board, the keys (any `delayMs`) were never away:
+  // they stay put while the board arrives.
+  const progress = useRef(new Animated.Value(reducedMotion || isRepainting() || (delayMs > 0 && isContinuing()) ? 1 : 0)).current;
+  // A repaint (light/dark) is the same page: nothing arrives.
+  const still = useRef(isRepainting() || (delayMs > 0 && isContinuing())).current;
 
   useEffect(() => {
-    if (reducedMotion) {
+    if (reducedMotion || still) {
       progress.setValue(1);
       return;
     }
@@ -37,7 +42,7 @@ export function useStageEntrance(delayMs = 0): {
       cancel();
       spring.stop();
     };
-  }, [progress, delayMs, reducedMotion]);
+  }, [progress, delayMs, reducedMotion, still]);
 
   return {
     opacity: progress.interpolate({ inputRange: [0, 0.55, 1], outputRange: [0, 1, 1], extrapolate: 'clamp' }),

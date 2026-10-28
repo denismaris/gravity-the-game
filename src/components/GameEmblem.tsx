@@ -25,7 +25,7 @@ export function emblemLip(size: number): number {
 }
 
 /** `a` moved `t` of the way to `b`, both `#rrggbb`. */
-function mix(a: string, b: string, t: number): string {
+export function mix(a: string, b: string, t: number): string {
   const x = hexToRgb(a);
   const y = hexToRgb(b);
   const ch = (u: number, v: number) => Math.round(u + (v - u) * t).toString(16).padStart(2, '0');
@@ -77,11 +77,14 @@ export function GameEmblem({ kind, size = DEFAULT_SIZE, raised = false }: GameEm
  * that already exists - for a surface that draws many emblems at once,
  * which should be one canvas rather than one per emblem.
  */
-export function GameEmblemGlyph({ kind, size, x = 0, y = 0, opacity = 1 }: { kind: GameKind; size: number; x?: number; y?: number; opacity?: number }): React.JSX.Element {
+export function GameEmblemGlyph({ kind, size, x = 0, y = 0, opacity = 1, raised = false }: { kind: GameKind; size: number; x?: number; y?: number; opacity?: number; raised?: boolean }): React.JSX.Element {
   const accent = accentColorForKind(kind);
-  const plate = tint(accent, 0.16);
+  // The same plate and lip as `GameEmblem`, so a row drawn in one canvas
+  // (several emblems, one surface) looks exactly like separate ones.
+  const plate = raised ? mix(theme.colors.surface, accent, 0.16) : tint(accent, 0.16);
   return (
     <Group transform={[{ translateX: x }, { translateY: y }]} opacity={opacity}>
+      {raised && <RoundedRect x={0} y={emblemLip(size)} width={size} height={size} r={size * 0.28} color={mix(theme.colors.surface, accent, 0.42)} />}
       <RoundedRect x={0} y={0} width={size} height={size} r={size * 0.28} color={plate} />
       {renderMark(kind, size, accent, plate)}
     </Group>
@@ -243,65 +246,47 @@ function GravityMark({ size, accent }: MarkProps): React.JSX.Element {
 }
 
 /**
- * Two paths folded about the board's own centre line, each running from
- * one number to another around a blocked square - the whole game in one
- * mark. The right-hand path is drawn as the exact mirror of the left, so
- * the emblem is doing the thing it depicts.
- *
- * The numbers are rings rather than discs (a knocked-out centre, like the
- * other marks' detail) - a solid dot at this size reads as a bullet, and
- * these want to read as *terminals*, something a line arrives at.
+ * Twins across a fold: two pairs of beads above a dashed fold and their
+ * twins below, each pair joined by one path that is its own reflection -
+ * down, in toward the middle, and out again, mirrored in the fold, the way
+ * every pair on the board meets its twin. The two pairs in two tones of
+ * the game's wine, as its numbered beads are.
  */
 function ArukoneMark({ size, accent, plate }: MarkProps): React.JSX.Element {
   const fold = size / 2;
-  const stroke = Math.max(2, size * 0.075);
-  const nodeR = size * 0.072;
-  const top = size * 0.26;
-  const bottom = size * 0.7;
-  const outer = size * 0.22;
-  const inner = size * 0.365;
-  const blockSize = size * 0.15;
-
-  // The right-hand path is literally `2 * fold - x` of the left - the same
-  // reflection `mirrorCell` applies to the real board.
-  const arm = (x0: number, x1: number): string =>
-    `M ${x0} ${top} L ${x1} ${top} L ${x1} ${bottom} L ${x0} ${bottom}`;
-
+  const stroke = Math.max(2, size * 0.07);
+  const bead = size * 0.095;
+  const top = size * 0.2;
+  const bottom = size - top;
+  const light = shade(accent, 1.45);
+  // A path from (x, top) to (x, bottom), jogging to `jog` across the fold
+  // and back: symmetric about the fold by construction.
+  const path = (x: number, jog: number): string => {
+    const y1 = size * 0.36;
+    const y2 = size - y1;
+    const r = size * 0.07;
+    const dir = Math.sign(jog - x);
+    return `M ${x} ${top} L ${x} ${y1 - r} Q ${x} ${y1} ${x + dir * r} ${y1} L ${jog - dir * r} ${y1} Q ${jog} ${y1} ${jog} ${y1 + r} L ${jog} ${y2 - r} Q ${jog} ${y2} ${jog - dir * r} ${y2} L ${x + dir * r} ${y2} Q ${x} ${y2} ${x} ${y2 + r} L ${x} ${bottom}`;
+  };
+  // The pairs jog toward each other and back: two twins, meeting.
+  const pairs = [
+    { x: size * 0.24, jog: size * 0.42, color: accent },
+    { x: size * 0.76, jog: size * 0.58, color: light },
+  ];
   return (
     <Group>
-      {/* The fold the board is symmetric about. */}
-      <Path
-        path={`M ${fold} ${size * 0.13} L ${fold} ${size * 0.87}`}
-        color={accent}
-        opacity={0.28}
-        style="stroke"
-        strokeWidth={Math.max(1, size * 0.02)}
-      />
-      {[arm(outer, inner), arm(size - outer, size - inner)].map((path, i) => (
-        <Path
-          key={`arm-${i}`}
-          path={path}
-          color={accent}
-          style="stroke"
-          strokeWidth={stroke}
-          strokeCap="round"
-          strokeJoin="round"
-        />
+      {/* The fold the board is mirrored in. */}
+      {[0, 1, 2, 3, 4, 5].map(k => (
+        <RoundedRect key={`f${k}`} x={size * (0.12 + k * 0.135)} y={fold - size * 0.012} width={size * 0.07} height={size * 0.024} r={size * 0.012} color={accent} opacity={0.32} />
       ))}
-      {/* The blocked square both paths had to route around. */}
-      <RoundedRect
-        x={fold - blockSize / 2}
-        y={size * 0.48 - blockSize / 2}
-        width={blockSize}
-        height={blockSize}
-        r={size * 0.025}
-        color={accent}
-      />
-      {[top, bottom].flatMap(y =>
-        [outer, size - outer].map(x => (
-          <Group key={`node-${x}-${y}`}>
-            <Circle cx={x} cy={y} r={nodeR} color={accent} />
-            <Circle cx={x} cy={y} r={nodeR * 0.42} color={plate} />
+      {pairs.map((p, i) => (
+        <Path key={`p${i}`} path={path(p.x, p.jog)} color={p.color} style="stroke" strokeWidth={stroke} strokeCap="round" strokeJoin="round" />
+      ))}
+      {pairs.flatMap((p, i) =>
+        [top, bottom].map(y => (
+          <Group key={`b${i}-${y}`}>
+            <Circle cx={p.x} cy={y} r={bead} color={p.color} />
+            <Circle cx={p.x} cy={y} r={bead * 0.38} color={plate} />
           </Group>
         )),
       )}
@@ -364,49 +349,35 @@ function LilyMark({ size, plate }: MarkProps): React.JSX.Element {
 }
 
 /**
- * The game, solved, in the smallest roof that shows it: four vanes at the
- * corners of a square, each sending its wind to the next, so the wind
- * runs round in one closed loop. Rings for the vanes and strokes for the
- * wind, in one colour - the same hand as Twinpath's emblem.
+ * A weathervane, the one on every barn roof: an arrow with a swallow-tail
+ * feather riding the top of a post, and the compass's cross-arms below it,
+ * a ball at each end. The silhouette a child knows at a glance, in the
+ * game's copper.
  */
 function VanesMark({ size, accent, plate }: MarkProps): React.JSX.Element {
-  const lo = size * 0.25;
-  const hi = size * 0.75;
-  const corners = [
-    { x: lo, y: lo },
-    { x: hi, y: lo },
-    { x: hi, y: hi },
-    { x: lo, y: hi },
-  ];
-  const stroke = Math.max(2, size * 0.065);
-  const nodeR = size * 0.085;
-  const gap = nodeR + size * 0.06; // wind stops short of each vane
-  const head = size * 0.075;
+  const u = (v: number) => v * size;
+  const stroke = Math.max(2, size * 0.07);
+  const arrowY = u(0.33);
+  const armY = u(0.62);
+  const tip = u(0.88);
+  const headBase = u(0.68);
+  const spread = u(0.11);
+  // The swallow-tail: a feather with a notch cut into its back.
+  const tail = `M ${u(0.12)} ${arrowY - u(0.11)} L ${u(0.3)} ${arrowY - u(0.11)} L ${u(0.37)} ${arrowY} L ${u(0.3)} ${arrowY + u(0.11)} L ${u(0.12)} ${arrowY + u(0.11)} L ${u(0.19)} ${arrowY} Z`;
   return (
     <Group>
-      {corners.map((a, i) => {
-        const b = corners[(i + 1) % 4];
-        const dx = Math.sign(b.x - a.x);
-        const dy = Math.sign(b.y - a.y);
-        const sx = a.x + dx * gap;
-        const sy = a.y + dy * gap;
-        const ex = b.x - dx * gap;
-        const ey = b.y - dy * gap;
-        // The arrowhead's two barbs, swept back from the tip.
-        const barbs = `M ${ex - dx * head - dy * head} ${ey - dy * head + dx * head} L ${ex} ${ey} L ${ex - dx * head + dy * head} ${ey - dy * head - dx * head}`;
-        return (
-          <Group key={i}>
-            <Path path={`M ${sx} ${sy} L ${ex} ${ey}`} color={accent} style="stroke" strokeWidth={stroke} strokeCap="round" />
-            <Path path={barbs} color={accent} style="stroke" strokeWidth={stroke} strokeCap="round" strokeJoin="round" />
-          </Group>
-        );
-      })}
-      {corners.map((c, i) => (
-        <Group key={`v${i}`}>
-          <Circle cx={c.x} cy={c.y} r={nodeR} color={accent} />
-          <Circle cx={c.x} cy={c.y} r={nodeR * 0.42} color={plate} />
-        </Group>
-      ))}
+      {/* The post, and the compass arms across it. */}
+      <Path path={`M ${u(0.5)} ${arrowY} L ${u(0.5)} ${u(0.88)}`} color={accent} style="stroke" strokeWidth={stroke} strokeCap="round" />
+      <Path path={`M ${u(0.27)} ${armY} L ${u(0.73)} ${armY}`} color={accent} style="stroke" strokeWidth={stroke * 0.7} strokeCap="round" />
+      <Circle cx={u(0.25)} cy={armY} r={u(0.05)} color={accent} />
+      <Circle cx={u(0.75)} cy={armY} r={u(0.05)} color={accent} />
+      {/* The arrow riding the top. */}
+      <Path path={`M ${u(0.3)} ${arrowY} L ${headBase + u(0.02)} ${arrowY}`} color={accent} style="stroke" strokeWidth={stroke} strokeCap="round" />
+      <Path path={tail} color={accent} />
+      <Path path={`M ${tip} ${arrowY} L ${headBase} ${arrowY - spread} L ${headBase} ${arrowY + spread} Z`} color={accent} />
+      {/* The ball it turns on. */}
+      <Circle cx={u(0.5)} cy={arrowY} r={u(0.065)} color={accent} />
+      <Circle cx={u(0.5)} cy={arrowY} r={u(0.025)} color={plate} />
     </Group>
   );
 }

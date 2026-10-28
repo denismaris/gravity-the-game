@@ -465,9 +465,10 @@ describe('games arrive one at a time', () => {
     }
   });
 
-  test('the next game waits for a few solves of the newest, then is dealt at once', () => {
+  test('the next game waits until the newest has had real practice, then is dealt at once', () => {
     const need = introSolvesAt(0);
-    expect(need).toBeLessThanOrEqual(4);
+    // Enough to get good at a game before another arrives, not merely to meet it.
+    expect(need).toBeGreaterThanOrEqual(8);
     let progress = solveFirst(need - 1);
     expect(unlockedGames(progress)).toEqual([FIRST]);
     expect(nextGameToArrive(progress)).toEqual({ kind: SECOND, gate: FIRST, done: need - 1, need, inPuzzles: 1 });
@@ -493,7 +494,7 @@ describe('games arrive one at a time', () => {
     expect(learning / total).toBeLessThanOrEqual(0.6);
   });
 
-  test('a new player has met several games by level 10, and every game by about level 20', () => {
+  test('a new game arrives about every three levels, every one by about level 31', () => {
     let progress = emptyProgress();
     let previous: ReturnType<typeof generateBatch> | null = null;
     const rng = seededRng(7);
@@ -505,12 +506,23 @@ describe('games arrive one at a time', () => {
         progress = complete(progress, ref.puzzleId);
         solves += 1;
       }
-      if (level === 10) expect(unlockedGames(progress).length).toBeGreaterThanOrEqual(5);
-      if (all < 0 && nextGameToArrive(progress) === null) all = solves;
+      // Never two new games a level apart early on: each gets time.
+      if (level === 6) expect(unlockedGames(progress).length).toBeLessThanOrEqual(3);
+      if (level === 10) expect(unlockedGames(progress).length).toBeGreaterThanOrEqual(4);
+      if (all < 0 && nextGameToArrive(progress) === null) all = level;
       previous = batch;
     }
-    expect(all).toBeGreaterThan(0);
-    expect(all).toBeLessThanOrEqual(100);
+    expect(solves).toBeGreaterThan(0);
+    expect(all).toBeGreaterThan(24);
+    expect(all).toBeLessThanOrEqual(36);
+  });
+
+  test('a game already played is never taken back when the pace changes', () => {
+    // Under the old, quicker pace: four solves of the first game, then two of the second.
+    let progress = solveFirst(4);
+    progress = complete(progress, endlessId(SECOND, 'easy', 900));
+    progress = complete(progress, endlessId(SECOND, 'easy', 901));
+    expect(unlockedGames(progress)).toEqual([FIRST, SECOND]);
   });
 
   test('every game is in once each has had its few, and nothing is left to come', () => {

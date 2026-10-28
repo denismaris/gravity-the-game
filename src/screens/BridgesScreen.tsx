@@ -34,6 +34,9 @@ import { UNDO_COST } from '../progression/coins';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { buildDurationMs, buildTimeAt } from '../components/bridgesMotion';
 import { PlayHeader } from '../components/PlayHeader';
+import { isTodaysDaily } from '../game/journey';
+import { savedBoard, useSaveBoard } from '../progression/boardSaves';
+import { useHintNote } from '../components/HintNote';
 
 const TUTORIAL_ID = tutorialIdForGame('bridges');
 const ICON_SIZE = 14;
@@ -116,7 +119,11 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
   const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
-  const [state, setState] = useState<BridgesState>(() => emptyBridgesState(puzzle));
+  // A board left half played opens as it was left (not the timed Daily,
+  // whose clock would start again): see `boardSaves`.
+  const resumable = !isTodaysDaily(puzzle.id);
+  const [resumed] = useState(() => (resumable ? savedBoard(puzzle.id, emptyBridgesState(puzzle)) : null));
+  const [state, setState] = useState<BridgesState>(() => resumed?.state ?? emptyBridgesState(puzzle));
   const stateRef = useRef(state);
   stateRef.current = state;
   const historyRef = useRef<BridgesState[]>([]);
@@ -126,7 +133,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
   const insight = useInsightPower();
   const spendInsight = insight.spend;
   const [coinsEarned, setCoinsEarned] = useState(0);
-  const [hints, setHints] = useState(0);
+  const [hints, setHints] = useState(() => resumed?.extras.hints ?? 0);
   const [origin, setOrigin] = useState<{ link: number; at: number } | null>(null);
   const [flashLink, setFlashLink] = useState<number | null>(null);
   const [blocked, setBlocked] = useState<{ link: number; at: number } | null>(null);
@@ -146,6 +153,9 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
   }, []);
 
   const solved = useMemo(() => isBridgesSolved(puzzle, state), [puzzle, state]);
+  useSaveBoard(puzzle.id, state, solved, { hints }, resumable);
+  // Why the hint made its move, said once above the keys.
+  const { note: hintNote, show: showHint } = useHintNote();
   const left = useMemo(() => bridgesLeft(puzzle, state), [puzzle, state]);
   const showSolvedCard = useSolveCelebration(solved);
 
@@ -245,6 +255,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
     const result = explainBridgesHint(puzzle, stateRef.current);
     if (!result) return;
     spendInsight(() => {
+      showHint(result as { reason?: string; tip?: string });
       historyRef.current.push(stateRef.current);
       setCanUndo(true);
       stateRef.current = result.state;
@@ -255,7 +266,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
       timersRef.current.push(setTimeout(() => setFlashLink(null), HINT_FLASH_MS));
       triggerFeedback('targetReached');
     });
-  }, [puzzle, spendInsight]);
+  }, [puzzle, spendInsight, showHint]);
 
   const undo = useCallback(() => {
     if (historyRef.current.length === 0 || solved) return;
@@ -331,13 +342,15 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
         </Animated.View>
 
         <DockGap />
-        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
-          <InsightButton count={insight.count} onPress={useHint} />
+        {/* Finished: the keys take no more touches. The card is a beat
+          away, and a fast Restart in that beat threw a solved board away. */}
+        <Animated.View pointerEvents={solved ? "none" : "auto"} style={[styles.controls, dockPlate.plate, controlsIn]}>
+          <InsightButton count={insight.count} onPress={useHint} progress={state} />
           {insight.sheet}
           <RoundKey accessibilityLabel="Undo last move" accessibilityState={{ disabled: !canUndo }} onPress={undo} dim={!canUndo}>
             <UndoIcon />
           </RoundKey>
-          <RoundKey accessibilityLabel="Restart puzzle" onPress={restart}>
+          <RoundKey accessibilityLabel="Restart puzzle" confirm="Tap again to restart" onPress={restart}>
             <RestartIcon />
           </RoundKey>
         </Animated.View>
@@ -348,6 +361,8 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
         </View>
         <DockFloor />
       </View>
+
+      {hintNote}
 
       {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved

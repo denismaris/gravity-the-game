@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { BackLabel } from '../components/Icon';
+import { isRepainting } from '../components/playContinuity';
 import { Alert, ScrollView, StyleSheet, Switch, View } from 'react-native';
 import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -37,9 +38,12 @@ export interface SettingsScreenProps {
  * `PlayerProgressProvider` since progress is what's being reset, not a
  * settings concern itself.
  */
+/** Where the page was scrolled to, kept across a repaint. */
+let lastScrollY = 0;
+
 export function SettingsScreen({ onExit, onOpenAccount, onTryGame }: SettingsScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { settings, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance, resetTutorials } = useSettings();
+  const { settings, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setLargerText, setCalmingInterstitialEnabled, setReminders, setAppearance, resetTutorials } = useSettings();
   const { resetProgress } = usePlayerProgress();
   // The last known account at once, refreshed from the server behind it.
   const [account, setAccount] = useState<Account | null>(knownAccount);
@@ -102,7 +106,16 @@ export function SettingsScreen({ onExit, onOpenAccount, onTryGame }: SettingsScr
         <View style={styles.headerRightSpacer} />
       </View>
 
-      <ScrollView contentContainerStyle={styles.content}>
+      <ScrollView
+        contentContainerStyle={styles.content}
+        // A repaint (light/dark, larger text) rebuilds this page: it comes
+        // back scrolled to where the switch was, not to the top.
+        contentOffset={{ x: 0, y: isRepainting() ? lastScrollY : 0 }}
+        onScroll={e => {
+          lastScrollY = e.nativeEvent.contentOffset.y;
+        }}
+        scrollEventThrottle={64}
+      >
         {/* The account first: the one setting that keeps everything else. */}
         <PressableScale accessibilityRole="button" accessibilityLabel={account && account.kind !== 'anonymous' ? 'Your account' : 'Sign in to keep your progress safe'} onPress={onOpenAccount} scaleTo={0.985} containerStyle={styles.accountWrap} style={styles.account}>
           <View style={styles.accountMark}>
@@ -141,6 +154,16 @@ export function SettingsScreen({ onExit, onOpenAccount, onTryGame }: SettingsScr
             value={settings.hapticsEnabled}
             onValueChange={setHapticsEnabled}
             accessibilityLabel="Haptic feedback"
+          />
+        </View>
+
+        <Text style={styles.sectionLabel}>Accessibility</Text>
+        <View style={styles.card}>
+          <Row
+            label="Larger Text"
+            value={settings.largerText}
+            onValueChange={setLargerText}
+            accessibilityLabel="Larger text. Lets text grow further with your phone's text size"
           />
         </View>
 

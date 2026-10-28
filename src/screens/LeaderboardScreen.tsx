@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { BackLabel } from '../components/Icon';
 import { Animated, KeyboardAvoidingView, Platform, Pressable, ScrollView, TextInput, View } from 'react-native';
-import { Text, MAX_TEXT_SCALE } from '../components/Text';
+import { Text, textScale } from '../components/Text';;
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PressableScale } from '../components';
 import { PageBloom } from '../components/PageBloom';
@@ -142,7 +142,7 @@ function ProfileEditor({ profile, onClose, onSaved }: { profile: Profile; onClos
           <Text style={styles.sheetLede}>Your name and place on the leaderboards. Your city is up to you.</Text>
 
           <Text style={styles.label}>Name</Text>
-          <TextInput maxFontSizeMultiplier={MAX_TEXT_SCALE} value={name} onChangeText={setName} placeholder="Leave empty to stay anonymous" placeholderTextColor={theme.colors.textTertiary} maxLength={24} style={[styles.input, !nameOk && styles.inputBad]} autoCorrect={false} />
+          <TextInput maxFontSizeMultiplier={textScale()} value={name} onChangeText={setName} placeholder="Leave empty to stay anonymous" placeholderTextColor={theme.colors.textTertiary} maxLength={24} style={[styles.input, !nameOk && styles.inputBad]} autoCorrect={false} />
 
           <Text style={styles.label}>Country</Text>
           {country && !picking ? (
@@ -154,7 +154,7 @@ function ProfileEditor({ profile, onClose, onSaved }: { profile: Profile; onClos
             </View>
           ) : (
             <View>
-              <TextInput maxFontSizeMultiplier={MAX_TEXT_SCALE} value={search} onChangeText={setSearch} placeholder="Search for your country" placeholderTextColor={theme.colors.textTertiary} style={styles.input} autoFocus={country !== null} autoCorrect={false} />
+              <TextInput maxFontSizeMultiplier={textScale()} value={search} onChangeText={setSearch} placeholder="Search for your country" placeholderTextColor={theme.colors.textTertiary} style={styles.input} autoFocus={country !== null} autoCorrect={false} />
               {matches.map(([code, label]) => (
                 <PressableScale
                   key={code}
@@ -177,7 +177,7 @@ function ProfileEditor({ profile, onClose, onSaved }: { profile: Profile; onClos
           {country && (
             <>
               <Text style={styles.label}>City</Text>
-              <TextInput maxFontSizeMultiplier={MAX_TEXT_SCALE} value={city} onChangeText={setCity} placeholder="Optional" placeholderTextColor={theme.colors.textTertiary} maxLength={40} style={[styles.input, !cityOk && styles.inputBad]} autoCorrect={false} />
+              <TextInput maxFontSizeMultiplier={textScale()} value={city} onChangeText={setCity} placeholder="Optional" placeholderTextColor={theme.colors.textTertiary} maxLength={40} style={[styles.input, !cityOk && styles.inputBad]} autoCorrect={false} />
               {cities.length > 0 && (
                 <View style={styles.suggestions}>
                   {cities

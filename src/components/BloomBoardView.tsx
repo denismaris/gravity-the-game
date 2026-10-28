@@ -1,8 +1,8 @@
-import React, { useLayoutEffect, useMemo, useRef } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react';
 import { Circle, Group, Path, RoundedRect, Skia, SkPath, vec } from '@shopify/react-native-skia';
-import { useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import { Easing, SharedValue, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { BloomArcStep, BloomCell, BloomEdge, BloomPuzzle, BloomState, joinedArcs, tileArcs, traceLoops } from '../game/bloom';
-import { BoardLayout, computeBoardLayout, DealIn, dealDelay, useAnimationClock, useDealing, useReducedMotion } from '../game/rendering';
+import { BoardLayout, computeBoardLayout, DealIn, dealDelay, useDealing, useReducedMotion } from '../game/rendering';
 import { theme } from '../theme';
 import { CellWell, PaperTray } from './boardChrome';
 import { curve } from '../theme/motion';
@@ -28,9 +28,9 @@ const lineInk = (): string => theme.colors.primary;
 const TURN_WASH = 'rgba(200, 80, 106, 0.16)'; // bloomAccent, faint
 
 function clamp01(t: number): number {
+  'worklet';
   return t < 0 ? 0 : t > 1 ? 1 : t;
 }
-const easeOutCubic = (t: number): number => 1 - (1 - t) ** 3;
 
 function edgeMidpoint(layout: BoardLayout, row: number, col: number, e: BloomEdge): { x: number; y: number } {
   const s = layout.cellSize;
@@ -327,29 +327,31 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
 
   const finishing = !reducedMotion && solvedAt !== null && now - solvedAt < loops.length * SOLVE_STAGGER_MS + SOLVE_SWELL_MS;
 
-  const movingLoops: Array<{ key: string; path: SkPath | null; opacity: number }> = [];
+  // A loop that closes takes its colour in place, a fade on the UI thread
+  // (`LoopFade`); every other loop is one static shape, parsed only when
+  // the set of them changes. The finish passes one soft breath over each
+  // in turn (`FinishBreath`), on the UI thread too. JavaScript only
+  // re-renders as one of these ends, to take it down.
+  const opening: Array<{ key: string; path: SkPath | null; since: number }> = [];
   const settledSvg: string[] = [];
-  loopGeometry.forEach((loop, index) => {
-    // A loop that closes takes its colour in place - a fade, with nothing
-    // growing or moving, since the line around it stays exactly where it
-    // is. The finish passes one soft breath of colour over each in turn.
-    let opacity = 1;
-    if (!reducedMotion) {
-      const since = now - (openedAt.get(loop.key) ?? -Infinity);
-      if (since < BLOOM_MS) opacity = easeOutCubic(clamp01(since / BLOOM_MS));
-      if (finishing) {
-        const t = (now - solvedAt! - index * SOLVE_STAGGER_MS) / SOLVE_SWELL_MS;
-        if (t > 0 && t < 1) opacity *= 1 - 0.3 * Math.sin(t * Math.PI);
-      }
-    }
-    if (opacity === 1) settledSvg.push(loop.svg);
-    else movingLoops.push({ key: loop.key, path: loop.path, opacity });
+  loopGeometry.forEach(loop => {
+    const since = now - (openedAt.get(loop.key) ?? -Infinity);
+    if (!reducedMotion && since < BLOOM_MS) opening.push({ key: `${loop.key}@${openedAt.get(loop.key)}`, path: loop.path, since });
+    else settledSvg.push(loop.svg);
   });
   // Joined as text, parsed only when the settled set actually changes.
   const settledKey = settledSvg.join(' ');
   const settledPath = useMemo(() => toPath(settledKey), [settledKey]);
 
-  useAnimationClock(!reducedMotion && (movingLoops.length > 0 || finishing), 60);
+  const [, settle] = useReducer((n: number) => n + 1, 0);
+  const openingEnds = opening.length > 0 ? BLOOM_MS - Math.min(...opening.map(o => o.since)) : 0;
+  const finishEnds = finishing ? loops.length * SOLVE_STAGGER_MS + SOLVE_SWELL_MS - (now - solvedAt!) : 0;
+  const nextEnd = Math.max(openingEnds, finishEnds);
+  useEffect(() => {
+    if (nextEnd <= 0) return;
+    const timer = setTimeout(settle, nextEnd + 20);
+    return () => clearTimeout(timer);
+  }, [nextEnd]);
 
   const strokeWidth = Math.max(3, layout.cellSize * 0.1);
   const inset = layout.cellSize * WELL_INSET;
@@ -360,9 +362,8 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
       <StaticWells size={puzzle.rows} layout={layout} />
 
       <StaticFill path={settledPath} />
-      {movingLoops.map(loop =>
-        loop.path ? <Path key={loop.key} path={loop.path} color={fillTone()} fillType="evenOdd" opacity={loop.opacity} /> : null,
-      )}
+      {opening.map(loop => (loop.path ? <LoopFade key={loop.key} path={loop.path} since={loop.since} /> : null))}
+      {finishing && <FinishBreath key={solvedAt ?? 0} paths={loopGeometry.map(l => l.path)} elapsed={now - solvedAt!} />}
 
       {flashCell && (
         <RoundedRect
@@ -398,4 +399,41 @@ export function BloomBoardView({ puzzle, state, size, solved, flashCell }: Bloom
       <StaticTop puzzle={puzzle} layout={layout} />
     </Group>
   );
+}
+
+/** A loop just closed, taking its colour in place. */
+function LoopFade({ path, since }: { path: SkPath; since: number }): React.JSX.Element {
+  const t = useSharedValue(clamp01(since / BLOOM_MS));
+  useEffect(() => {
+    t.value = withTiming(1, { duration: (1 - t.value) * BLOOM_MS, easing: Easing.linear });
+    // Once: keyed by the loop's closing.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const opacity = useDerivedValue(() => 1 - (1 - clamp01(t.value)) ** 3);
+  return <Path path={path} color={fillTone()} fillType="evenOdd" opacity={opacity} />;
+}
+
+/** The finish: a soft breath passing over each blossom in turn, its colour
+ * dipping and coming back. Drawn as the paper over it, a little, and gone. */
+function FinishBreath({ paths, elapsed }: { paths: ReadonlyArray<SkPath | null>; elapsed: number }): React.JSX.Element {
+  const total = paths.length * SOLVE_STAGGER_MS + SOLVE_SWELL_MS;
+  const clock = useSharedValue(elapsed);
+  useEffect(() => {
+    clock.value = withTiming(total, { duration: Math.max(0, total - elapsed), easing: Easing.linear });
+    // Once: keyed by the solve.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <Group>
+      {paths.map((path, index) => (path ? <Breath key={index} path={path} delay={index * SOLVE_STAGGER_MS} clock={clock} /> : null))}
+    </Group>
+  );
+}
+
+function Breath({ path, delay, clock }: { path: SkPath; delay: number; clock: SharedValue<number> }): React.JSX.Element {
+  const opacity = useDerivedValue(() => {
+    const t = (clock.value - delay) / SOLVE_SWELL_MS;
+    return t > 0 && t < 1 ? 0.3 * Math.sin(t * Math.PI) : 0;
+  });
+  return <Path path={path} color={theme.colors.surfaceHi} fillType="evenOdd" opacity={opacity} />;
 }

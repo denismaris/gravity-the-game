@@ -28,6 +28,9 @@ export interface Settings {
   readonly reminderHour: number;
   /** Light, dark, or whatever the phone is set to (the default). */
   readonly appearance: AppearancePreference;
+  /** Lets text follow the phone's text size much further (to 2x rather
+   * than 1.3x), for players who need it larger; see `components/Text`. */
+  readonly largerText: boolean;
 }
 
 export type AppearancePreference = 'system' | 'light' | 'dark';
@@ -54,6 +57,7 @@ export function defaultSettings(): Settings {
     remindersEnabled: false,
     reminderHour: DEFAULT_REMINDER_HOUR,
     appearance: 'system',
+    largerText: false,
   };
 }
 
@@ -79,6 +83,11 @@ export function withMusicEnabled(settings: Settings, enabled: boolean): Settings
 export function withHapticsEnabled(settings: Settings, enabled: boolean): Settings {
   if (settings.hapticsEnabled === enabled) return settings;
   return { ...settings, hapticsEnabled: enabled };
+}
+
+export function withLargerText(settings: Settings, enabled: boolean): Settings {
+  if (settings.largerText === enabled) return settings;
+  return { ...settings, largerText: enabled };
 }
 
 export function withCalmingInterstitialEnabled(settings: Settings, enabled: boolean): Settings {

@@ -11,6 +11,11 @@ import { SETTINGS_KEY } from '../../settings/settingsStore';
 import { getLilyTrial, hop, hopsFrom, initialLilyState } from '../../game/lilypads';
 import { HOP_MS } from '../../components/LilyPadsBoard';
 import { getVaneTrial } from '../../game/vanes';
+import { forgetAllBoards } from '../../progression/boardSaves';
+
+// Each test opens its board fresh: a board left half played by the last
+// one would otherwise reopen as it was left, as it does in the app.
+beforeEach(() => forgetAllBoards());
 
 /** The two games on trial, driven through their boards. */
 async function mount(screen: React.ReactElement) {

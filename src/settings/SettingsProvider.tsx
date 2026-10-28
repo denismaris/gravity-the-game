@@ -20,9 +20,9 @@ import {
   withSoundEnabled,
   withMusicEnabled,
   withTutorialSeen,
-  withTutorialsCleared,
-} from './settings';
+  withTutorialsCleared, withLargerText } from './settings';
 import { loadSettings, saveSettings } from './settingsStore';
+import { setTextScale } from '../components/Text';
 
 /** A pure `Settings` update, replayable in order once the real loaded data
  * is available - same race-safety pattern as `PlayerProgressProvider`'s
@@ -37,6 +37,8 @@ interface SettingsContextValue {
   setMusicEnabled(enabled: boolean): void;
   setHapticsEnabled(enabled: boolean): void;
   setCalmingInterstitialEnabled(enabled: boolean): void;
+  /** Text allowed to grow to 2x with the phone's text size. */
+  setLargerText(enabled: boolean): void;
   /** Turns the daily reminder on or off, optionally at a new hour. */
   setReminders(enabled: boolean, hour?: number): void;
   /** Light, dark, or follow the phone. */
@@ -108,6 +110,9 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
     setSoundGate(settings.soundEnabled);
     setHapticsGate(settings.hapticsEnabled);
   }, [settings.soundEnabled, settings.hapticsEnabled]);
+  // The text cap follows the setting (see `components/Text`); the screens
+  // remount on its change (`App`), so every label picks it up at once.
+  setTextScale(settings.largerText);
   // Music waits for the saved settings, so a player who turned it off
   // never hears the first bars of it on launch.
   useEffect(() => {
@@ -150,6 +155,13 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
     [applyMutation],
   );
 
+  const setLargerText = useCallback(
+    (enabled: boolean) => {
+      applyMutation(current => withLargerText(current, enabled));
+    },
+    [applyMutation],
+  );
+
   const setCalmingInterstitialEnabled = useCallback(
     (enabled: boolean) => {
       applyMutation(current => withCalmingInterstitialEnabled(current, enabled));
@@ -187,6 +199,7 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
       setSoundEnabled,
       setMusicEnabled,
       setHapticsEnabled,
+      setLargerText,
       setCalmingInterstitialEnabled,
       setReminders,
       setAppearance,
@@ -194,7 +207,7 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
       hasSeenTutorial: (tutorialId: string) => settings.seenTutorials.includes(tutorialId),
       resetTutorials,
     }),
-    [settings, ready, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setCalmingInterstitialEnabled, setReminders, setAppearance, markTutorialSeen, resetTutorials],
+    [settings, ready, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setLargerText, setCalmingInterstitialEnabled, setReminders, setAppearance, markTutorialSeen, resetTutorials],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

@@ -1,9 +1,11 @@
 import React, { useCallback, useContext, useEffect, useRef, useState } from 'react';
 import { StyleSheet, View, useWindowDimensions } from 'react-native';
-import { Text, MAX_TEXT_SCALE } from '../Text';
-import Animated, { FadeIn, FadeInDown, FadeInUp, FadeOut, Keyframe, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
+import { Text, textScale } from '../Text';
+import Animated, { Easing, FadeInDown, FadeInUp, FadeOut, Keyframe, useAnimatedStyle, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { triggerFeedback } from '../../game/rendering';
+import { isReducedMotion, REFUSE_MS, REFUSE_PX, refuseShake, triggerFeedback } from '../../game/rendering';
+import { DialogActions } from '../dialog';
+import { ConfettiBurst } from '../ConfettiBurst';
 import { theme, themedStyles } from '../../theme';
 import { PressableScale } from '../PressableScale';
 import { GameEmblem } from '../GameEmblem';
@@ -74,7 +76,7 @@ export function useLessonFlow(
       const next = indexRef.current + 1;
       if (next >= stepCount) {
         toPhase('done');
-        triggerFeedback('coin');
+        triggerFeedback('solved');
         return;
       }
       indexRef.current = next;
@@ -85,7 +87,8 @@ export function useLessonFlow(
   }, [stepCount]);
 
   const wrong = useCallback(() => {
-    triggerFeedback('tap');
+    // The same soft no every board gives a move it will not take.
+    triggerFeedback('refuse');
     setWrongNonce(n => n + 1);
   }, []);
 
@@ -104,6 +107,16 @@ const EMBLEM_IN = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.6 }] },
   100: { opacity: 1, transform: [{ scale: 1 }], easing: curve.reward },
 }).duration(560);
+/** A step's bar fills, left to right. */
+const BAR_FILL = new Keyframe({
+  0: { transform: [{ scaleX: 0 }] },
+  100: { transform: [{ scaleX: 1 }], easing: curve.arrive },
+}).duration(420);
+/** The check, popping in as a step is done. */
+const CHECK_IN = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.3 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: curve.reward },
+}).duration(360);
 const BOARD_IN = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.94 }] },
   100: { opacity: 1, transform: [{ scale: 1 }], easing: curve.reward },
@@ -149,18 +162,24 @@ export function LessonShell({
   const step = steps[index];
   const boardSize = Math.min(width - theme.spacing.lg * 2, height * 0.42, 360);
 
-  // A gentle shake when a tap lands somewhere else.
-  const shake = useSharedValue(0);
+  // A tap somewhere else: the guide gives the shake every board gives a
+  // refused move, a little wider, since it is the whole card.
+  const shake = useSharedValue(1);
   useEffect(() => {
-    if (wrongNonce === 0) return;
-    shake.value = withSequence(
-      withTiming(8, { duration: 50 }),
-      withTiming(-8, { duration: 80 }),
-      withTiming(5, { duration: 70 }),
-      withTiming(0, { duration: 60 }),
-    );
+    if (wrongNonce === 0 || isReducedMotion()) return;
+    shake.value = 0;
+    shake.value = withTiming(1, { duration: REFUSE_MS, easing: Easing.linear });
   }, [wrongNonce, shake]);
-  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: shake.value }] }));
+  const shakeStyle = useAnimatedStyle(() => ({ transform: [{ translateX: refuseShake(shake.value) * REFUSE_PX * 2 }] }));
+  // Each step done: one soft ring of the game's colour breathes out round
+  // the board, the board's own small celebration.
+  const ring = useSharedValue(0);
+  useEffect(() => {
+    if (phase !== 'success' || isReducedMotion()) return;
+    ring.value = 0;
+    ring.value = withTiming(1, { duration: 700, easing: curve.arrive });
+  }, [phase, index, ring]);
+  const ringStyle = useAnimatedStyle(() => ({ opacity: ring.value > 0 && ring.value < 1 ? 0.55 * (1 - ring.value) : 0, transform: [{ scale: 1 + ring.value * 0.06 }] }));
   const guide = useContext(LessonGuideContext);
   // The opening card - the game, its goal, and how it is played - comes
   // before the first step asks for anything. Without a guide, straight in.
@@ -181,19 +200,17 @@ export function LessonShell({
         </View>
         <View style={styles.introBody}>
           <Animated.View entering={EMBLEM_IN}>
-            {guide.emblem ?? (guide.kind ? <GameEmblem kind={guide.kind} size={96} /> : null)}
+            {guide.emblem ?? (guide.kind ? <GameEmblem kind={guide.kind} size={96} raised /> : null)}
           </Animated.View>
-          <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} entering={FadeInDown.duration(420).delay(120)} style={styles.introName} accessibilityRole="header">
+          <Animated.Text maxFontSizeMultiplier={textScale()} entering={FadeInDown.duration(420).delay(120)} style={styles.introName} accessibilityRole="header">
             {gameName}
           </Animated.Text>
-          <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} entering={FadeInDown.duration(420).delay(200)} style={styles.introGoal}>
+          <Animated.Text maxFontSizeMultiplier={textScale()} entering={FadeInDown.duration(420).delay(200)} style={styles.introGoal}>
             {guide.goal}
           </Animated.Text>
         </View>
         <Animated.View entering={FadeInUp.duration(420).delay(360)} style={styles.footer}>
-          <PressableScale accessibilityRole="button" accessibilityLabel="Start the lesson" onPress={start} style={({ pressed }) => [styles.start, pressed && styles.pressed]}>
-            <Text style={styles.startText}>Start</Text>
-          </PressableScale>
+          <DialogActions primary={{ label: 'Start', onPress: start, onward: true, accessibilityLabel: 'Start the lesson' }} />
         </Animated.View>
       </View>
     );
@@ -211,7 +228,7 @@ export function LessonShell({
       <View style={styles.bars}>
         {steps.map((_s, i) => (
           <View key={i} style={styles.bar}>
-            {(i < index || (i === index && (success || done))) && <Animated.View entering={FadeIn.duration(320)} style={[styles.barFill, { backgroundColor: accent }]} />}
+            {(i < index || (i === index && (success || done))) && <Animated.View entering={BAR_FILL} style={[styles.barFill, { backgroundColor: accent }]} />}
           </View>
         ))}
       </View>
@@ -225,8 +242,14 @@ export function LessonShell({
         </Animated.View>
       </View>
 
+      {done && <ConfettiBurst />}
       {done && guide ? (
         <View style={styles.boardWrap}>
+          {guide.kind && (
+            <Animated.View entering={EMBLEM_IN} style={styles.doneEmblem}>
+              <GameEmblem kind={guide.kind} size={64} raised />
+            </Animated.View>
+          )}
           <Animated.View entering={CARD_IN} style={[styles.recap, { borderColor: accent }]}>
             <Text style={[styles.recapLabel, { color: accent }]}>The rules in short</Text>
             {guide.recap.map((line, i) => (
@@ -241,22 +264,29 @@ export function LessonShell({
         </View>
       ) : (
         <Animated.View entering={BOARD_IN} exiting={FadeOut.duration(200)} style={styles.boardWrap}>
-          <View style={{ width: boardSize, height: boardSize, alignItems: 'center', justifyContent: 'center' }}>{renderBoard(boardSize)}</View>
+          <View style={{ width: boardSize, height: boardSize, alignItems: 'center', justifyContent: 'center' }}>
+            {renderBoard(boardSize)}
+            <Animated.View pointerEvents="none" style={[styles.ring, { borderColor: accent }, ringStyle]} />
+          </View>
         </Animated.View>
       )}
 
       <View style={styles.footer}>
         {done ? (
           <Animated.View key="start" entering={GUIDE_IN}>
-            <PressableScale accessibilityRole="button" accessibilityLabel="Start playing" onPress={onDone} style={({ pressed }) => [styles.start, pressed && styles.pressed]}>
-              <Text style={styles.startText}>Start playing</Text>
-            </PressableScale>
+            <DialogActions primary={{ label: 'Start playing', onPress: onDone, onward: true }} />
           </Animated.View>
         ) : (
           <Animated.View style={shakeStyle}>
             <Animated.View key={`${index}-${phase}`} entering={success ? PRAISE_IN : GUIDE_IN} style={[styles.guide, success && [styles.guideSuccess, { borderColor: accent }]]}>
               <View style={[styles.guideDot, { backgroundColor: success ? accent : theme.colors.surfaceAlt }]}>
-                {success ? <Text style={[styles.guideDotText, styles.guideDotTextOn]}>{'✓︎'}</Text> : <GestureCue gesture={guide?.gesture ?? 'tap'} color={accent} />}
+                {success ? (
+                  <Animated.View entering={CHECK_IN}>
+                    <Text style={[styles.guideDotText, styles.guideDotTextOn]}>{'✓︎'}</Text>
+                  </Animated.View>
+                ) : (
+                  <GestureCue gesture={guide?.gesture ?? 'tap'} color={accent} />
+                )}
               </View>
               <View style={styles.guideBody}>
                 <Text style={styles.guideText}>{success ? step.praise : step.hint}</Text>
@@ -299,11 +329,14 @@ const styles = themedStyles(() => ({
   skip: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   bars: { flexDirection: 'row', gap: 5, marginTop: theme.spacing.md },
   bar: { flex: 1, height: 4, borderRadius: 2, overflow: 'hidden', backgroundColor: theme.colors.border },
-  barFill: { ...StyleSheet.absoluteFill },
+  // Anchored at its left edge, so the fill grows along the bar.
+  barFill: { ...StyleSheet.absoluteFill, transformOrigin: 'left' },
   instruction: { marginTop: theme.spacing.md, minHeight: 150 },
   title: { marginTop: 6, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.headline, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   say: { marginTop: 6, fontSize: theme.typography.sizes.subtitle, lineHeight: 24, color: theme.colors.textSecondary },
   boardWrap: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+  ring: { ...StyleSheet.absoluteFill, borderRadius: 24, borderWidth: 3 },
+  doneEmblem: { marginBottom: theme.spacing.lg },
   footer: { minHeight: 72, justifyContent: 'center' },
   guide: {
     flexDirection: 'row',
@@ -333,7 +366,4 @@ const styles = themedStyles(() => ({
   recapNumText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, color: theme.colors.surfaceHi },
   recapText: { flex: 1, fontSize: theme.typography.sizes.body, lineHeight: 22, color: theme.colors.textPrimary },
   guideText: { fontSize: theme.typography.sizes.body, lineHeight: 22, color: theme.colors.textPrimary },
-  start: { height: 54, borderRadius: 27, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.primary },
-  startText: { fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.semibold, color: theme.colors.surfaceHi },
-  pressed: { opacity: 0.85 },
 }));

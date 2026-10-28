@@ -2,6 +2,7 @@ import React, { useContext } from 'react';
 import { Animated, StyleProp, StyleSheet, View, ViewStyle } from 'react-native';
 import { inkWash } from '../theme';
 import { PressDepth } from './PressableScale';
+import { FixedTextCap, MAX_TEXT_SCALE } from './Text';
 
 export interface RaisedKeyProps {
   /** The face's height; the key takes `lip` (and a little shadow) more. */
@@ -45,7 +46,9 @@ export function RaisedKey({ height, width, lip, face, edge, rim, padding = 0, ga
       <View style={[styles.layer, { top: lip + 3, height, borderRadius: radius, backgroundColor: inkWash(0.1) }]} />
       <View style={[styles.layer, { top: lip, height, borderRadius: radius, backgroundColor: edge }]} />
       <Animated.View style={[styles.face, { height, borderRadius: radius, backgroundColor: face, paddingHorizontal: padding, gap }, rim ? { borderWidth: 1, borderColor: rim } : null, sink]}>
-        {children}
+        {/* A key keeps its height: its label grows no further than the
+            usual cap, Larger Text or not. */}
+        <FixedTextCap.Provider value={MAX_TEXT_SCALE}>{children}</FixedTextCap.Provider>
       </Animated.View>
     </View>
   );

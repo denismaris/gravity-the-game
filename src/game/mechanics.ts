@@ -24,6 +24,13 @@ export const MECHANICS: ReadonlyArray<Mechanic> = [
     sample: 'glass-medium-g01',
   },
   {
+    id: 'mechanic:glass-counted',
+    game: 'glass',
+    title: 'Counted glass',
+    body: 'The number on each glass says how many pieces of it this window takes. When a glass runs out, no other piece can be that colour. When only as many pieces can take a glass as it has left, they all take it.',
+    sample: 'glass-medium-c01',
+  },
+  {
     id: 'mechanic:adjacent-stone',
     game: 'adjacent',
     title: 'Stones',

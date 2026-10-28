@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, View, ViewStyle } from 'react-native';
 import { triggerHaptic } from '../game/rendering';
 import { theme, themedStyles } from '../theme';
-import { MAX_TEXT_SCALE } from './Text';
+import { textScale } from './Text';;
 
 export interface StarRowProps {
   /** How many of the three stars are filled (0-3). */
@@ -83,7 +83,7 @@ export function StarRow({ earned, size = 16, style, animateIn = false }: StarRow
                 ]}
               />
             )}
-            <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE}
+            <Animated.Text maxFontSizeMultiplier={textScale()}
               style={[
                 styles.star,
                 {

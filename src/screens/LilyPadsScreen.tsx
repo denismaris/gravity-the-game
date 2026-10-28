@@ -10,6 +10,8 @@ import { triggerFeedback } from '../game/rendering';
 import { LILY_MECHANICS_SLIDES } from '../game/tutorials';
 import { theme } from '../theme';
 import { mechanic } from '../game/mechanics';
+import { isTodaysDaily } from '../game/journey';
+import { savedBoard, useSaveBoard } from '../progression/boardSaves';
 
 const RESERVED = 300;
 
@@ -51,12 +53,17 @@ export function LilyPadsTrialScreen({ onExit }: { onExit: () => void }): React.J
 function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | SetMode; onExit: () => void }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const [state, setState] = useState<LilyState>(() => initialLilyState(puzzle));
+  // A board left half played opens as it was left (not the timed Daily,
+  // whose clock would start again): see `boardSaves`.
+  const resumable = !isTodaysDaily(puzzle.id);
+  const [resumed] = useState(() => (resumable ? savedBoard(puzzle.id, initialLilyState(puzzle)) : null));
+  const [state, setState] = useState<LilyState>(() => resumed?.state ?? initialLilyState(puzzle));
   const [history, setHistory] = useState<LilyState[]>([]);
-  const [hints, setHints] = useState(0);
+  const [hints, setHints] = useState(() => resumed?.extras.hints ?? 0);
   const [glow, setGlow] = useState<number | null>(null);
 
   const solved = isLilySolved(state);
+  useSaveBoard(puzzle.id, state, solved, { hints }, resumable);
   const stranded = isStranded(puzzle, state);
   const reach = useMemo(() => hopsFrom(puzzle, state), [puzzle, state]);
   const lonely = useMemo(() => cutOff(puzzle, state), [puzzle, state]);
@@ -153,7 +160,8 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
     }
     setHints(n => n + 1);
     triggerFeedback('lilyHop');
-    return true;
+    // Its reason, for the note above the keys.
+    return h;
   }, [puzzle, history, state]);
 
   const boardSize = Math.max(0, Math.min(width - theme.spacing.md * 2 - theme.spacing.sm * 2, height - insets.top - insets.bottom - RESERVED));
@@ -182,6 +190,7 @@ function Pond({ puzzle, mode, onExit }: { puzzle: LilyPuzzle; mode: TrialMode | 
       onHint={useHint}
       onUndo={undo}
       onRestart={restart}
+      progress={state}
     >
       {/* Finished: the board takes no more touches. Never collapsed: on
               Android a flattened wrapper is re-created when its touches

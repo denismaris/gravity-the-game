@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useReducer, useRef } from 'react';
 import { Group, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import { Easing, SharedValue, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { MosaicCell, MosaicPuzzle, MosaicState, MosaicTheme, orient } from '../game/mosaic';
-import { DealClock, DealIn, dealDelay, shade, useAnimationClock, useDealing, useReducedMotion } from '../game/rendering';
+import { DealClock, DealIn, dealDelay, shade, useDealing, useReducedMotion } from '../game/rendering';
 import { darkColors, getColorScheme, inkWash, lightColors, theme } from '../theme';
 import { PaperTray } from './boardChrome';
 
@@ -340,7 +340,14 @@ export function MosaicBoardView({ puzzle, state, geometry, hiddenIndex = null, g
   const span = puzzle.rows + puzzle.cols;
   const waving = !reducedMotion && solvedAtRef.current !== null && now - solvedAtRef.current < WAVE_MS + WAVE_TILE_MS;
   const glinting = !reducedMotion && landed !== null && now - landed.at < LANDED_MS;
-  useAnimationClock(waving, 60);
+  // The finish wave plays on the UI thread (`FinishSheen`); this only
+  // re-renders once it is over, to take it down.
+  const [, settleWave] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (!waving) return;
+    const timer = setTimeout(settleWave, WAVE_MS + WAVE_TILE_MS - (Date.now() - (solvedAtRef.current ?? Date.now())) + 20);
+    return () => clearTimeout(timer);
+  }, [waving]);
   // The landed piece plays on the UI thread; this only re-renders once it
   // is over, to hand the piece back to the board.
   const [, settle] = useReducer((n: number) => n + 1, 0);
@@ -370,33 +377,6 @@ export function MosaicBoardView({ puzzle, state, geometry, hiddenIndex = null, g
     };
   }, [glinting, landed, state, puzzle, cellSize]);
 
-  const sheen = useMemo(() => {
-    if (!waving) return null;
-    const elapsed = now - solvedAtRef.current!;
-    const lights: React.JSX.Element[] = [];
-    puzzle.silhouette.forEach((line, row) =>
-      line.forEach((inside, col) => {
-        if (!inside) return;
-        const t = (elapsed - ((row + col) / span) * WAVE_MS) / WAVE_TILE_MS;
-        if (t <= 0 || t >= 1) return;
-        const gap = cellSize * GROUT_GAP;
-        lights.push(
-          <RoundedRect
-            key={`l-${row}-${col}`}
-            x={col * cellSize + gap}
-            y={row * cellSize + gap}
-            width={cellSize - gap * 2}
-            height={cellSize - gap * 2}
-            r={cellSize * 0.16}
-            color="#FFFFFF"
-            opacity={0.55 * Math.sin(t * Math.PI)}
-          />,
-        );
-      }),
-    );
-    return lights;
-    // `now` drives the wave frame by frame while `waving`.
-  }, [waving, now, puzzle, cellSize, span]);
 
   const gap = cellSize * GROUT_GAP;
   return (
@@ -447,7 +427,11 @@ export function MosaicBoardView({ puzzle, state, geometry, hiddenIndex = null, g
           ))}
         </Group>
       )}
-      {sheen && <Group transform={[{ translateX: pad }, { translateY: pad }]}>{sheen}</Group>}
+      {waving && (
+        <Group transform={[{ translateX: pad }, { translateY: pad }]}>
+          <FinishSheen key={solvedAtRef.current ?? 0} puzzle={puzzle} cellSize={cellSize} span={span} />
+        </Group>
+      )}
     </Group>
   );
 }
@@ -505,4 +489,36 @@ function GlintCell({ cell, column, width, cellSize, clock }: { cell: MosaicCell;
     return local > 0 && local < 1.4 ? 0.42 * Math.sin((local / 1.4) * Math.PI) : 0;
   });
   return <RoundedRect x={cell.col * cellSize + gapPx} y={cell.row * cellSize + gapPx} width={cellSize - gapPx * 2} height={cellSize - gapPx * 2} r={cellSize * 0.16} color="#FFFFFF" opacity={opacity} />;
+}
+
+/**
+ * The finish: a band of light crossing the finished picture on the
+ * diagonal, each tile catching it in turn. One clock on the UI thread, one
+ * derived opacity a tile.
+ */
+function FinishSheen({ puzzle, cellSize, span }: { puzzle: MosaicPuzzle; cellSize: number; span: number }): React.JSX.Element {
+  const clock = useSharedValue(0);
+  useEffect(() => {
+    clock.value = withTiming(WAVE_MS + WAVE_TILE_MS, { duration: WAVE_MS + WAVE_TILE_MS, easing: Easing.linear });
+    // Once: keyed by the solve.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const cells: Array<{ row: number; col: number }> = [];
+  puzzle.silhouette.forEach((line, row) => line.forEach((inside, col) => inside && cells.push({ row, col })));
+  return (
+    <Group>
+      {cells.map(c => (
+        <SheenTile key={`l-${c.row}-${c.col}`} row={c.row} col={c.col} cellSize={cellSize} delay={((c.row + c.col) / span) * WAVE_MS} clock={clock} />
+      ))}
+    </Group>
+  );
+}
+
+function SheenTile({ row, col, cellSize, delay, clock }: { row: number; col: number; cellSize: number; delay: number; clock: SharedValue<number> }): React.JSX.Element {
+  const gap = cellSize * GROUT_GAP;
+  const opacity = useDerivedValue(() => {
+    const t = (clock.value - delay) / WAVE_TILE_MS;
+    return t <= 0 || t >= 1 ? 0 : 0.55 * Math.sin(t * Math.PI);
+  });
+  return <RoundedRect x={col * cellSize + gap} y={row * cellSize + gap} width={cellSize - gap * 2} height={cellSize - gap * 2} r={cellSize * 0.16} color="#FFFFFF" opacity={opacity} />;
 }

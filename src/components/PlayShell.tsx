@@ -23,6 +23,7 @@ import { useSettings } from '../settings';
 import { useSolveCelebration } from './useSolveCelebration';
 import { useStageEntrance } from './useStageEntrance';
 import { PlayHeader } from './PlayHeader';
+import { useHintNote } from './HintNote';
 
 const ICON_SIZE = 14;
 
@@ -65,6 +66,7 @@ export function PlayShell({
   solved,
   hints,
   canUndo,
+  progress,
   onExit,
   onHint,
   onUndo,
@@ -85,15 +87,19 @@ export function PlayShell({
   solved: boolean;
   hints: number;
   canUndo: boolean;
+  /** The board's state: unchanged for long, Insight offers itself. */
+  progress?: unknown;
   onExit: () => void;
   /** Called with Insight already paid for. */
   /** Shows the next move; returns `false` when there is none (then no
-   * Insight is spent). */
-  onHint: () => boolean | void;
+   * Insight is spent), or the hint's reason, which is shown above the keys. */
+  onHint: () => boolean | void | { reason?: string; tip?: string };
   onUndo: () => void;
   onRestart: () => void;
   children: React.ReactNode;
 }): React.JSX.Element {
+  // Why the hint made its move, said once above the keys.
+  const { note: hintNote, show: showHint } = useHintNote();
   const stageIn = useStageEntrance();
   const controlsIn = useStageEntrance(110);
   const insight = useInsightPower();
@@ -175,13 +181,25 @@ export function PlayShell({
         <StageTopGap />
         <Animated.View style={[styles.stage, stageIn]}>{children}</Animated.View>
         <DockGap />
-        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
-          <InsightButton count={insight.count} onPress={() => !solved && insight.spend(onHint)} />
+        {/* Finished: the keys take no more touches (see the screens). */}
+        <Animated.View pointerEvents={solved ? "none" : "auto"} style={[styles.controls, dockPlate.plate, controlsIn]}>
+          <InsightButton
+            count={insight.count}
+            onPress={() =>
+              !solved &&
+              insight.spend(() => {
+                const given = onHint();
+                if (given && typeof given === 'object') showHint(given);
+                return given === false ? false : undefined;
+              })
+            }
+            progress={progress}
+          />
           {insight.sheet}
           <RoundKey accessibilityLabel="Undo" onPress={onUndo} disabled={!canUndo} dim={!canUndo}>
             <Icon name="undo" size={ICON_SIZE} color={accent} />
           </RoundKey>
-          <RoundKey accessibilityLabel="Restart" onPress={onRestart}>
+          <RoundKey accessibilityLabel="Restart" confirm="Tap again to restart" onPress={onRestart}>
             <Icon name="restart" size={ICON_SIZE} color={accent} />
           </RoundKey>
         </Animated.View>
@@ -192,6 +210,8 @@ export function PlayShell({
         </View>
         <DockFloor />
       </View>
+
+      {hintNote}
 
       {showSolved && stars && !showSetComplete && (
         <PuzzleSolved

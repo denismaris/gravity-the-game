@@ -41,6 +41,7 @@ export function parseSettings(raw: string | null): Settings {
     remindersEnabled?: unknown;
     reminderHour?: unknown;
     appearance?: unknown;
+    largerText?: unknown;
   };
   if (typeof record.version !== 'number' || !READABLE_VERSIONS.includes(record.version)) {
     return defaultSettings();
@@ -62,6 +63,8 @@ export function parseSettings(raw: string | null): Settings {
         : DEFAULT_REMINDER_HOUR,
     // Absent before dark mode existed: follow the phone.
     appearance: isAppearancePreference(record.appearance) ? record.appearance : 'system',
+    // Absent before the setting existed: off.
+    largerText: record.largerText === true,
   };
 }
 

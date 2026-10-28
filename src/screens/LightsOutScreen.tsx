@@ -26,6 +26,11 @@ import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { PlayHeader } from '../components/PlayHeader';
+import { Icon } from '../components/Icon';
+import { useHistoryState } from '../components/useHistoryState';
+import { isTodaysDaily } from '../game/journey';
+import { savedBoard, useSaveBoard } from '../progression/boardSaves';
+import { useHintNote } from '../components/HintNote';
 
 const TUTORIAL_ID = tutorialIdForGame('lightsout');
 const ICON_SIZE = 14;
@@ -79,14 +84,19 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
   const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
-  const [state, setState] = useState<LightsOutState>(() => initialLightsOutState(puzzle));
+  // Every move can be stepped back (see `useHistoryState`).
+  // A board left half played opens as it was left (not the timed Daily,
+  // whose clock would start again): see `boardSaves`.
+  const resumable = !isTodaysDaily(puzzle.id);
+  const [resumed] = useState(() => (resumable ? savedBoard(puzzle.id, initialLightsOutState(puzzle)) : null));
+  const [state, setState, history] = useHistoryState<LightsOutState>(() => resumed?.state ?? initialLightsOutState(puzzle));
   const { coins, shortBy } = useCoinPurchase();
   // Insight, the superpower: charges first, then a video or coins.
   const insight = useInsightPower();
   const spendInsight = insight.spend;
   const [coinsEarned, setCoinsEarned] = useState(0);
-  const [hints, setHints] = useState(0);
-  const [presses, setPresses] = useState(0);
+  const [hints, setHints] = useState(() => resumed?.extras.hints ?? 0);
+  const [presses, setPresses] = useState(() => resumed?.extras.presses ?? 0);
   const [flashCell, setFlashCell] = useState<LightsOutCell | null>(null);
   const [stars, setStars] = useState<1 | 2 | 3 | null>(null);
   const recorded = useRef(false);
@@ -104,6 +114,9 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
   }, []);
 
   const solved = useMemo(() => isLightsOutSolved(state), [state]);
+  useSaveBoard(puzzle.id, state, solved, { hints, presses }, resumable);
+  // Why the hint made its move, said once above the keys.
+  const { note: hintNote, show: showHint } = useHintNote();
 
   // The completion card waits for the board's own finish animation to
   // play - without this it drops a scrim straight over the top of it.
@@ -145,7 +158,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         return next;
       });
     },
-    [puzzle],
+    [puzzle, setState],
   );
 
   // Charged only when there is a hint to give, and before applying it, so
@@ -157,6 +170,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
     const result = explainLightsOutHint(puzzle, state);
     if (!result) return;
     spendInsight(() => {
+      showHint(result as { reason?: string; tip?: string });
       setState(result.state);
       setHints(n => n + 1);
       setPresses(n => n + 1);
@@ -165,7 +179,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
       flashTimeoutRef.current = setTimeout(() => setFlashCell(null), HINT_FLASH_MS);
       triggerFeedback('targetReached');
     });
-  }, [puzzle, state, spendInsight]);
+  }, [puzzle, state, spendInsight, setState, showHint]);
 
   const restart = useCallback(() => {
     recorded.current = false;
@@ -175,7 +189,14 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
     setPresses(0);
     setFlashCell(null);
     setState(initialLightsOutState(puzzle));
-  }, [puzzle]);
+    history.clear();
+  }, [puzzle, history, setState]);
+
+  const undo = useCallback(() => {
+    if (history.undo() === null) return;
+    setPresses(n => Math.max(0, n - 1));
+    triggerFeedback('tap');
+  }, [history]);
 
   const goNext = useCallback(() => {
     if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: batchCompletedRef.current });
@@ -213,11 +234,16 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         </Animated.View>
 
         <DockGap />
-        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
-          <InsightButton count={insight.count} onPress={useHint} />
+        {/* Finished: the keys take no more touches. The card is a beat
+          away, and a fast Restart in that beat threw a solved board away. */}
+        <Animated.View pointerEvents={solved ? "none" : "auto"} style={[styles.controls, dockPlate.plate, controlsIn]}>
+          <InsightButton count={insight.count} onPress={useHint} progress={state} />
           {insight.sheet}
+          <RoundKey accessibilityLabel="Undo" onPress={undo} disabled={!history.canUndo || solved} dim={!history.canUndo || solved}>
+            <Icon name="undo" size={ICON_SIZE} color={theme.colors.lightsOutAccent} />
+          </RoundKey>
           <RoundKey
-            accessibilityLabel="Restart puzzle"
+            accessibilityLabel="Restart puzzle" confirm="Tap again to restart"
             onPress={restart}>
             <RestartIcon />
           </RoundKey>
@@ -229,6 +255,8 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         </View>
         <DockFloor />
       </View>
+
+      {hintNote}
 
       {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved

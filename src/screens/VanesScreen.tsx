@@ -9,6 +9,8 @@ import { getVaneTrial, initialVaneState, isVaneSolved, loops, troubles, turn, un
 import { triggerFeedback } from '../game/rendering';
 import { VANE_MECHANICS_SLIDES } from '../game/tutorials';
 import { theme } from '../theme';
+import { isTodaysDaily } from '../game/journey';
+import { savedBoard, useSaveBoard } from '../progression/boardSaves';
 
 const RESERVED = 300;
 
@@ -48,14 +50,19 @@ export function VanesTrialScreen({ onExit }: { onExit: () => void }): React.JSX.
 function Roof({ puzzle, mode, onExit }: { puzzle: VanePuzzle; mode: TrialMode | SetMode; onExit: () => void }): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const [state, setState] = useState<VaneState>(() => initialVaneState(puzzle));
+  // A board left half played opens as it was left (not the timed Daily,
+  // whose clock would start again): see `boardSaves`.
+  const resumable = !isTodaysDaily(puzzle.id);
+  const [resumed] = useState(() => (resumable ? savedBoard(puzzle.id, initialVaneState(puzzle)) : null));
+  const [state, setState] = useState<VaneState>(() => resumed?.state ?? initialVaneState(puzzle));
   // Vanes the player has turned: the rest stay quiet until then.
   const [touched, setTouched] = useState<boolean[]>(() => puzzle.vanes.map(() => false));
   const [history, setHistory] = useState<VaneState[]>([]);
-  const [hints, setHints] = useState(0);
+  const [hints, setHints] = useState(() => resumed?.extras.hints ?? 0);
   const [glow, setGlow] = useState<number | null>(null);
 
   const solved = useMemo(() => isVaneSolved(puzzle, state), [puzzle, state]);
+  useSaveBoard(puzzle.id, state, solved, { hints }, resumable);
   const trouble = useMemo(() => troubles(puzzle, state).filter((t, i) => t !== null && touched[i]).length, [puzzle, state, touched]);
   const waiting = useMemo(() => unreached(puzzle, state), [puzzle, state]);
 
@@ -117,6 +124,7 @@ function Roof({ puzzle, mode, onExit }: { puzzle: VanePuzzle; mode: TrialMode | 
     setTouched(t => t.map((v, i) => v || i === h.vane));
     setHints(n => n + 1);
     triggerFeedback('targetReached');
+    return h;
   }, [puzzle, state]);
 
   const boardSize = Math.max(0, Math.min(width - theme.spacing.md * 2 - theme.spacing.sm * 2, height - insets.top - insets.bottom - RESERVED));
@@ -138,6 +146,7 @@ function Roof({ puzzle, mode, onExit }: { puzzle: VanePuzzle; mode: TrialMode | 
       onHint={useHint}
       onUndo={undo}
       onRestart={restart}
+      progress={state}
     >
       {/* Finished: the board takes no more touches. Never collapsed: on
               Android a flattened wrapper is re-created when its touches

@@ -29,6 +29,7 @@ import { findShortestSolution } from '../game/engine';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { PlayHeader } from '../components/PlayHeader';
 import { DockFloor, DockGap, StageTopGap } from '../components/StageTopGap';
+import { useHintNote } from '../components/HintNote';
 
 const GAME_TUTORIAL_ID = tutorialIdForGame('gravity');
 
@@ -367,6 +368,8 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
   // Using one caps the solve at two stars (see the completion effect),
   // since following hints plays the optimal line and would otherwise earn
   // a free three.
+  // Why the hint made its move, said once above the keys.
+  const { note: hintNote, show: showHint } = useHintNote();
   const handleHint = useCallback(() => {
     if (movePendingRef.current || isAnimatingRef.current || solvedRef.current || failedRef.current) return;
     const path = findShortestSolution(gameStateRef.current, 16);
@@ -374,7 +377,10 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
       spendInsight(() => {
         setHintsUsed(n => n + 1);
         handleDirection(path[0]);
-        AccessibilityInfo.announceForAccessibility(`Insight: pulled ${path[0]}.`);
+        showHint({
+          reason: path.length === 1 ? `Swipe ${path[0]}: that finishes it.` : `Swipe ${path[0]}. From here it finishes in ${path.length} swipes.`,
+          tip: 'Every ball stops at the first wall or ball in its way. Look for the swipe that parks one ball where the next swipe needs it.',
+        });
       });
       return;
     }
@@ -391,9 +397,9 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
       lastActionRef.current = 'restart';
       dispatch({ type: 'restart' });
       restartHintRef.current = fromStart[0];
-      AccessibilityInfo.announceForAccessibility(`Insight: no way on from there. Starting over, then pulled ${fromStart[0]}.`);
+      showHint({ reason: `No way on from there, so the board starts again. Then swipe ${fromStart[0]}.`, tip: 'Some swipes leave balls where no later swipe can free them. Undo is cheaper than starting over.' });
     });
-  }, [spendInsight, handleDirection, initialState]);
+  }, [spendInsight, handleDirection, initialState, showHint]);
 
   // The first move after a hint's restart, once the fresh board is shown.
   const restartHintRef = useRef<Direction | null>(null);
@@ -512,8 +518,10 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
       <DockGap />
       <Animated.View style={[styles.sessionControls, controlsIn]}>
         <SessionControls
+          locked={solved}
           onUndo={handleUndo}
           onRestart={handleRestart}
+          progress={gameState}
           // Once a hazard has claimed a piece, Undo is off the table - the
           // failure has to mean something, and `LevelFailedCard` frames
           // Retry/Exit as the only ways out. Undoing a *solve* stays
@@ -539,6 +547,8 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           board container that only ever covered the *board* - and worse,
           that container carries the board's own shake transform, so a card
           rendered in it shook along with the board it was reporting on. */}
+      {hintNote}
+
       {showSolvedCard && outcome && !showSetComplete && (
         <PuzzleSolved
           kind="gravity"

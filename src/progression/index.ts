@@ -62,7 +62,7 @@ export type { Aptitude, GameAptitude } from './aptitude';
 export { computeAptitude, MIN_SOLVES_FOR_INDEX } from './aptitude';
 export type { ShareMessageInput } from './shareMessage';
 export { DAILY_EPOCH, buildDailyShare, buildShareMessage, dailyNumber } from './shareMessage';
-export { elapsedFor, formatDuration, notePuzzleOpened, standing } from './timing';
+export { elapsedFor, formatDuration, notePuzzleOpened, standing, wasResumed } from './timing';
 export type { AdFreeOption, CosmeticSet, Season } from './shop';
 export { AD_FREE_OPTIONS, AD_FREE_RANK, buyAdFree, canBuyAdFree, isAdFree } from './shop';
 export { COSMETIC_SETS, SEASON_NAMES, claimSet, inSeason, seasonDaysLeft, seasonOf, seasonalItems, setProgress, setsWith, unclaimedSets } from './shop';

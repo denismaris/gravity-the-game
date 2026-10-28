@@ -3,10 +3,17 @@
  * save - a solve never spans an app restart that matters), and read back
  * when it is solved. One puzzle at a time, as the app plays them.
  */
-let opened: { id: string; at: number } | null = null;
+let opened: { id: string; at: number; resumed: boolean } | null = null;
 
-export function notePuzzleOpened(id: string, now = Date.now()): void {
-  if (opened?.id !== id) opened = { id, at: now };
+/** `resumed`: the board opened half played from a save, so its clock
+ * misses the time already spent on it. */
+export function notePuzzleOpened(id: string, now = Date.now(), resumed = false): void {
+  if (opened?.id !== id) opened = { id, at: now, resumed };
+}
+
+/** Whether the board now timed was opened from a save. */
+export function wasResumed(id: string): boolean {
+  return opened?.id === id && opened.resumed;
 }
 
 /** Milliseconds since `id` was opened, or null if it wasn't the one open. */

@@ -1,18 +1,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { BackLabel } from '../components/Icon';
-import { Animated, ScrollView, View, useWindowDimensions } from 'react-native';
+import { Animated, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { Text } from '../components/Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Canvas, RoundedRect } from '@shopify/react-native-skia';
 import { ConfettiBurst, PressableScale } from '../components';
 import { CoinBalance, CoinGlyph } from '../components/Coins';
-import { GameEmblemGlyph } from '../components/GameEmblem';
+import { GameEmblem, GameEmblemGlyph } from '../components/GameEmblem';
 import { LedgerStampRow } from '../components/LedgerStamp';
 import { PageBloom } from '../components/PageBloom';
 import { accentColorForKind, gameDisplayName, GameKind, ROTATION } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
 import { AptitudeChart } from '../components/AptitudeChart';
-import { GameLedger, computeAptitude, STAMP_COINS, STAMP_NAMES, STAMP_STEPS, Stamp, cosmeticsFor, ledgerOf, owns, skinSlot, stampsOf, usePlayerProgress } from '../progression';
+import { GameLedger, computeAptitude, STAMP_COINS, STAMP_NAMES, STAMP_STEPS, Stamp, cosmeticsFor, ledgerOf, owns, skinSlot, stampsOf, unlockedGames, usePlayerProgress } from '../progression';
 import { theme, themedStyles } from '../theme';
 import { curve } from '../theme/motion';
 
@@ -52,12 +52,18 @@ function SolveChart({ ledger, width }: { ledger: Record<GameKind, GameLedger>; w
   );
 }
 
-function AlbumPage({
+/**
+ * One game's entry in the album: its emblem and name, what it has come to,
+ * and its four stamps. A stamp waiting is claimed from the tag in the
+ * entry's head; the one being worked towards fills from its foot.
+ */
+function AlbumEntry({
   row,
   stamps,
   retired,
   collector,
   rowWidth,
+  first,
   onClaim,
 }: {
   row: GameLedger;
@@ -65,59 +71,62 @@ function AlbumPage({
   retired: boolean;
   collector: boolean;
   rowWidth: number;
-  onClaim: (stamp: Stamp) => void;
+  first: boolean;
+  onClaim: (stamps: ReadonlyArray<Stamp>) => void;
 }): React.JSX.Element {
   const accent = accentColorForKind(row.kind);
   const next = stamps.find(s => !s.earned);
   const previousStep = next ? (next.rank === 0 ? 0 : STAMP_STEPS[next.rank - 1]) : 0;
   const share = next ? (row.solved - previousStep) / (next.step - previousStep) : 1;
   const ready = stamps.filter(s => s.earned && !s.claimed);
-  const stampWidth = Math.min(54, (rowWidth - 3 * 12) / 4);
+  const pays = ready.reduce((sum, s) => sum + STAMP_COINS[s.rank], 0);
+  const stampWidth = Math.min(52, (rowWidth - 3 * 14) / 4);
   const perfect = row.solved > 0 ? Math.round((row.perfect / row.solved) * 100) : 0;
+  // Said only once it means something: one solve is not a hint rate.
+  const line = !next
+    ? 'Every stamp collected'
+    : row.solved >= 5 && ready.length === 0
+      ? `${perfect}% without a hint, ${next.step - row.solved} to ${STAMP_NAMES[next.rank]}`
+      : `${next.step - row.solved} more to ${STAMP_NAMES[next.rank]}`;
 
   return (
-    <View style={[styles.page, ready.length > 0 && styles.pageReady]}>
-      <View style={styles.pageHead}>
-        <View style={styles.pageTitleBox}>
-          <View style={styles.pageTitleRow}>
-            <View style={[styles.pageSwatch, { backgroundColor: accent }]} />
-            <Text style={styles.pageTitle} numberOfLines={1}>
+    <View style={[styles.entry, !first && styles.entryRuled]}>
+      <View style={styles.entryHead}>
+        <GameEmblem kind={row.kind} size={30} raised />
+        <View style={styles.entryTitleBox}>
+          <View style={styles.entryTitleRow}>
+            <Text style={styles.entryTitle} numberOfLines={1}>
               {gameDisplayName(row.kind)}
             </Text>
             {retired && <Text style={styles.retired}>Retired</Text>}
             {/* Every set in the shop for this game owned. */}
             {collector && <Text style={styles.collector}>Collector</Text>}
           </View>
-          <Text style={styles.pageStats}>
-            {row.solved > 0 ? `${perfect}% without a hint · ${row.byTier.hard} hard` : 'Not played yet'}
+          <Text style={styles.entryLine} numberOfLines={1}>
+            {line}
           </Text>
         </View>
-        <View style={styles.pageCount}>
-          <Text style={styles.pageCountValue}>{row.solved}</Text>
-          <Text style={styles.pageCountLabel}>solved</Text>
-        </View>
-      </View>
-
-      <LedgerStampRow kind={row.kind} stamps={stamps} stampWidth={stampWidth} width={rowWidth} onClaim={onClaim} />
-
-      <View style={styles.pageFoot}>
-        <View style={styles.pageFootLabel}>
         {ready.length > 0 ? (
-          <View style={styles.claimHint}>
-            <Text style={styles.claimHintText}>Tap to claim</Text>
-            <CoinGlyph size={11} />
-            <Text style={styles.claimHintText}>{ready.reduce((sum, s) => sum + STAMP_COINS[s.rank], 0)}</Text>
-          </View>
+          <PressableScale
+            accessibilityRole="button"
+            accessibilityLabel={`Claim ${ready.length === 1 ? 'the stamp' : `${ready.length} stamps`} for ${pays} coins`}
+            onPress={() => onClaim(ready)}
+            hitSlop={8}
+            scaleTo={0.94}
+            style={styles.claim}
+          >
+            <Text style={styles.claimText}>Claim</Text>
+            <CoinGlyph size={12} />
+            <Text style={styles.claimText}>{pays}</Text>
+          </PressableScale>
         ) : (
-          <Text style={styles.pageFootText} numberOfLines={1}>
-            {next ? `${next.step - row.solved} more for ${STAMP_NAMES[next.rank]}` : 'Page complete'}
-          </Text>
+          <View style={styles.entryCount}>
+            <Text style={styles.entryCountValue}>{row.solved}</Text>
+            <Text style={styles.entryCountLabel}>solved</Text>
+          </View>
         )}
-        </View>
-        <View style={styles.pageTrack}>
-          <View style={[styles.pageTrackFill, { width: `${Math.max(0, Math.min(1, share)) * 100}%`, backgroundColor: accent }]} />
-        </View>
       </View>
+      <LedgerStampRow kind={row.kind} stamps={stamps} stampWidth={stampWidth} width={rowWidth} onClaim={stamp => onClaim([stamp])} accent={accent} toward={Math.max(0, Math.min(1, share))} />
     </View>
   );
 }
@@ -160,12 +169,25 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
   const contentWidth = width - theme.spacing.lg * 2;
   const rowWidth = contentWidth - theme.spacing.md * 2;
 
-  const claim = (stamp: Stamp) => {
-    if (claimStamp(stamp.kind, stamp.step)) {
+  const claim = (stamps: ReadonlyArray<Stamp>) => {
+    let any = false;
+    for (const stamp of stamps) if (claimStamp(stamp.kind, stamp.step)) any = true;
+    if (any) {
       triggerFeedback('coin');
       setBurst(b => b + 1);
     }
   };
+  // The album keeps the games the player has; the rest wait in one line
+  // at its foot rather than as empty pages.
+  const held = useMemo(() => {
+    const roster = unlockedGames(progress);
+    const waiting = (kind: GameKind) => stampsOf(progress, ledger, kind).some(st => st.earned && !st.claimed);
+    // A stamp waiting first, then the games played most.
+    return ROTATION.filter(kind => roster.includes(kind) || ledger[kind].solved > 0).sort(
+      (a, b) => Number(waiting(b)) - Number(waiting(a)) || ledger[b].solved - ledger[a].solved,
+    );
+  }, [progress, ledger]);
+  const ahead = ROTATION.filter(kind => !held.includes(kind));
 
   return (
     <View style={styles.container}>
@@ -218,7 +240,7 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
         <View style={styles.hero}>
           <View style={styles.iqHead}>
             <Text style={styles.sectionLabel}>Puzzle IQ</Text>
-            {aptitude.index !== null && <Text style={styles.iqPrecision}>{`${Math.round(aptitude.precision * 100)}% PRECISION`}</Text>}
+            {aptitude.index !== null && <Text style={styles.iqPrecision}>{`${Math.round(aptitude.precision * 100)}% precision`}</Text>}
           </View>
           {aptitude.index === null ? (
             <Text style={styles.iqPending}>Solve a few more puzzles and your score will appear here.</Text>
@@ -243,27 +265,44 @@ export function LedgerScreen({ onExit, onOpenShop }: LedgerScreenProps): React.J
           )}
         </View>
 
-        <View style={styles.albumHead}>
-          <Text style={styles.sectionTitle}>The album</Text>
-          {totals.waiting > 0 && <Text style={[styles.sectionTitle, styles.sectionLive]}>{`${totals.waiting} to claim`}</Text>}
-        </View>
-        <Text style={styles.albumNote}>
-          {`A stamp for ${STAMP_STEPS.slice(0, -1).join(', ')} and ${STAMP_STEPS[STAMP_STEPS.length - 1]} solves in each game. Each one pays when you claim it.`}
-        </Text>
-        {/* Deliberately not animated in: twelve canvases mounting inside a
-            fade is the pattern that has failed to paint on a real phone. */}
-        <View style={styles.album}>
-          {ROTATION.map(kind => (
-            <AlbumPage
+        <View style={styles.albumSheet}>
+          <View style={styles.albumHead}>
+            <Text style={styles.albumTitle}>The album</Text>
+            {totals.waiting > 0 ? (
+              <Text style={styles.albumLive}>{`${totals.waiting} to claim`}</Text>
+            ) : (
+              <Text style={styles.albumTally}>{`${totals.stamps} of ${ROTATION.length * STAMP_STEPS.length}`}</Text>
+            )}
+          </View>
+          <Text style={styles.albumNote}>
+            {`A stamp at ${STAMP_STEPS.slice(0, -1).join(', ')} and ${STAMP_STEPS[STAMP_STEPS.length - 1]} solves in each game, paid when you claim it.`}
+          </Text>
+          {/* Deliberately not animated in: twelve canvases mounting inside a
+              fade is the pattern that has failed to paint on a real phone. */}
+          {held.map((kind, i) => (
+            <AlbumEntry
               key={kind}
+              first={i === 0}
               row={ledger[kind]}
               stamps={stampsOf(progress, ledger, kind)}
               retired={progress.retired.includes(kind)}
-              collector={cosmeticsFor(skinSlot(kind)).filter(i => i.price > 0).every(i => owns(progress, i.id))}
+              collector={cosmeticsFor(skinSlot(kind)).filter(item => item.price > 0).every(item => owns(progress, item.id))}
               rowWidth={rowWidth}
               onClaim={claim}
             />
           ))}
+          {ahead.length > 0 && (
+            <View style={[styles.entry, styles.entryRuled, styles.ahead]}>
+              <View style={styles.aheadEmblems}>
+                {ahead.map(kind => (
+                  <View key={kind} style={styles.aheadEmblem}>
+                    <GameEmblem kind={kind} size={22} />
+                  </View>
+                ))}
+              </View>
+              <Text style={styles.aheadText}>{`${ahead.length} more ${ahead.length === 1 ? 'game arrives' : 'games arrive'} as you play, each with its own page.`}</Text>
+            </View>
+          )}
         </View>
       </ScrollView>
       {burst > 0 && <ConfettiBurst key={burst} />}
@@ -301,41 +340,38 @@ const styles = themedStyles(() => ({
   iqChart: { alignItems: 'center', marginVertical: theme.spacing.md },
   iqFigureValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   sectionLabel: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary, marginBottom: theme.spacing.sm, fontWeight: theme.typography.weights.semibold },
-  albumHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
-  sectionTitle: { fontSize: theme.typography.sizes.caption, color: theme.colors.secondary, marginBottom: theme.spacing.sm, fontWeight: theme.typography.weights.semibold },
-  sectionLive: { color: theme.colors.gold, fontWeight: theme.typography.weights.bold },
-  albumNote: { fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textSecondary, marginBottom: theme.spacing.md },
-  album: { gap: theme.spacing.sm },
-  page: {
-    padding: theme.spacing.md,
-    borderRadius: 20,
+  albumSheet: {
+    paddingHorizontal: theme.spacing.md,
+    paddingTop: theme.spacing.md,
+    paddingBottom: theme.spacing.xs,
+    borderRadius: 24,
     backgroundColor: theme.colors.surface,
-    // One width ready or not: a border that thickened when a stamp came in
-    // nudged everything on the page.
-    borderWidth: 1.5,
+    borderWidth: 1,
+    borderBottomWidth: 3,
     borderColor: theme.colors.border,
-    gap: theme.spacing.sm,
+    borderBottomColor: theme.colors.borderStrong,
   },
-  pageReady: { borderColor: theme.colors.goldRim, backgroundColor: theme.colors.surfaceHi },
-  pageHead: { flexDirection: 'row', alignItems: 'flex-start' },
-  pageTitleBox: { flex: 1 },
-  pageTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  pageSwatch: { width: 10, height: 10, borderRadius: 3 },
-  pageTitle: { flexShrink: 1, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  albumHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
+  albumTitle: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  albumTally: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
+  albumLive: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.bold, color: theme.colors.gold },
+  albumNote: { marginTop: 4, marginBottom: theme.spacing.sm, fontSize: theme.typography.sizes.caption, lineHeight: 18, color: theme.colors.textSecondary },
+  entry: { paddingVertical: theme.spacing.md, gap: theme.spacing.md },
+  entryRuled: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.borderStrong },
+  entryHead: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  entryTitleBox: { flex: 1 },
+  entryTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  entryTitle: { flexShrink: 1, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.subtitle, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  entryLine: { marginTop: 2, fontSize: 12, color: theme.colors.textSecondary, fontWeight: theme.typography.weights.medium },
+  entryCount: { alignItems: 'flex-end' },
+  entryCountValue: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: 20, lineHeight: 24, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  entryCountLabel: { fontSize: 10.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
+  claim: { flexDirection: 'row', alignItems: 'center', gap: 5, height: 32, paddingHorizontal: 12, borderRadius: theme.radii.pill, backgroundColor: theme.colors.goldFill, borderBottomWidth: 2.5, borderBottomColor: theme.colors.goldRim },
+  claimText: { fontSize: 13, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold },
   collector: { fontSize: 8.5, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold, backgroundColor: theme.colors.goldFill, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, overflow: 'hidden' },
   retired: { fontSize: 8.5, color: theme.colors.textTertiary, borderWidth: 1, borderColor: theme.colors.border, borderRadius: 4, paddingHorizontal: 4, paddingVertical: 1, fontWeight: theme.typography.weights.semibold },
-  pageStats: { marginTop: 4, fontSize: 11.5, color: theme.colors.textSecondary, fontWeight: theme.typography.weights.semibold },
-  pageCount: { alignItems: 'flex-end' },
-  pageCountValue: { fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, lineHeight: theme.typography.sizes.headline, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
-  pageCountLabel: { fontSize: 8.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
-  pageFoot: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm },
-  /** The footer's words in a fixed width, so the track beside them stays
-   * the same length whatever they say - it used to jump as a stamp came
-   * in and the line changed. */
-  pageFootLabel: { width: 132 },
-  pageFootText: { fontSize: 11.5, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.semibold },
-  claimHint: { flexDirection: 'row', alignItems: 'center', gap: 4 },
-  claimHintText: { fontSize: 11.5, fontWeight: theme.typography.weights.bold, color: theme.colors.gold },
-  pageTrack: { flex: 1, height: 4, borderRadius: 2, backgroundColor: theme.colors.surfaceAlt, overflow: 'hidden' },
-  pageTrackFill: { height: 4, borderRadius: 2 },
+  ahead: { gap: theme.spacing.sm },
+  aheadEmblems: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  aheadEmblem: { opacity: 0.4 },
+  aheadText: { fontSize: 12, lineHeight: 17, color: theme.colors.textTertiary, fontWeight: theme.typography.weights.medium },
 }));

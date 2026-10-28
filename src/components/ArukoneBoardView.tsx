@@ -1,4 +1,4 @@
-import React, { useMemo, useRef } from 'react';
+import React, { useEffect, useMemo, useReducer, useRef } from 'react';
 import { Circle, Group, Path, rect, RoundedRect, rrect } from '@shopify/react-native-skia';
 import {
   ArukoneCell,
@@ -29,6 +29,7 @@ import {
   useReducedMotion,
 } from '../game/rendering';
 import { theme } from '../theme';
+import { Easing, useDerivedValue, useSharedValue, withDelay, withTiming } from 'react-native-reanimated';
 
 /**
  * The Skia-drawn Arukone+ board: a ruled paper grid, blocked squares
@@ -366,7 +367,19 @@ export function ArukoneBoardView({
   const solveFlareAt = useSolveFlares(solved, now);
   const solveFlaring =
     solveFlareAt !== null && now - solveFlareAt < puzzle.pairs.length * SOLVE_FLARE_STAGGER_MS + COMPLETE_FLASH_MS;
-  useAnimationClock(!reducedMotion && (introActive || flashing || solveFlaring));
+  // Flares play on the UI thread (`CordFlare`); the JS clock runs only for
+  // the arrival wave. A flare ending is one re-render, to take it down.
+  useAnimationClock(!reducedMotion && introActive);
+  const [, settleFlares] = useReducer((n: number) => n + 1, 0);
+  const flaresEndAt = Math.max(
+    ...[...flashes.values()].map(at => at + COMPLETE_FLASH_MS),
+    solveFlareAt !== null ? solveFlareAt + puzzle.pairs.length * SOLVE_FLARE_STAGGER_MS + COMPLETE_FLASH_MS : 0,
+  );
+  useEffect(() => {
+    if (reducedMotion || !(flashing || solveFlaring)) return;
+    const timer = setTimeout(settleFlares, flaresEndAt - Date.now() + 20);
+    return () => clearTimeout(timer);
+  }, [flashing, solveFlaring, flaresEndAt, reducedMotion]);
 
   const cordWidth = layout.cellSize * 0.3;
   const tokenRadius = layout.cellSize * 0.3;
@@ -406,46 +419,35 @@ export function ArukoneBoardView({
       })}
 
       {/* The solve wave: the same flare, run down every cord in turn. */}
-      {solveFlareAt !== null &&
+      {solveFlaring &&
         !reducedMotion &&
-        puzzle.pairs.map((pair, index) => {
-          const progress = (now - solveFlareAt - index * SOLVE_FLARE_STAGGER_MS) / COMPLETE_FLASH_MS;
-          if (progress < 0 || progress >= 1) return null;
-          const tone = tones.get(pair.value) ?? theme.colors.arukoneAccent;
+        puzzle.pairs.map((pair, index) => (
+          <CordFlare
+            key={`solve-flare-${pair.value}-${solveFlareAt}`}
+            path={polyline(layout, state.paths[pair.value] ?? [])}
+            color={shade(tones.get(pair.value) ?? theme.colors.arukoneAccent, 1.8)}
+            width={cordWidth}
+            delay={Math.max(0, solveFlareAt! + index * SOLVE_FLARE_STAGGER_MS - now)}
+            swell
+          />
+        ))}
+
+      {/* A completing pair flares once along its whole length. */}
+      {!reducedMotion &&
+        puzzle.pairs.map(pair => {
+          const startedAt = flashes.get(pair.value);
+          if (startedAt === undefined || now - startedAt >= COMPLETE_FLASH_MS) return null;
           return (
-            <Path
-              key={`solve-flare-${pair.value}`}
+            <CordFlare
+              key={`flare-${pair.value}-${startedAt}`}
               path={polyline(layout, state.paths[pair.value] ?? [])}
-              color={shade(tone, 1.8)}
-              opacity={Math.sin(progress * Math.PI) * 0.85}
-              style="stroke"
-              strokeWidth={cordWidth * (1 + Math.sin(progress * Math.PI) * 0.8)}
-              strokeCap="round"
-              strokeJoin="round"
+              color={shade(tones.get(pair.value) ?? theme.colors.arukoneAccent, 1.7)}
+              width={cordWidth}
+              delay={0}
+              elapsed={now - startedAt}
             />
           );
         })}
-
-      {/* A completing pair flares once along its whole length. */}
-      {puzzle.pairs.map(pair => {
-        const startedAt = flashes.get(pair.value);
-        if (startedAt === undefined) return null;
-        const progress = (now - startedAt) / COMPLETE_FLASH_MS;
-        if (reducedMotion || progress >= 1) return null;
-        const tone = tones.get(pair.value) ?? theme.colors.arukoneAccent;
-        return (
-          <Path
-            key={`flare-${pair.value}`}
-            path={polyline(layout, state.paths[pair.value] ?? [])}
-            color={shade(tone, 1.7)}
-            opacity={(1 - progress) * 0.7}
-            style="stroke"
-            strokeWidth={cordWidth * (1 + progress * 0.7)}
-            strokeCap="round"
-            strokeJoin="round"
-          />
-        );
-      })}
 
       {puzzle.pairs.flatMap(pair => {
         const tone = tones.get(pair.value) ?? theme.colors.arukoneAccent;
@@ -520,4 +522,24 @@ export function describeCell(puzzle: ArukonePuzzle, state: ArukoneState, row: nu
 
   const owner = occupancy(state).get(key);
   return owner === undefined ? `${base}, empty` : `${base}, part of ${owner}'s path`;
+}
+
+/**
+ * A cord's flare, on the UI thread: a completing pair's fades as it widens;
+ * the solve wave's (`swell`) rises and falls. One clock from 0 to 1.
+ */
+function CordFlare({ path, color, width, delay, elapsed = 0, swell = false }: { path: string; color: string; width: number; delay: number; elapsed?: number; swell?: boolean }): React.JSX.Element {
+  const t = useSharedValue(Math.min(1, elapsed / COMPLETE_FLASH_MS));
+  useEffect(() => {
+    t.value = withDelay(delay, withTiming(1, { duration: (1 - t.value) * COMPLETE_FLASH_MS, easing: Easing.linear }));
+    // Once: keyed by the flare.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const opacity = useDerivedValue(() => {
+    const k = t.value;
+    if (k <= 0 || k >= 1) return 0;
+    return swell ? Math.sin(k * Math.PI) * 0.85 : (1 - k) * 0.7;
+  });
+  const strokeWidth = useDerivedValue(() => width * (1 + (swell ? Math.sin(t.value * Math.PI) * 0.8 : t.value * 0.7)));
+  return <Path path={path} color={color} opacity={opacity} style="stroke" strokeWidth={strokeWidth} strokeCap="round" strokeJoin="round" />;
 }

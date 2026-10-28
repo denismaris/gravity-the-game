@@ -1,6 +1,6 @@
 export { BoardView } from './BoardView';
 export type { BoardViewProps } from './BoardView';
-export { hexToRgb, shade } from './color';
+export { contrastRatio, hexToRgb, readableOn, shade } from './color';
 export type { Rgb } from './color';
 export { computeBoardLayout, getCellCenter, getCellOrigin } from './layout';
 export type { BoardLayout } from './layout';
@@ -32,3 +32,4 @@ export { DealIn, dealDelay, useDealing, DEAL_MS, DEAL_SPREAD_MS } from './DealIn
 export type { DealClock } from './DealIn';
 export { holdDeals, releaseDeals } from './dealGate';
 export { REFUSE_MS, REFUSE_PX, RefuseMark, refuseFade, refuseShake } from './Refusal';
+export { announce } from './announce';

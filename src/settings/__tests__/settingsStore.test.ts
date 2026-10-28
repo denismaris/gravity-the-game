@@ -39,6 +39,7 @@ describe('parseSettings', () => {
       remindersEnabled: false,
       reminderHour: 19,
       appearance: 'system',
+      largerText: false,
     });
   });
 

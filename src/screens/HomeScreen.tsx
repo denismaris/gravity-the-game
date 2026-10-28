@@ -39,6 +39,7 @@ import {
   rankOf,
   rankReward,
   PURCHASES_ENABLED,
+  SET_BONUS,
   SWAP_PRICE,
   rankTitle,
   toRoman,
@@ -74,7 +75,7 @@ import {
   sunkKey,
   TesseraMark,
 } from '../components';
-import { isReducedMotion, shade, triggerFeedback, useReducedMotion } from '../game/rendering';
+import { isReducedMotion, readableOn, shade, triggerFeedback } from '../game/rendering';
 import { motion, nightTone, theme, themedStyles } from '../theme';
 import { useEquipped } from '../progression/PlayerProgressProvider';
 import { useToday } from '../components/useToday';
@@ -87,8 +88,13 @@ import { CosmeticPreview } from '../components/CosmeticPreview';
 import { useSettings } from '../settings';
 import { tutorialIdForGame } from '../game/tutorials';
 import { curve } from '../theme/motion';
-import { Text, MAX_TEXT_SCALE } from '../components/Text';
+import { FixedTextCap, Text, MAX_TEXT_SCALE } from '../components/Text';;
 import { glide, settle, slice } from '../components/placeMotion';
+import { hasSavedBoard } from '../progression/boardSaves';
+import { GameEmblemGlyph, emblemLip, mix } from '../components/GameEmblem';
+import { StarRow } from '../components/StarRow';
+import { GameArrival } from '../components/GameArrival';
+import { arrivalsLoaded, markArrivalSeen, newlyArrived, whenArrivalsLoaded } from '../progression/gameArrivals';
 
 /** A small trophy, drawn rather than typed: a cup on a stem and base,
  * with its two handles - the masthead's way into the leaderboards. */
@@ -105,29 +111,6 @@ function TrophyGlyph({ size }: { size: number }): React.JSX.Element {
       <Path path={`M ${s * 0.33} ${s * 0.72} L ${s * 0.67} ${s * 0.72} L ${s * 0.7} ${s * 0.84} L ${s * 0.3} ${s * 0.84} Z`} color={ink} />
     </Canvas>
   );
-}
-
-/** A fade/rise that finishes at `endsAt` (a fraction of the shared `mount`
- * driver) - staggering several elements off one Animated.Value instead of
- * timing each separately. */
-function riseIn(mount: Animated.Value, endsAt: number) {
-  const start = Math.max(0, endsAt - 0.4);
-  return {
-    opacity: mount.interpolate({
-      inputRange: [start, endsAt],
-      outputRange: [0, 1],
-      extrapolate: 'clamp',
-    }),
-    transform: [
-      {
-        translateY: mount.interpolate({
-          inputRange: [start, endsAt],
-          outputRange: [14, 0],
-          extrapolate: 'clamp',
-        }),
-      },
-    ],
-  };
 }
 
 /**
@@ -217,6 +200,8 @@ const PAGES = ['continue', 'today', 'grand', 'you'] as const;
 
 /** The tab Home was last on, kept across its unmounts (see `page`). */
 let rememberedPage = 0;
+/** Where Home's card sat last time, at that screen size (see `cardRect`). */
+let lastCardSpot: { width: number; height: number; stageY: number; carouselY: number } | null = null;
 /** What each carousel page is called on its tab. */
 /** A small shopping bag, in the ink of the label beside it. */
 function ShopBag(): React.JSX.Element {
@@ -244,7 +229,7 @@ const TAB_WIDTH = 66;
  * There is no level select - the randomized level-batch system (see
  * `src/progression/batches.ts`) replaces that need entirely.
  */
-export function HomeScreen({
+function HomeScreenImpl({
   onDrawn,
   onOpen,
   onOpenSettings,
@@ -257,30 +242,6 @@ export function HomeScreen({
 }: HomeScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
-  const reducedMotion = useReducedMotion();
-  // A slow, endless swell behind the primary action. Deliberately the only
-  // looping animation in the app: one quiet sign of life reads as alive,
-  // several read as restless. Skipped outright under reduced motion -
-  // this is decoration with no state behind it, so unlike the app's other
-  // motion there is nothing lost by stopping it.
-  const pulse = useRef(new Animated.Value(0)).current;
-  const bloom = useBloomTone();
-  useEffect(() => {
-    if (reducedMotion) return;
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, {
-          toValue: 1,
-          duration: 1800,
-          easing: curve.arrive,
-          useNativeDriver: true,
-        }),
-        Animated.delay(900),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse, reducedMotion]);
   const { progress, ready, markLevelOpened, dailyStreak, dailyCompletedToday, coins, collectRanks, swapPuzzle, claimGift } =
     usePlayerProgress();
 
@@ -321,6 +282,8 @@ export function HomeScreen({
 
   const levelPoint = useMemo(() => getLevelPoint(progress), [progress]);
   const entry = levelPoint.entry;
+  // Left half played: the card says so, and the board opens as it was.
+  const resuming = hasSavedBoard(entry.puzzleId);
   const isGravity = entry.kind === 'gravity';
 
   const gravityLevel = isGravity ? getLevelById(entry.puzzleId) : undefined;
@@ -331,6 +294,23 @@ export function HomeScreen({
   const arriving = useMemo(() => nextGameToArrive(progress), [progress]);
   const roster = useMemo(() => unlockedGames(progress), [progress]);
   const canSwap = roster.length > 1;
+  // A game that has arrived since Home last looked: greeted once, after
+  // Home has settled in, with its own reveal.
+  const [arrival, setArrival] = useState<GameKind | null>(null);
+  const [arrivalsReady, setArrivalsReady] = useState(arrivalsLoaded);
+  useEffect(() => whenArrivalsLoaded(() => setArrivalsReady(true)), []);
+  useEffect(() => {
+    // Only once the saved progress and what was already greeted are both
+    // read back: Home can mount under the launch before either, and a
+    // half-loaded roster made a game long played look newly arrived.
+    if (!ready || !arrivalsReady) return;
+    const kind = newlyArrived(roster, played);
+    if (!kind) return;
+    const timer = setTimeout(() => setArrival(kind), placing ? 1500 : 600);
+    return () => clearTimeout(timer);
+    // On mount, once loaded, and whenever the roster grows.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [roster.length, ready, arrivalsReady]);
   const debut = !levelPoint.allDone && !played.has(entry.kind);
   const { hasSeenTutorial } = useSettings();
   const lessonFirst = debut && !hasSeenTutorial(tutorialIdForGame(entry.kind));
@@ -376,15 +356,14 @@ export function HomeScreen({
   const openGrand = (): void => onOpen({ kind: grand.kind, puzzleId: grand.puzzleId });
   const stampsWaiting = useMemo(() => unclaimedStamps(progress).length, [progress]);
 
-  // A quiet cascade on every visit to Home (not just first mount - Home
-  // remounts fresh each time the player backs out of a puzzle), so the hub
-  // never feels like a static screen you're just returning to. The progress
-  // fill animates separately so it reads as "counting up to here" rather
-  // than popping straight to its resting width.
-  const mount = useRef(new Animated.Value(0)).current;
-  // The first visit of the run places Home piece by piece; reduced motion
-  // and every later visit get the quiet cascade.
+  // The progress fill animates separately, so it reads as "counting up to
+  // here" rather than popping straight to its resting width.
+  // The first visit of the run places Home piece by piece. Every later
+  // visit arrives whole, carried in by the screen transition alone: a
+  // second cascade inside it (backdrop, header, card and tabs each fading
+  // in on their own beat) read as the page assembling itself, broken.
   const [placing] = useState(() => !placedOnce && !isReducedMotion());
+  const mount = useRef(new Animated.Value(placing ? 0 : 1)).current;
   const entered = useRef(false);
   useEffect(() => {
     // Two frames: one to lay out, one to draw what the layout placed.
@@ -420,18 +399,10 @@ export function HomeScreen({
       whenEntranceReleased(() => {
         if (entered.current) return;
         entered.current = true;
+        if (!placing) return;
+        placedOnce = true;
         mount.setValue(0);
-        if (placing) {
-          placedOnce = true;
-          Animated.timing(mount, { toValue: 1, duration: PLACE_MS, delay: PLACE_DELAY_MS, easing: curve.linear, useNativeDriver: true }).start();
-          return;
-        }
-        Animated.timing(mount, {
-          toValue: 1,
-          duration: 480,
-          easing: curve.arrive,
-          useNativeDriver: true,
-        }).start();
+        Animated.timing(mount, { toValue: 1, duration: PLACE_MS, delay: PLACE_DELAY_MS, easing: curve.linear, useNativeDriver: true }).start();
       }),
     [mount, placing],
   );
@@ -442,6 +413,17 @@ export function HomeScreen({
   useEffect(() => {
     rememberedPage = page;
   }, [page]);
+  // The page in view is built with Home; the three beside it just after
+  // Home has arrived (or the moment a swipe starts), so coming back to
+  // Home builds one page under its fade instead of four.
+  const [pagesReady, setPagesReady] = useState(false);
+  useEffect(() => {
+    // After the flowers have grown in: built under their spring, the pages
+    // cost it a frame or two.
+    const timer = setTimeout(() => setPagesReady(true), placing ? PLACE_DELAY_MS + PLACE_MS : 2000);
+    return () => clearTimeout(timer);
+  }, [placing]);
+  const showPage = (i: number): boolean => pagesReady || i === page;
   const carouselRef = useRef<React.ElementRef<typeof ScrollView>>(null);
   // Only where it opens: driven from `page`, a tab tap would jump, not slide.
   const initialOffset = useRef({ x: rememberedPage * width, y: 0 }).current;
@@ -511,8 +493,13 @@ export function HomeScreen({
   // Only its *position* is measured - its height is still computed above
   // (\`cardHeight\`), for the reason that block records. The carousel is a
   // child of \`stage\`, so the two offsets add.
-  const [stageY, setStageY] = useState<number | null>(null);
-  const [carouselY, setCarouselY] = useState<number | null>(null);
+  // Remembered from the last visit at this size: coming back, the
+  // backdrop is built with Home in its first draw, rather than a beat
+  // later once the card has been measured again (its canvases arriving
+  // late held up the way in).
+  const remembered = lastCardSpot && lastCardSpot.width === width && lastCardSpot.height === height ? lastCardSpot : null;
+  const [stageY, setStageY] = useState<number | null>(remembered?.stageY ?? null);
+  const [carouselY, setCarouselY] = useState<number | null>(remembered?.carouselY ?? null);
   const onStageLayout = useCallback((e: LayoutChangeEvent) => {
     setStageY(e.nativeEvent.layout.y);
   }, []);
@@ -520,6 +507,9 @@ export function HomeScreen({
     (e: LayoutChangeEvent) => setCarouselY(e.nativeEvent.layout.y),
     [],
   );
+  useEffect(() => {
+    if (stageY !== null && carouselY !== null) lastCardSpot = { width, height, stageY, carouselY };
+  }, [stageY, carouselY, width, height]);
   const cardRect = useMemo(
     () =>
       stageY === null || carouselY === null
@@ -557,6 +547,10 @@ export function HomeScreen({
   };
 
   return (
+    // Home is a fixed composition (a masthead, cards of one height paged
+    // sideways, a tab bar): its words keep to the usual cap even with
+    // Larger Text on, which would only push them out of their cards.
+    <FixedTextCap.Provider value={MAX_TEXT_SCALE}>
     <View style={styles.container}>
       {/* Drawn once the card's position is known - the whole composition
           is built around it (see \`AlmanacBackdrop\`). Fades in with the
@@ -566,7 +560,7 @@ export function HomeScreen({
           style={[StyleSheet.absoluteFill, { opacity: placing ? place.backdrop : mount }]}
           pointerEvents="none"
         >
-          <AlmanacBackdrop width={width} height={height} card={cardRect} />
+          <AlmanacBackdrop width={width} height={height} card={cardRect} gentle={!placing} />
         </Animated.View>
       )}
       <PressableScale
@@ -600,7 +594,6 @@ export function HomeScreen({
         style={[
           styles.masthead,
           { paddingTop: insets.top + theme.spacing.md },
-          !placing && riseIn(mount, 0.45),
         ]}
       >
         <View style={styles.mastheadRow}>
@@ -649,9 +642,10 @@ export function HomeScreen({
               holdMs={motion.beat.pressHold}
               style={({ pressed }) => [styles.statusKey, pressed && sunkKey(2.5)]}
             >
-              <ShopBag />
-              <View style={styles.statusRule} />
-              <CoinBalance coins={coins} track="home" delay={450} />
+              <View style={[styles.statusWell, styles.statusWellGold]}>
+                <ShopBag />
+              </View>
+              <CoinBalance coins={coins} track="home" delay={450} figure={styles.statusText} />
               {progress.luckyCharges > 0 && <Text style={styles.purseCharm}>{'\u00D72'}</Text>}
               {PURCHASES_ENABLED && (
                 <View style={styles.pursePlus}>
@@ -671,8 +665,13 @@ export function HomeScreen({
               holdMs={motion.beat.pressHold}
               style={({ pressed }) => [styles.statusKey, pressed && sunkKey(2.5)]}
             >
-              <Icon name="sun" size={14} color={dailyCompletedToday ? theme.colors.textSecondary : theme.colors.secondary} weight={1.5} />
-              <Text style={styles.statusText} maxFontSizeMultiplier={FIGURE_SCALE}>{dailyStreak}</Text>
+              <View style={[styles.statusWell, !dailyCompletedToday && styles.statusWellWarm]}>
+                <Icon name="sun" size={14} color={dailyCompletedToday ? theme.colors.textSecondary : theme.colors.secondary} weight={1.6} />
+              </View>
+              <Text style={styles.statusText} maxFontSizeMultiplier={FIGURE_SCALE}>
+                {dailyStreak}
+                <Text style={styles.statusUnit}>{dailyStreak === 1 ? ' day' : ' days'}</Text>
+              </Text>
               {/* Today's Daily still to play: a dot on the key's corner,
                   not in its line, so the sun and the count sit centred. */}
               {!dailyCompletedToday && <View style={[styles.statusDot, styles.statusBadge]} />}
@@ -686,7 +685,7 @@ export function HomeScreen({
           dots sit directly under the card instead of being pinned to the
           bottom of the screen with a field of paper between them. */}
       <Animated.View
-        style={[styles.stage, placing ? place.card : riseIn(mount, 0.7)]}
+        style={[styles.stage, placing && place.card]}
         onLayout={onStageLayout}
       >
         {/* A plain wrapper to measure: a ScrollView's own \`onLayout\` did not
@@ -704,17 +703,19 @@ export function HomeScreen({
             onScroll={onCarouselNativeScroll}
             onMomentumScrollEnd={onCarouselScroll}
             onScrollEndDrag={onCarouselScroll}
+            onScrollBeginDrag={() => setPagesReady(true)}
             scrollEventThrottle={16}
             decelerationRate="fast"
           >
             {/* --- Continue ------------------------------------------------ */}
             <View style={[styles.page, { width }]}>
+              {showPage(0) && (
               <Animated.View style={[styles.pageInner, pageMotion(0)]}>
               <PressableScale
                 accessibilityRole="button"
                 accessibilityLabel={`${
-                  levelPoint.allDone ? 'Replay' : 'Continue'
-                }: ${entry.name}, ${
+                  levelPoint.allDone ? 'Replay' : resuming ? 'Resume, half played' : 'Continue'
+                }: ${gameDisplayName(entry.kind)}, ${
                   entry.extreme
                     ? 'an extreme challenge, the hardest kind'
                     : entry.challenge
@@ -732,7 +733,6 @@ export function HomeScreen({
                   entry.golden && !levelPoint.allDone && styles.cardGolden]}
               >
                 <>
-                  <View pointerEvents="none" style={styles.cardKeyline} />
                   {/* The chip sits beside the eyebrow rather than inside it:
                     the eyebrow is tinted with this game's identity colour,
                     and a difficulty spelled in that same colour would read
@@ -745,7 +745,7 @@ export function HomeScreen({
                       ]}
                       numberOfLines={1}
                     >
-                      Level {levelPoint.levelNumber} · {entry.chapter}
+                      Level {levelPoint.levelNumber}
                     </Text>
                     {/* A game's first puzzle is always easy: on a debut the
                       "New game" chip says more, and the row stays readable. */}
@@ -768,23 +768,34 @@ export function HomeScreen({
                         <Text style={styles.goldenChipText}>{'Golden \u00D73'}</Text>
                       </View>
                     )}
+                    {!levelPoint.allDone && canSwap && (
+                      <PressableScale
+                        accessibilityRole="button"
+                        accessibilityLabel={`Swap this puzzle for another game's, for ${SWAP_PRICE} coins`}
+                        onPress={swap}
+                        hitSlop={8}
+                        containerStyle={styles.swapCorner}
+                        style={({ pressed }) => [styles.swap, pressed && sunkKey(3)]}
+                      >
+                        {swapNote === 'done' ? (
+                          <Icon name="check" size={14} color={theme.colors.success} weight={2.2} />
+                        ) : swapNote === 'short' ? (
+                          <Text style={[styles.swapText, styles.swapShort]}>{`Need ${SWAP_PRICE}`}</Text>
+                        ) : (
+                          <>
+                            <Icon name="swap" size={13} color={theme.colors.textSecondary} />
+                            <CoinGlyph size={11} />
+                            <Text style={styles.swapText}>{SWAP_PRICE}</Text>
+                          </>
+                        )}
+                      </PressableScale>
+                    )}
                   </View>
-                  {/* The plate's heading rule, in this puzzle's own game
-                    colour. Home used to carry that colour in one short line
-                    of type and nowhere else, so every card looked the same
-                    whichever of the eight games it was about. */}
-                  <View
-                    style={[styles.headingRule, { backgroundColor: accent }]}
-                  />
-                  {/* The name alone: the game it belongs to is already ringed
-                    in the set row below, and a second emblem here showed the
-                    same game twice. */}
+                  {/* The game itself, as the game screen's own header names
+                    it: boards carry no made-up titles of their own. */}
                   <Text style={styles.heroTitle} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.6}>
-                    {entry.name}
+                    {gameDisplayName(entry.kind)}
                   </Text>
-                  {!debut && progress.currentBatch && (
-                    <Text style={styles.heroSub}>{`Puzzle ${levelPoint.batchPosition} of ${levelPoint.batchSize} in this set`}</Text>
-                  )}
                   {/* A debut's "New game" chip already says it is new: a line
                       here only when there is a lesson first, worth knowing. */}
                   {debut && lessonFirst && <Text style={styles.heroMeta}>Starts with a short lesson.</Text>}
@@ -793,7 +804,7 @@ export function HomeScreen({
                     content, centred. Slack from a tall screen spreads around
                     it instead of pooling into the two hard gaps a
                     `space-between` skeleton produced. */}
-                  <View style={styles.wellCentered}>
+                  <View style={styles.playWell}>
 
                     {/* The games this level is actually made of. The card
                       already said "Puzzle 3 of 4" - a number that says how far
@@ -801,100 +812,35 @@ export function HomeScreen({
                       what the rest of the set is, named, with a finished one
                       filled and the ones ahead faded: a preview, not a
                       mystery. */}
-                    {progress.currentBatch && <Text style={styles.setLabel}>This set</Text>}
                     {/* A set of four sits in one row; six and eight in two
                         equal rows, a little smaller and without names - the
                         emblems say which game, and the card keeps its size. */}
-                    {progress.currentBatch && (() => {
-                      const all = progress.currentBatch.puzzles;
-                      const perRow = all.length <= 4 ? all.length : Math.ceil(all.length / 2);
-                      const twoRows = all.length > perRow;
-                      const emblemSize = twoRows ? 34 : 44;
-                      const rows = twoRows ? [all.slice(0, perRow), all.slice(perRow)] : [all];
-                      return rows.map((row, rowIndex) => (
-                      <View key={rowIndex} style={[styles.setRow, rowIndex > 0 && styles.setRowNext]}>
-                        {row.map((entryRef, inRow) => {
-                          const i = rowIndex * perRow + inRow;
-                          const completed =
-                            progress.currentBatch!.completedPuzzleIds;
-                          const done = completed.includes(entryRef.puzzleId);
-                          // The one you are about to play reads as live too, not
-                          // pending - otherwise a fresh set shows four faded
-                          // marks and nothing on this card looks current.
-                          const isCurrent = !done && completed.length === i;
-                          const tint = accentColorForKind(entryRef.kind);
-                          return (
-                            <React.Fragment key={`${entryRef.puzzleId}-${i}`}>
-                            {/* The path between one game and the next: dots,
-                                filled once the way is walked. */}
-                            {inRow > 0 && (
-                              <View style={[styles.setPath, twoRows && styles.setPathSmall]}>
-                                {[0, 1, 2].map(k => (
-                                  <View key={k} style={[styles.setPathDot, (done || isCurrent) && styles.setPathDotOn]} />
-                                ))}
-                              </View>
-                            )}
-                            <View style={styles.setItem}>
-                              <View style={[styles.setRing, isCurrent && { borderColor: tint }, !(done || isCurrent) && styles.setAhead]}>
-                                <GameEmblem kind={entryRef.kind} size={emblemSize} raised />
-                                {done && (
-                                  <View style={[styles.setCheck, { backgroundColor: tint }]}>
-                                    <Icon name="check" size={9} color={theme.colors.surfaceHi} />
-                                  </View>
-                                )}
-                              </View>
-                              {/* A golden puzzle wears a coin, like a seal on
-                                the corner of a page. Outside the fade, like
-                                the challenge rule: worth seeing coming. */}
-                              {!done && !played.has(entryRef.kind) && (
-                                <View style={[styles.setNew, { backgroundColor: accentColorForKind(entryRef.kind) }]} accessibilityLabel="new game">
-                                  <Text style={styles.setNewText}>New</Text>
-                                </View>
-                              )}
-                              {entryRef.golden && !done && (
-                                <View style={styles.setGolden} accessibilityLabel="golden puzzle">
-                                  <CoinGlyph size={13} />
-                                </View>
-                              )}
-                              {/* The set's challenge, underscored. Ruled
-                                underlines are already this app's way of marking
-                                something out, and a rule under an emblem leaves
-                                the emblem itself untouched - the tile still has
-                                to read as its own game first. Deliberately
-                                *outside* the fade above: a challenge two puzzles
-                                away is exactly the one worth seeing coming. */}
-                              <View
-                                style={[
-                                  styles.setChallengeRule,
-                                  entryRef.challenge &&
-                                    styles.setChallengeRuleOn,
-                                ]}
-                              />
-                              {!twoRows && (
-                                // Named only where you are: the row reads
-                                // as a path with one marked stop, not a
-                                // list of labels. The others keep the room,
-                                // so every emblem stays in line.
-                                <Text
-                                  style={[styles.setName, !isCurrent && styles.setNameHidden]}
-                                  numberOfLines={1}
-                                  accessibilityElementsHidden={!isCurrent}
-                                >
-                                  {gameShortName(entryRef.kind)}
-                                </Text>
-                              )}
-                            </View>
-                            </React.Fragment>
-                          );
-                        })}
+                    {progress.currentBatch && (
+                    <View style={[styles.setTray, { backgroundColor: mix(theme.colors.surface, accent, 0.045), borderColor: mix(theme.colors.border, accent, 0.1) }]}>
+                    <View style={styles.setTrayBody}>
+                      <SetRoute puzzles={progress.currentBatch.puzzles} completed={progress.currentBatch.completedPuzzleIds} played={played} debut={debut} ground={mix(theme.colors.surface, accent, 0.045)} results={progress.levels} />
+                    </View>
+                    {/* The tray's foot: how far through the set, and what
+                      finishing it pays - where the route is leading. */}
+                    <View style={styles.setTrayFoot}>
+                      <Text style={styles.setTrayCount} maxFontSizeMultiplier={1.2}>
+                        {`${progress.currentBatch.completedPuzzleIds.length} of ${progress.currentBatch.puzzles.length} done`}
+                      </Text>
+                      <View style={styles.setTrayPrize}>
+                        <Text style={styles.setTrayCount} maxFontSizeMultiplier={1.2}>Set bonus</Text>
+                        <CoinGlyph size={12} />
+                        <Text style={styles.setTrayPrizeText} maxFontSizeMultiplier={1.2}>{`+${SET_BONUS}`}</Text>
                       </View>
-                      ));
-                    })()}
+                    </View>
+                    </View>
+                    )}
 
-                    {/* The next game on its way: a small promise, kept a
-                      few puzzles from now. Named only once it lands. */}
-                    <View style={styles.cardFoot}>
-                      {arriving && (
+                  </View>
+
+                  {/* The foot: what the set is leading to, and the way in.
+                    With no game still to come, the verb takes the room. */}
+                  <View style={styles.heroFoot}>
+                    {arriving && (
                         <PressableScale
                           accessibilityRole="button"
                           onPress={onOpenCollection}
@@ -920,77 +866,15 @@ export function HomeScreen({
                           </View>
                         </PressableScale>
                       )}
-                      {/* Stuck? Swap the next puzzle for another game's - paid
-                        for, so it is a choice, not a way round every board.
-                        Nested inside the card's own press target: RN gives the
-                        touch to the deepest Pressable, so this never also
-                        opens the puzzle. */}
-                      {!levelPoint.allDone && canSwap && (
-                        <PressableScale
-                          accessibilityRole="button"
-                          accessibilityLabel={`Swap this puzzle for another game's, for ${SWAP_PRICE} coins`}
-                          onPress={swap}
-                          hitSlop={8}
-                          containerStyle={styles.swapWrap}
-                          style={({ pressed }) => [styles.swap, arriving && styles.swapBeside, pressed && sunkKey(3)]}
-                        >
-                          {swapNote === 'done' ? (
-                            <Icon name="check" size={14} color={theme.colors.success} weight={2.2} />
-                          ) : swapNote === 'short' ? (
-                            <Text style={[styles.swapText, styles.swapShort]}>{`Need ${SWAP_PRICE}`}</Text>
-                          ) : (
-                            <>
-                              <Icon name="swap" size={14} color={theme.colors.textSecondary} />
-                              {!arriving && <Text style={styles.swapText}>Swap game</Text>}
-                            </>
-                          )}
-                          {swapNote === null && (
-                            <>
-                              <CoinGlyph size={11} />
-                              <Text style={styles.swapText}>{SWAP_PRICE}</Text>
-                            </>
-                          )}
-                        </PressableScale>
-                      )}
-                    </View>
-                  </View>
-
-                  <View style={styles.heroFoot}>
-                    <Text style={styles.verb}>
-                      {levelPoint.allDone ? 'Replay' : 'Continue'}
-                    </Text>
-                    <View style={styles.playWrap}>
-                      {/* A halo breathing out of the button - the one thing on a
-                        resting Home screen that moves, so the page reads as
-                        idling rather than frozen. Sits *behind* the button and
-                        never intercepts touches. */}
-                      <Animated.View
-                        pointerEvents="none"
-                        style={[
-                          styles.playHalo,
-                          {
-                            backgroundColor: bloom,
-                            opacity: pulse.interpolate({
-                              inputRange: [0, 1],
-                              outputRange: [0.3, 0],
-                            }),
-                            transform: [
-                              {
-                                scale: pulse.interpolate({
-                                  inputRange: [0, 1],
-                                  outputRange: [1, 1.5],
-                                }),
-                              },
-                            ],
-                          },
-                        ]}
-                      />
-                      <PlayDisc />
-                    </View>
+                    {!arriving && (
+                      <Text style={styles.verb}>{levelPoint.allDone ? 'Replay' : resuming ? 'Resume' : 'Continue'}</Text>
+                    )}
+                    <PlayDisc />
                   </View>
                 </>
               </PressableScale>
               </Animated.View>
+              )}
             </View>
 
             {/* --- Today -------------------------------------------------- */}
@@ -998,6 +882,7 @@ export function HomeScreen({
               resets at midnight, together. The Daily is the well at the
               top (tap it to play); the errands sit under it. */}
             <View style={[styles.page, { width }]}>
+              {showPage(1) && (
               <Animated.View style={[styles.pageInner, pageMotion(1)]}>
               <View style={[styles.card, { height: cardHeight }]}>
                 <View pointerEvents="none" style={styles.cardKeyline} />
@@ -1069,10 +954,12 @@ export function HomeScreen({
                 </ScrollView>
               </View>
               </Animated.View>
+              )}
             </View>
 
             {/* --- Weekly Grand -------------------------------------------- */}
             <View style={[styles.page, { width }]}>
+              {showPage(2) && (
               <Animated.View style={[styles.pageInner, pageMotion(2)]}>
               <PressableScale
                 accessibilityRole="button"
@@ -1154,6 +1041,7 @@ export function HomeScreen({
                 </View>
               </PressableScale>
               </Animated.View>
+              )}
             </View>
 
             {/* --- You ---------------------------------------------------- */}
@@ -1161,6 +1049,7 @@ export function HomeScreen({
               three (Rank, Puzzle IQ, Progress). Each figure opens where its
               detail lives: the almanac, the ledger, the achievements. */}
             <View style={[styles.page, { width }]}>
+              {showPage(3) && (
               <Animated.View style={[styles.pageInner, pageMotion(3)]}>
               <View style={[styles.card, { height: cardHeight }]}>
                 <View pointerEvents="none" style={styles.cardKeyline} />
@@ -1225,13 +1114,7 @@ export function HomeScreen({
                       <Text style={styles.setLabel}>Your games</Text>
                       <Text style={styles.shelfCount}>{`${roster.length} of ${INTRO_ORDER.length} · ${solved} solved`}</Text>
                     </View>
-                    <View style={styles.shelf}>
-                      {INTRO_ORDER.map(kind => (
-                        <View key={kind} style={[styles.shelfSlot, !roster.includes(kind) && styles.shelfAhead]}>
-                          <GameEmblem kind={kind} size={30} raised />
-                        </View>
-                      ))}
-                    </View>
+                    <EmblemShelf kinds={INTRO_ORDER} held={roster} />
                   </PressableScale>
                 )}
 
@@ -1241,9 +1124,10 @@ export function HomeScreen({
                   {[
                     ...(tight ? [{ label: 'Games', value: `${roster.length}/${ROTATION.length}`, a11y: `Open your games. ${roster.length} of ${ROTATION.length}, ${solved} solved`, onPress: onOpenCollection, dot: false }] : []),
                     { label: 'Badges', value: `${earned}/${ACHIEVEMENTS.length}`, a11y: `Open achievements. ${earned} of ${ACHIEVEMENTS.length}`, onPress: onOpenAchievements, dot: false },
-                    stampsWaiting > 0
-                      ? { label: stampsWaiting === 1 ? 'Stamp to claim' : 'Stamps to claim', value: `${stampsWaiting}`, a11y: `Open the ledger. ${iqLabel}`, onPress: onOpenLedger, dot: true }
-                      : { label: 'Puzzle IQ', value: aptitude.index !== null ? `${aptitude.index}` : '\u2013', a11y: `Open the ledger. ${iqLabel}`, onPress: onOpenLedger, dot: false },
+                    // Stamps waiting never change the tile (a different
+                    // label shrank to fit and set it apart from the other
+                    // two): they wear a count on its corner instead.
+                    { label: 'Puzzle IQ', value: aptitude.index !== null ? `${aptitude.index}` : '\u2013', a11y: `Open the ledger. ${stampsWaiting > 0 ? `${stampsWaiting} stamp${stampsWaiting === 1 ? '' : 's'} to claim. ` : ''}${iqLabel}`, onPress: onOpenLedger, dot: false, badge: stampsWaiting },
                     { label: 'Top times', value: null, a11y: 'Open the leaderboards', onPress: onOpenLeaderboard, dot: false },
                   ].map(link => (
                     <PressableScale key={link.label} accessibilityRole="button" accessibilityLabel={link.a11y} onPress={link.onPress} scaleTo={1} holdMs={motion.beat.pressHold} containerStyle={[styles.youLinkWrap, !tight && styles.youLinkThird]} style={({ pressed }) => [styles.youLink, pressed && sunkKey(3)]}>
@@ -1259,6 +1143,11 @@ export function HomeScreen({
                         )}
                         {link.dot && <View style={styles.youLinkDot} />}
                       </View>
+                      {(link.badge ?? 0) > 0 && (
+                        <View style={styles.youLinkBadge} accessibilityElementsHidden importantForAccessibility="no">
+                          <Text style={styles.youLinkBadgeText} maxFontSizeMultiplier={FIGURE_SCALE}>{link.badge}</Text>
+                        </View>
+                      )}
                       <Text style={styles.youLinkLabel} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.85}>
                         {link.label}
                       </Text>
@@ -1267,6 +1156,7 @@ export function HomeScreen({
                 </View>
               </View>
               </Animated.View>
+              )}
             </View>
           </Animated.ScrollView>
         </View>
@@ -1276,7 +1166,7 @@ export function HomeScreen({
         style={[
           styles.dots,
           { paddingBottom: insets.bottom + theme.spacing.sm },
-          placing ? place.tabs : riseIn(mount, 0.9),
+          placing && place.tabs,
         ]}
       >
         {/* Named tabs, not bare marks: a player sees at once that Home
@@ -1317,7 +1207,7 @@ export function HomeScreen({
                 hitSlop={4}
                 style={styles.tab}
               >
-                <Text style={styles.tabText}>{PAGE_LABELS[name]}</Text>
+                <Text style={styles.tabText} maxFontSizeMultiplier={MAX_TEXT_SCALE}>{PAGE_LABELS[name]}</Text>
                 {/* The light label over the pill, faded in by the same
                     native offset, so the colour change glides too. */}
                 <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[styles.tabText, styles.tabTextOn, { opacity: near }]}>{PAGE_LABELS[name]}</Animated.Text>
@@ -1347,7 +1237,23 @@ export function HomeScreen({
           }}
         />
       )}
+      {arrival && (
+        <GameArrival
+          kind={arrival}
+          onPlay={() => {
+            markArrivalSeen(arrival);
+            setArrival(null);
+            // Its first board is what comes next when it heads the set.
+            if (entry.kind === arrival) openEntry();
+          }}
+          onLater={() => {
+            markArrivalSeen(arrival);
+            setArrival(null);
+          }}
+        />
+      )}
     </View>
+    </FixedTextCap.Provider>
   );
 }
 
@@ -1395,7 +1301,197 @@ function PlayDisc({ small = false, done = false }: { small?: boolean; done?: boo
   );
 }
 
+/**
+ * Every game, six to a row, the ones not yet held faded: drawn in one
+ * canvas. Twelve separate emblems were twelve GPU surfaces, and on Android
+ * each is recomposed on every frame of any motion on the page.
+ */
+function EmblemShelf({ kinds, held }: { kinds: ReadonlyArray<GameKind>; held: ReadonlyArray<GameKind> }): React.JSX.Element {
+  const [width, setWidth] = useState(0);
+  const size = 30;
+  const perRow = 6;
+  const rowH = size + emblemLip(size);
+  const rows = Math.ceil(kinds.length / perRow);
+  const height = rows * rowH + (rows - 1) * 10;
+  const cell = width / perRow;
+  return (
+    <View style={{ height }} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
+      {width > 0 && (
+        <Canvas style={StyleSheet.absoluteFill}>
+          {kinds.map((kind, i) => (
+            <GameEmblemGlyph key={kind} kind={kind} size={size} raised x={(i % perRow) * cell + (cell - size) / 2} y={Math.floor(i / perRow) * (rowH + 10)} opacity={held.includes(kind) ? 1 : 0.22} />
+          ))}
+        </Canvas>
+      )}
+    </View>
+  );
+}
+
+/** The set's route, laid out as a path: how many tiles a row holds, their size. */
+const ROUTE_TILE = 42;
+/** Two rows (six or eight games) a little smaller, so the card keeps its height. */
+const ROUTE_TILE_SMALL = 32;
+/** Under each slot: its name (or stars), and the gap between rows. */
+const ROUTE_LABEL_H = 18;
+const ROUTE_ROW_GAP = 8;
+
+/**
+ * The games this level is made of, in order, spread across the tray.
+ * Finished games stand in full colour with a seal and their stars; the
+ * one you are on now is a size up, ringed in its colour and named. The
+ * ones ahead lie flat and quiet, numbered. Four sit in one row; six and
+ * eight in two even rows.
+ */
+function SetRoute({
+  puzzles,
+  completed,
+  played,
+  debut,
+  ground,
+  results,
+}: {
+  puzzles: ReadonlyArray<{ kind: GameKind; puzzleId: string; golden?: boolean; challenge?: boolean }>;
+  completed: ReadonlyArray<string>;
+  played: ReadonlySet<GameKind>;
+  debut: boolean;
+  /** The tray's colour: each slot is pressed into it, a shade deeper. */
+  ground: string;
+  /** Best result per puzzle: a finished one shows its stars. */
+  results: Readonly<Record<string, { stars: number } | undefined>>;
+}): React.JSX.Element {
+  const perRow = puzzles.length <= 4 ? puzzles.length : Math.ceil(puzzles.length / 2);
+  const tile = puzzles.length > perRow ? ROUTE_TILE_SMALL : ROUTE_TILE;
+  const nowSize = tile + 4;
+  const slot = nowSize + (puzzles.length > perRow ? 10 : 12);
+  const well = mix(ground, theme.colors.textPrimary, 0.05);
+  const wellEdge = mix(ground, theme.colors.textPrimary, 0.13);
+  const rows: Array<typeof puzzles> = [];
+  for (let at = 0; at < puzzles.length; at += perRow) rows.push(puzzles.slice(at, at + perRow));
+  const now = completed.length;
+  // The slots and emblems are drawn in one canvas under the labels and
+  // badges: eight emblems were eight GPU surfaces, and on Android every
+  // one is recomposed on each frame of any motion on the page. Placed
+  // exactly where the rows' even spacing puts each slot.
+  const [width, setWidth] = useState(0);
+  const rowH = slot + ROUTE_LABEL_H;
+  const height = rows.length * rowH + (rows.length - 1) * ROUTE_ROW_GAP;
+  return (
+    <View style={styles.route} onLayout={e => setWidth(e.nativeEvent.layout.width)}>
+      {width > 0 && (
+        <Canvas style={[StyleSheet.absoluteFill, { height }]} pointerEvents="none">
+          {rows.map((row, r) => {
+            const space = (width - row.length * slot) / (row.length + 1);
+            return row.map((item, k) => {
+              const i = r * perRow + k;
+              const done = completed.includes(item.puzzleId);
+              const current = !done && i === now;
+              const x = space * (k + 1) + slot * k;
+              const y = r * (rowH + ROUTE_ROW_GAP);
+              const size = current ? nowSize : tile;
+              const lip = done || current ? emblemLip(size) : 0;
+              const radius = slot * 0.3;
+              return (
+                <React.Fragment key={`${item.puzzleId}-${i}`}>
+                  {/* Every game has its own slot pressed into the tray: a
+                    shade deeper, its top edge deeper still, so it reads as
+                    cut in. The one you are on is ringed in its colour. */}
+                  {current ? (
+                    <>
+                      <RoundedRect x={x} y={y} width={slot} height={slot} r={radius} color={theme.colors.surfaceHi} />
+                      <RoundedRect x={x + 1} y={y + 1} width={slot - 2} height={slot - 2} r={radius - 1} color={accentColorForKind(item.kind)} style="stroke" strokeWidth={2} />
+                    </>
+                  ) : (
+                    <>
+                      <RoundedRect x={x} y={y} width={slot} height={slot} r={radius} color={wellEdge} />
+                      <RoundedRect x={x} y={y + 2} width={slot} height={slot - 2} r={radius} color={well} />
+                    </>
+                  )}
+                  {/* Placed, or lying flat in its slot still to come. */}
+                  <GameEmblemGlyph kind={item.kind} size={size} raised={done || current} x={x + (slot - size) / 2} y={y + (slot - size - lip) / 2 - (current ? 2 : 0)} opacity={done || current ? 1 : 0.6} />
+                </React.Fragment>
+              );
+            });
+          })}
+        </Canvas>
+      )}
+      {rows.map((row, r) => {
+        const start = r * perRow;
+        return (
+          <View key={r} style={[styles.routeRow, r > 0 && styles.routeRowNext]}>
+            {row.map((item, k) => {
+              const i = start + k;
+              const done = completed.includes(item.puzzleId);
+              const current = !done && i === now;
+              const tint = accentColorForKind(item.kind);
+              const fresh = !done && !played.has(item.kind) && puzzles.findIndex(other => other.kind === item.kind) === i && !(current && debut);
+              return (
+                <View key={`${item.puzzleId}-${i}`} style={[styles.routeStop, { width: slot }]}>
+                  <View style={[styles.routeSlot, { width: slot, height: slot }]}>
+                    {done && (
+                      <View style={[styles.setCheck, styles.routeSeal, { backgroundColor: tint }]}>
+                        <Icon name="check" size={9} color={theme.colors.surfaceHi} />
+                      </View>
+                    )}
+                    {fresh && (
+                      <View style={[styles.setNew, styles.routeNew, { backgroundColor: tint }]} accessibilityLabel="new game">
+                        <Text style={styles.setNewText}>New</Text>
+                      </View>
+                    )}
+                    {item.golden && !done && (
+                      <View style={styles.routeGolden} accessibilityLabel="golden puzzle">
+                        <CoinGlyph size={13} />
+                      </View>
+                    )}
+                  </View>
+                  <Text
+                    style={[styles.routeLabel, { width: slot + 16 }, current && [styles.routeLabelNow, { color: readableOn(tint, theme.colors.surface, theme.colors.textPrimary) }], !current && item.challenge && styles.routeLabelHard]}
+                    numberOfLines={1}
+                    adjustsFontSizeToFit
+                    minimumFontScale={0.8}
+                    maxFontSizeMultiplier={1.2}
+                  >
+                    {done && (results[item.puzzleId]?.stars ?? 0) > 0 ? '' : item.challenge && !current ? 'Hard' : gameShortName(item.kind)}
+                  </Text>
+                  {/* A finished game shows how it went: its stars, small,
+                    where its number was. */}
+                  {done && (results[item.puzzleId]?.stars ?? 0) > 0 && (
+                    <View style={[styles.routeStars, { width: slot + 16 }]} pointerEvents="none">
+                      <StarRow earned={results[item.puzzleId]!.stars} size={9} />
+                    </View>
+                  )}
+                </View>
+              );
+            })}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+
 const styles = themedStyles(() => ({
+  route: { alignSelf: 'stretch' },
+  /** Spread across the tray's whole width, each game in an even share. */
+  routeRow: { flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'space-evenly' },
+  routeRowNext: { marginTop: ROUTE_ROW_GAP },
+  routeStop: { alignItems: 'center' },
+  routeStars: { position: 'absolute', bottom: 0, height: 15, alignItems: 'center', justifyContent: 'center' },
+  routeSlot: { alignItems: 'center', justifyContent: 'center' },
+  routeSeal: { right: 2, bottom: 4 },
+  routeNew: { top: -2, left: -2 },
+  routeGolden: { position: 'absolute', top: 0, right: 0 },
+  routeLabel: { marginTop: 3, height: 15, textAlign: 'center', fontFamily: theme.typography.families.ui, fontSize: 11, lineHeight: 15, fontWeight: theme.typography.weights.semibold, color: theme.colors.textTertiary },
+  routeLabelNow: { fontWeight: theme.typography.weights.bold },
+  routeLabelHard: { color: theme.colors.accent, fontWeight: theme.typography.weights.bold },
+  playWell: { flex: 1, justifyContent: 'center', paddingTop: theme.spacing.md, paddingBottom: theme.spacing.sm },
+  setTray: { alignSelf: 'stretch', borderRadius: 18, borderWidth: 1, overflow: 'hidden' },
+  setTrayBody: { alignItems: 'center', paddingTop: theme.spacing.sm + 4, paddingBottom: theme.spacing.xs + 2, paddingHorizontal: theme.spacing.xs },
+  setTrayFoot: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: theme.spacing.md, paddingTop: 2, paddingBottom: 10 },
+  setTrayCount: { fontSize: 12, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
+  setTrayPrize: { flexDirection: 'row', alignItems: 'center', gap: 5 },
+  setTrayPrizeText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: 13, fontWeight: theme.typography.weights.bold, color: theme.colors.gold },
+  heroFoot: { flexDirection: 'row', alignItems: 'center', gap: theme.spacing.md },
+  verb: { flex: 1, fontFamily: theme.typography.families.display, fontSize: theme.typography.sizes.title, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   trophyButton: { right: undefined, left: theme.spacing.lg },
   ruleLine: { width: 44, height: StyleSheet.hairlineWidth * 2, backgroundColor: theme.colors.borderStrong },
   pursePlus: { width: 18, height: 18, borderRadius: 9, backgroundColor: theme.colors.goldFill, alignItems: 'center', justifyContent: 'center' },
@@ -1405,10 +1501,12 @@ const styles = themedStyles(() => ({
   statusKey: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 7,
-    paddingHorizontal: 12,
-    paddingTop: 4,
-    paddingBottom: 4,
+    justifyContent: 'center',
+    gap: 8,
+    height: 36,
+    minWidth: 96,
+    paddingLeft: 5,
+    paddingRight: 14,
     borderRadius: theme.radii.pill,
     borderWidth: 1,
     borderBottomWidth: 2.5,
@@ -1416,9 +1514,13 @@ const styles = themedStyles(() => ({
     borderBottomColor: theme.colors.borderStrong,
     backgroundColor: theme.colors.surfaceHi,
   },
+  /** The key's icon in its own round well, so both keys open the same way. */
+  statusWell: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceAlt },
+  statusWellGold: { backgroundColor: `${theme.colors.gold}40` },
+  statusWellWarm: { backgroundColor: `${theme.colors.secondary}2E` },
+  statusUnit: { fontFamily: theme.typography.families.ui, fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.medium, color: theme.colors.textTertiary },
   // The same setting as the coin count beside it, so the two figures share a line.
-  statusText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
-  statusRule: { width: StyleSheet.hairlineWidth, height: 14, backgroundColor: theme.colors.borderStrong },
+  statusText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: 15, lineHeight: 19, paddingTop: 3, fontWeight: theme.typography.weights.semibold, color: theme.colors.textSecondary },
   statusDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.secondary },
   statusBadge: { position: 'absolute', top: -2, right: -2, width: 9, height: 9, borderRadius: 4.5, borderWidth: 1.5, borderColor: theme.colors.background },
   streakNudgeDone: { borderColor: theme.colors.border },
@@ -1446,9 +1548,6 @@ const styles = themedStyles(() => ({
   youLinkThird: { width: '30%', flexBasis: 'auto' },
   shelfHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   shelfCount: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
-  shelf: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 10 },
-  shelfSlot: { width: '16.66%', alignItems: 'center' },
-  shelfAhead: { opacity: 0.22 },
   cardEmblem: { padding: 4, borderRadius: 16, borderWidth: 2 },
   grandEmblem: { borderColor: theme.colors.goldRim },
   grandRule: { backgroundColor: theme.colors.gold },
@@ -1463,6 +1562,8 @@ const styles = themedStyles(() => ({
   youLinkValue: { fontFamily: theme.typography.families.figures, fontVariant: ['lining-nums', 'tabular-nums'], fontSize: 22, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   youLinkGlyph: { height: 26, justifyContent: 'center' },
   youLinkLabel: { fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1, textTransform: 'uppercase', color: theme.colors.textTertiary },
+  youLinkBadge: { position: 'absolute', top: -7, right: -7, minWidth: 22, height: 22, paddingHorizontal: 6, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.goldFill, borderWidth: 2, borderColor: theme.colors.surface },
+  youLinkBadgeText: { fontFamily: theme.typography.families.figures, fontSize: 11, lineHeight: 13, fontWeight: theme.typography.weights.bold, color: theme.colors.onGold },
   youLinkDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: theme.colors.secondary },
   pursePatron: { width: 9, height: 9, borderRadius: 2, marginRight: 6, transform: [{ rotate: '45deg' }], backgroundColor: theme.colors.gold, borderWidth: 1.5, borderColor: theme.colors.goldRim },
   purseDot: { width: 7, height: 7, borderRadius: 4, marginLeft: 4, backgroundColor: theme.colors.secondary },
@@ -1479,6 +1580,7 @@ const styles = themedStyles(() => ({
     fontWeight: theme.typography.weights.bold,
   },
   swapWrap: { alignSelf: 'center' },
+  swapCorner: { marginLeft: 'auto' },
   swapBeside: { justifyContent: 'center', alignSelf: 'stretch', gap: 4, paddingHorizontal: 12, borderRadius: 14 },
   // A key standing on its lip, like the cards: something to press.
   swap: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 10, paddingTop: 4, paddingBottom: 4, borderRadius: theme.radii.pill, borderWidth: 1, borderBottomWidth: 3, borderColor: theme.colors.border, borderBottomColor: theme.colors.borderStrong, backgroundColor: theme.colors.surfaceHi },
@@ -1715,17 +1817,6 @@ const styles = themedStyles(() => ({
     borderRadius: 2,
     backgroundColor: theme.colors.secondary,
   },
-  heroFoot: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  verb: {
-    fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.title,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-  },
   setRow: {
     flexDirection: 'row',
     alignItems: 'flex-start',
@@ -1814,16 +1905,6 @@ const styles = themedStyles(() => ({
   },
   setChallengeRuleOn: {
     backgroundColor: theme.colors.accent,
-  },
-  playWrap: {
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  playHalo: {
-    position: 'absolute',
-    width: 56,
-    height: 56,
-    borderRadius: 28,
   },
   /** The disc's lip: the same disc, darker, showing below it - the play
    * button stands on the card the way the card stands on the page. */
@@ -1933,3 +2014,7 @@ const styles = themedStyles(() => ({
   insightGlyph: { fontSize: 12, color: theme.colors.accent },
   insightChipText: { fontSize: theme.typography.sizes.caption, fontWeight: theme.typography.weights.semibold, color: theme.colors.textPrimary, fontVariant: ['tabular-nums'] },
 }));
+
+/** Memoized: Home re-renders for its own state and its progress, not for
+ * every change in the app around it. */
+export const HomeScreen = React.memo(HomeScreenImpl);

@@ -1,6 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import { Text } from './Text';
+import { FixedTextCap, MAX_TEXT_SCALE, Text } from './Text';
 import { AppearancePreference } from '../settings';
 import { paletteFor, Palette, theme, themedStyles } from '../theme';
 import { PressableScale } from './PressableScale';
@@ -78,8 +78,11 @@ export function AppearancePicker({ value, onChange }: AppearancePickerProps): Re
                 </View>
               )}
             </View>
-            <Text style={[styles.label, on && styles.labelOn]}>{option.label}</Text>
-            <Text style={styles.note}>{option.note}</Text>
+            {/* Three tiles a row: their words keep to the usual cap. */}
+            <FixedTextCap.Provider value={MAX_TEXT_SCALE}>
+              <Text style={[styles.label, on && styles.labelOn]}>{option.label}</Text>
+              <Text style={styles.note}>{option.note}</Text>
+            </FixedTextCap.Provider>
           </PressableScale>
         );
       })}

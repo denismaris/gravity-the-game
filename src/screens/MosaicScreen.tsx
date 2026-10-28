@@ -29,6 +29,11 @@ import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { PlayHeader } from '../components/PlayHeader';
+import { Icon } from '../components/Icon';
+import { useHistoryState } from '../components/useHistoryState';
+import { isTodaysDaily } from '../game/journey';
+import { savedBoard, useSaveBoard } from '../progression/boardSaves';
+import { useHintNote } from '../components/HintNote';
 
 const TUTORIAL_ID = tutorialIdForGame('mosaic');
 const ICON_SIZE = 14;
@@ -76,7 +81,12 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
   const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
-  const [state, setState] = useState<MosaicState>(() => initialMosaicState(puzzle));
+  // Every move can be stepped back (see `useHistoryState`).
+  // A board left half played opens as it was left (not the timed Daily,
+  // whose clock would start again): see `boardSaves`.
+  const resumable = !isTodaysDaily(puzzle.id);
+  const [resumed] = useState(() => (resumable ? savedBoard(puzzle.id, initialMosaicState(puzzle)) : null));
+  const [state, setState, history] = useHistoryState<MosaicState>(() => resumed?.state ?? initialMosaicState(puzzle));
   const { coins, shortBy } = useCoinPurchase();
   // Insight, the superpower: charges first, then a video or coins.
   const insight = useInsightPower();
@@ -85,7 +95,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
   // The live board, for reading outside a state updater - see `commit`.
   const stateRef = useRef(state);
   stateRef.current = state;
-  const [hints, setHints] = useState(0);
+  const [hints, setHints] = useState(() => resumed?.extras.hints ?? 0);
   const [flashCells, setFlashCells] = useState<ReadonlyArray<MosaicCell> | null>(null);
   const [stars, setStars] = useState<1 | 2 | 3 | null>(null);
   const recorded = useRef(false);
@@ -103,6 +113,9 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
   }, []);
 
   const solved = useMemo(() => isMosaicSolved(puzzle, state), [puzzle, state]);
+  useSaveBoard(puzzle.id, state, solved, { hints }, resumable);
+  // Why the hint made its move, said once above the keys.
+  const { note: hintNote, show: showHint } = useHintNote();
   const left = useMemo(() => piecesLeft(puzzle, state), [puzzle, state]);
   const showSolvedCard = useSolveCelebration(solved);
 
@@ -124,7 +137,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
     if (next === stateRef.current) return;
     stateRef.current = next;
     setState(next);
-  }, []);
+  }, [setState]);
   const onPlace = useCallback((index: number, row: number, col: number) => commit(placePiece(puzzle, stateRef.current, index, row, col)), [commit, puzzle]);
   const onLift = useCallback((index: number) => commit(liftPiece(puzzle, stateRef.current, index)), [commit, puzzle]);
   const onRotate = useCallback((index: number) => commit(rotatePiece(puzzle, stateRef.current, index)), [commit, puzzle]);
@@ -141,6 +154,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
     if (!result) return;
     // Charged only when there is a hint to give, and before applying it.
     spendInsight(() => {
+      showHint(result as { reason?: string; tip?: string });
       commit(result.state);
       setHints(n => n + 1);
       const piece = result.state.pieces[result.index];
@@ -149,7 +163,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
       flashTimeoutRef.current = setTimeout(() => setFlashCells(null), HINT_FLASH_MS);
       triggerFeedback('targetReached');
     });
-  }, [puzzle, spendInsight, commit]);
+  }, [puzzle, spendInsight, commit, showHint]);
 
   const restart = useCallback(() => {
     recorded.current = false;
@@ -158,7 +172,13 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
     setHints(0);
     setFlashCells(null);
     commit(initialMosaicState(puzzle));
-  }, [puzzle, commit]);
+    history.clear();
+  }, [puzzle, commit, history]);
+
+  const undo = useCallback(() => {
+    if (history.undo() === null) return;
+    triggerFeedback('tap');
+  }, [history]);
 
   const goNext = useCallback(() => {
     if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: batchCompletedRef.current });
@@ -206,11 +226,16 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
         </Animated.View>
 
         <DockGap />
-        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
-          <InsightButton count={insight.count} onPress={useHint} />
+        {/* Finished: the keys take no more touches. The card is a beat
+          away, and a fast Restart in that beat threw a solved board away. */}
+        <Animated.View pointerEvents={solved ? "none" : "auto"} style={[styles.controls, dockPlate.plate, controlsIn]}>
+          <InsightButton count={insight.count} onPress={useHint} progress={state} />
           {insight.sheet}
+          <RoundKey accessibilityLabel="Undo" onPress={undo} disabled={!history.canUndo || solved} dim={!history.canUndo || solved}>
+            <Icon name="undo" size={ICON_SIZE} color={gameAccent()} />
+          </RoundKey>
           <RoundKey
-            accessibilityLabel="Restart puzzle"
+            accessibilityLabel="Restart puzzle" confirm="Tap again to restart"
             onPress={restart}>
             <RestartIcon />
           </RoundKey>
@@ -222,6 +247,8 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
         </View>
         <DockFloor />
       </View>
+
+      {hintNote}
 
       {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved

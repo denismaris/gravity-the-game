@@ -1,4 +1,4 @@
-import { Platform, Vibration } from 'react-native';
+import { Platform } from 'react-native';
 import RNHapticFeedback, { HapticEvent } from 'react-native-haptic-feedback';
 
 /**
@@ -81,7 +81,10 @@ export type HapticKind =
   | 'stamp'
   // A move the board will not take, in any game: a wall, a fixed square,
   // a lane crossed. One knock everywhere, paired with `RefuseMark`.
-  | 'refuse';
+  | 'refuse'
+  // A board solved without a hint: a bright chime over the finish, the
+  // reward for doing it alone.
+  | 'cleanSolve';
 
 /**
  * Pattern in milliseconds passed to `Vibration.vibrate`. A single number is
@@ -265,6 +268,7 @@ const PATTERNS: Record<HapticKind, number | number[]> = {
   vaneSolve: FINISH_PATTERN,
   stamp: 5,
   refuse: REFUSE_PATTERN,
+  cleanSolve: JOIN_PATTERN,
 };
 
 /** A transient: one tap, at `time` ms. */
@@ -384,6 +388,7 @@ const TEXTURES: Partial<Record<HapticKind, HapticEvent[]>> = {
   vaneSolve: finale(0.9),
   stamp: [tap(0, 0.42, 0.95)],
   refuse: REFUSE,
+  cleanSolve: [tap(0, 0.45, 1), tap(70, 0.65, 1)],
 };
 
 let hapticsEnabled = true;
@@ -437,9 +442,46 @@ export function triggerHaptic(kind: HapticKind): void {
 
   try {
     if (Platform.OS === 'ios') RNHapticFeedback.triggerPattern(TEXTURES[kind] ?? patternToEvents(PATTERNS[kind]), NATIVE_OPTIONS);
-    else Vibration.vibrate(PATTERNS[kind]);
+    else playOnAndroid(TEXTURES[kind] ?? patternToEvents(PATTERNS[kind]));
   } catch {
     // Never let a missing/failing vibration API break gameplay.
+  }
+}
+
+/**
+ * Android's own tuned effects, weakest to strongest: on Android 12 and up
+ * these are the vibrator's composition primitives (a tick, a click, a
+ * thud), crisp in a way a timed buzz never is. A pattern played as a
+ * waveform, as before, was one long hum at a volume: the cheap feel.
+ */
+const ANDROID_STEPS: ReadonlyArray<{ upTo: number; type: string }> = [
+  { upTo: 0.36, type: 'impactLight' },
+  { upTo: 0.5, type: 'selection' },
+  { upTo: 0.66, type: 'impactMedium' },
+  { upTo: 0.84, type: 'rigid' },
+  { upTo: Infinity, type: 'impactHeavy' },
+];
+
+/** The effect for a tap of `intensity` (0..1). */
+export function androidEffectFor(intensity: number): string {
+  return (ANDROID_STEPS.find(step => intensity <= step.upTo) ?? ANDROID_STEPS[ANDROID_STEPS.length - 1]).type;
+}
+
+/**
+ * The same texture iOS plays, translated for Android: each transient
+ * becomes the tuned effect nearest its strength, at its own moment. A hum
+ * (continuous) has no crisp equivalent and is dropped where taps carry the
+ * texture; a texture of nothing but a hum becomes one soft tick, so the
+ * moment is still felt. Timings run off JavaScript timers, a few ms of
+ * jitter that no one can feel at these spacings.
+ */
+function playOnAndroid(events: ReadonlyArray<HapticEvent>): void {
+  const taps = events.filter(e => e.type === 'transient');
+  const plan = taps.length > 0 ? taps : events.slice(0, 1).map(e => ({ ...e, intensity: Math.min(0.35, e.intensity ?? 0.3) }));
+  for (const event of plan) {
+    const fire = () => RNHapticFeedback.trigger(androidEffectFor(event.intensity ?? 0.5) as never, NATIVE_OPTIONS);
+    if (!event.time) fire();
+    else setTimeout(fire, event.time);
   }
 }
 
@@ -448,7 +490,8 @@ export function triggerHaptic(kind: HapticKind): void {
 export function playHapticEvents(events: HapticEvent[]): void {
   if (!hapticsEnabled || events.length === 0) return;
   try {
-    RNHapticFeedback.triggerPattern(events, NATIVE_OPTIONS);
+    if (Platform.OS === 'ios') RNHapticFeedback.triggerPattern(events, NATIVE_OPTIONS);
+    else playOnAndroid(events);
   } catch {
     // As above.
   }

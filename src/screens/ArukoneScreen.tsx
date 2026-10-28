@@ -26,6 +26,11 @@ import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { PlayHeader } from '../components/PlayHeader';
+import { Icon } from '../components/Icon';
+import { useHistoryState } from '../components/useHistoryState';
+import { isTodaysDaily } from '../game/journey';
+import { savedBoard, useSaveBoard } from '../progression/boardSaves';
+import { useHintNote } from '../components/HintNote';
 
 const TUTORIAL_ID = tutorialIdForGame('arukone');
 const ICON_SIZE = 14;
@@ -80,13 +85,18 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
   const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
-  const [state, setState] = useState<ArukoneState>(() => emptyArukoneState());
+  // Every move can be stepped back (see `useHistoryState`).
+  // A board left half played opens as it was left (not the timed Daily,
+  // whose clock would start again): see `boardSaves`.
+  const resumable = !isTodaysDaily(puzzle.id);
+  const [resumed] = useState(() => (resumable ? savedBoard(puzzle.id, emptyArukoneState()) : null));
+  const [state, setState, history] = useHistoryState<ArukoneState>(() => resumed?.state ?? emptyArukoneState());
   const { coins, shortBy } = useCoinPurchase();
   // Insight, the superpower: charges first, then a video or coins.
   const insight = useInsightPower();
   const spendInsight = insight.spend;
   const [coinsEarned, setCoinsEarned] = useState(0);
-  const [hints, setHints] = useState(0);
+  const [hints, setHints] = useState(() => resumed?.extras.hints ?? 0);
   const [introKey, setIntroKey] = useState(0);
   const [rejected, setRejected] = useState<ArukoneCell | null>(null);
   const [stars, setStars] = useState<1 | 2 | 3 | null>(null);
@@ -108,6 +118,9 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
   }, []);
 
   const solved = useMemo(() => isArukoneSolved(puzzle, state), [puzzle, state]);
+  useSaveBoard(puzzle.id, state, solved, { hints }, resumable);
+  // Why the hint made its move, said once above the keys.
+  const { note: hintNote, show: showHint } = useHintNote();
 
   // The completion card waits for the board's own finish animation to
   // play - without this it drops a scrim straight over the top of it.
@@ -144,7 +157,7 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
       }
       setState(next);
     },
-    [puzzle, state],
+    [puzzle, state, setState],
   );
 
   const rejectMove = useCallback((cell: ArukoneCell) => {
@@ -161,11 +174,12 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
     if (!next) return;
     // Charged only when there is a hint to give, and before applying it.
     spendInsight(() => {
+      showHint(next as { reason?: string; tip?: string });
       setHints(n => n + 1);
       setState(next.state);
       triggerFeedback('targetReached');
     });
-  }, [puzzle, state, spendInsight]);
+  }, [puzzle, state, spendInsight, setState, showHint]);
 
   const restart = useCallback(() => {
     recorded.current = false;
@@ -175,7 +189,13 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
     setRejected(null);
     setState(emptyArukoneState());
     setIntroKey(key => key + 1);
-  }, []);
+    history.clear();
+  }, [history, setState]);
+
+  const undo = useCallback(() => {
+    if (history.undo() === null) return;
+    triggerFeedback('tap');
+  }, [history]);
 
   const goNext = useCallback(() => {
     if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: batchCompletedRef.current });
@@ -222,11 +242,16 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
         </Animated.View>
 
         <DockGap />
-        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
-          <InsightButton count={insight.count} onPress={useHint} />
+        {/* Finished: the keys take no more touches. The card is a beat
+          away, and a fast Restart in that beat threw a solved board away. */}
+        <Animated.View pointerEvents={solved ? "none" : "auto"} style={[styles.controls, dockPlate.plate, controlsIn]}>
+          <InsightButton count={insight.count} onPress={useHint} progress={state} />
           {insight.sheet}
+          <RoundKey accessibilityLabel="Undo" onPress={undo} disabled={!history.canUndo || solved} dim={!history.canUndo || solved}>
+            <Icon name="undo" size={ICON_SIZE} color={theme.colors.arukoneAccent} />
+          </RoundKey>
           <RoundKey
-            accessibilityLabel="Restart puzzle"
+            accessibilityLabel="Restart puzzle" confirm="Tap again to restart"
             onPress={restart}>
             <RestartIcon />
           </RoundKey>
@@ -239,6 +264,8 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
         <DockFloor />
       </View>
 
+
+      {hintNote}
 
       {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved

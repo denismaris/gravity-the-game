@@ -12,9 +12,10 @@ import {
   isPathComplete,
   sameCell,
 } from '../game/arukone';
-import { computeBoardLayout, getCellOrigin } from '../game/rendering';
+import { computeBoardLayout, getCellOrigin, announce, useScreenReader } from '../game/rendering';
 import { ArukoneBoardView, describeCell, describePair } from './ArukoneBoardView';
 import { theme, themedStyles } from '../theme';
+import { ScreenReaderCell, ScreenReaderCells } from './ScreenReaderCells';
 
 export interface ArukoneBoardProps {
   puzzle: ArukonePuzzle;
@@ -121,6 +122,49 @@ export function ArukoneBoard({
 
   const numberSize = Math.round(layout.cellSize * 0.4);
 
+  // Played by a screen reader: double tap a number (or the end of its
+  // path) to take that path up, then double tap each next square to draw
+  // it on, one square at a time, by the same rules as a finger's drag.
+  const screenReader = useScreenReader();
+  const drawing = useRef<number | null>(null);
+  const readerCells: ScreenReaderCell[] = [];
+  if (screenReader) {
+    for (let row = 0; row < puzzle.size; row += 1) {
+      for (let col = 0; col < puzzle.size; col += 1) {
+        const origin = getCellOrigin(layout, row, col);
+        const cell = { row, col };
+        readerCells.push({
+          key: `a${row}-${col}`,
+          x: origin.x,
+          y: origin.y,
+          size: layout.cellSize,
+          label: describeCell(puzzle, state, row, col),
+          hint: drawing.current === null ? 'Takes up a path here' : `Draws path ${drawing.current} into this square`,
+          disabled: solved,
+          onActivate: () => {
+            if (solved) return;
+            const value = drawing.current;
+            if (value !== null) {
+              const next = extendDraw(puzzle, state, value, cell);
+              if (next !== state) {
+                onChange(next);
+                return;
+              }
+            }
+            const started = beginDraw(puzzle, state, cell);
+            if (started) {
+              drawing.current = started.value;
+              onChange(started.state);
+              announce(`Drawing path ${started.value}`, 0);
+              return;
+            }
+            onReject(cell);
+          },
+        });
+      }
+    }
+  }
+
   return (
     <View style={{ width: layout.boardSize, height: layout.boardSize }}>
       <Canvas style={StyleSheet.absoluteFill}>
@@ -166,6 +210,7 @@ export function ArukoneBoard({
           for free. `pointerEvents="none"` keeps every one of these out of
           the touch path entirely; the drag gesture below is still the only
           thing that can receive a touch. */}
+      {!screenReader && (
       <View style={StyleSheet.absoluteFill} pointerEvents="none">
         {Array.from({ length: puzzle.size }).map((_, row) =>
           Array.from({ length: puzzle.size }).map((__, col) => {
@@ -181,9 +226,11 @@ export function ArukoneBoard({
           }),
         )}
       </View>
+      )}
 
       <View
         style={StyleSheet.absoluteFill}
+        accessible={!screenReader}
         accessibilityRole="adjustable"
         accessibilityLabel={`Arukone board, ${puzzle.size} by ${puzzle.size}`}
         accessibilityValue={{
@@ -194,6 +241,7 @@ export function ArukoneBoard({
         accessibilityHint="Touch a number and drag through neighbouring squares to join it to its twin."
         {...responder.panHandlers}
       />
+      <ScreenReaderCells cells={readerCells} />
     </View>
   );
 }

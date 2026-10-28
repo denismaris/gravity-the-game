@@ -25,6 +25,11 @@ export function mergeProgress(local: PlayerProgress, remote: PlayerProgress): Pl
     levels[id] = theirs ? mergeLevelResult(theirs, { stars: result.stars, moves: result.bestMoves }) : result;
   }
 
+  // The faster of the two, game by game.
+  const bests: Record<string, number> = { ...other.bests };
+  for (const [kind, ms] of Object.entries(primary.bests ?? {})) {
+    if (typeof ms === 'number') bests[kind] = bests[kind] === undefined ? ms : Math.min(bests[kind], ms);
+  }
   const dailyTimes: Record<string, number> = { ...other.dailyTimes };
   for (const [day, ms] of Object.entries(primary.dailyTimes)) {
     dailyTimes[day] = dailyTimes[day] === undefined ? ms : Math.min(dailyTimes[day], ms);
@@ -52,6 +57,7 @@ export function mergeProgress(local: PlayerProgress, remote: PlayerProgress): Pl
     errandsClaimed: Math.max(primary.errandsClaimed, other.errandsClaimed),
     introSeen: primary.introSeen || other.introSeen,
     dailyTimes,
+    bests,
   };
 }
 

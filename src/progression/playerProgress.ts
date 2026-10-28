@@ -123,6 +123,9 @@ export interface PlayerProgress {
   readonly today: { readonly dayKey: string; readonly solves: number };
   /** How long each Daily took (ms), by day - the Daily Duel's record. */
   readonly dailyTimes: Readonly<Record<string, number>>;
+  /** Each game's fastest solve in ms, timed from opening to solved (a board
+   * resumed from a save is not timed whole, so it never counts). */
+  readonly bests: Readonly<Partial<Record<GameKind, number>>>;
   /** The daily gift's week (see `gift.ts`). */
   readonly gift: GiftLog;
   /** Shop sets whose completion bonus has been paid (see `shop.ts`). */
@@ -169,6 +172,7 @@ export function emptyProgress(): PlayerProgress {
     shopGoal: null,
     today: { dayKey: '', solves: 0 },
     dailyTimes: {},
+    bests: {},
     gift: EMPTY_GIFT,
     setsClaimed: [],
     patron: false,

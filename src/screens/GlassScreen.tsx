@@ -8,11 +8,12 @@ import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { GLASS_ARCH, GlassBoard, glassColor, glassTexture, StrokePhase } from '../components/GlassBoard';
 import { MechanicIntro } from '../components/MechanicIntro';
 import { Icon } from '../components/Icon';
+import { Text } from '../components/Text';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { PageBloom } from '../components/PageBloom';
 import { DockFloor, DockGap, dockPlate, StageTopGap } from '../components/StageTopGap';
 import { useStageEntrance } from '../components/useStageEntrance';
-import { clashes, GLASS_COLOR_NAMES, glassesFor, trayOf, GlassColor, glassHint, GlassPuzzle, GlassState, initialGlassState, isGlassSolved, paint, panesLeft } from '../game/glass';
+import { clashes, GLASS_COLOR_NAMES, glassesFor, glassLeft, trayOf, GlassColor, glassHint, GlassPuzzle, GlassState, initialGlassState, isGlassSolved, paint, panesLeft } from '../game/glass';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { mechanic } from '../game/mechanics';
 import { isStandalonePuzzle } from '../game/journey/daily';
@@ -22,6 +23,9 @@ import { BatchState, nextInBatch, usePlayerProgress } from '../progression';
 import { useSettings } from '../settings';
 import { motion, theme, themedStyles } from '../theme';
 import { PlayHeader } from '../components/PlayHeader';
+import { isTodaysDaily } from '../game/journey';
+import { savedBoard, useSaveBoard } from '../progression/boardSaves';
+import { useHintNote } from '../components/HintNote';
 
 const ICON_SIZE = 14;
 const RESERVED = 330;
@@ -49,10 +53,14 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
   const { progress, recordCompletion } = usePlayerProgress();
   const { markTutorialSeen } = useSettings();
 
-  const [state, setState] = useState<GlassState>(() => initialGlassState(puzzle));
+  // A board left half played opens as it was left (not the timed Daily,
+  // whose clock would start again): see `boardSaves`.
+  const resumable = !isTodaysDaily(puzzle.id);
+  const [resumed] = useState(() => (resumable ? savedBoard(puzzle.id, initialGlassState(puzzle)) : null));
+  const [state, setState] = useState<GlassState>(() => resumed?.state ?? initialGlassState(puzzle));
   const [history, setHistory] = useState<GlassState[]>([]);
   const [brush, setBrush] = useState<GlassColor | null>(0);
-  const [hints, setHints] = useState(0);
+  const [hints, setHints] = useState(() => resumed?.extras.hints ?? 0);
   const [highlight, setHighlight] = useState<number | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const dismissHelp = useCallback(() => {
@@ -73,6 +81,9 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
   currentBatchRef.current = progress.currentBatch;
 
   const solved = useMemo(() => isGlassSolved(puzzle, state), [puzzle, state]);
+  useSaveBoard(puzzle.id, state, solved, { hints }, resumable);
+  // Why the hint made its move, said once above the keys.
+  const { note: hintNote, show: showHint } = useHintNote();
   const left = panesLeft(state);
   const clashCount = useMemo(() => clashes(puzzle, state).length, [puzzle, state]);
   const showSolved = useSolveCelebration(solved);
@@ -145,8 +156,9 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
       setHints(n => n + 1);
       setHighlight(hint.pane);
       triggerFeedback('targetReached');
+      showHint(hint);
     });
-  }, [puzzle, state, insight]);
+  }, [puzzle, state, insight, showHint]);
 
   const goNext = useCallback(() => {
     if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: batchCompletedRef.current });
@@ -183,18 +195,20 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
         {/* The glass to set, in a tray like Mosaic's pieces. */}
         <Animated.View style={[styles.palette, controlsIn]}>
           {[...trayOf(puzzle), null].map(color => (
-            <Swatch key={String(color)} color={color} selected={brush === color} onPress={() => setBrush(color)} />
+            <Swatch key={String(color)} color={color} selected={brush === color} onPress={() => setBrush(color)} left={color === null ? null : glassLeft(puzzle, state.colors, color)} />
           ))}
         </Animated.View>
 
         <DockGap />
-        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
-          <InsightButton count={insight.count} onPress={useHint} />
+        {/* Finished: the keys take no more touches. The card is a beat
+          away, and a fast Restart in that beat threw a solved board away. */}
+        <Animated.View pointerEvents={solved ? "none" : "auto"} style={[styles.controls, dockPlate.plate, controlsIn]}>
+          <InsightButton count={insight.count} onPress={useHint} progress={state} />
           {insight.sheet}
           <RoundKey accessibilityLabel="Undo" onPress={undo} disabled={history.length === 0} dim={history.length === 0}>
             <Icon name="undo" size={ICON_SIZE} color={theme.colors.glassAccent} />
           </RoundKey>
-          <RoundKey accessibilityLabel="Restart window" onPress={restart}>
+          <RoundKey accessibilityLabel="Restart window" confirm="Tap again to restart" onPress={restart}>
             <Icon name="restart" size={ICON_SIZE} color={theme.colors.glassAccent} />
           </RoundKey>
         </Animated.View>
@@ -205,6 +219,8 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
         </View>
         <DockFloor />
       </View>
+
+      {hintNote}
 
       {showSolved && stars && !showSetComplete && (
         <PuzzleSolved
@@ -222,7 +238,7 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
         <LevelSetComplete levelNumber={finishedSetRef.current.levelNumber} kinds={finishedSetRef.current.puzzles.map(p => p.kind)} onContinue={goNext} />
       )}
 
-      <MechanicIntro intros={puzzle.vines?.length ? [mechanic('mechanic:glass-vines')] : []} accent={accentColorForKind('glass')} />
+      <MechanicIntro intros={[...(puzzle.vines?.length ? [mechanic('mechanic:glass-vines')] : []), ...(puzzle.counts ? [mechanic('mechanic:glass-counted')] : [])]} accent={accentColorForKind('glass')} />
       {showHelp && <MechanicsCarousel slides={GLASS_MECHANICS_SLIDES} renderIllustration={renderGlassIllustration} onDone={dismissHelp} accentColor={accentColorForKind('glass')} />}
     </View>
   );
@@ -230,7 +246,7 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
 
 /** One glass in the tray: a glazed tile on its side face, like the panes;
  * the clear one an empty slot. The chosen one lifts, ringed in the accent. */
-function Swatch({ color, selected, onPress }: { color: GlassColor | null; selected: boolean; onPress: () => void }): React.JSX.Element {
+function Swatch({ color, selected, onPress, left = null }: { color: GlassColor | null; selected: boolean; onPress: () => void; left?: number | null }): React.JSX.Element {
   const lift = useRef(new Animated.Value(selected ? 1 : 0)).current;
   useEffect(() => {
     Animated.spring(lift, { toValue: selected ? 1 : 0, useNativeDriver: true, ...motion.spring.pop }).start();
@@ -240,8 +256,14 @@ function Swatch({ color, selected, onPress }: { color: GlassColor | null; select
   const face = glassColor(color);
   const texture = glassTexture(color, size / 2, size / 2, size, size / 2.4);
   return (
-    <PressableScale accessibilityRole="button" accessibilityLabel={color === null ? 'Clear, to take a pane out' : `${GLASS_COLOR_NAMES[color]} glass`} accessibilityState={{ selected }} onPress={onPress} hitSlop={6}>
-      <Animated.View style={[styles.swatch, selected && styles.swatchOn, { transform: [{ translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }] }]}>
+    <PressableScale
+      accessibilityRole="button"
+      accessibilityLabel={color === null ? 'Clear, to take a pane out' : `${GLASS_COLOR_NAMES[color]} glass${left === null ? '' : left < 0 ? `, ${-left} too many` : `, ${left} left`}`}
+      accessibilityState={{ selected }}
+      onPress={onPress}
+      hitSlop={6}
+    >
+      <Animated.View style={[styles.swatch, selected && styles.swatchOn, left === 0 && styles.swatchSpent, { transform: [{ translateY: lift.interpolate({ inputRange: [0, 1], outputRange: [0, -4] }) }] }]}>
         <Canvas style={{ width: size, height: size + depth }}>
           {color === null ? (
             <>
@@ -262,6 +284,15 @@ function Swatch({ color, selected, onPress }: { color: GlassColor | null; select
             </>
           )}
         </Canvas>
+        {/* Counted glass: how many of this glass are still to set - a
+          tally on the tile's corner, red when too many are in. */}
+        {left !== null && (
+          <View style={[styles.tally, left < 0 && styles.tallyOver, left === 0 && styles.tallyDone]} pointerEvents="none">
+            <Text style={[styles.tallyText, left === 0 && styles.tallyTextDone]} maxFontSizeMultiplier={1.2}>
+              {left === 0 ? '\u2713' : String(left)}
+            </Text>
+          </View>
+        )}
       </Animated.View>
     </PressableScale>
   );
@@ -276,5 +307,12 @@ const styles = themedStyles(() => ({
   palette: { flexDirection: 'row', gap: theme.spacing.md, marginTop: theme.spacing.md },
   swatch: { padding: 4, borderRadius: 14, borderWidth: 1.5, borderColor: 'transparent' },
   swatchOn: { borderColor: theme.colors.glassAccent, backgroundColor: theme.colors.surface },
+  /** All of this glass is in: the tile steps back. */
+  swatchSpent: { opacity: 0.55 },
+  tally: { position: 'absolute', top: -6, right: -6, minWidth: 22, height: 22, paddingHorizontal: 5, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: theme.colors.surfaceHi, borderWidth: 1.5, borderColor: theme.colors.borderStrong },
+  tallyOver: { backgroundColor: theme.colors.danger, borderColor: theme.colors.danger },
+  tallyDone: { backgroundColor: theme.colors.success, borderColor: theme.colors.success },
+  tallyText: { fontFamily: theme.typography.families.figures, fontVariant: ['tabular-nums'], fontSize: 12, lineHeight: 15, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
+  tallyTextDone: { color: theme.colors.surfaceHi },
   controls: { flexDirection: 'row', gap: theme.spacing.md },
 }));

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
-import { MAX_TEXT_SCALE } from './Text';
+import { textScale } from './Text';;
 import Reanimated, { cancelAnimation, Easing as Curve, interpolateColor, SharedValue, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
 import { Canvas, Group, Path, RoundedRect, rect, rrect, Skia } from '@shopify/react-native-skia';
@@ -265,7 +265,7 @@ function Letter({ letter, index, t }: { letter: string; index: number; t: Shared
     };
   });
   return (
-    <Reanimated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[styles.wordmark, style]}>
+    <Reanimated.Text maxFontSizeMultiplier={textScale()} style={[styles.wordmark, style]}>
       {letter}
     </Reanimated.Text>
   );

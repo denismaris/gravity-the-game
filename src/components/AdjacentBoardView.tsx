@@ -647,10 +647,6 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
   const reducedMotion = useReducedMotion();
   const { cell, width, height } = layout;
 
-  const solvedAtRef = useRef<number | null>(null);
-  if (solved && solvedAtRef.current === null) solvedAtRef.current = Date.now();
-  if (!solved && solvedAtRef.current !== null) solvedAtRef.current = null;
-  const solvedAt = solvedAtRef.current;
 
   // The clock runs only while a move or the finishing sweep is genuinely
   // in flight, and stops dead the rest of the time - a tray of settled
@@ -665,6 +661,13 @@ export function AdjacentBoardView({ puzzle, state, maxWidth, maxHeight, preview,
   const hasStones = !!animation?.removed.some(t => t.colour === STONE);
   const moveWindow = Math.max(hasStones ? FALL_DELAY_MS + FALL_MS + CRUMBLE_MS + COLUMN_HOLD_MS : FALL_DELAY_MS + FALL_MS, clearWindow);
   const sweepWindow = SWEEP_MS + puzzle.size * SWEEP_STAGGER_MS;
+  // The finish waits for the last move to land: the tap that solved the
+  // board is still clearing and its tiles still falling, and a sweep run
+  // over them read as two animations fighting.
+  const solvedAtRef = useRef<number | null>(null);
+  if (solved && solvedAtRef.current === null) solvedAtRef.current = Math.max(Date.now(), animation && !reducedMotion ? animation.at + moveWindow + 60 : 0);
+  if (!solved && solvedAtRef.current !== null) solvedAtRef.current = null;
+  const solvedAt = solvedAtRef.current;
   // The move itself - falls and the clear - runs on the UI thread (see
   // `MoveLayer`); the JavaScript clock is left only for a breaking stone
   // and the finish, which are rare. Every ordinary move used to redraw the

@@ -54,13 +54,16 @@ import { getAdjacentById } from './src/game/adjacent';
 import { getBloomById } from './src/game/bloom';
 import { getMosaicById } from './src/game/mosaic';
 import { getBridgesById } from './src/game/bridges';
-import { GameKind, NextPuzzleOptions, getDailyEntry, usePrepareUpcoming } from './src/game/journey';
+import { GameKind, NextPuzzleOptions, ROTATION, getDailyEntry, usePrepareUpcoming } from './src/game/journey';
 import { CalmingInterstitialScreen } from './src/interstitial';
 import { PlayerProgressProvider, PracticeProvider, gamesPlayed, isAdFree, notePuzzleOpened, practiceBoards, usePlayerProgress } from './src/progression';
 import { learnedTutorials } from './src/progression/learnedTutorials';
 import { AD_RULES, betweenSets, startAds } from './src/ads';
 import { AppearanceProvider, SettingsProvider, useAppearance, useHoldAppearance, useSettings } from './src/settings';
 import { motion, theme, themedStyles } from './src/theme';
+import { hasSavedBoard, loadBoardSaves } from './src/progression/boardSaves';
+import { loadGameArrivals } from './src/progression/gameArrivals';
+import { markContinuing, markRepaint } from './src/components/playContinuity';
 
 /** How long after a set rolls over, mid-game, before its first board is
  * built: past the solve card's arrival and the level card's tally. */
@@ -135,6 +138,11 @@ function Boot(): React.JSX.Element {
   useReminderSync();
   const scheme = useAppearance();
   const [launched, setLaunched] = useState(false);
+  // Boards left half played, read once before the first board can open.
+  const [boardsReady, setBoardsReady] = useState(false);
+  useEffect(() => {
+    Promise.all([loadBoardSaves(), loadGameArrivals()]).finally(() => setBoardsReady(true));
+  }, []);
   const finishLaunch = useCallback(() => setLaunched(true), []);
   // Home's first arrival waits for the launch tile to start lifting away,
   // then places itself under it.
@@ -162,7 +170,7 @@ function Boot(): React.JSX.Element {
     <>
       <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} />
       <AppRoutes launched={launched} mountHome={launched || launchSettled} onHomeDrawn={markHomeDrawn} />
-      {!launched && <LaunchSequence appReady={settingsReady && progressReady && homeDrawn} onSettled={settleLaunch} onHandoff={releaseHomeEntrance} onDone={finishLaunch} />}
+      {!launched && <LaunchSequence appReady={settingsReady && progressReady && boardsReady && homeDrawn} onSettled={settleLaunch} onHandoff={releaseHomeEntrance} onDone={finishLaunch} />}
     </>
   );
 }
@@ -226,7 +234,8 @@ function AppRoutes({
   }, [selected]);
   // The clock for the Daily Duel starts the moment a puzzle opens.
   useEffect(() => {
-    if (selected) notePuzzleOpened(selected.puzzleId);
+    // Timed from here; a board resumed half played is not timed whole.
+    if (selected) notePuzzleOpened(selected.puzzleId, Date.now(), hasSavedBoard(selected.puzzleId));
   }, [selected]);
 
   // The puzzles coming up, built ahead while nothing is moving (see
@@ -353,19 +362,34 @@ function AppRoutes({
     setPendingNext(null);
   }, [pendingNext]);
 
+  // Stable, so a state change up here (the hand-off veil as a game opens)
+  // does not re-render the whole of Home under it: that re-render was most
+  // of the beat between tapping Play and the game starting to arrive.
+  const homeRoutes = useMemo(
+    () => ({
+      settings: () => setOverlayRoute('settings'),
+      achievements: () => setOverlayRoute('achievements'),
+      journey: () => setOverlayRoute('journey'),
+      shop: () => openShop(null),
+      ledger: () => setOverlayRoute('ledger'),
+      collection: () => setOverlayRoute('collection'),
+      leaderboard: () => setOverlayRoute('leaderboard'),
+    }),
+    [openShop],
+  );
   const homeScreen = !mountHome ? (
     <View style={styles.unbuilt} />
   ) : (
     <HomeScreen
       onDrawn={onHomeDrawn}
       onOpen={openFromHome}
-      onOpenSettings={() => setOverlayRoute('settings')}
-      onOpenAchievements={() => setOverlayRoute('achievements')}
-      onOpenJourney={() => setOverlayRoute('journey')}
-      onOpenShop={() => openShop(null)}
-      onOpenLedger={() => setOverlayRoute('ledger')}
-      onOpenCollection={() => setOverlayRoute('collection')}
-      onOpenLeaderboard={() => setOverlayRoute('leaderboard')}
+      onOpenSettings={homeRoutes.settings}
+      onOpenAchievements={homeRoutes.achievements}
+      onOpenJourney={homeRoutes.journey}
+      onOpenShop={homeRoutes.shop}
+      onOpenLedger={homeRoutes.ledger}
+      onOpenCollection={homeRoutes.collection}
+      onOpenLeaderboard={homeRoutes.leaderboard}
     />
   );
   const playDaily = () => {
@@ -559,21 +583,49 @@ function AppRoutes({
 
   const firstPuzzle = selected !== null && !lessonKind && routeKey !== 'home' && !playedKinds.has(selected.kind);
 
-  // Home is the root of this app, so "deeper" simply means "not Home".
-  // Arriving at Home is therefore always a step back, and everything else
-  // a step forward - which is exactly how the two read to a player, and
-  // needs no navigation stack to work out.
-  const direction = routeKey === 'home' ? 'back' : 'forward';
+
+  // Which way a change of screen goes: to a shallower screen (Home, or
+  // Settings from Account) is back, and the page on show slides down off
+  // it; anything else is forward, and the new page slides up.
+  const depthOf = (key: string): number => (key === 'home' ? 0 : key === 'account' || key.startsWith('replay:') ? 2 : 1);
+  const shownDepth = useRef(depthOf(routeKey));
+  const direction: 'forward' | 'back' = depthOf(routeKey) < shownDepth.current ? 'back' : 'forward';
+  shownDepth.current = depthOf(routeKey);
+
+  // Board straight on to board ("Next puzzle"): flagged before the new
+  // screen mounts, so its header and keys stay where they were and only
+  // the board arrives (see `playContinuity`).
+  const lastRoute = useRef(routeKey);
+  if (lastRoute.current !== routeKey) {
+    const was = lastRoute.current;
+    const game = (key: string): GameKind | null => {
+      const head = key.split(':')[0];
+      return (ROTATION as ReadonlyArray<string>).includes(head) && key.includes(':') ? (head as GameKind) : null;
+    };
+    const from = game(was);
+    if (from && game(routeKey) && !handoff) markContinuing(from);
+    lastRoute.current = routeKey;
+  }
+
+  // Light/dark or larger text switched: the screen on show is rebuilt in
+  // place (its `key` below) as a repaint, so nothing on it makes an
+  // entrance and no screen change plays (see `markRepaint`).
+  const paintKey = `${scheme}-${settings.largerText ? 'large' : 'regular'}`;
+  const lastPaint = useRef(paintKey);
+  if (lastPaint.current !== paintKey) {
+    lastPaint.current = paintKey;
+    markRepaint();
+  }
 
   // Keyed on the palette as well as the route: switching light/dark
   // remounts the screen (so nothing keeps a colour it read before) and
   // replays its entrance, which reads as a deliberate fade, not a snap.
   return (
     <View style={styles.root}>
-      <ScreenTransition routeKey={`${routeKey}@${scheme}`} direction={direction}>
+      <ScreenTransition routeKey={routeKey} direction={direction}>
         {/* A game's first real puzzle: its "?" breathes (see \`HelpHalo\`). */}
         <FirstPuzzleContext.Provider value={firstPuzzle}>
-          <React.Fragment key={scheme}>{screen}</React.Fragment>
+          <React.Fragment key={paintKey}>{screen}</React.Fragment>
         </FirstPuzzleContext.Provider>
       </ScreenTransition>
       {handoff && <EmblemHandoff kind={handoff} ready={boardDrawn && selected !== null} onDone={endHandoff} />}

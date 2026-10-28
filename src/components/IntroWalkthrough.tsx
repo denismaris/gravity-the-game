@@ -105,7 +105,7 @@ const PAGES: ReadonlyArray<IntroPage> = [
   {
     kicker: 'Welcome to Tessellatum',
     title: 'Twelve games, one at a time',
-    body: 'You start with one game. Fifteen puzzles in, the next one arrives, and so on until all twelve are yours. Every new game opens with a short lesson.',
+    body: 'You start with one game. Once you have the hang of it, the next one arrives, and so on until all twelve are yours. Every new game opens with a short lesson.',
     points: [
       ['▦︎', 'A new board every time. They never run out'],
       ['✓︎', 'Every puzzle can be solved by logic alone'],

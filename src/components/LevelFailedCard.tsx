@@ -4,7 +4,7 @@ import { DialogActions, dialogStyles } from './dialog';
 import { useCardEntrance } from './useCardEntrance';
 import { motion, theme, themedStyles } from '../theme';
 import { ModalLayer } from './ModalLayer';
-import { MAX_TEXT_SCALE } from './Text';
+import { textScale } from './Text';;
 
 export interface LevelFailedCardProps {
   /** Restart the level from its beginning. */
@@ -60,9 +60,9 @@ export function LevelFailedCard({
             },
           ]}
         >
-          <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[dialogStyles.kicker, styles.kicker, rowStyle(0)]}>Not this time</Animated.Text>
-          <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[dialogStyles.title, styles.title, rowStyle(0)]}>{title}</Animated.Text>
-          <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[dialogStyles.body, rowStyle(1)]}>{message}</Animated.Text>
+          <Animated.Text maxFontSizeMultiplier={textScale()} style={[dialogStyles.kicker, styles.kicker, rowStyle(0)]}>Not this time</Animated.Text>
+          <Animated.Text maxFontSizeMultiplier={textScale()} style={[dialogStyles.title, styles.title, rowStyle(0)]}>{title}</Animated.Text>
+          <Animated.Text maxFontSizeMultiplier={textScale()} style={[dialogStyles.body, rowStyle(1)]}>{message}</Animated.Text>
           <Animated.View style={[styles.actions, rowStyle(2)]}>
             <DialogActions primary={{ label: 'Try again', onPress: onRetry, accessibilityLabel: 'Retry level' }} secondary={{ label: 'Home', onPress: onExit, accessibilityLabel: 'Back to home' }} />
           </Animated.View>

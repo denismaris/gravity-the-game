@@ -36,6 +36,18 @@ const landedWaiters = new Set<() => void>();
 export function setEmblemTarget(next: EmblemTarget | null): void {
   target = next;
 }
+/** Measures the header's emblem afresh: the flight asks just as it sets
+ * off, so it lands where the emblem is then, not where it was when the
+ * header first laid out (part way into its screen's entrance). */
+let measurer: ((done: (to: EmblemTarget | null) => void) => void) | null = null;
+export function setEmblemMeasurer(next: typeof measurer): void {
+  measurer = next;
+}
+/** Whether a hand-off is covering the screen now arriving: that screen
+ * makes no entrance of its own (the veil opening is its entrance). */
+export function handoffActive(): boolean {
+  return flying;
+}
 export function whenEmblemLanded(show: () => void): () => void {
   if (!flying) {
     show();
@@ -78,7 +90,10 @@ export function EmblemHandoff({ kind, ready, onDone }: { kind: GameKind; ready: 
     const st = state.current;
     if (st.leaving || !st.arrived || !st.ready) return;
     st.leaving = true;
-    const to = target;
+    if (measurer) measurer(fresh => fly(fresh ?? target));
+    else fly(target);
+  };
+  const fly = (to: EmblemTarget | null) => {
     if (to) {
       // Fly to the header's emblem: the veil's centre is the screen's.
       flight.landing.setValue(1);
@@ -106,6 +121,7 @@ export function EmblemHandoff({ kind, ready, onDone }: { kind: GameKind; ready: 
     // after this, and its header waits for the emblem to land on it.
     flying = true;
     target = null;
+    measurer = null;
     holdDeals();
     Animated.timing(arrive, { toValue: 1, duration: ARRIVE_MS, easing: curve.reward, useNativeDriver: true }).start(() => {
       state.current.arrived = true;

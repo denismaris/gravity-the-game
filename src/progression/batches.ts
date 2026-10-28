@@ -144,7 +144,7 @@ const SAME_FAMILY_DELAY = 0.5;
 
 /** Puzzles of a game after which it is settled into the rotation, and
  * how far ahead in the queue it stands until then. */
-const SETTLED = 10;
+const SETTLED = 16;
 const SETTLING_HEAD_START = 3;
 
 /** The three kinds of play, for alternating them. */
@@ -191,15 +191,17 @@ export const INTRO_ORDER: ReadonlyArray<GameKind> = [
 ];
 /**
  * Puzzles of the newest game to solve before the next one arrives, by how
- * many games the player already has: quick at first, so a newcomer meets
- * several games in their first sittings rather than one game for an hour,
- * and a little longer as the list grows and each new game has more company.
- * With the game being learned dealt every other puzzle, a player has met
- * about six games by level 10 and all twelve by about level 22; and a game
- * just past its introduction keeps coming round a little more often until
- * it has ten puzzles behind it (see `SETTLED`).
+ * many games the player already has. Enough to get good at a game, not
+ * merely to meet it: eight for the first ones, rising to twelve as the list
+ * grows and each new game has more company (and the rules get richer).
+ * With the game being learned dealt every other puzzle, that is a dozen
+ * or more boards of each newcomer, about three levels of it, before the
+ * next game knocks; all twelve arrive by about level 31. (Four or five, as it
+ * was, brought a new game before the last one had settled in the hand.)
+ * A game just past its introduction keeps coming round a little more
+ * often until it has sixteen puzzles behind it (see `SETTLED`).
  */
-const INTRO_SOLVES_BY_POSITION: ReadonlyArray<number> = [4, 4, 4, 4, 4, 5, 5, 5, 5, 5, 5];
+const INTRO_SOLVES_BY_POSITION: ReadonlyArray<number> = [8, 8, 9, 9, 10, 10, 10, 11, 11, 12, 12];
 
 /** Solves of the game at `position` in the order that bring the next one. */
 export function introSolvesAt(position: number): number {
@@ -218,8 +220,11 @@ function schedule(progress: PlayerProgress, pending: ReadonlyMap<GameKind, numbe
   const solved = solvedPerGame(progress);
   const order = INTRO_ORDER.filter(kind => !progress.retired.includes(kind));
   const count = (kind: GameKind) => (solved.get(kind) ?? 0) + (pending.get(kind) ?? 0);
-  // The frontier: the first game in the order not yet learned.
-  const frontier = order.findIndex((kind, i) => count(kind) < introSolvesAt(i));
+  // The frontier: the first game in the order not yet learned. A game the
+  // player has already moved past (the next one has been played) counts as
+  // learned whatever its count: the pace once let games arrive sooner, and
+  // a game already in a player's hands is never taken back.
+  const frontier = order.findIndex((kind, i) => count(kind) < introSolvesAt(i) && (i + 1 >= order.length || count(order[i + 1]) === 0));
   return { order, count, frontier };
 }
 
@@ -329,7 +334,7 @@ function recentGames(progress: PlayerProgress, count: number): GameKind[] {
 }
 
 const kindCache = new Map<string, GameKind | null>();
-function kindOfId(id: string): GameKind | null {
+export function kindOfId(id: string): GameKind | null {
   let kind = kindCache.get(id);
   if (kind === undefined) {
     kind = puzzleKindOf(id)?.kind ?? null;

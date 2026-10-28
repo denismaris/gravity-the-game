@@ -190,9 +190,31 @@ export const ROOF: VanePuzzle = {
   solution: [1, 2, 0, 3],
 };
 
+/** Six vanes, two rows of three: the player's own roof, set without help.
+ * One way round: along the top, down the right, back along the bottom. */
+export const ROOF_FREE: VanePuzzle = {
+  id: 'lesson-vanes-2',
+  name: 'Lesson',
+  difficulty: 'easy',
+  size: 3,
+  vanes: [
+    { row: 0, col: 0 },
+    { row: 0, col: 1 },
+    { row: 0, col: 2 },
+    { row: 2, col: 0 },
+    { row: 2, col: 1 },
+    { row: 2, col: 2 },
+  ],
+  fixed: [null, null, null, null, null, null],
+  start: [0, 2, 3, 3, 0, 1],
+  solution: [1, 1, 2, 0, 3, 3],
+};
+
 interface VaneStep extends LessonStepCopy {
   readonly vane: number;
   readonly dir: Dir;
+  /** The last step: a roof of the player's own, no vane shown. */
+  readonly free?: boolean;
 }
 
 const VANE_STEPS: ReadonlyArray<VaneStep> = [
@@ -231,6 +253,15 @@ const VANE_STEPS: ReadonlyArray<VaneStep> = [
     vane: 2,
     dir: 0,
   },
+  {
+    title: 'Your turn',
+    say: 'A roof of six. Turn the vanes so the wind runs through every one and comes back round. No two may point at each other.',
+    hint: 'Tap any vane to turn it.',
+    praise: 'The wind runs round all six. You set a whole roof.',
+    vane: -1,
+    dir: 0,
+    free: true,
+  },
 ];
 
 export function VanesLesson({
@@ -239,12 +270,22 @@ export function VanesLesson({
   onDone: () => void;
 }): React.JSX.Element {
   const [state, setState] = useState<VaneState>({ dirs: [...ROOF.start] });
-  const flow = useLessonFlow(VANE_STEPS.length);
+  // The last step brings its own, bigger roof.
+  const flow = useLessonFlow(VANE_STEPS.length, i => {
+    if (VANE_STEPS[i].free) setState({ dirs: [...ROOF_FREE.start] });
+  });
   const step = VANE_STEPS[flow.index];
+  const roof = step.free ? ROOF_FREE : ROOF;
 
   const onTurn = useCallback(
     (vane: number) => {
       if (flow.phase !== 'doing') return;
+      if (step.free) {
+        const next = turn(ROOF_FREE, state, vane);
+        setState(next);
+        if (isVaneSolved(ROOF_FREE, next)) flow.succeed();
+        return;
+      }
       if (vane !== step.vane) {
         flow.wrong();
         return;
@@ -265,12 +306,13 @@ export function VanesLesson({
       onDone={onDone}
       renderBoard={size => (
         <VanesBoard
-          puzzle={ROOF}
+          key={step.free ? 'free' : 'guided'}
+          puzzle={roof}
           state={state}
           size={size}
-          solved={isVaneSolved(ROOF, state)}
+          solved={isVaneSolved(roof, state)}
           onTurn={onTurn}
-          glow={flow.phase === 'doing' ? step.vane : null}
+          glow={flow.phase === 'doing' && !step.free ? step.vane : null}
         />
       )}
     />

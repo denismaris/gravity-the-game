@@ -28,6 +28,11 @@ import { CoinBalance, useCoinPurchase } from '../components/Coins';
 import { InsightButton, useInsightPower } from '../components/InsightPower';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { PlayHeader } from '../components/PlayHeader';
+import { Icon } from '../components/Icon';
+import { useHistoryState } from '../components/useHistoryState';
+import { isTodaysDaily } from '../game/journey';
+import { savedBoard, useSaveBoard } from '../progression/boardSaves';
+import { useHintNote } from '../components/HintNote';
 
 const TUTORIAL_ID = tutorialIdForGame('bloom');
 const ICON_SIZE = 14;
@@ -73,7 +78,12 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
   const reopenTutorial = useCallback(() => setShowTutorial(true), []);
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
-  const [state, setState] = useState<BloomState>(() => initialBloomState(puzzle));
+  // Every move can be stepped back (see `useHistoryState`).
+  // A board left half played opens as it was left (not the timed Daily,
+  // whose clock would start again): see `boardSaves`.
+  const resumable = !isTodaysDaily(puzzle.id);
+  const [resumed] = useState(() => (resumable ? savedBoard(puzzle.id, initialBloomState(puzzle)) : null));
+  const [state, setState, history] = useHistoryState<BloomState>(() => resumed?.state ?? initialBloomState(puzzle));
   const { coins, shortBy } = useCoinPurchase();
   // Insight, the superpower: charges first, then a video or coins.
   const insight = useInsightPower();
@@ -82,7 +92,7 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
   // The live board, for reading outside a state updater - see `onTurn`.
   const stateRef = useRef(state);
   stateRef.current = state;
-  const [hints, setHints] = useState(0);
+  const [hints, setHints] = useState(() => resumed?.extras.hints ?? 0);
   const [flashCell, setFlashCell] = useState<BloomCell | null>(null);
   const [stars, setStars] = useState<1 | 2 | 3 | null>(null);
   const recorded = useRef(false);
@@ -100,6 +110,9 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
   }, []);
 
   const solved = useMemo(() => isBloomSolved(puzzle, state), [puzzle, state]);
+  useSaveBoard(puzzle.id, state, solved, { hints }, resumable);
+  // Why the hint made its move, said once above the keys.
+  const { note: hintNote, show: showHint } = useHintNote();
   const left = useMemo(() => arcsLeft(puzzle, state), [puzzle, state]);
   const showSolvedCard = useSolveCelebration(solved);
 
@@ -129,7 +142,7 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
       const closedNow = traceLoops(puzzle, next).loops.length > traceLoops(puzzle, current).loops.length;
       triggerFeedback(closedNow ? 'bloomClose' : 'bloomTurn');
     },
-    [puzzle],
+    [puzzle, setState],
   );
 
   // The last hint's reason, shown over the board for a few seconds.
@@ -138,6 +151,7 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
     if (!result) return;
     // Charged only when there is a hint to give, and before applying it.
     spendInsight(() => {
+      showHint(result as { reason?: string; tip?: string });
       stateRef.current = result.state;
       setState(result.state);
       setHints(n => n + 1);
@@ -146,7 +160,7 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
       flashTimeoutRef.current = setTimeout(() => setFlashCell(null), HINT_FLASH_MS);
       triggerFeedback('targetReached');
     });
-  }, [puzzle, spendInsight]);
+  }, [puzzle, spendInsight, setState, showHint]);
 
   const restart = useCallback(() => {
     recorded.current = false;
@@ -157,7 +171,13 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
     const fresh = initialBloomState(puzzle);
     stateRef.current = fresh;
     setState(fresh);
-  }, [puzzle]);
+    history.clear();
+  }, [puzzle, history, setState]);
+
+  const undo = useCallback(() => {
+    if (history.undo() === null) return;
+    triggerFeedback('tap');
+  }, [history]);
 
   const goNext = useCallback(() => {
     if (nextEntry) onNextPuzzle(nextEntry.kind, nextEntry.puzzleId, { showInterstitial: batchCompletedRef.current });
@@ -195,11 +215,16 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
         </Animated.View>
 
         <DockGap />
-        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
-          <InsightButton count={insight.count} onPress={useHint} />
+        {/* Finished: the keys take no more touches. The card is a beat
+          away, and a fast Restart in that beat threw a solved board away. */}
+        <Animated.View pointerEvents={solved ? "none" : "auto"} style={[styles.controls, dockPlate.plate, controlsIn]}>
+          <InsightButton count={insight.count} onPress={useHint} progress={state} />
           {insight.sheet}
+          <RoundKey accessibilityLabel="Undo" onPress={undo} disabled={!history.canUndo || solved} dim={!history.canUndo || solved}>
+            <Icon name="undo" size={ICON_SIZE} color={gameAccent()} />
+          </RoundKey>
           <RoundKey
-            accessibilityLabel="Restart puzzle"
+            accessibilityLabel="Restart puzzle" confirm="Tap again to restart"
             onPress={restart}>
             <RestartIcon />
           </RoundKey>
@@ -211,6 +236,8 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
         </View>
         <DockFloor />
       </View>
+
+      {hintNote}
 
       {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved

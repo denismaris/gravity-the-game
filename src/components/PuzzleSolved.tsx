@@ -10,16 +10,18 @@ import { Animated, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { GameEmblem } from './GameEmblem';
-import { isReducedMotion, triggerFeedback } from '../game/rendering';
+import { announce, isReducedMotion, readableOn, triggerFeedback } from '../game/rendering';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, encouragementTier, GameKind, pickEncouragement } from '../game/journey';
-import { theme, themedStyles } from '../theme';
+import { motion, theme, themedStyles } from '../theme';
 import { CoinGlyph } from './Coins';
 import { GOLDEN_MULTIPLIER } from '../progression/coins';
 import { ModalLayer } from './ModalLayer';
 import { DialogActions } from './dialog';
 import { curve } from '../theme/motion';
 import { headerEmblemSpot, lendHeaderEmblem } from './PlayHeader';
+import { ConfettiBurst } from './ConfettiBurst';
+import { Frosted } from './Frosted';
 
 export interface PuzzleSolvedProps {
   title?: string;
@@ -64,7 +66,7 @@ export interface PuzzleSolvedProps {
  * This card reports exactly one puzzle. Finishing a whole level is a
  * different, rarer occasion and gets its own card (`LevelSetComplete`) -
  * folding the two together produced one panel that did neither job well. */
-const ROW_COUNT = 5;
+const ROW_COUNT = 4;
 
 /**
  * The praise line shown on the previous solve, so the next one can avoid
@@ -91,6 +93,16 @@ export function PuzzleSolved({
   // the page builds round it a moment after it lifts.
   const flyFrom = useRef(kind && !isReducedMotion() ? headerEmblemSpot() : null).current;
   const { backdrop, hero, rowStyle } = useCardEntrance(ROW_COUNT, { delay: flyFrom ? FLIGHT_LEAD_MS : 0 });
+  // The way on comes last, once the emblem has landed and the figures
+  // are in: never a button over a page still arriving.
+  const actionsIn = useRef(new Animated.Value(0)).current;
+  const [actionsLive, setActionsLive] = useState(false);
+  useEffect(() => {
+    const wait = isReducedMotion() ? 200 : ACTIONS_AFTER_MS;
+    Animated.sequence([Animated.delay(wait), Animated.spring(actionsIn, { toValue: 1, useNativeDriver: true, ...motion.spring.kick })]).start();
+    const live = setTimeout(() => setActionsLive(true), wait);
+    return () => clearTimeout(live);
+  }, [actionsIn]);
   // What multiplied this solve's coins: a golden puzzle, the clean-run
   // combo, the lucky charm (see the shop).
   const bonus = useLastBonus();
@@ -151,9 +163,16 @@ export function PuzzleSolved({
   const heading = title ?? 'Solved';
   // In place of stars, one quiet fact about how it went.
   const howItWent = note ? null : hintsUsed === 0 ? 'Without a hint' : hintsUsed === 1 ? 'With one hint' : `With ${hintsUsed} hints`;
-  const accent = kind ? accentColorForKind(kind) : theme.colors.accent;
+  // As text on the page, never fainter than 4.5:1.
+  const accent = readableOn(kind ? accentColorForKind(kind) : theme.colors.accent, theme.colors.background, theme.colors.textPrimary);
   const insets = useSafeAreaInsets();
-  const kicker = kind ? (practice ? `${gameDisplayName(kind)} · Practice` : gameDisplayName(kind)) : null;
+  // A game's very first solve says so, and gets a burst of its own.
+  const firstSolve = !practice && !!kind && bonus?.firstOfGame === kind;
+  const kicker = kind ? (practice ? `${gameDisplayName(kind)} · Practice` : firstSolve ? `Your first ${gameDisplayName(kind)}` : gameDisplayName(kind)) : null;
+  // How long it took, against this game's record (not for the Daily, whose
+  // own time already shows).
+  const timed = !practice && !bonus?.daily && !bonus?.dailyReplayMs && bonus?.puzzleId !== undefined ? bonus?.best ?? null : null;
+  const newBest = !!timed && timed.isNew && timed.previous !== null;
 
   // Picked once per mount, not per render - a re-render mid-animation must
   // not swap the sentence out from under the player.
@@ -165,11 +184,32 @@ export function PuzzleSolved({
   }, []);
 
 
+  // Solved alone: a bright chime rings over the finish, as the page opens.
+  useEffect(() => {
+    if (practice || note || hintsUsed > 0) return;
+    const timer = setTimeout(() => triggerFeedback('cleanSolve'), 420);
+    return () => clearTimeout(timer);
+    // Once, for the solve this page reports.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Said once as it opens, with a screen reader on: what the page shows.
+  useEffect(() => {
+    const parts = [kind ? `${gameDisplayName(kind)} solved.` : 'Solved.', praise];
+    if (howItWent) parts.push(hintsUsed === 0 ? 'No hints.' : `${hintsUsed} ${hintsUsed === 1 ? 'hint' : 'hints'}.`);
+    if (paid) parts.push(`${coinsEarned} ${coinsEarned === 1 ? 'coin' : 'coins'}.`);
+    if (daily) parts.push(`Time ${formatDuration(daily.ms)}.`);
+    announce(parts.join(' '), 700);
+    // Once, for the solve this page reports.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // The figures under the title: how it went, what it paid, the clock.
   const figures: Array<{ key: string; label: string; node: React.ReactNode }> = [];
   if (howItWent) figures.push({ key: 'hints', label: hintsUsed === 1 ? 'Hint' : 'Hints', node: <Text style={[styles.figure, hintsUsed === 0 && { color: accent }]}>{hintsUsed === 0 ? 'None' : String(hintsUsed)}</Text> });
   if (note) figures.push({ key: 'note', label: noteLabel.charAt(0).toUpperCase() + noteLabel.slice(1).toLowerCase(), node: <Text style={styles.figure}>{note}</Text> });
   if (daily) figures.push({ key: 'time', label: daily.official ? 'Daily time' : 'This time', node: <Text style={styles.figure}>{formatDuration(daily.ms)}</Text> });
+  else if (timed) figures.push({ key: 'time', label: newBest ? 'New best' : 'Time', node: <Text style={[styles.figure, newBest && { color: accent }]}>{formatDuration(timed.ms)}</Text> });
   if (paid)
     figures.push({
       key: 'coins',
@@ -184,11 +224,16 @@ export function PuzzleSolved({
 
   return (
     <ModalLayer>
-      <View style={styles.overlay} pointerEvents="box-none">
+      {/* The whole screen takes the touch: nothing behind the finish (the
+          board, the level card) can be pressed through it. */}
+      <View style={styles.overlay} onStartShouldSetResponder={() => true} accessibilityViewIsModal>
         {/* The whole screen, in the paper's own colour and see-through: the
             finished board stays faintly there behind what it earned. No
             card, no sheet, no rules: the page itself is the moment. */}
-        <Animated.View style={[styles.veil, { opacity: backdrop }]} pointerEvents="none" />
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: backdrop }]} pointerEvents="none">
+          <Frosted />
+        </Animated.View>
+        {firstSolve && <ConfettiBurst />}
         <View style={[styles.page, { paddingTop: insets.top + theme.spacing.lg, paddingBottom: insets.bottom + theme.spacing.md }]} pointerEvents="box-none">
           <View style={styles.above} />
           <View style={styles.column}>
@@ -221,6 +266,8 @@ export function PuzzleSolved({
 
             <Animated.View style={[styles.notes, rowStyle(2)]}>
               {bonusLine && <Text style={styles.bonusLine}>{bonusLine}</Text>}
+              {timed && !timed.isNew && timed.previous !== null && <Text style={styles.note}>{`Your best is ${formatDuration(timed.previous)}`}</Text>}
+              {newBest && timed?.previous != null && <Text style={styles.note}>{`${formatDuration(timed.previous - timed.ms)} faster than before`}</Text>}
               {daily && <Text style={styles.note}>{daily.note}</Text>}
               {daily && world && world.players > 1 && daily.official && (
                 <Text style={styles.note}>{`Faster than ${Math.round(world.fasterThan * 100)}% of ${world.players.toLocaleString('en-US')} players today`}</Text>
@@ -246,7 +293,10 @@ export function PuzzleSolved({
 
           {/* The way on, docked where the thumb is, as the game's keys are.
               Home stays a quiet second only when the primary goes on. */}
-          <Animated.View style={[styles.actions, rowStyle(4)]}>
+          <Animated.View
+            pointerEvents={actionsLive ? 'auto' : 'none'}
+            style={[styles.actions, { opacity: actionsIn, transform: [{ translateY: actionsIn.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }, { scale: actionsIn.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }]}
+          >
             <DialogActions
               primary={hasNext && onNext ? { label: 'Next puzzle', onPress: onNext, onward: true } : { label: 'Done', onPress: onDone, accessibilityLabel: 'Back to home' }}
               secondary={hasNext && onNext ? { label: 'Home', onPress: onDone, accessibilityLabel: 'Back to home' } : undefined}
@@ -265,6 +315,8 @@ const FINISH_EMBLEM = 84;
 const FLIGHT_LEAD_MS = 200;
 /** Header to page, start to settled. */
 const FLIGHT_MS = 680;
+/** When the buttons come in: the emblem landed, the figures settled. */
+const ACTIONS_AFTER_MS = FLIGHT_LEAD_MS + FLIGHT_MS - 20;
 /** How high it bows above its straight line, at the middle of the flight. */
 const FLIGHT_ARC = 34;
 /** The small give as it lands: a few points of size, out and back. */
@@ -345,8 +397,6 @@ function CountUp({ value, style, delay = 0 }: { value: number; style: React.Comp
 
 const styles = themedStyles(() => ({
   overlay: { ...StyleSheet.absoluteFill },
-  /** The page's paper over the board, see-through. */
-  veil: { ...StyleSheet.absoluteFill, backgroundColor: `${theme.colors.background}F5` },
   page: { flex: 1, paddingHorizontal: theme.spacing.xl },
   // The column sits a little above the middle of the room over the keys.
   above: { flex: 1 },

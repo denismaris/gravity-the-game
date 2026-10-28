@@ -14,9 +14,10 @@ import {
   withTiming,
 } from 'react-native-reanimated';
 import { Cell, DIRECTIONS, LilyPuzzle, LilyState, padCell } from '../game/lilypads';
-import { DealIn, dealDelay, REFUSE_MS, REFUSE_PX, refuseShake, shade, useDealing, useReducedMotion } from '../game/rendering';
+import { DealIn, dealDelay, REFUSE_MS, REFUSE_PX, refuseShake, shade, useDealing, useReducedMotion, useScreenReader } from '../game/rendering';
 import { inkWash, theme } from '../theme';
 import { curve } from '../theme/motion';
+import { ScreenReaderCell, ScreenReaderCells } from './ScreenReaderCells';
 
 /**
  * The pond, in the same hand as every other board: Twos' paper tray with
@@ -258,6 +259,33 @@ export function LilyPadsBoard({
   const frogPad = cellOf(state.at);
   const home = geo.centre(frogPad.row, frogPad.col);
 
+  // Played by a screen reader: one button a pad still afloat, saying
+  // whether the frog can hop to it from where it sits.
+  const screenReader = useScreenReader();
+  const readerCells: ScreenReaderCell[] = state.afloat.flatMap((afloat, i) => {
+    if (!afloat) return [];
+    const c = cellOf(i);
+    const here = i === state.at;
+    const inReach = reach.includes(i);
+    const kind = state.stones?.[i] ? 'stone' : state.lotus?.[i] ? 'lotus pad' : 'pad';
+    return [
+      {
+        key: `p${i}`,
+        x: geo.inset + c.col * geo.cell,
+        y: geo.inset + c.row * geo.cell,
+        size: geo.cell,
+        label: `Row ${c.row + 1}, column ${c.col + 1}, ${kind}${here ? ', the frog is here' : inReach ? ', in reach' : ''}${cutOff.includes(i) ? ', cut off' : ''}`,
+        hint: inReach ? 'Hops the frog here' : undefined,
+        disabled: solved || here || !inReach,
+        onActivate: () => {
+          if (solved || here) return;
+          if (inReach) onHop(i);
+          else refuse();
+        },
+      },
+    ];
+  });
+
   return (
     <View style={{ width: size, height: size }}>
       <Canvas style={StyleSheet.absoluteFill}>
@@ -318,9 +346,10 @@ export function LilyPadsBoard({
         onResponderTerminate={() => {
           down.current = null;
         }}
-        accessible
+        accessible={!screenReader}
         accessibilityLabel={`Pond with ${state.afloat.filter(Boolean).length} pads afloat`}
       />
+      <ScreenReaderCells cells={readerCells} />
     </View>
   );
 }

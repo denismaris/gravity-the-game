@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { Group, vec } from '@shopify/react-native-skia';
+import { isRepainting } from '../../components/playContinuity';
 import { Easing, ReduceMotion, SharedValue, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { reducedMotionFlag } from './useReducedMotion';
 import { motion } from '../../theme';
@@ -31,8 +32,10 @@ export type DealClock = SharedValue<number>;
  * in the same frame the board mounted, and made a puzzle open heavily.
  */
 export function useDealing(): DealClock {
-  const clock = useSharedValue(0);
+  // A repaint (light/dark) is the same board: dealt already.
+  const clock = useSharedValue(isRepainting() ? DEAL_TOTAL_MS : 0);
   useEffect(() => {
+    if (clock.value >= DEAL_TOTAL_MS) return;
     let held = false;
     const cancel = whenDealsReleased(() => {
       // Held under the hand-off veil: once it lifts, the deal starts at

@@ -1,11 +1,12 @@
-import React, { useCallback, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
-import { Modal, Pressable, View } from 'react-native';
+import { Animated, Modal, Pressable, View } from 'react-native';
 import { Text } from './Text';
-import Reanimated, { SlideInDown } from 'react-native-reanimated';
+import Reanimated from 'react-native-reanimated';
+import { SHEET_RISE_IN } from './ModalLayer';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { coinVideosLeft, watchRewardedVideo } from '../ads';
-import { shade, triggerFeedback } from '../game/rendering';
+import { isReducedMotion, shade, triggerFeedback } from '../game/rendering';
 import { usePlayerProgress } from '../progression';
 import { HINT_COST, INSIGHT_PACK, INSIGHTS_PER_VIDEO } from '../progression/coins';
 import { getColorScheme, theme, themedStyles } from '../theme';
@@ -16,7 +17,6 @@ import { ROUND_KEY } from './RoundKey';
 import { curve } from '../theme/motion';
 
 /** The sheet rises from the foot of the screen as its backdrop fades in. */
-const SHEET_IN = SlideInDown.duration(320).easing(curve.arrive);
 
 /**
  * Insight, the superpower every game shares: one charge reveals the next
@@ -134,7 +134,7 @@ function InsightSheet({ visible, onClose, onEarned, onPaid, onPack }: { visible:
             pressable, so the tap area is the whole backdrop, not the size of
             its contents. */}
         <Pressable accessibilityRole="button" accessibilityLabel="Close" onPress={onClose} style={[styles.scrim, styles.scrimFill]} />
-        <Reanimated.View entering={SHEET_IN} style={[styles.sheet, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
+        <Reanimated.View entering={SHEET_RISE_IN} style={[styles.sheet, { paddingBottom: insets.bottom + theme.spacing.lg }]}>
           <View style={styles.grabber} />
           {/* The heading, set like the pages: the mark beside it, left. */}
           <View style={styles.sheetHead}>
@@ -205,16 +205,87 @@ function InsightSheet({ visible, onClose, onEarned, onPaid, onPack }: { visible:
  * control. Pressing it runs `onPress` (the screen's own hint, which spends
  * through `useInsightPower`).
  */
-export function InsightButton({ count, onPress }: { count: number; onPress: () => void }): React.JSX.Element {
+export function InsightButton({ count, onPress, progress }: { count: number; onPress: () => void; progress?: unknown }): React.JSX.Element {
+  const stuck = useStuck(progress);
+  // The spark flares as it is used: swells, turns a quarter (its four
+  // points land where they were) and settles.
+  const flare = useRef(new Animated.Value(0)).current;
+  const press = () => {
+    if (!isReducedMotion()) {
+      flare.setValue(0);
+      Animated.timing(flare, { toValue: 1, duration: 520, easing: curve.arrive, useNativeDriver: true }).start();
+    }
+    onPress();
+  };
   return (
-    <PressableScale accessibilityRole="button" accessibilityLabel={`Insight: reveal the next move, ${count} left`} onPress={onPress} scaleTo={1}>
+    <View>
+      {stuck && <StuckGlow />}
+    <PressableScale accessibilityRole="button" accessibilityLabel={`Insight: reveal the next move, ${count} left`} onPress={press} scaleTo={1}>
       {/* The gold key on its gold edge: the power, not one more control. */}
       <RaisedKey height={ROUND_KEY} lip={3} face={theme.colors.surfaceHi} edge={shade(theme.colors.goldRim, 0.72)} rim={theme.colors.goldRim} padding={theme.spacing.lg - 2} gap={theme.spacing.xs}>
-        <Icon name="spark" size={14} color={theme.colors.accent} />
+        <Animated.View style={{ transform: [{ scale: flare.interpolate({ inputRange: [0, 0.3, 1], outputRange: [1, 1.55, 1] }) }, { rotate: flare.interpolate({ inputRange: [0, 1], outputRange: ['0deg', '90deg'] }) }] }}>
+          <Icon name="spark" size={14} color={theme.colors.accent} />
+        </Animated.View>
         <Text style={styles.buttonText}>Insight</Text>
         <InsightCount count={count} />
       </RaisedKey>
     </PressableScale>
+    </View>
+  );
+}
+
+/** A board left this long without a change is read as stuck. */
+const STUCK_MS = 40_000;
+
+/**
+ * Whether the board has sat unchanged for `STUCK_MS`: `progress` is the
+ * board's state, so any move resets the wait. Undefined `progress` (a
+ * screen that does not pass it) never counts as stuck.
+ */
+function useStuck(progress: unknown): boolean {
+  const [stuck, setStuck] = useState(false);
+  useEffect(() => {
+    setStuck(false);
+    if (progress === undefined) return;
+    const timer = setTimeout(() => setStuck(true), STUCK_MS);
+    return () => clearTimeout(timer);
+  }, [progress]);
+  return stuck;
+}
+
+/**
+ * The one nudge a stuck player gets: a soft gold ring breathing out of the
+ * Insight key, every few seconds, until the next move. Never a sound, never
+ * a pop-up: help that waits to be taken.
+ */
+function StuckGlow(): React.JSX.Element | null {
+  const t = useRef(new Animated.Value(0)).current;
+  const reduced = isReducedMotion();
+  useEffect(() => {
+    if (reduced) return;
+    const loop = Animated.loop(
+      Animated.sequence([
+        Animated.timing(t, { toValue: 1, duration: 1400, easing: curve.arrive, useNativeDriver: true }),
+        Animated.delay(1800),
+        Animated.timing(t, { toValue: 0, duration: 0, useNativeDriver: true }),
+      ]),
+      // A handful of breaths, not a glow for as long as the player sits:
+      // the endless loop kept the screen drawing every frame.
+      { iterations: 4 },
+    );
+    loop.start();
+    return () => loop.stop();
+  }, [t, reduced]);
+  return (
+    <Animated.View
+      pointerEvents="none"
+      style={[
+        styles.stuckRing,
+        reduced
+          ? { opacity: 0.6 }
+          : { opacity: t.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 0.7, 0] }), transform: [{ scaleX: t.interpolate({ inputRange: [0, 1], outputRange: [1, 1.12] }) }, { scaleY: t.interpolate({ inputRange: [0, 1], outputRange: [1, 1.35] }) }] },
+      ]}
+    />
   );
 }
 
@@ -228,6 +299,7 @@ export function InsightMark(): React.JSX.Element {
 }
 
 const styles = themedStyles(() => ({
+  stuckRing: { position: 'absolute', left: -2, right: -2, top: -2, height: ROUND_KEY + 4, borderRadius: (ROUND_KEY + 4) / 2, borderWidth: 2, borderColor: theme.colors.goldRim },
   count: {
     minWidth: 20,
     height: 20,

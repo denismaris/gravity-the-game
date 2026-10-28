@@ -4,7 +4,7 @@ import { toRoman } from '../progression/rank';
 import { SET_BONUS } from '../progression/coins';
 import { CoinGlyph } from './Coins';
 import { Animated, Easing, StyleSheet, View } from 'react-native';
-import { Text, MAX_TEXT_SCALE } from './Text';
+import { Text, textScale } from './Text';;
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
 import { ConfettiBurst } from './ConfettiBurst';
@@ -12,10 +12,11 @@ import { GameEmblem } from './GameEmblem';
 import { glide, settle, slice } from './placeMotion';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, GameKind, gameShortName } from '../game/journey';
-import { theme, themedStyles } from '../theme';
-import { shade, triggerFeedback } from '../game/rendering';
+import { motion, theme, themedStyles } from '../theme';
+import { announce, isReducedMotion, readableOn, shade, triggerFeedback } from '../game/rendering';
 import { MODAL_EXIT_MS, ModalLayer } from './ModalLayer';
 import { DialogActions } from './dialog';
+import { Frosted } from './Frosted';
 
 export interface LevelSetCompleteProps {
   /** The level number that was just finished. */
@@ -29,8 +30,8 @@ export interface LevelSetCompleteProps {
 /** Most of the way through the solve card's exit before this arrives. */
 const ARRIVE_AFTER_MS = Math.round(MODAL_EXIT_MS * 0.5);
 
-/** Title, the tally, the closing line, the action. */
-const ROW_COUNT = 4;
+/** Title, the tally, the closing line (the action has its own, after the tally). */
+const ROW_COUNT = 3;
 /** Each game is *counted*, not merely revealed - one at a time, each beat
  * overlapping the last a little so the tally flows rather than ticks. */
 const PLACE_STAGGER_MS = 140;
@@ -62,6 +63,10 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
   // A little overlap is fine: it comes in as that one is still fading.
   const { backdrop, card, cardOpacity, hero, rowStyle } = useCardEntrance(ROW_COUNT, { delay: ARRIVE_AFTER_MS });
   const places = useRef(kinds.map(() => new Animated.Value(0))).current;
+  // The action waits for the tally: it comes in only once every game's
+  // emblem is in its place, so the count is seen through, not skipped.
+  const actionsIn = useRef(new Animated.Value(0)).current;
+  const [actionsLive, setActionsLive] = useState(false);
 
   useEffect(() => {
     // One timing per game, on the native driver; every part of a row reads
@@ -74,19 +79,33 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
         places.map(value => Animated.timing(value, { toValue: 1, duration: PLACE_MS, easing: Easing.linear, useNativeDriver: true })),
       ),
     ]).start();
+    const tallyDone = ARRIVE_AFTER_MS + PLACE_DELAY_MS + Math.max(0, kinds.length - 1) * PLACE_STAGGER_MS + PLACE_MS;
+    Animated.sequence([
+      Animated.delay(isReducedMotion() ? ARRIVE_AFTER_MS + 200 : tallyDone + 80),
+      Animated.spring(actionsIn, { toValue: 1, useNativeDriver: true, ...motion.spring.kick }),
+    ]).start();
+    const live = setTimeout(() => setActionsLive(true), isReducedMotion() ? ARRIVE_AFTER_MS + 200 : tallyDone + 80);
+    announce(`Level ${levelNumber} done. ${kinds.length} games, every one finished. ${SET_BONUS} coins.`, ARRIVE_AFTER_MS + 300);
     // Each game's check felt as it stamps on, one light tap apiece.
     const stamps = places.map((_v, i) => setTimeout(() => triggerFeedback('stamp'), ARRIVE_AFTER_MS + PLACE_DELAY_MS + i * PLACE_STAGGER_MS + PLACE_MS * 0.5));
-    return () => stamps.forEach(clearTimeout);
+    return () => {
+      stamps.forEach(clearTimeout);
+      clearTimeout(live);
+    };
     // Mount-only: this card is mounted exactly when a set is completed.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
     <ModalLayer>
-      <View style={styles.overlay} pointerEvents="box-none">
+      {/* The whole screen takes the touch: nothing behind the finish (the
+          board, the level card) can be pressed through it. */}
+      <View style={styles.overlay} onStartShouldSetResponder={() => true} accessibilityViewIsModal>
         {/* The whole screen, see-through paper, the level's medal and its
             count laid out on it: no sheet, no rules. */}
-        <Animated.View style={[styles.veil, { opacity: backdrop }]} pointerEvents="none" />
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: backdrop }]} pointerEvents="none">
+          <Frosted />
+        </Animated.View>
         <ConfettiBurst />
         <Animated.View
           style={[
@@ -143,14 +162,17 @@ export function LevelSetComplete({ levelNumber, kinds, onContinue }: LevelSetCom
                 <Text style={styles.chapterNote}>Its reward is waiting in your Almanac.</Text>
               </Animated.View>
             ) : (
-              <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE} style={[styles.closing, rowStyle(2)]}>
+              <Animated.Text maxFontSizeMultiplier={textScale()} style={[styles.closing, rowStyle(2)]}>
                 The next set is ready when you are.
               </Animated.Text>
             )}
           </View>
           <View style={styles.below} />
 
-          <Animated.View style={[styles.actions, rowStyle(3)]}>
+          <Animated.View
+            pointerEvents={actionsLive ? 'auto' : 'none'}
+            style={[styles.actions, { opacity: actionsIn, transform: [{ translateY: actionsIn.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }, { scale: actionsIn.interpolate({ inputRange: [0, 1], outputRange: [0.96, 1] }) }] }]}
+          >
             <DialogActions primary={{ label: 'Continue', onPress: onContinue, onward: true }} />
           </Animated.View>
         </Animated.View>
@@ -232,12 +254,12 @@ function TallyTile({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JS
           <Icon name="check" size={10} color={theme.colors.surfaceHi} />
         </Animated.View>
       </View>
-      <Animated.Text maxFontSizeMultiplier={MAX_TEXT_SCALE}
+      <Animated.Text maxFontSizeMultiplier={textScale()}
         numberOfLines={2}
         style={[
           styles.tileLabel,
           {
-            color: accent,
+            color: readableOn(accent, theme.colors.background, theme.colors.textPrimary),
             opacity: slice(t, 0.35, 0.8, glide, [0, 1], 0),
             transform: [{ translateY: slice(t, 0.35, 0.85, glide, [6, 0]) }],
           },
@@ -263,7 +285,6 @@ const styles = themedStyles(() => ({
   chapterNote: { marginTop: 2, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary },
   overlay: { ...StyleSheet.absoluteFill },
   /** The page's paper, a touch see-through: the board stays faintly there. */
-  veil: { ...StyleSheet.absoluteFill, backgroundColor: `${theme.colors.background}F5` },
   page: { flex: 1, paddingHorizontal: theme.spacing.xl },
   above: { flex: 1 },
   below: { flex: 1.3 },

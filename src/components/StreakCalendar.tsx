@@ -1,10 +1,10 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated as RNAnimated, Pressable, StyleSheet, View } from 'react-native';
 import { Text } from './Text';
-import { useReducedMotion } from '../game/rendering';
-import Animated, { FadeIn, FadeInDown } from 'react-native-reanimated';
+import { isReducedMotion, triggerFeedback, useReducedMotion } from '../game/rendering';
+import Animated, { FadeIn } from 'react-native-reanimated';
 import { theme, themedStyles } from '../theme';
-import { ModalLayer } from './ModalLayer';
+import { CARD_POP_IN, ModalLayer } from './ModalLayer';
 import { PressableScale } from './PressableScale';
 import { DialogActions, dialogStyles } from './dialog';
 import { curve } from '../theme/motion';
@@ -34,10 +34,26 @@ function weekdayOf(ms: number): number {
 
 /** The last seven days, today last: a letter and a dot each, the dot full
  * on a day the Daily was solved. Tapping it opens the whole calendar. */
+/**
+ * A day the Daily was just solved, waiting to be stamped onto the strip the
+ * next time Home shows it: the dot fills with a small stamp, felt as well
+ * as seen, once.
+ */
+let pendingStamp: string | null = null;
+export function stampDailyDay(dayKey: string): void {
+  pendingStamp = dayKey;
+}
+
 export function WeekStrip({ days, todayKey, onPress }: { days: ReadonlySet<string>; todayKey: string; onPress: () => void }): React.JSX.Element {
   const today = msOf(todayKey);
   const week = Array.from({ length: 7 }, (_v, i) => today - (6 - i) * DAY_MS);
   const solvedCount = week.filter(ms => days.has(keyOf(ms))).length;
+  // Taken once: the strip that shows today's stamp plays it.
+  const [stamping] = useState(() => {
+    const now = pendingStamp === todayKey && days.has(todayKey);
+    if (now) pendingStamp = null;
+    return now;
+  });
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={`This week: the Daily solved on ${solvedCount} of 7 days. Open your calendar`} onPress={onPress} hitSlop={6} style={styles.strip}>
       {week.map(ms => {
@@ -48,12 +64,44 @@ export function WeekStrip({ days, todayKey, onPress }: { days: ReadonlySet<strin
             <Text style={[styles.stripLetter, isToday && styles.stripLetterToday]}>{WEEKDAY_LETTERS[weekdayOf(ms)]}</Text>
             <View>
               {isToday && !days.has(key) && <TodayPulse />}
-              <View style={[styles.stripDot, days.has(key) && styles.dotOn, isToday && !days.has(key) && styles.dotToday]} />
+              {isToday && stamping ? (
+                <DayStamp />
+              ) : (
+                <View style={[styles.stripDot, days.has(key) && styles.dotOn, isToday && !days.has(key) && styles.dotToday]} />
+              )}
             </View>
           </View>
         );
       })}
     </Pressable>
+  );
+}
+
+/** Today's dot, stamped full: it lands a touch large, presses in, and a
+ * ring of ink spreads from it. */
+function DayStamp(): React.JSX.Element {
+  const t = useRef(new RNAnimated.Value(isReducedMotion() ? 1 : 0)).current;
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      triggerFeedback('stamp');
+      RNAnimated.timing(t, { toValue: 1, duration: 520, easing: curve.linear, useNativeDriver: true }).start();
+    }, 650);
+    return () => clearTimeout(timer);
+  }, [t]);
+  return (
+    <View>
+      <RNAnimated.View
+        pointerEvents="none"
+        style={[styles.stripDot, styles.dotOn, styles.stampRing, { opacity: t.interpolate({ inputRange: [0, 0.35, 1], outputRange: [0, 0.6, 0] }), transform: [{ scale: t.interpolate({ inputRange: [0, 1], outputRange: [1, 3] }) }] }]}
+      />
+      <RNAnimated.View
+        style={[
+          styles.stripDot,
+          styles.dotOn,
+          { opacity: t.interpolate({ inputRange: [0, 0.2, 1], outputRange: [0, 1, 1] }), transform: [{ scale: t.interpolate({ inputRange: [0, 0.35, 0.6, 1], outputRange: [2.2, 0.85, 1.08, 1] }) }] },
+        ]}
+      />
+    </View>
   );
 }
 
@@ -107,7 +155,7 @@ export function StreakCalendar({ days, todayKey, streak, best, onClose }: { days
         <Pressable accessibilityLabel="Close the calendar" style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
       <View style={styles.center} pointerEvents="box-none">
-        <Animated.View entering={FadeInDown.duration(420).easing(curve.arrive)} style={styles.card}>
+        <Animated.View entering={CARD_POP_IN} style={styles.card}>
           <Text style={dialogStyles.kicker}>Your Dailies</Text>
           <View style={styles.figures}>
             <View style={styles.figure}>
@@ -173,6 +221,7 @@ const styles = themedStyles(() => ({
   stripLetterToday: { color: theme.colors.textPrimary },
   stripDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.border },
   dotOn: { backgroundColor: theme.colors.secondary },
+  stampRing: { position: 'absolute', top: 0, left: 0 },
   dotToday: { backgroundColor: 'transparent', borderWidth: 1.5, borderColor: theme.colors.secondary },
   pulse: { position: 'absolute', width: 12, height: 12, borderRadius: 6, backgroundColor: theme.colors.secondary },
 

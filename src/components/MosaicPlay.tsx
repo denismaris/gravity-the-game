@@ -4,10 +4,11 @@ import { Animated, PanResponder, StyleSheet, View } from 'react-native';
 import { useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { Canvas, Group, RoundedRect } from '@shopify/react-native-skia';
 import { canPlace, MosaicCell, MosaicPuzzle, MosaicState, occupancy, orient } from '../game/mosaic';
-import { useReducedMotion } from '../game/rendering';
+import { announce, useReducedMotion, useScreenReader } from '../game/rendering';
 import { theme } from '../theme';
 import { mosaicGeometry, MosaicBoardView, pieceColor, Tesserae } from './MosaicBoardView';
 import { curve } from '../theme/motion';
+import { ScreenReaderCell, ScreenReaderCells } from './ScreenReaderCells';
 
 export type MosaicFeedback = 'pickup' | 'place' | 'return' | 'turn';
 
@@ -367,6 +368,87 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
   // The carried piece's canvas is made once and kept, showing the last
   // piece held when nothing is: a fresh canvas for every pick-up cost a
   // beat right as the finger moved.
+  // Played by a screen reader: a piece in the tray is picked up with a
+  // double tap (and turned from the actions menu), then set down with a
+  // double tap on the square its top left corner should take. A piece on
+  // the board is lifted the same way.
+  const screenReader = useScreenReader();
+  const [readerHeld, setReaderHeld] = useState<number | null>(null);
+  const readerCells: ScreenReaderCell[] = [];
+  if (screenReader) {
+    const owners = occupancy(puzzle, state);
+    const shapeOf = (i: number) => {
+      const cells = orient(puzzle.pieces[i].cells, state.pieces[i]);
+      const { w, h } = extent(cells);
+      return `${cells.length} squares, ${w} wide, ${h} tall`;
+    };
+    for (const i of loose) {
+      if (state.pieces[i].at) continue;
+      const o = slotOrigin(i);
+      readerCells.push({
+        key: `t${i}`,
+        x: o.x,
+        y: o.y,
+        size: slot,
+        label: `Piece ${loose.indexOf(i) + 1}, ${shapeOf(i)}${readerHeld === i ? ', in hand' : ''}`,
+        hint: 'Picks it up. Then choose where it goes on the picture',
+        selected: readerHeld === i,
+        disabled: solved,
+        onActivate: () => {
+          if (solved) return;
+          setReaderHeld(i);
+          onFeedback?.('pickup');
+          announce(`Piece ${loose.indexOf(i) + 1} in hand. ${shapeOf(i)}`, 0);
+        },
+        actions: [
+          {
+            name: 'turn',
+            label: 'Turn',
+            run: () => {
+              onRotate(i);
+              onFeedback?.('turn');
+            },
+          },
+        ],
+      });
+    }
+    puzzle.silhouette.forEach((line, row) =>
+      line.forEach((inside, col) => {
+        if (!inside) return;
+        const owner = owners.get(`${row}:${col}`);
+        const fixedHere = owner !== undefined && puzzle.fixed[owner];
+        readerCells.push({
+          key: `b${row}-${col}`,
+          x: boardX + geometry.pad + col * cellSize,
+          y: boardY + geometry.pad + row * cellSize,
+          size: cellSize,
+          label: `Row ${row + 1}, column ${col + 1}, ${owner === undefined ? 'empty' : fixedHere ? 'set from the start' : `piece ${loose.indexOf(owner) + 1}`}`,
+          hint: readerHeld !== null ? 'Sets the piece in hand with its top left corner here' : owner !== undefined && !fixedHere ? 'Lifts this piece back into your hand' : undefined,
+          disabled: solved || (readerHeld === null && (owner === undefined || fixedHere)),
+          onActivate: () => {
+            if (solved) return;
+            if (readerHeld !== null) {
+              if (canPlace(puzzle, state, readerHeld, row, col)) {
+                onPlace(readerHeld, row, col);
+                onFeedback?.('place');
+                setReaderHeld(null);
+              } else {
+                onFeedback?.('return');
+                announce('It does not fit there', 0);
+              }
+              return;
+            }
+            if (owner !== undefined && !fixedHere) {
+              onLift(owner);
+              setReaderHeld(owner);
+              announce(`Piece ${loose.indexOf(owner) + 1} lifted, in hand`, 0);
+            }
+          },
+        });
+      }),
+    );
+  }
+
   const lastDrag = useRef<Drag | null>(null);
   if (drag) lastDrag.current = drag;
   const held = drag ?? lastDrag.current;
@@ -428,6 +510,7 @@ export function MosaicPlay({ puzzle, state, width, maxBoardHeight, solved, flash
           </Group>
         </Canvas>
       </Animated.View>
+      <ScreenReaderCells cells={readerCells} />
     </View>
   );
 }

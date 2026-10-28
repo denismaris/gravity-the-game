@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { Animated, StyleProp, View, ViewStyle } from 'react-native';
+import { Animated, StyleProp, TextStyle, View, ViewStyle, useWindowDimensions } from 'react-native';
 import { Text } from './Text';
 import { Canvas, Circle, Path } from '@shopify/react-native-skia';
-import { triggerFeedback, useReducedMotion } from '../game/rendering';
+import { isReducedMotion, triggerFeedback, useReducedMotion } from '../game/rendering';
+import { curve } from '../theme/motion';
 import { usePlayerProgress } from '../progression';
 import { motion, theme, themedStyles } from '../theme';
 
@@ -56,8 +57,11 @@ export function CoinBalance({
   style,
   track = 'play',
   delay = 0,
+  figure,
 }: {
   coins: number;
+  /** The count's text style where the purse sits beside other figures. */
+  figure?: StyleProp<TextStyle>;
   /** Which purse this is, for where its count starts (see `lastShown`). */
   track?: string;
   /** Wait this long before counting - for a purse on a screen still
@@ -75,6 +79,8 @@ export function CoinBalance({
   // from the last balance any purse showed - so coming back to Home after
   // a solve, the payout is watched arriving.
   const [shown, setShown] = useState(() => lastShown.get(track) ?? coins);
+  const [flight, setFlight] = useState<{ key: number; count: number; delay: number } | null>(null);
+  const glyph = useRef<React.ElementRef<typeof View>>(null);
   useEffect(() => {
     if (coins !== previous.current) {
       pop.setValue(0.82);
@@ -89,7 +95,11 @@ export function CoinBalance({
       return;
     }
     const duration = Math.min(900, 300 + Math.abs(coins - from) * 6);
-    const wait = changedHere ? 0 : delay;
+    // A payout arriving on Home flies in first, coin by coin, and the count
+    // starts as the first ones land.
+    const flying = !changedHere && coins > from && track === 'home' && !isReducedMotion();
+    if (flying) setFlight({ key: Date.now(), count: Math.min(7, Math.max(3, Math.ceil((coins - from) / 6))), delay });
+    const wait = changedHere ? 0 : delay + (flying ? COIN_FLIGHT_MS * 0.6 : 0);
     let frame = 0;
     let start = 0;
     const step = () => {
@@ -121,12 +131,71 @@ export function CoinBalance({
   return (
     <View style={[styles.balance, style]} accessibilityLiveRegion="polite">
       <Animated.View style={[styles.balanceRow, { transform: [{ scale: pop }] }]}>
-        <CoinGlyph size={14} />
-        <Text style={styles.balanceText} maxFontSizeMultiplier={FIGURE_SCALE} accessibilityLabel={`${coins} coins`}>
+        <View ref={glyph} collapsable={false}>
+          <CoinGlyph size={14} />
+          {flight && <CoinFlight key={flight.key} anchor={glyph} count={flight.count} delay={flight.delay} onDone={() => setFlight(null)} />}
+        </View>
+        <Text style={[styles.balanceText, figure]} maxFontSizeMultiplier={FIGURE_SCALE} accessibilityLabel={`${coins} coins`}>
           {shown}
         </Text>
       </Animated.View>
       {shortBy !== null && <Text style={styles.short}>{`${shortBy} more needed. Solving puzzles earns coins.`}</Text>}
+    </View>
+  );
+}
+
+/** From the coins' setting off to the last one landing. */
+const COIN_FLIGHT_MS = 900;
+
+/**
+ * The payout arriving: a few coins rising from low in the middle of the
+ * screen and arcing into the purse, one after another, each landing with a
+ * light tick. Drawn from the purse's own coin, offset back to where they
+ * start, so they land exactly on it. Native-driven.
+ */
+function CoinFlight({ anchor, count, delay, onDone }: { anchor: React.RefObject<React.ElementRef<typeof View> | null>; count: number; delay: number; onDone: () => void }): React.JSX.Element | null {
+  const { width, height } = useWindowDimensions();
+  const [from, setFrom] = useState<{ x: number; y: number } | null>(null);
+  const t = useRef(Array.from({ length: count }, () => new Animated.Value(0))).current;
+  useEffect(() => {
+    anchor.current?.measureInWindow((x: number, y: number) => setFrom({ x: width / 2 - x - 7, y: height * 0.62 - y - 7 }));
+    // Once: keyed by the payout.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  useEffect(() => {
+    if (!from) return;
+    const per = (COIN_FLIGHT_MS - 520) / Math.max(1, count - 1);
+    const runs = t.map((v, i) => Animated.timing(v, { toValue: 1, duration: 520, delay: delay + i * per, easing: curve.glide, useNativeDriver: true }));
+    const ticks = t.map((_v, i) => setTimeout(() => triggerFeedback('tap'), delay + i * per + 500));
+    Animated.parallel(runs).start(() => onDone());
+    return () => ticks.forEach(clearTimeout);
+  }, [from, t, count, delay, onDone]);
+  if (!from) return null;
+  return (
+    <View pointerEvents="none" style={styles.flight}>
+      {t.map((v, i) => {
+        // A little spread at the start, so they leave as a handful.
+        const spread = (i - (count - 1) / 2) * 14;
+        return (
+          <Animated.View
+            key={i}
+            style={[
+              styles.flyer,
+              {
+                opacity: v.interpolate({ inputRange: [0, 0.1, 0.9, 1], outputRange: [0, 1, 1, 0] }),
+                transform: [
+                  { translateX: v.interpolate({ inputRange: [0, 1], outputRange: [from.x + spread, 0] }) },
+                  // A bow upward on the way, not a straight line.
+                  { translateY: v.interpolate({ inputRange: [0, 0.5, 1], outputRange: [from.y, from.y * 0.42 - 40, 0] }) },
+                  { scale: v.interpolate({ inputRange: [0, 0.5, 1], outputRange: [1.5, 1.25, 0.9] }) },
+                ],
+              },
+            ]}
+          >
+            <CoinGlyph size={14} />
+          </Animated.View>
+        );
+      })}
     </View>
   );
 }
@@ -218,6 +287,8 @@ export function useCoinPurchase(): {
 }
 
 const styles = themedStyles(() => ({
+  flight: { position: 'absolute', left: 0, top: 0, width: 14, height: 14, overflow: 'visible' },
+  flyer: { position: 'absolute', left: 0, top: 0 },
   cost: {
     flexDirection: 'row',
     alignItems: 'center',

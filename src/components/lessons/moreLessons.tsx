@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View } from 'react-native';
 import { ArukonePuzzle, ArukoneState, isArukoneSolved, isPathComplete, mirrorPairOf, pairFor } from '../../game/arukone';
-import { MosaicPuzzle, MosaicState, initialMosaicState, isMosaicSolved, placePiece, placedCells, rotatePiece } from '../../game/mosaic';
+import { MosaicPuzzle, MosaicState, canPlace, initialMosaicState, isMosaicSolved, liftPiece, placePiece, placedCells, rotatePiece } from '../../game/mosaic';
 import { Direction, GameState, StaticCellType, applyGravity, isPuzzleSolved } from '../../game/engine';
-import { AdjacentCoord, AdjacentPuzzle, AdjacentState, applyTap, groupAt } from '../../game/adjacent';
+import { AdjacentCoord, AdjacentPuzzle, AdjacentState, applyTap, groupAt, isAdjacentSolved, isAdjacentStuck } from '../../game/adjacent';
 import { BridgesPuzzle, BridgesState, bridgeLinks, cycleBridge, isBridgesSolved } from '../../game/bridges';
 import { accentColorForKind } from '../../game/journey';
 import { AdjacentBoard } from '../AdjacentBoard';
@@ -33,7 +33,23 @@ const ADJ: AdjacentPuzzle = {
   ],
   targetScore: 100,
 };
-const ADJ_STEPS: ReadonlyArray<LessonStepCopy & { readonly from: Cell }> = [
+/** What the free board asks for: well within reach, past any one tap. */
+const ADJ_FREE_TARGET = 600;
+/** The player's own board: clear groups until the score is reached. */
+export const ADJ_FREE: AdjacentPuzzle = {
+  id: 'lesson-adjacent-2',
+  difficulty: 'easy',
+  size: 4,
+  colors: 3,
+  initial: [
+    [0, 0, 1, 2],
+    [1, 1, 2, 2],
+    [2, 0, 0, 1],
+    [2, 2, 1, 1],
+  ],
+  targetScore: ADJ_FREE_TARGET,
+};
+const ADJ_STEPS: ReadonlyArray<LessonStepCopy & { readonly from: Cell; readonly free?: boolean }> = [
   {
     title: 'Tap a group',
     say: 'Tap a tile that touches another tile of the same colour. The whole group disappears. Start with the pair at the bottom left.',
@@ -48,15 +64,31 @@ const ADJ_STEPS: ReadonlyArray<LessonStepCopy & { readonly from: Cell }> = [
     praise: 'Four together scores much more than two pairs.',
     from: { row: 3, col: 0 },
   },
+  {
+    title: 'Your turn',
+    say: `A new board. Clear groups to reach ${ADJ_FREE_TARGET} points. Join colours up before you tap, and the groups grow.`,
+    hint: 'Tap any group of two or more.',
+    praise: 'Target reached, on your own.',
+    from: { row: 0, col: 0 },
+    free: true,
+  },
 ];
 
 export function AdjacentLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [state, setState] = useState<AdjacentState>({ grid: ADJ.initial, score: 0, cascades: 0 });
   const [animation, setAnimation] = useState<AdjacentAnimation | null>(null);
-  const flow = useLessonFlow(ADJ_STEPS.length);
+  const fresh = (): AdjacentState => ({ grid: ADJ_FREE.initial, score: 0, cascades: 0 });
+  // The last step brings its own board.
+  const flow = useLessonFlow(ADJ_STEPS.length, i => {
+    if (ADJ_STEPS[i].free) {
+      setAnimation(null);
+      setState(fresh());
+    }
+  });
   const step = ADJ_STEPS[flow.index];
+  const puzzle = step.free ? ADJ_FREE : ADJ;
   const live = flow.phase === 'doing';
-  const group = useMemo<ReadonlyArray<AdjacentCoord>>(() => (live ? groupAt(state.grid, step.from.row, step.from.col) : []), [live, state.grid, step]);
+  const group = useMemo<ReadonlyArray<AdjacentCoord>>(() => (live && !step.free ? groupAt(state.grid, step.from.row, step.from.col) : []), [live, state.grid, step]);
   // Steady while the player is meant to act: blinking it meant redrawing
   // the whole board twice a second.
   const glow = live;
@@ -64,6 +96,22 @@ export function AdjacentLesson({ onDone }: { onDone: () => void }): React.JSX.El
   const tap = useCallback(
     (row: number, col: number) => {
       if (flow.phase !== 'doing') return;
+      if (step.free) {
+        const free = applyTap(state, row, col);
+        if (!free) return flow.wrong();
+        setAnimation({ at: Date.now(), removed: free.removed.map(c => ({ ...c, colour: state.grid[c.row][c.col] as number })), falls: free.falls });
+        setState(free.state);
+        if (isAdjacentSolved(ADJ_FREE, free.state)) flow.succeed();
+        // Out of moves and short: the board deals again, gently.
+        else if (isAdjacentStuck(ADJ_FREE, free.state)) {
+          flow.wrong();
+          setTimeout(() => {
+            setAnimation(null);
+            setState(fresh());
+          }, 900);
+        }
+        return;
+      }
       if (!group.some(c => c.row === row && c.col === col)) return flow.wrong();
       const move = applyTap(state, row, col);
       if (!move) return;
@@ -71,7 +119,7 @@ export function AdjacentLesson({ onDone }: { onDone: () => void }): React.JSX.El
       setState(move.state);
       flow.succeed();
     },
-    [flow, group, state],
+    [flow, group, state, step],
   );
 
   return (
@@ -83,7 +131,8 @@ export function AdjacentLesson({ onDone }: { onDone: () => void }): React.JSX.El
       onDone={onDone}
       renderBoard={size => (
         <AdjacentBoard
-          puzzle={ADJ}
+          key={step.free ? 'free' : 'guided'}
+          puzzle={puzzle}
           state={state}
           maxWidth={size}
           maxHeight={size}
@@ -120,7 +169,24 @@ const BRIDGES: BridgesPuzzle = {
   islands: ISLANDS,
   solution: linksOf.map((_l, i) => (i === TOP ? 1 : i === SIDE ? 2 : 0)),
 };
-const BRIDGE_STEPS: ReadonlyArray<LessonStepCopy & { readonly link: number; readonly count: number }> = [
+/** Four islands at the corners of a square: the player's own. */
+const FREE_ISLANDS = [
+  { row: 0, col: 0, need: 2 },
+  { row: 0, col: 2, need: 3 },
+  { row: 2, col: 2, need: 2 },
+  { row: 2, col: 0, need: 1 },
+];
+const freeLinks = bridgeLinks({ rows: 3, cols: 3, islands: FREE_ISLANDS });
+const freeLink = (a: number, b: number) => freeLinks.findIndex(l => (l.a === a && l.b === b) || (l.a === b && l.b === a));
+export const BRIDGES_FREE: BridgesPuzzle = {
+  id: 'lesson-bridges-2',
+  difficulty: 'easy',
+  rows: 3,
+  cols: 3,
+  islands: FREE_ISLANDS,
+  solution: freeLinks.map((_l, i) => (i === freeLink(0, 1) ? 2 : i === freeLink(1, 2) ? 1 : i === freeLink(2, 3) ? 1 : 0)),
+};
+const BRIDGE_STEPS: ReadonlyArray<LessonStepCopy & { readonly link: number; readonly count: number; readonly free?: boolean }> = [
   {
     title: 'Build a bridge',
     say: 'Bridges join islands in straight lines. Tap the water between two islands to build one. The 1 needs one bridge.',
@@ -137,18 +203,37 @@ const BRIDGE_STEPS: ReadonlyArray<LessonStepCopy & { readonly link: number; read
     link: SIDE,
     count: 2,
   },
+  {
+    title: 'Your turn',
+    say: 'Four islands. Give each one as many bridges as its number. Tap the water again for a second bridge, and a third time to take them away.',
+    hint: 'Tap the water between any two islands.',
+    praise: 'Every number met. Your own archipelago.',
+    link: -1,
+    count: 0,
+    free: true,
+  },
 ];
 
 export function BridgesLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [state, setState] = useState<BridgesState>({ bridges: linksOf.map(() => 0) });
-  const flow = useLessonFlow(BRIDGE_STEPS.length);
+  // The last step brings its own islands.
+  const flow = useLessonFlow(BRIDGE_STEPS.length, i => {
+    if (BRIDGE_STEPS[i].free) setState({ bridges: freeLinks.map(() => 0) });
+  });
   const step = BRIDGE_STEPS[flow.index];
+  const islands = step.free ? BRIDGES_FREE : BRIDGES;
   // Steady while the player is meant to act: blinking it meant redrawing
   // the whole board twice a second.
   const glow = flow.phase === 'doing';
   const build = useCallback(
     (link: number) => {
       if (flow.phase !== 'doing') return;
+      if (step.free) {
+        const free = cycleBridge(BRIDGES_FREE, state, link);
+        setState(free);
+        if (isBridgesSolved(BRIDGES_FREE, free)) flow.succeed();
+        return;
+      }
       if (link !== step.link) return flow.wrong();
       const next = cycleBridge(BRIDGES, state, link);
       setState(next);
@@ -165,13 +250,14 @@ export function BridgesLesson({ onDone }: { onDone: () => void }): React.JSX.Ele
       onDone={onDone}
       renderBoard={size => (
         <BridgesBoard
-          puzzle={BRIDGES}
+          key={step.free ? 'free' : 'guided'}
+          puzzle={islands}
           state={state}
           size={size}
-          solved={isBridgesSolved(BRIDGES, state)}
+          solved={isBridgesSolved(islands, state)}
           onLane={link => build(link)}
           onTapLane={link => build(link)}
-          flashLink={glow ? step.link : null}
+          flashLink={glow && !step.free ? step.link : null}
         />
       )}
     />
@@ -200,7 +286,26 @@ const TWIN: ArukonePuzzle = {
     3: [C(0, 0), C(1, 0), C(2, 0), C(3, 0), C(3, 1), C(3, 2), C(3, 3), C(2, 3), C(1, 3), C(0, 3)],
   },
 };
-const TWIN_STEPS: ReadonlyArray<LessonStepCopy & { readonly value: number }> = [
+/** The player's own fold: the 1s down the left, their twin 2s down the
+ * right, and the 3s joining each other round the middle. */
+export const TWIN_FREE: ArukonePuzzle = {
+  id: 'lesson-twinpath-2',
+  difficulty: 'easy',
+  size: 4,
+  axis: 'vertical',
+  obstacles: [],
+  pairs: [
+    { value: 1, a: C(0, 0), b: C(3, 0) },
+    { value: 2, a: C(0, 3), b: C(3, 3) },
+    { value: 3, a: C(0, 1), b: C(0, 2) },
+  ],
+  solution: {
+    1: [C(0, 0), C(1, 0), C(2, 0), C(3, 0)],
+    2: [C(0, 3), C(1, 3), C(2, 3), C(3, 3)],
+    3: [C(0, 1), C(1, 1), C(2, 1), C(3, 1), C(3, 2), C(2, 2), C(1, 2), C(0, 2)],
+  },
+};
+const TWIN_STEPS: ReadonlyArray<LessonStepCopy & { readonly value: number; readonly free?: boolean }> = [
   {
     title: 'Draw, and it mirrors',
     say: 'Join each pair of matching numbers with a path. The board is a mirror, so when you draw on one side, the other side copies it.',
@@ -215,13 +320,26 @@ const TWIN_STEPS: ReadonlyArray<LessonStepCopy & { readonly value: number }> = [
     praise: 'Every pair joined, and every square filled.',
     value: 3,
   },
+  {
+    title: 'Your turn',
+    say: 'A new fold. Join every pair, fill every square, and let the mirror do half the work.',
+    hint: 'Drag from any number.',
+    praise: 'Every pair joined, every square filled. You folded it yourself.',
+    value: 0,
+    free: true,
+  },
 ];
 
 export function TwinpathLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [state, setState] = useState<ArukoneState>({ paths: {} });
   const [short, setShort] = useState(false);
-  const flow = useLessonFlow(TWIN_STEPS.length, () => setShort(false));
+  // The last step brings its own fold.
+  const flow = useLessonFlow(TWIN_STEPS.length, i => {
+    setShort(false);
+    if (TWIN_STEPS[i].free) setState({ paths: {} });
+  });
   const step = TWIN_STEPS[flow.index];
+  const fold = step.free ? TWIN_FREE : TWIN;
   const steps = useMemo(
     () => TWIN_STEPS.map((s, i) => (i === flow.index && short ? { ...s, hint: 'Joined, but some squares are still empty. Go back and go around the outside.' } : s)),
     [flow.index, short],
@@ -230,6 +348,11 @@ export function TwinpathLesson({ onDone }: { onDone: () => void }): React.JSX.El
   const change = useCallback(
     (next: ArukoneState) => {
       if (flow.phase !== 'doing') return;
+      if (step.free) {
+        setState(next);
+        if (isArukoneSolved(TWIN_FREE, next)) flow.succeed();
+        return;
+      }
       const pair = pairFor(TWIN, step.value);
       const twin = pair && mirrorPairOf(TWIN, pair);
       // Only the pair this step is about may move.
@@ -250,7 +373,7 @@ export function TwinpathLesson({ onDone }: { onDone: () => void }): React.JSX.El
       steps={steps}
       {...flow}
       onDone={onDone}
-      renderBoard={size => <ArukoneBoard puzzle={TWIN} state={state} size={size} solved={isArukoneSolved(TWIN, state)} onChange={change} onReject={flow.wrong} />}
+      renderBoard={size => <ArukoneBoard key={step.free ? 'free' : 'guided'} puzzle={fold} state={state} size={size} solved={isArukoneSolved(fold, state)} onChange={change} onReject={flow.wrong} />}
     />
   );
 }
@@ -287,9 +410,30 @@ const MOSAIC_LESSON: MosaicPuzzle = {
   allowFlip: false,
   fixed: [false, false, false],
 };
+/** The player's own picture: a bar and two corners, every one turned the
+ * wrong way to start. */
+export const MOSAIC_FREE: MosaicPuzzle = {
+  ...MOSAIC_LESSON,
+  id: 'lesson-mosaic-2',
+  pieces: [
+    { id: 'bar', cells: [C(0, 0), C(0, 1), C(0, 2)], color: 1 },
+    { id: 'corner', cells: [C(0, 0), C(1, 0), C(1, 1)], color: 0 },
+    { id: 'hook', cells: [C(0, 0), C(0, 1), C(1, 1)], color: 2 },
+  ],
+  solution: [
+    { row: 0, col: 0, rotation: 0, flipped: false },
+    { row: 1, col: 0, rotation: 0, flipped: false },
+    { row: 1, col: 1, rotation: 0, flipped: false },
+  ],
+  start: [
+    { rotation: 1, flipped: false },
+    { rotation: 2, flipped: false },
+    { rotation: 1, flipped: false },
+  ],
+};
 /** Where piece `index` belongs, as board squares. */
 const goalCells = (index: number) => placedCells(MOSAIC_LESSON, index, MOSAIC_LESSON.solution[index]);
-const MOSAIC_STEPS: ReadonlyArray<LessonStepCopy & { readonly piece: number }> = [
+const MOSAIC_STEPS: ReadonlyArray<LessonStepCopy & { readonly piece: number; readonly free?: boolean }> = [
   {
     title: 'Fill the picture',
     say: 'Fill the empty squares of the picture with the pieces from the tray. Drag a piece up and let go where it fits.',
@@ -311,12 +455,24 @@ const MOSAIC_STEPS: ReadonlyArray<LessonStepCopy & { readonly piece: number }> =
     praise: 'Every square filled. The picture is whole.',
     piece: 2,
   },
+  {
+    title: 'Your turn',
+    say: 'A new picture, and three pieces turned the wrong way. Turn each one to fit, then drag it in.',
+    hint: 'Tap a piece to turn it. Drag it onto the picture.',
+    praise: 'Every square filled. A whole picture, by you.',
+    piece: -1,
+    free: true,
+  },
 ];
 
 export function MosaicLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
   const [state, setState] = useState<MosaicState>(() => initialMosaicState(MOSAIC_LESSON));
-  const flow = useLessonFlow(MOSAIC_STEPS.length);
+  // The last step brings its own picture.
+  const flow = useLessonFlow(MOSAIC_STEPS.length, i => {
+    if (MOSAIC_STEPS[i].free) setState(initialMosaicState(MOSAIC_FREE));
+  });
   const step = MOSAIC_STEPS[flow.index];
+  const picture = step.free ? MOSAIC_FREE : MOSAIC_LESSON;
   // Steady while the player is meant to act: blinking it meant redrawing
   // the whole board twice a second.
   const glow = flow.phase === 'doing';
@@ -324,6 +480,13 @@ export function MosaicLesson({ onDone }: { onDone: () => void }): React.JSX.Elem
   const place = useCallback(
     (index: number, row: number, col: number) => {
       if (flow.phase !== 'doing') return;
+      if (step.free) {
+        if (!canPlace(MOSAIC_FREE, state, index, row, col)) return flow.wrong();
+        const free = placePiece(MOSAIC_FREE, state, index, row, col);
+        setState(free);
+        if (isMosaicSolved(MOSAIC_FREE, free)) flow.succeed();
+        return;
+      }
       if (index !== step.piece) return flow.wrong();
       // Only where it belongs - but a drop within a square of it snaps in:
       // landing a piece exactly was the fiddly part.
@@ -339,8 +502,15 @@ export function MosaicLesson({ onDone }: { onDone: () => void }): React.JSX.Elem
   );
   const rotate = useCallback(
     (index: number) => {
+      if (flow.phase === 'doing' && step.free) return setState(s => rotatePiece(MOSAIC_FREE, s, index));
       if (flow.phase !== 'doing' || index !== step.piece) return flow.wrong();
       setState(s => rotatePiece(MOSAIC_LESSON, s, index));
+    },
+    [flow, step],
+  );
+  const lift = useCallback(
+    (index: number) => {
+      if (flow.phase === 'doing' && step.free) setState(s => liftPiece(MOSAIC_FREE, s, index));
     },
     [flow, step],
   );
@@ -354,14 +524,15 @@ export function MosaicLesson({ onDone }: { onDone: () => void }): React.JSX.Elem
       onDone={onDone}
       renderBoard={size => (
         <MosaicPlay
-          puzzle={MOSAIC_LESSON}
+          key={step.free ? 'free' : 'guided'}
+          puzzle={picture}
           state={state}
           width={size}
           maxBoardHeight={size * 0.56}
-          solved={isMosaicSolved(MOSAIC_LESSON, state)}
-          flashCells={glow ? goalCells(step.piece) : null}
+          solved={isMosaicSolved(picture, state)}
+          flashCells={glow && !step.free ? goalCells(step.piece) : null}
           onPlace={place}
-          onLift={() => {}}
+          onLift={lift}
           onRotate={rotate}
         />
       )}
@@ -382,7 +553,29 @@ function gravityBoard(rows: ReadonlyArray<string>): GameState {
   );
   return { rows: rows.length, cols: rows[0].length, staticGrid, movables, portals: [], zone: null };
 }
-const GRAVITY_STEPS: ReadonlyArray<LessonStepCopy & { readonly board: GameState; readonly direction: Direction }> = [
+/** The player's own board: two balls, two rings, more than one swipe. */
+export const GRAVITY_FREE = gravityBoard(['o.o..', '.....', '.....', '.....', '...xx']);
+
+/** Whether `state` can still be finished within a few swipes: a stuck
+ * board (both balls stacked in one column, say) deals again. */
+export function gravityStillSolvable(state: GameState, depth = 6): boolean {
+  const seen = new Set<string>();
+  let frontier = [state];
+  for (let d = 0; d <= depth; d += 1) {
+    const next: GameState[] = [];
+    for (const s of frontier) {
+      if (isPuzzleSolved(s)) return true;
+      const key = s.movables.map(m => `${m.row},${m.col}`).sort().join(';');
+      if (seen.has(key)) continue;
+      seen.add(key);
+      for (const dir of ['up', 'down', 'left', 'right'] as const) next.push(applyGravity(s, dir));
+    }
+    frontier = next;
+  }
+  return false;
+}
+
+const GRAVITY_STEPS: ReadonlyArray<LessonStepCopy & { readonly board: GameState; readonly direction: Direction | null }> = [
   {
     title: 'Swipe to tilt',
     say: 'Swipe the board and the ball rolls that way. It keeps rolling until something stops it. Roll the ball onto its ring.',
@@ -407,6 +600,14 @@ const GRAVITY_STEPS: ReadonlyArray<LessonStepCopy & { readonly board: GameState;
     board: gravityBoard(['.o.o.', '.....', '...x.', '...#.', '.x...']),
     direction: 'down',
   },
+  {
+    title: 'Your turn',
+    say: 'Two balls, two rings in the corner. One swipe will not do it. Think about where each ball stops.',
+    hint: 'Swipe any way you like.',
+    praise: 'Both rings filled, and you worked out the way.',
+    board: GRAVITY_FREE,
+    direction: null,
+  },
 ];
 
 export function GravityLesson({ onDone }: { onDone: () => void }): React.JSX.Element {
@@ -418,15 +619,28 @@ export function GravityLesson({ onDone }: { onDone: () => void }): React.JSX.Ele
 
   // The arrow pulses the way to swipe, again every couple of seconds.
   const doing = flow.phase === 'doing';
+  const guided = step.direction !== null;
   useEffect(() => {
-    if (!doing) return;
+    if (!doing || !guided) return;
     const id = setInterval(() => setArrow(n => n + 1), 2200);
     return () => clearInterval(id);
-  }, [doing]);
+  }, [doing, guided]);
 
   const swipe = useCallback(
     (direction: Direction) => {
       if (flow.phase !== 'doing') return;
+      if (step.direction === null) {
+        const free = applyGravity(state, direction);
+        setAnimating(true);
+        setState(free);
+        if (isPuzzleSolved(free)) flow.succeed();
+        // Stuck where nothing can finish it: the board sets out again.
+        else if (!gravityStillSolvable(free)) {
+          flow.wrong();
+          setTimeout(() => setState(GRAVITY_FREE), 900);
+        }
+        return;
+      }
       if (direction !== step.direction) return flow.wrong();
       setAnimating(true);
       setState(applyGravity(state, direction));
@@ -459,7 +673,7 @@ export function GravityLesson({ onDone }: { onDone: () => void }): React.JSX.Ele
             solved={isPuzzleSolved(state) && !animating}
             onAnimatingChange={setAnimating}
           />
-          {doing && <GravityHintArrow key={`${flow.index}-${arrow}`} size={size} direction={step.direction} onDone={() => {}} />}
+          {doing && step.direction !== null && <GravityHintArrow key={`${flow.index}-${arrow}`} size={size} direction={step.direction} onDone={() => {}} />}
         </View>
       )}
     />

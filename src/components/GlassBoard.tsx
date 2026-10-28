@@ -3,10 +3,11 @@ import React, { useEffect, useMemo, useRef } from 'react';
 import { GestureResponderEvent, StyleSheet, View } from 'react-native';
 import { Canvas, Circle, Group, LinearGradient, Path, RoundedRect, Skia, vec } from '@shopify/react-native-skia';
 import { Easing, SharedValue, useDerivedValue, useSharedValue, withDelay, withRepeat, withSequence, withTiming } from 'react-native-reanimated';
-import { clashes, GlassColor, GlassPuzzle, GlassState } from '../game/glass';
-import { shade, useReducedMotion } from '../game/rendering';
+import { clashes, GlassColor, GlassPuzzle, GlassState, GLASS_COLOR_NAMES } from '../game/glass';
+import { shade, useReducedMotion, useScreenReader } from '../game/rendering';
 import { inkWash, theme } from '../theme';
 import { curve } from '../theme/motion';
+import { ScreenReaderCell, ScreenReaderCells } from './ScreenReaderCells';
 
 /**
  * The window, in the same hand as every other board here: a paper tray
@@ -151,7 +152,7 @@ function geometryOf(puzzle: GlassPuzzle, size: number): Geometry {
   const cell = (size - inset * 2) / puzzle.cols;
   const cellsOf: Array<Array<{ x: number; y: number }>> = Array.from({ length: puzzle.panes }, () => []);
   for (let r = 0; r < puzzle.rows; r += 1) {
-    for (let c = 0; c < puzzle.cols; c += 1) cellsOf[puzzle.paneOf[r][c]].push({ x: inset + c * cell + cell / 2, y: inset + r * cell + cell / 2 });
+    for (let c = 0; c < puzzle.cols; c += 1) if (puzzle.paneOf[r][c] >= 0) cellsOf[puzzle.paneOf[r][c]].push({ x: inset + c * cell + cell / 2, y: inset + r * cell + cell / 2 });
   }
   const svg = Array.from({ length: puzzle.panes }, (_v, p) => outlineOf(puzzle, p, inset, cell));
   const centres = cellsOf.map(cells => {
@@ -261,6 +262,8 @@ export function GlassBoard({
     const r = Math.floor(fy);
     if (r < 0 || c < 0 || r >= puzzle.rows || c >= puzzle.cols) return;
     const pane = puzzle.paneOf[r][c];
+    // Outside a shaped window: not glass.
+    if (pane < 0) return;
     if (phase === 'move' && pane === lastPane.current) return;
     // Mid-stroke, a new pane is taken only once the finger is well inside
     // it - not as it grazes the lead along its edge.
@@ -273,6 +276,37 @@ export function GlassBoard({
     touchAt.current = { x, y };
     onStroke(pane, phase);
   };
+
+  // Played by a screen reader: one button a pane, on the square nearest
+  // its middle, saying its glass; a double tap glazes it with the glass in
+  // hand, as a tap does.
+  const screenReader = useScreenReader();
+  const readerCells = useMemo((): ScreenReaderCell[] => {
+    const squares: Array<Array<{ row: number; col: number }>> = Array.from({ length: puzzle.panes }, () => []);
+    puzzle.paneOf.forEach((line, row) => line.forEach((pane, col) => squares[pane]?.push({ row, col })));
+    return squares.flatMap((cells, pane) => {
+      if (cells.length === 0) return [];
+      const mr = cells.reduce((t, c) => t + c.row, 0) / cells.length;
+      const mc = cells.reduce((t, c) => t + c.col, 0) / cells.length;
+      const mid = cells.reduce((best, c) => (Math.hypot(c.row - mr, c.col - mc) < Math.hypot(best.row - mr, best.col - mc) ? c : best), cells[0]);
+      const color = state.colors[pane];
+      const given = puzzle.given[pane] !== null;
+      return [
+        {
+          key: `g${pane}`,
+          x: geo.inset + mid.col * geo.cell,
+          y: geo.inset + mid.row * geo.cell,
+          size: geo.cell,
+          label: `Pane of ${cells.length} ${cells.length === 1 ? 'square' : 'squares'}, row ${mid.row + 1}, column ${mid.col + 1}, ${color === null ? 'clear' : GLASS_COLOR_NAMES[color]}${given ? ', set from the start' : ''}${clashPanes.includes(pane) ? ', clashes with a neighbour' : ''}`,
+          hint: given ? undefined : 'Glazes it with the glass in hand',
+          disabled: solved || given,
+          onActivate: () => {
+            if (!solved && !given) onStroke(pane, 'start');
+          },
+        },
+      ];
+    });
+  }, [puzzle, state, geo, clashPanes, solved, onStroke]);
 
   return (
     <View style={{ width: size, height: size + archH }}>
@@ -324,9 +358,12 @@ export function GlassBoard({
           lastPane.current = null;
           touchAt.current = null;
         }}
-        accessible
+        accessible={!screenReader}
         accessibilityLabel={`Window of ${puzzle.panes} panes, ${state.colors.filter(c => c === null).length} still clear`}
       />
+      <View style={{ position: 'absolute', left: 0, top: archH, width: size, height: size }} pointerEvents="box-none">
+        <ScreenReaderCells cells={readerCells} />
+      </View>
     </View>
   );
 }

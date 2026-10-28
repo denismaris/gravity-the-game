@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { useEquipped } from '../progression/PlayerProgressProvider';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, Platform, StyleSheet, View } from 'react-native';
 import { Canvas, Circle, Group, Path, Rect } from '@shopify/react-native-skia';
 import { shade, useReducedMotion } from '../game/rendering';
 import { theme, themedStyles, nightTone } from '../theme';
 import { curve } from '../theme/motion';
+import { isRepainting } from './playContinuity';
 
 export interface CardRect {
   readonly x: number;
@@ -23,6 +24,10 @@ export interface AlmanacBackdropProps {
   /** The space above the card holds Home's villa: the art there is set
    * round it, with the big blossom behind the island. */
   readonly clearTop?: boolean;
+  /** Coming back to Home: the flowers grow in again, but calmly - eased,
+   * with no spring past their size, and only once the screen change has
+   * lifted (a spring per flower, six at once, read as the screen shaking). */
+  readonly gentle?: boolean;
 }
 
 /**
@@ -53,7 +58,7 @@ export interface AlmanacBackdropProps {
  * absolute coordinates, and nothing is drawn into the masthead band or the
  * page-tally row between the card and the bottom.
  */
-export function AlmanacBackdrop({ width, height, card, clearTop = false }: AlmanacBackdropProps): React.JSX.Element | null {
+export function AlmanacBackdrop({ width, height, card, clearTop = false, gentle = false }: AlmanacBackdropProps): React.JSX.Element | null {
   const art = useMemo(() => composeBloom(width, height, card, clearTop), [width, height, card, clearTop]);
   const reducedMotion = useReducedMotion();
   // The blossom's colour is the player's page art (see the shop).
@@ -106,6 +111,7 @@ export function AlmanacBackdrop({ width, height, card, clearTop = false }: Alman
             enterDelayMs={260 + i * 120}
             enterTurnDegrees={-24}
             still={reducedMotion}
+            gentle={gentle}
           >
             <Path path={leaf.path} color={ink} />
             {/* The leaf's midrib, a fine line of the page showing through. */}
@@ -126,6 +132,7 @@ export function AlmanacBackdrop({ width, height, card, clearTop = false }: Alman
             enterDelayMs={80 + i * 140}
             enterTurnDegrees={-18}
             still={reducedMotion}
+            gentle={gentle}
           >
             <Path path={b.path} color={bloom} />
             {/* The blossom's heart: a deeper disc ringed with seeds in the
@@ -141,6 +148,9 @@ export function AlmanacBackdrop({ width, height, card, clearTop = false }: Alman
     </View>
   );
 }
+
+/** About when the veil over a screen change has begun to lift. */
+const GENTLE_AFTER_MS = 380;
 
 interface Box {
   readonly x: number;
@@ -165,6 +175,7 @@ function Swaying({
   enterDelayMs,
   enterTurnDegrees,
   still,
+  gentle,
   children,
 }: {
   box: Box;
@@ -178,9 +189,11 @@ function Swaying({
   /** How far it is turned before the entrance unfurls it. */
   enterTurnDegrees: number;
   still: boolean;
+  gentle: boolean;
   children: React.ReactNode;
 }): React.JSX.Element {
-  const enter = useRef(new Animated.Value(still ? 1 : 0)).current;
+  const repaint = useRef(isRepainting()).current;
+  const enter = useRef(new Animated.Value(still || repaint ? 1 : 0)).current;
   const sway = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -189,9 +202,14 @@ function Swaying({
       sway.setValue(0);
       return;
     }
-    const opening = Animated.sequence([
-      Animated.delay(enterDelayMs),
-      Animated.spring(enter, { toValue: 1, useNativeDriver: true, damping: 11, stiffness: 90, mass: 1 }),
+    // A repaint (light/dark): the flowers are simply there, swaying.
+    const opening = repaint ? Animated.delay(0) : Animated.sequence([
+      // Gentle: after the screen change has lifted (see `ScreenTransition`),
+      // eased to its size with nothing past it.
+      Animated.delay(gentle ? GENTLE_AFTER_MS + enterDelayMs * 0.6 : enterDelayMs),
+      gentle
+        ? Animated.timing(enter, { toValue: 1, duration: 900, easing: curve.arrive, useNativeDriver: true })
+        : Animated.spring(enter, { toValue: 1, useNativeDriver: true, damping: 11, stiffness: 90, mass: 1 }),
     ]);
     // Out to one side, back through rest to the other, and home - a sine
     // ease on each leg, so it never visibly stops at the ends.
@@ -205,12 +223,16 @@ function Swaying({
       ]),
     );
     opening.start();
-    loop.start();
+    // On Android the flowers grow in and then rest: the endless sway kept
+    // the page drawing every frame, and there each surface on it (every
+    // emblem, every flower) is recomposed with it - idle Home was never
+    // idle, and everything on it felt the cost.
+    if (Platform.OS !== 'android') loop.start();
     return () => {
       opening.stop();
       loop.stop();
     };
-  }, [still, enter, sway, enterDelayMs, periodMs]);
+  }, [still, gentle, repaint, enter, sway, enterDelayMs, periodMs]);
 
   const rotate = Animated.add(
     sway.interpolate({ inputRange: [-1, 1], outputRange: [-swayDegrees, swayDegrees] }),

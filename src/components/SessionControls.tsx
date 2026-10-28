@@ -4,7 +4,7 @@ import { Text } from './Text';
 import { Canvas, Circle, Group, Path } from '@shopify/react-native-skia';
 import { PressableScale } from './PressableScale';
 import { RaisedKey } from './RaisedKey';
-import { ROUND_KEY } from './RoundKey';
+import { ROUND_KEY, RoundKey } from './RoundKey';
 import { theme, themedStyles } from '../theme';
 import { CoinCost } from './Coins';
 import { InsightButton } from './InsightPower';
@@ -13,6 +13,8 @@ import { dockPlate } from './StageTopGap';
 export interface SessionControlsProps {
   onUndo: () => void;
   onRestart: () => void;
+  /** The board's state: unchanged for long, Insight offers itself. */
+  progress?: unknown;
   /** Shows the next move - when set, a Hint pill leads the row. */
   onHint?: () => void;
   hintCost?: number;
@@ -22,6 +24,8 @@ export interface SessionControlsProps {
   undoDisabled?: boolean;
   /** Coins an undo costs, shown on the button when set. */
   undoCost?: number;
+  /** Finished: the row takes no more touches (the card is a beat away). */
+  locked?: boolean;
 }
 
 /**
@@ -35,18 +39,20 @@ export interface SessionControlsProps {
 function SessionControlsImpl({
   onUndo,
   onRestart,
+  progress,
   undoDisabled = false,
   undoCost,
   onHint,
   hintCost,
   insightCount,
+  locked = false,
 }: SessionControlsProps): React.JSX.Element {
   return (
-    <View style={[styles.container, dockPlate.plate]}>
+    <View pointerEvents={locked ? 'none' : 'auto'} style={[styles.container, dockPlate.plate]}>
       {onHint && (
         <>
           {insightCount !== undefined ? (
-            <InsightButton count={insightCount} onPress={onHint} />
+            <InsightButton count={insightCount} onPress={onHint} progress={progress} />
           ) : (
             <SessionButton label="Hint" icon={<HintIcon />} onPress={onHint} cost={hintCost === undefined ? undefined : <CoinCost cost={hintCost} />} />
           )}
@@ -65,7 +71,13 @@ function SessionControlsImpl({
         cost={undoCost ? <CoinCost cost={undoCost} muted={undoDisabled} /> : undefined}
       />
       <View style={styles.spacerTight} />
-      <SessionButton label="Restart" icon={<RestartIcon />} onPress={onRestart} compact={onHint !== undefined} />
+      {onHint !== undefined ? (
+        <RoundKey accessibilityLabel="Restart" confirm="Tap again to restart" onPress={onRestart}>
+          <RestartIcon />
+        </RoundKey>
+      ) : (
+        <SessionButton label="Restart" icon={<RestartIcon />} onPress={onRestart} />
+      )}
     </View>
   );
 }

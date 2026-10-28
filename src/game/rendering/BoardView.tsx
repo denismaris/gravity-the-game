@@ -1,6 +1,6 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef } from 'react';
-import { Circle, Group, RoundedRect } from '@shopify/react-native-skia';
-import { Easing, runOnUI, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import React, { useEffect, useLayoutEffect, useMemo, useReducer, useRef } from 'react';
+import { Circle, Group, RoundedRect, vec } from '@shopify/react-native-skia';
+import { Easing, runOnUI, SharedValue, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
 import { GameState, StaticCellType } from '../engine';
 import { shade } from './color';
 import { BoardLayout, computeBoardLayout, getCellCenter, getCellOrigin } from './layout';
@@ -15,7 +15,6 @@ import {
   PortalMark,
   TargetMarker,
 } from './shapes';
-import { useAnimationClock } from './useAnimationClock';
 import { useReducedMotion } from './useReducedMotion';
 import { DealClock, DealIn, dealDelay, useDealing } from './DealIn';
 import { landingCurve, SlidePlan, TeleportTiming } from './useAnimatedMovables';
@@ -525,7 +524,14 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
   const now = Date.now();
   const flareWindow = targets.length * TARGET_FLARE_STAGGER_MS + TARGET_FLARE_MS;
   const flaring = solvedAt !== null && !reducedMotion && now - solvedAt < flareWindow;
-  useAnimationClock(flaring, 60);
+  // The flare plays on the UI thread (`FlareLayer`); this re-renders once,
+  // when it is over, to take it down.
+  const [, settleFlare] = useReducer((n: number) => n + 1, 0);
+  useEffect(() => {
+    if (!flaring || solvedAt === null) return;
+    const timer = setTimeout(settleFlare, flareWindow - (Date.now() - solvedAt) + 20);
+    return () => clearTimeout(timer);
+  }, [flaring, solvedAt, flareWindow]);
 
   const cellInset = layout.cellSize * 0.05;
   const cellCornerRadius = layout.cellSize * 0.14;
@@ -675,29 +681,20 @@ export function BoardView({ state, size, onTargetIds = EMPTY_IDS, pulsingIds = E
       {/* The finish, target by target: the ball on it hops - swells, goes
           over the top and settles with a glint - while two rings open off
           the target, gold and then green. */}
-      {flaring &&
-        targets.map((cell, index) => {
-          const t = (now - solvedAt! - index * TARGET_FLARE_STAGGER_MS) / TARGET_FLARE_MS;
-          if (t < 0 || t >= 1) return null;
-          const center = getCellCenter(layout, cell.row, cell.col);
-          const eased = 1 - (1 - t) ** 3;
-          const late = Math.max(0, Math.min(1, (t - 0.18) / 0.82));
-          const lateEased = 1 - (1 - late) ** 3;
-          const hop = t < 0.6 ? Math.sin((t / 0.6) * Math.PI) : -0.15 * Math.sin(((t - 0.6) / 0.4) * Math.PI);
-          const occupied = state.movables.some(m => !m.destroyed && m.row === cell.row && m.col === cell.col);
-          return (
-            <Group key={`flare-${cell.row}-${cell.col}`}>
-              <Circle cx={center.x} cy={center.y} r={targetRadius * (1 + eased * 1.7)} color={theme.colors.accent} style="stroke" strokeWidth={targetStrokeWidth * (1 - eased * 0.55)} opacity={1 - eased} />
-              {late > 0 && <Circle cx={center.x} cy={center.y} r={targetRadius * (1 + lateEased * 1.25)} color={theme.colors.success} style="stroke" strokeWidth={targetStrokeWidth * 0.8 * (1 - lateEased * 0.5)} opacity={(1 - lateEased) * 0.85} />}
-              {occupied && (
-                <Group>
-                  <MovablePiece cx={center.x} cy={center.y - hop * movableRadius * 0.35} radius={movableRadius * (1 + hop * 0.2)} color={theme.colors.success} />
-                  <Circle cx={center.x - movableRadius * 0.32} cy={center.y - movableRadius * 0.38 - hop * movableRadius * 0.35} r={movableRadius * 0.18} color="#FFFFFF" opacity={0.75 * Math.max(0, hop)} />
-                </Group>
-              )}
-            </Group>
-          );
-        })}
+      {flaring && (
+        <FlareLayer
+          key={solvedAt ?? 0}
+          targets={targets.map((cell, index) => ({
+            index,
+            center: getCellCenter(layout, cell.row, cell.col),
+            occupied: state.movables.some(m => !m.destroyed && m.row === cell.row && m.col === cell.col),
+          }))}
+          targetRadius={targetRadius}
+          movableRadius={movableRadius}
+          strokeWidth={targetStrokeWidth}
+          window={flareWindow}
+        />
+      )}
     </Group>
   );
 }
@@ -723,6 +720,74 @@ function BreakIn({ cx, cy, radius, children }: { cx: number; cy: number; radius:
     <Group>
       <Circle cx={cx} cy={cy} r={ringR} color={theme.colors.danger} style="stroke" strokeWidth={2} opacity={ringO} />
       <Group transform={transform}>{children}</Group>
+    </Group>
+  );
+}
+
+interface FlareTarget {
+  readonly index: number;
+  readonly center: { x: number; y: number };
+  readonly occupied: boolean;
+}
+
+/**
+ * The finish, target by target: the ball on it hops (swells, goes over the
+ * top, settles with a glint) while two rings open off the target, gold and
+ * then green. One clock on the UI thread for them all.
+ */
+function FlareLayer({ targets, targetRadius, movableRadius, strokeWidth, window }: { targets: ReadonlyArray<FlareTarget>; targetRadius: number; movableRadius: number; strokeWidth: number; window: number }): React.JSX.Element {
+  const clock = useSharedValue(0);
+  useEffect(() => {
+    clock.value = withTiming(window, { duration: window, easing: Easing.linear });
+    // Once: keyed by the solve.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  return (
+    <Group>
+      {targets.map(target => (
+        <TargetFlare key={target.index} target={target} clock={clock} targetRadius={targetRadius} movableRadius={movableRadius} strokeWidth={strokeWidth} />
+      ))}
+    </Group>
+  );
+}
+
+function TargetFlare({ target, clock, targetRadius, movableRadius, strokeWidth }: { target: FlareTarget; clock: SharedValue<number>; targetRadius: number; movableRadius: number; strokeWidth: number }): React.JSX.Element {
+  const { x, y } = target.center;
+  const delay = target.index * TARGET_FLARE_STAGGER_MS;
+  const t = useDerivedValue(() => (clock.value - delay) / TARGET_FLARE_MS);
+  const live = (v: number) => {
+    'worklet';
+    return v > 0 && v < 1;
+  };
+  const eased = useDerivedValue(() => 1 - (1 - Math.min(1, Math.max(0, t.value))) ** 3);
+  const late = useDerivedValue(() => {
+    const l = Math.max(0, Math.min(1, (t.value - 0.18) / 0.82));
+    return 1 - (1 - l) ** 3;
+  });
+  const hop = useDerivedValue(() => {
+    const v = t.value;
+    if (!live(v)) return 0;
+    return v < 0.6 ? Math.sin((v / 0.6) * Math.PI) : -0.15 * Math.sin(((v - 0.6) / 0.4) * Math.PI);
+  });
+  const ringR = useDerivedValue(() => targetRadius * (1 + eased.value * 1.7));
+  const ringW = useDerivedValue(() => strokeWidth * (1 - eased.value * 0.55));
+  const ringO = useDerivedValue(() => (live(t.value) ? 1 - eased.value : 0));
+  const lateR = useDerivedValue(() => targetRadius * (1 + late.value * 1.25));
+  const lateW = useDerivedValue(() => strokeWidth * 0.8 * (1 - late.value * 0.5));
+  const lateO = useDerivedValue(() => (live(t.value) && t.value > 0.18 ? (1 - late.value) * 0.85 : 0));
+  const ball = useDerivedValue(() => [{ translateY: -hop.value * movableRadius * 0.35 }, { scale: 1 + hop.value * 0.2 }]);
+  const ballO = useDerivedValue(() => (live(t.value) ? 1 : 0));
+  const glintO = useDerivedValue(() => (live(t.value) ? 0.75 * Math.max(0, hop.value) : 0));
+  return (
+    <Group>
+      <Circle cx={x} cy={y} r={ringR} color={theme.colors.accent} style="stroke" strokeWidth={ringW} opacity={ringO} />
+      <Circle cx={x} cy={y} r={lateR} color={theme.colors.success} style="stroke" strokeWidth={lateW} opacity={lateO} />
+      {target.occupied && (
+        <Group origin={vec(x, y)} transform={ball} opacity={ballO}>
+          <MovablePiece cx={x} cy={y} radius={movableRadius} color={theme.colors.success} />
+          <Circle cx={x - movableRadius * 0.32} cy={y - movableRadius * 0.38} r={movableRadius * 0.18} color="#FFFFFF" opacity={glintO} />
+        </Group>
+      )}
     </Group>
   );
 }

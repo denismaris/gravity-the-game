@@ -48,6 +48,10 @@ export interface LedgerStampRowProps {
   /** Full width of the row. */
   width: number;
   onClaim: (stamp: Stamp) => void;
+  /** The game's colour, for the next stamp filling as it is worked towards. */
+  accent?: string;
+  /** How far towards the next stamp, 0 to 1: shown as that stamp filling. */
+  toward?: number;
 }
 
 /**
@@ -60,7 +64,7 @@ export interface LedgerStampRowProps {
  * Drawn as ONE canvas for the row, not a canvas per stamp - many small
  * canvases mounting together have failed to paint on a real device.
  */
-export function LedgerStampRow({ kind, stamps, stampWidth, width, onClaim }: LedgerStampRowProps): React.JSX.Element {
+export function LedgerStampRow({ kind, stamps, stampWidth, width, onClaim, accent, toward = 0 }: LedgerStampRowProps): React.JSX.Element {
   const height = Math.round(stampWidth * 1.22);
   const r = stampWidth * 0.045;
   const gap = stamps.length > 1 ? (width - stampWidth * stamps.length) / (stamps.length - 1) : 0;
@@ -68,6 +72,7 @@ export function LedgerStampRow({ kind, stamps, stampWidth, width, onClaim }: Led
   const inset = stampWidth * 0.12;
   const band = height * 0.2;
   const emblem = stampWidth * 0.44;
+  const nextIndex = stamps.findIndex(st => !st.earned);
 
   return (
     <View style={{ width, height }}>
@@ -85,9 +90,18 @@ export function LedgerStampRow({ kind, stamps, stampWidth, width, onClaim }: Led
                   <RoundedRect x={inset + 0.8} y={height - inset - band} width={stampWidth - inset * 2 - 1.6} height={band - 0.8} r={2} color={bandColor} />
                 </Group>
               ) : (
-                <Path path={outline} color={theme.colors.borderStrong} style="stroke" strokeWidth={1}>
-                  <DashPathEffect intervals={[3, 3]} />
-                </Path>
+                <Group>
+                  {/* The stamp being worked towards fills from the foot,
+                      in the game's colour: the progress lives on it. */}
+                  {i === nextIndex && accent && toward > 0 && (
+                    <Group clip={outline}>
+                      <RoundedRect x={0} y={height * (1 - Math.min(1, toward))} width={stampWidth} height={height * Math.min(1, toward)} r={0} color={accent} opacity={0.16} />
+                    </Group>
+                  )}
+                  <Path path={outline} color={i === nextIndex && accent ? accent : theme.colors.borderStrong} opacity={i === nextIndex && accent ? 0.7 : 1} style="stroke" strokeWidth={1}>
+                    <DashPathEffect intervals={[3, 3]} />
+                  </Path>
+                </Group>
               )}
               <GameEmblemGlyph kind={kind} size={emblem} x={(stampWidth - emblem) / 2} y={inset + (height - inset * 2 - band - emblem) / 2} opacity={stamp.earned ? 1 : 0.2} />
             </Group>

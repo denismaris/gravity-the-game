@@ -216,6 +216,7 @@ export function parseProgress(raw: string | null): PlayerProgress {
     shopGoal?: unknown;
     today?: unknown;
     dailyTimes?: unknown;
+    bests?: unknown;
     gift?: unknown;
     setsClaimed?: unknown;
     tesserae?: unknown;
@@ -276,12 +277,24 @@ export function parseProgress(raw: string | null): PlayerProgress {
     shopGoal: typeof record.shopGoal === 'string' ? record.shopGoal : null,
     today: parseToday(record.today),
     dailyTimes: parseDailyTimes(record.dailyTimes),
+    bests: parseBests(record.bests),
     gift: parseGift(record.gift),
     patron: record.patron === true,
     adFreeUntil: typeof record.adFreeUntil === 'number' && Number.isFinite(record.adFreeUntil) && record.adFreeUntil > 0 ? record.adFreeUntil : null,
     setsClaimed: Array.isArray(record.setsClaimed) ? [...new Set(record.setsClaimed.filter((id): id is string => typeof id === 'string'))] : [],
     dailyDays: parseDailyDays(record.dailyDays, record.dailyTimes, record.daily),
   };
+}
+
+/** Each game's fastest solve: positive whole milliseconds only. Absent
+ * before records were kept: none yet. */
+function parseBests(value: unknown): Partial<Record<GameKind, number>> {
+  if (!value || typeof value !== 'object') return {};
+  const out: Partial<Record<GameKind, number>> = {};
+  for (const [kind, ms] of Object.entries(value as Record<string, unknown>)) {
+    if (typeof ms === 'number' && Number.isFinite(ms) && ms > 0) out[kind as GameKind] = Math.round(ms);
+  }
+  return out;
 }
 
 /** The days the Daily was solved. A save from before they were kept is

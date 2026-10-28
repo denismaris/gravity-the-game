@@ -8,3 +8,4 @@ export { daysLeftInWeek, getWeeklyGrand, grandIdFor, grandKindFor, grandWeekOf, 
 export { accentColorForKind, gameLabelForKind } from './gameAccent';
 export type { EncouragementTier } from './encouragement';
 export { encouragementsFor, encouragementTier, gameLinesFor, pickEncouragement } from './encouragement';
+export { GAME_RULES } from './rules';

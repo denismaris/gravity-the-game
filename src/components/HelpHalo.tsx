@@ -8,6 +8,8 @@ import { curve } from '../theme/motion';
  * time the "?" deserves pointing out. */
 export const FirstPuzzleContext = createContext(false);
 
+const HALO_BREATHS = 4;
+
 /**
  * A soft ring breathing around the "?" in a game's header, on that game's
  * first puzzle only - so a player who skipped or forgot the lesson knows
@@ -17,7 +19,10 @@ export function HelpHalo(): React.JSX.Element | null {
   const first = useContext(FirstPuzzleContext);
   const t = useSharedValue(0);
   useEffect(() => {
-    if (first) t.value = withRepeat(withTiming(1, { duration: 1400, easing: curve.arrive }), -1, false);
+    // A few breaths, then rest: enough to be noticed. Breathing for as long
+    // as the puzzle was open kept the whole screen drawing every frame,
+    // which a phone pays for in every tap on the board.
+    if (first) t.value = withRepeat(withTiming(1, { duration: 1400, easing: curve.arrive }), HALO_BREATHS, false);
   }, [first, t]);
   const ring = useAnimatedStyle(() => ({ opacity: 0.55 * (1 - t.value), transform: [{ scale: 1 + t.value * 0.9 }] }));
   if (!first) return null;

@@ -13,7 +13,7 @@ import { dailyKeyOf, getDailyEntry, puzzleKindOf, setDailyRoster } from '../game
 import { computeStars, LevelResult, StarRating } from '../game/scoring';
 import { getWorldForLevel } from '../game/worlds';
 import { createDefaultBackend, StorageBackend } from '../storage';
-import { BatchPuzzleRef, BatchState, generateBatch, isBatchComplete, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from './batches';
+import { BatchPuzzleRef, BatchState, generateBatch, isBatchComplete, kindOfId, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from './batches';
 import { GameKind } from '../game/journey';
 import {
   emptyProgress,
@@ -39,7 +39,7 @@ import { syncWidget } from '../widget';
 import { advanceErrands, claimErrand as claimErrandPure } from './errands';
 import { chaptersFinished, claimChapter as claimChapterPure } from './chapters';
 import { recordGrand } from './grand';
-import { clearPuzzleTimer, elapsedFor, standing } from './timing';
+import { clearPuzzleTimer, elapsedFor, standing, wasResumed } from './timing';
 import { claimStamp as claimStampPure } from './ledger';
 import { collectRanks as collectRanksPure } from './rank';
 import {
@@ -56,6 +56,8 @@ import {
   equipCosmetic as equipCosmeticPure,
   equipped as equippedPure,
 } from './shop';
+import { forgetAllBoards } from './boardSaves';
+import { stampDailyDay } from '../components/StreakCalendar';
 
 /**
  * Part B's extension point for a future ad system - fires exactly once,
@@ -148,6 +150,12 @@ export interface SolveBonus {
    * `CompletionOutcome.solvedIn`). */
   readonly solvedIn: BatchState | null;
   readonly puzzleId: string;
+  /** How long it took, against the game's fastest (`previous`, null when
+   * this is the first timed solve): null for a board resumed from a save,
+   * which was not timed whole. */
+  readonly best: { readonly ms: number; readonly previous: number | null; readonly isNew: boolean } | null;
+  /** This was the player's very first solve of this game. */
+  readonly firstOfGame: GameKind | null;
 }
 
 interface PlayerProgressContextValue {
@@ -496,7 +504,24 @@ export function PlayerProgressProvider({
   // Recorded after the fact, outside the updater, for the solved card.
   const recordAndMark = useCallback(
     (levelId: string, moves: number, options?: { maxStars?: StarRating }): CompletionOutcome => {
+      // Read before the solve is recorded: whether this game was ever
+      // solved before, and the board's clock (the Daily's stops on record).
+      const kind = kindOfId(levelId);
+      const before = progressRef.current;
+      // Cached per id: cheap after the first look at each.
+      const firstOfGame = kind !== null && !Object.keys(before.levels).some(id => id !== levelId && kindOfId(id) === kind) ? kind : null;
+      const ms = wasResumed(levelId) ? null : elapsedFor(levelId);
       const outcome = recordCompletion(levelId, moves, options);
+      // Today's Daily, solved for the first time today: Home's week strip
+      // stamps the day on its next showing.
+      if (outcome.daily) stampDailyDay(dailyKeyOf(new Date()));
+      let best: SolveBonus['best'] = null;
+      if (kind && ms !== null && ms >= 1000) {
+        const previous = progressRef.current.bests?.[kind] ?? null;
+        const isNew = previous === null || ms < previous;
+        if (isNew) applyMutation(current => ({ ...current, bests: { ...current.bests, [kind]: ms } }));
+        best = { ms, previous, isNew };
+      }
       setLastCharmed(outcome.charmed);
       setLastBonus({
         charmed: outcome.charmed,
@@ -509,10 +534,12 @@ export function PlayerProgressProvider({
         dailyReplayMs: outcome.dailyReplayMs,
         solvedIn: outcome.solvedIn,
         puzzleId: levelId,
+        best,
+        firstOfGame,
       });
       return outcome;
     },
-    [recordCompletion],
+    [recordCompletion, applyMutation],
   );
 
   const retireGame = useCallback(
@@ -726,6 +753,8 @@ export function PlayerProgressProvider({
   );
 
   const resetProgress = useCallback((): void => {
+    // A fresh start leaves no board half played behind it.
+    forgetAllBoards();
     // A new player's save, with its first level set dealt - as a fresh
     // install gets on load. Without one, Home (mounted under Settings or
     // the account screen) throws on its next render.

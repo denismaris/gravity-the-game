@@ -19,7 +19,7 @@ import {
   GOLD,
   STONE,
 } from '../game/adjacent';
-import { AdjacentAnimation, AdjacentBoard, AdjacentPopup, LevelFailedCard, LevelSetComplete, MechanicsCarousel, PuzzleSolved, useSolveCelebration, renderAdjacentIllustration } from '../components';
+import { AdjacentAnimation, AdjacentBoard, AdjacentPopup, LevelFailedCard, LevelSetComplete, MechanicsCarousel, PuzzleSolved, SOLVE_CELEBRATION_MS, useSolveCelebration, renderAdjacentIllustration } from '../components';
 import { accentColorForKind, GameKind, NextPuzzleOptions } from '../game/journey';
 import { triggerFeedback } from '../game/rendering';
 import { ADJACENT_MECHANICS_SLIDES, tutorialIdForGame } from '../game/tutorials';
@@ -34,6 +34,9 @@ import { mechanic } from '../game/mechanics';
 import { UNDO_COST } from '../progression/coins';
 import { useStageEntrance } from '../components/useStageEntrance';
 import { PlayHeader } from '../components/PlayHeader';
+import { isTodaysDaily } from '../game/journey';
+import { savedBoard, useSaveBoard } from '../progression/boardSaves';
+import { useHintNote } from '../components/HintNote';
 
 const TUTORIAL_ID = tutorialIdForGame('adjacent');
 const ICON_SIZE = 14;
@@ -121,14 +124,18 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
 
   const nextEntry = useMemo(() => (progress.currentBatch ? nextInBatch(progress.currentBatch) : null), [progress.currentBatch]);
 
-  const [state, setState] = useState<AdjacentState>(() => initialAdjacentState(puzzle));
+  // A board left half played opens as it was left (not the timed Daily,
+  // whose clock would start again): see `boardSaves`.
+  const resumable = !isTodaysDaily(puzzle.id);
+  const [resumed] = useState(() => (resumable ? savedBoard(puzzle.id, initialAdjacentState(puzzle)) : null));
+  const [state, setState] = useState<AdjacentState>(() => resumed?.state ?? initialAdjacentState(puzzle));
   const { coins, shortBy, buy } = useCoinPurchase();
   // Insight, the superpower: charges first, then a video or coins.
   const insight = useInsightPower();
-  const [insightsUsed, setInsightsUsed] = useState(0);
+  const [insightsUsed, setInsightsUsed] = useState(() => resumed?.extras.insightsUsed ?? 0);
   const [coinsEarned, setCoinsEarned] = useState(0);
   const [history, setHistory] = useState<ReadonlyArray<AdjacentState>>([]);
-  const [undosUsed, setUndosUsed] = useState(0);
+  const [undosUsed, setUndosUsed] = useState(() => resumed?.extras.undosUsed ?? 0);
   const [preview, setPreview] = useState<ReadonlyArray<AdjacentCoord> | null>(null);
   const [animation, setAnimation] = useState<AdjacentAnimation | null>(null);
   const [popups, setPopups] = useState<ReadonlyArray<AdjacentPopup>>([]);
@@ -163,10 +170,15 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
   stateRef.current = state;
 
   const solved = useMemo(() => isAdjacentSolved(puzzle, state), [puzzle, state]);
+  useSaveBoard(puzzle.id, state, solved, { insightsUsed, undosUsed }, resumable);
+  // Why the hint made its move, said once above the keys.
+  const { note: hintNote, show: showHint } = useHintNote();
 
   // The completion card waits for the board's own finish animation to
   // play - without this it drops a scrim straight over the top of it.
-  const showSolvedCard = useSolveCelebration(solved);
+  // A little longer than the shared beat: the finish waits for the last
+  // move's tiles to land before it sweeps (see AdjacentBoardView).
+  const showSolvedCard = useSolveCelebration(solved, SOLVE_CELEBRATION_MS + 400);
   const stuck = useMemo(() => isAdjacentStuck(puzzle, state), [puzzle, state]);
   // Only the finish states stop input now. The preview no longer locks
   // anything - it is just a highlight that follows the finger.
@@ -256,12 +268,13 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
     const hint = explainAdjacentHint(puzzle, stateRef.current);
     if (!hint) return;
     insight.spend(() => {
+      showHint(hint as { reason?: string; tip?: string });
       setInsightsUsed(n => n + 1);
       setPreview(hint.group);
       triggerFeedback('targetReached');
       track(setTimeout(() => onPressCell(hint.tap.row, hint.tap.col), INSIGHT_TAP_DELAY_MS));
     });
-  }, [solved, stuck, puzzle, insight, track, onPressCell]);
+  }, [solved, stuck, puzzle, insight, track, onPressCell, showHint]);
 
   const undo = useCallback(() => {
     if (history.length === 0 || undosUsed >= MAX_UNDOS || solved) return;
@@ -332,8 +345,10 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
         </Animated.View>
 
         <DockGap />
-        <Animated.View style={[styles.controls, dockPlate.plate, controlsIn]}>
-          <InsightButton count={insight.count} onPress={revealInsight} />
+        {/* Finished: the keys take no more touches. The card is a beat
+          away, and a fast Restart in that beat threw a solved board away. */}
+        <Animated.View pointerEvents={solved ? "none" : "auto"} style={[styles.controls, dockPlate.plate, controlsIn]}>
+          <InsightButton count={insight.count} onPress={revealInsight} progress={state} />
           {insight.sheet}
           <RoundKey
             accessibilityLabel={`Undo the last clear, ${undosLeft} of ${MAX_UNDOS} left`}
@@ -347,7 +362,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
             </View>
           </RoundKey>
           <RoundKey
-            accessibilityLabel="Restart puzzle"
+            accessibilityLabel="Restart puzzle" confirm="Tap again to restart"
             onPress={restart}>
             <RestartIcon />
           </RoundKey>
@@ -359,6 +374,8 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
         </View>
         <DockFloor />
       </View>
+
+      {hintNote}
 
       {showSolvedCard && stars && !showSetComplete && (
         <PuzzleSolved

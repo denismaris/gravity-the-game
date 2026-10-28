@@ -4,10 +4,11 @@ import { StyleSheet, View } from 'react-native';
 import { Canvas, Circle, DashPathEffect, Group, LinearGradient, Line, Path, RoundedRect, vec } from '@shopify/react-native-skia';
 import { Easing, SharedValue, useDerivedValue, useSharedValue, withDelay, withRepeat, withSequence, withSpring, withTiming } from 'react-native-reanimated';
 import { Dir, loops, STEP, targets, troubles, VanePuzzle, VaneState } from '../game/vanes';
-import { DealIn, dealDelay, shade, useDealing, useReducedMotion } from '../game/rendering';
+import { DealIn, dealDelay, shade, useDealing, useReducedMotion, useScreenReader } from '../game/rendering';
 import { inkWash, theme } from '../theme';
 import { curve } from '../theme/motion';
 import { cellDip } from './cellDip';
+import { ScreenReaderCell, ScreenReaderCells } from './ScreenReaderCells';
 
 /**
  * The roof, in the same hand as every other board: Twos' paper tray with
@@ -61,6 +62,21 @@ export function VanesBoard({
   // The vane under the finger, dipped until it lifts.
   const [down, setDown] = useState<{ row: number; col: number } | null>(null);
   const cellAt = (x: number, y: number) => ({ col: Math.floor((x - geo.inset) / geo.cell), row: Math.floor((y - geo.inset) / geo.cell) });
+  // Played by a screen reader: one button a vane, saying where it points.
+  const screenReader = useScreenReader();
+  const astray = useMemo(() => troubles(puzzle, state), [puzzle, state]);
+  const readerCells: ScreenReaderCell[] = puzzle.vanes.map((v, i) => ({
+    key: `v${i}`,
+    x: geo.inset + v.col * geo.cell,
+    y: geo.inset + v.row * geo.cell,
+    size: geo.cell,
+    label: `Vane, row ${v.row + 1}, column ${v.col + 1}, points ${DIR_WORDS[state.dirs[i]]}${puzzle.fixed[i] !== null ? ', fixed' : astray[i] !== null ? ', astray' : ''}`,
+    hint: puzzle.fixed[i] !== null ? undefined : 'Turns it a quarter, clockwise',
+    disabled: solved || puzzle.fixed[i] !== null,
+    onActivate: () => {
+      if (!solved && puzzle.fixed[i] === null) onTurn(i);
+    },
+  }));
   return (
     <View style={{ width: size, height: size }}>
       <Canvas style={StyleSheet.absoluteFill}>
@@ -81,12 +97,16 @@ export function VanesBoard({
           const vane = at.get(`${row},${col}`);
           if (vane !== undefined) onTurn(vane);
         }}
-        accessible
+        accessible={!screenReader}
         accessibilityLabel={`Roof with ${puzzle.vanes.length} weathervanes`}
       />
+      <ScreenReaderCells cells={readerCells} />
     </View>
   );
 }
+
+/** Where a vane points, said aloud. */
+const DIR_WORDS = ['up', 'right', 'down', 'left'];
 
 /**
  * Everything drawn on the roof, for the live board and for the help
