@@ -42,6 +42,7 @@ export function parseSettings(raw: string | null): Settings {
     reminderHour?: unknown;
     appearance?: unknown;
     largerText?: unknown;
+    adaptiveDifficulty?: unknown;
   };
   if (typeof record.version !== 'number' || !READABLE_VERSIONS.includes(record.version)) {
     return defaultSettings();
@@ -65,6 +66,8 @@ export function parseSettings(raw: string | null): Settings {
     appearance: isAppearancePreference(record.appearance) ? record.appearance : 'system',
     // Absent before the setting existed: off.
     largerText: record.largerText === true,
+    // Absent before adaptive play existed: on, like a new install.
+    adaptiveDifficulty: record.adaptiveDifficulty !== false,
   };
 }
 

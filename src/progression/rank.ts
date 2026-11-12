@@ -1,61 +1,55 @@
-import { PlayerProgress, getTotalStars } from './playerProgress';
+import { PlayerProgress } from './playerProgress';
 
 /**
  * The player's rank: a long, named road that gives the whole almanac a
- * direction - every star, every puzzle, every errand run moves you along
- * it.
+ * direction. It is measured in **levels finished** - the one number every
+ * player can see and count for themselves, and the one that only playing
+ * moves (it was a blend of stars, puzzles, errands and streak days, called
+ * XP, which nobody could work out from the board in front of them).
  *
- * Experience is *derived* from what the save already records (stars,
- * puzzles solved, errands claimed, the best Daily run), never stored as a
- * running total - so it can't drift, and a player who had been playing
- * long before ranks existed arrives already partway up the road, with the
- * ranks they had earned waiting to be collected.
+ * Derived from the save's level cursor, never stored as a running total,
+ * so it cannot drift. A rank once reached is never taken back: a save
+ * that reached a rank on the old measure keeps it (see `rankOf`).
  */
 
-/** What each thing is worth. Stars dominate: a clean solve is worth
- * more than a hinted one, and replays that win new stars still count. */
-export const XP_PER_STAR = 10;
-export const XP_PER_PUZZLE = 5;
-export const XP_PER_ERRAND = 25;
-export const XP_PER_STREAK_DAY = 5;
+/** Levels finished: every level set completed so far. */
+export function levelsFinished(progress: PlayerProgress): number {
+  return Math.max(0, progress.currentLevel - 1);
+}
 
 export interface RankTier {
   readonly title: string;
-  /** Experience at which this rank is reached. */
+  /** Levels finished at which this rank is reached. */
   readonly at: number;
 }
 
-/** The named ranks, in order: a long road, every rung with a name of its
- * own, so the next one is always something to look forward to. Past the
- * last, it carries on as numbered Luminary ranks - see `rankAt`. The
- * first thirteen are exactly where the ranks of those numbers always were,
- * so no player's rank moves under them. */
+/** The named ranks, in order: close together at first, so the opening
+ * evenings bring a few, then wider apart. Past the last, it carries on as
+ * numbered Luminary ranks - see `rankAt`. */
 export const RANKS: ReadonlyArray<RankTier> = [
   { title: 'Novice', at: 0 },
-  { title: 'Apprentice', at: 150 },
-  { title: 'Wayfarer', at: 400 },
-  { title: 'Navigator', at: 800 },
-  { title: 'Cartographer', at: 1400 },
-  { title: 'Almanac Keeper', at: 2200 },
-  { title: 'Puzzle Sage', at: 3300 },
-  { title: 'Grand Master', at: 4800 },
-  // Through rank 13 these sit exactly where the numbered Grand Masters
-  // were (every 2,000), then the steps widen.
-  { title: 'Star Reader', at: 6800 },
-  { title: 'Tide Watcher', at: 8800 },
-  { title: 'Lantern Bearer', at: 10800 },
-  { title: 'Weather Wise', at: 12800 },
-  { title: 'Keeper of Keys', at: 14800 },
-  { title: 'Loremaster', at: 17500 },
-  { title: 'Archivist', at: 21000 },
-  { title: 'Illuminator', at: 25000 },
-  { title: 'Polymath', at: 30000 },
-  { title: 'Luminary', at: 36000 },
+  { title: 'Apprentice', at: 3 },
+  { title: 'Wayfarer', at: 7 },
+  { title: 'Navigator', at: 12 },
+  { title: 'Cartographer', at: 18 },
+  { title: 'Almanac Keeper', at: 25 },
+  { title: 'Puzzle Sage', at: 34 },
+  { title: 'Grand Master', at: 45 },
+  { title: 'Star Reader', at: 58 },
+  { title: 'Tide Watcher', at: 72 },
+  { title: 'Lantern Bearer', at: 88 },
+  { title: 'Weather Wise', at: 105 },
+  { title: 'Keeper of Keys', at: 125 },
+  { title: 'Loremaster', at: 150 },
+  { title: 'Archivist', at: 180 },
+  { title: 'Illuminator', at: 215 },
+  { title: 'Polymath', at: 255 },
+  { title: 'Luminary', at: 300 },
 ];
-/** Each numbered Luminary rank past the last named one. */
-export const GRAND_MASTER_STEP = 6000;
+/** Levels between each numbered Luminary rank past the last named one. */
+export const GRAND_MASTER_STEP = 50;
 
-/** Experience at which rank `n` (1-based) is reached. */
+/** Levels finished at which rank `n` (1-based) is reached. */
 export function rankThreshold(n: number): number {
   if (n <= RANKS.length) return RANKS[Math.max(1, n) - 1].at;
   return RANKS[RANKS.length - 1].at + (n - RANKS.length) * GRAND_MASTER_STEP;
@@ -67,33 +61,24 @@ export function rankReward(n: number): number {
   return n <= 1 ? 0 : 20 + 10 * n;
 }
 
-export function experienceOf(progress: PlayerProgress): number {
-  const puzzles = Object.keys(progress.levels).length;
-  return (
-    getTotalStars(progress) * XP_PER_STAR +
-    puzzles * XP_PER_PUZZLE +
-    progress.errandsClaimed * XP_PER_ERRAND +
-    progress.bestDailyStreak * XP_PER_STREAK_DAY
-  );
-}
-
 export interface Rank {
   /** 1-based rank number. */
   readonly number: number;
   readonly title: string;
-  /** Experience this rank began at, and the next one begins at. */
+  /** Levels finished when this rank began, and when the next one begins. */
   readonly from: number;
   readonly to: number;
-  readonly xp: number;
+  /** Levels finished so far. */
+  readonly levels: number;
   /** 0-1 of the way to the next rank. */
   readonly share: number;
 }
 
-/** The rank held with `xp` experience. */
-export function rankAt(xp: number): Rank {
+/** The rank held with `levels` levels finished. */
+export function rankAt(levels: number): Rank {
   const last = RANKS[RANKS.length - 1];
-  if (xp >= last.at) {
-    const beyond = Math.floor((xp - last.at) / GRAND_MASTER_STEP);
+  if (levels >= last.at) {
+    const beyond = Math.floor((levels - last.at) / GRAND_MASTER_STEP);
     const from = last.at + beyond * GRAND_MASTER_STEP;
     const to = from + GRAND_MASTER_STEP;
     return {
@@ -101,19 +86,26 @@ export function rankAt(xp: number): Rank {
       title: beyond === 0 ? last.title : `${last.title} ${toRoman(beyond + 1)}`,
       from,
       to,
-      xp,
-      share: (xp - from) / (to - from),
+      levels,
+      share: (levels - from) / (to - from),
     };
   }
   let index = 0;
-  while (index + 1 < RANKS.length && RANKS[index + 1].at <= xp) index += 1;
+  while (index + 1 < RANKS.length && RANKS[index + 1].at <= levels) index += 1;
   const from = RANKS[index].at;
   const to = RANKS[index + 1].at;
-  return { number: index + 1, title: RANKS[index].title, from, to, xp, share: (xp - from) / (to - from) };
+  return { number: index + 1, title: RANKS[index].title, from, to, levels, share: (levels - from) / (to - from) };
 }
 
 export function rankOf(progress: PlayerProgress): Rank {
-  return rankAt(experienceOf(progress));
+  const levels = levelsFinished(progress);
+  const rank = rankAt(levels);
+  // Never lower than a rank already celebrated and paid for.
+  const kept = progress.rankRewarded;
+  if (kept <= rank.number) return rank;
+  const from = rankThreshold(kept);
+  const to = rankThreshold(kept + 1);
+  return { number: kept, title: rankTitle(kept), from, to, levels, share: Math.max(0, Math.min(1, (levels - from) / (to - from))) };
 }
 
 /** The title of rank `n`, whether reached or not. */

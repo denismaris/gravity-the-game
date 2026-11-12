@@ -260,7 +260,7 @@ export function BloomScreen({ puzzle, onExit, onNextPuzzle }: BloomScreenProps):
       )}
 
       <MechanicIntro intros={puzzle.twins?.length ? [mechanic('mechanic:bloom-twins')] : []} accent={accentColorForKind('bloom')} />
-      {showTutorial && <MechanicsCarousel slides={BLOOM_MECHANICS_SLIDES} renderIllustration={renderBloomIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('bloom')} />}
+      {showTutorial && <MechanicsCarousel slides={BLOOM_MECHANICS_SLIDES} renderIllustration={renderBloomIllustration} onDone={dismissTutorial} kind="bloom" accentColor={accentColorForKind('bloom')} />}
     </View>
   );
 }

@@ -361,7 +361,7 @@ export function BinairoScreen({ puzzle, onExit, onNextPuzzle }: BinairoScreenPro
         />
       )}
 
-      {showTutorial && <MechanicsCarousel slides={BINAIRO_MECHANICS_SLIDES} renderIllustration={renderBinairoIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('binairo')} />}
+      {showTutorial && <MechanicsCarousel slides={BINAIRO_MECHANICS_SLIDES} renderIllustration={renderBinairoIllustration} onDone={dismissTutorial} kind="binairo" accentColor={accentColorForKind('binairo')} />}
     </View>
   );
 }

@@ -7,7 +7,7 @@
          azulejo tile in. Sits between Skyscrapers' plum and Arukone+'s wine
          on purpose, so it reads as the app's own colour rather than as any
          one game's. -->
-    <color name="ic_launcher_background">#8E2F76</color>
+    <color name="ic_launcher_background">#EFE6D6</color>
     <color name="window_background">#F3EEE3</color>
     <!-- The home-screen widget, in the app's own paper and ink. -->
     <color name="widget_paper">#EDE5D3</color>

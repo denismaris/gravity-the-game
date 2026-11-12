@@ -817,5 +817,9 @@ export function getGlassWindow(id: string, endless?: { name: string; tier: Puzzl
   return puzzle;
 }
 
-/** The windows to try it out with: two of each tier. */
-export const GLASS_TEST_WINDOWS: ReadonlyArray<GlassPuzzle> = (['easy', 'medium', 'hard'] as const).flatMap(difficulty => [0, 1].map(i => getCuratedGlass(curatedId(difficulty, i))!));
+/** The windows to try it out with: two of each tier. Built when asked
+ * for, not as the module loads: generating six windows at import ran the
+ * solver six times on every cold start, for boards only tests use. */
+export function glassTestWindows(): ReadonlyArray<GlassPuzzle> {
+  return (['easy', 'medium', 'hard'] as const).flatMap(difficulty => [0, 1].map(i => getCuratedGlass(curatedId(difficulty, i))!));
+}

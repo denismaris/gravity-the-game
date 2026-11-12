@@ -20,6 +20,7 @@ describe('defaultSettings', () => {
       reminderHour: 19,
       appearance: 'system',
       largerText: false,
+      adaptiveDifficulty: true,
     });
   });
 });

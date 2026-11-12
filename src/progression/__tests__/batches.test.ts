@@ -6,6 +6,7 @@ import { getAdjacentByDifficulty } from '../../game/adjacent';
 import { getBloomByDifficulty } from '../../game/bloom';
 import { getMosaicByDifficulty } from '../../game/mosaic';
 import { getBridgesByDifficulty } from '../../game/bridges';
+import { getFolioByDifficulty } from '../../game/folio';
 import { getGravityLevelsForTier, LEVELS } from '../../game/levels';
 import { getMirrorMazesByDifficulty } from '../../game/mirror';
 import { GameKind, ROTATION } from '../../game/journey';
@@ -40,6 +41,7 @@ const HARD_POOLS: Record<GameKind, ReadonlyArray<string>> = {
   bloom: getBloomByDifficulty('hard').map(p => p.id),
   mosaic: getMosaicByDifficulty('hard').map(p => p.id),
   bridges: getBridgesByDifficulty('hard').map(p => p.id),
+  folio: getFolioByDifficulty('hard').map(p => p.id),
 };
 
 const HARD_IDS: ReadonlySet<string> = new Set(Object.values(HARD_POOLS).flat());
@@ -71,6 +73,8 @@ function poolIdsFor(kind: GameKind, tier: 'easy' | 'medium' | 'hard'): ReadonlyA
       return getMosaicByDifficulty(tier).map(p => p.id);
     case 'bridges':
       return getBridgesByDifficulty(tier).map(p => p.id);
+    case 'folio':
+      return getFolioByDifficulty(tier).map(p => p.id);
   }
 }
 

@@ -8,7 +8,7 @@ import { Text, textScale } from './Text';;
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Icon } from './Icon';
 import { ConfettiBurst } from './ConfettiBurst';
-import { GameEmblem } from './GameEmblem';
+import { emblemSocket, GameEmblem, mix } from './GameEmblem';
 import { glide, settle, slice } from './placeMotion';
 import { useCardEntrance } from './useCardEntrance';
 import { accentColorForKind, GameKind, gameShortName } from '../game/journey';
@@ -228,7 +228,7 @@ function TallyTile({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JS
             ],
           }}
         >
-          <GameEmblem kind={kind} size={50} raised />
+          <GameEmblem kind={kind} size={EMBLEM} raised socket />
         </Animated.View>
         <Animated.View
           pointerEvents="none"
@@ -241,17 +241,23 @@ function TallyTile({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JS
             },
           ]}
         />
+        {/* The check: a raised button that stamps down into the emblem's
+            socket - pressed from above its seat, landing flush on its own
+            deeper edge. */}
         <Animated.View
+          pointerEvents="none"
           style={[
             styles.check,
             {
-              backgroundColor: accent,
               opacity: slice(t, 0.45, 0.6, glide, [0, 1], 0),
-              transform: [{ scale: slice(t, 0.45, 0.8, settle, [0.2, 1], 0.2) }],
+              transform: [{ translateY: slice(t, 0.45, 0.8, settle, [-8, 0], -8) }, { scale: slice(t, 0.45, 0.8, settle, [1.5, 1], 1.5) }],
             },
           ]}
         >
-          <Icon name="check" size={10} color={theme.colors.surfaceHi} />
+          <View style={[styles.checkEdge, { backgroundColor: mix(accent, '#000000', 0.32) }]} />
+          <View style={[styles.checkFace, { backgroundColor: accent }]}>
+            <Icon name="check" size={11} color={theme.colors.surfaceHi} />
+          </View>
         </Animated.View>
       </View>
       <Animated.Text maxFontSizeMultiplier={textScale()}
@@ -272,6 +278,13 @@ function TallyTile({ kind, t }: { kind: GameKind; t: Animated.Value }): React.JS
 }
 
 const CREST = 96;
+/** The tally's emblems, and the socket each one's check sits down into. */
+const EMBLEM = 50;
+const SOCKET = emblemSocket(EMBLEM);
+/** The check button: a little smaller than its socket, so a rim of the
+ * hole shows round it, and standing on an edge this deep. */
+const CHECK = SOCKET.r * 2 - 5;
+const CHECK_EDGE = 2;
 /** How far the medal's face stands above its gold edge. */
 const CREST_LIP = 5;
 const COUNT_WORDS = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve'];
@@ -346,23 +359,20 @@ const styles = themedStyles(() => ({
   rewardLabel: { marginTop: 2, fontSize: theme.typography.sizes.micro, fontWeight: theme.typography.weights.bold, letterSpacing: 1.2, textTransform: 'uppercase', color: theme.colors.textTertiary },
   check: {
     position: 'absolute',
-    right: -5,
-    bottom: -4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: theme.colors.surface,
+    left: SOCKET.cx - CHECK / 2,
+    top: SOCKET.cy - CHECK / 2 - CHECK_EDGE / 2,
+    width: CHECK,
+    height: CHECK + CHECK_EDGE,
   },
+  checkEdge: { position: 'absolute', left: 0, top: CHECK_EDGE, width: CHECK, height: CHECK, borderRadius: CHECK / 2 },
+  checkFace: { position: 'absolute', left: 0, top: 0, width: CHECK, height: CHECK, borderRadius: CHECK / 2, alignItems: 'center', justifyContent: 'center' },
   checkRing: {
     position: 'absolute',
-    right: -5,
-    bottom: -4,
-    width: 18,
-    height: 18,
-    borderRadius: 9,
+    left: SOCKET.cx - SOCKET.r,
+    top: SOCKET.cy - SOCKET.r,
+    width: SOCKET.r * 2,
+    height: SOCKET.r * 2,
+    borderRadius: SOCKET.r,
     borderWidth: 2,
   },
   closing: {

@@ -4,6 +4,7 @@ import { LESSON_GUIDES, LessonGuideContext } from './guides';
 import { BloomLesson, LanternsLesson, MirrorLesson, TwosLesson } from './gridLessons';
 import { LilyPadsLesson, VanesLesson } from './trialLessons';
 import { GlassLesson } from './glassLesson';
+import { FolioLesson } from './folioLesson';
 import { AdjacentLesson, BridgesLesson, GravityLesson, MosaicLesson, TwinpathLesson } from './moreLessons';
 
 /** The hands-on lesson for each game that has one: the first time a
@@ -22,6 +23,7 @@ export const LESSONS: Record<GameKind, React.ComponentType<{ onDone: () => void 
   arukone: TwinpathLesson,
   mosaic: MosaicLesson,
   gravity: GravityLesson,
+  folio: FolioLesson,
 };
 
 /**

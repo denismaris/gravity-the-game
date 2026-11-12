@@ -381,7 +381,7 @@ export function BridgesScreen({ puzzle, onExit, onNextPuzzle }: BridgesScreenPro
       )}
 
       <MechanicIntro intros={puzzle.islands.some(i => i.fog) ? [mechanic('mechanic:bridges-fog')] : []} accent={accentColorForKind('bridges')} />
-      {showTutorial && <MechanicsCarousel slides={BRIDGES_MECHANICS_SLIDES} renderIllustration={renderBridgesIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('bridges')} />}
+      {showTutorial && <MechanicsCarousel slides={BRIDGES_MECHANICS_SLIDES} renderIllustration={renderBridgesIllustration} onDone={dismissTutorial} kind="bridges" accentColor={accentColorForKind('bridges')} />}
     </View>
   );
 }

@@ -11,7 +11,7 @@ export interface BoardRow {
   readonly name: string;
   readonly country: string | null;
   readonly city: string | null;
-  /** Milliseconds on the Daily board; experience on the all-time board. */
+  /** Milliseconds on the Daily board; levels finished on the all-time board. */
   readonly score: number;
   readonly isMe: boolean;
 }

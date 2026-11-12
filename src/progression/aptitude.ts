@@ -7,6 +7,7 @@ import { LIGHTS_OUT } from '../game/lightsout';
 import { BLOOM } from '../game/bloom';
 import { MOSAIC } from '../game/mosaic';
 import { BRIDGES } from '../game/bridges';
+import { FOLIO } from '../game/folio';
 import { ADJACENT } from '../game/adjacent';
 import { MIRROR_MAZES } from '../game/mirror';
 import { LILY_PONDS } from '../game/lilypads';
@@ -57,6 +58,7 @@ const POOLS: Readonly<Record<GameKind, ReadonlyArray<PoolEntry>>> = {
   bloom: BLOOM.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
   mosaic: MOSAIC.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
   bridges: BRIDGES.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
+  folio: FOLIO.map(puzzle => ({ id: puzzle.id, difficulty: puzzle.difficulty })),
 };
 
 /**

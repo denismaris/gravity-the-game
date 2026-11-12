@@ -7,7 +7,7 @@ import { PLAYER_PROGRESS_KEY } from '../../progression/playerProgressStore';
 import { createMemoryBackend } from '../../storage';
 import { SettingsProvider, defaultSettings } from '../../settings';
 import { SETTINGS_KEY } from '../../settings/settingsStore';
-import { GLASS_TEST_WINDOWS } from '../../game/glass';
+import { glassTestWindows } from '../../game/glass';
 import { GLASS_PAD } from '../../components/GlassBoard';
 
 /** Stained Glass, driven through its board: one stroke colours every pane
@@ -19,7 +19,7 @@ async function mount() {
       <SafeAreaProvider initialMetrics={{ frame: { x: 0, y: 0, width: 390, height: 844 }, insets: { top: 47, left: 0, right: 0, bottom: 34 } }}>
         <SettingsProvider backend={createMemoryBackend({ [SETTINGS_KEY]: JSON.stringify({ ...defaultSettings(), seenTutorials: ['game:glass'] }) })}>
           <PlayerProgressProvider backend={createMemoryBackend({ [PLAYER_PROGRESS_KEY]: JSON.stringify(emptyProgress()) })}>
-            <GlassScreen puzzle={GLASS_TEST_WINDOWS[0]} onExit={() => {}} onNextPuzzle={() => {}} />
+            <GlassScreen puzzle={glassTestWindows()[0]} onExit={() => {}} onNextPuzzle={() => {}} />
           </PlayerProgressProvider>
         </SettingsProvider>
       </SafeAreaProvider>,
@@ -34,7 +34,7 @@ const text = (r: ReactTestRenderer.ReactTestRenderer) =>
 test('a stroke across clear panes colours each of them, and undo takes the stroke back', async () => {
   jest.useFakeTimers();
   const r = await mount();
-  const w = GLASS_TEST_WINDOWS[0];
+  const w = glassTestWindows()[0];
   const clear = w.given.map((g, i) => (g === null ? i : -1)).filter(i => i >= 0);
   const before = clear.length;
   expect(text(r)).toContain(`${before} left`);

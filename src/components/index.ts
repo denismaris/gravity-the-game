@@ -86,6 +86,7 @@ export type { BridgesBoardProps } from './BridgesBoard';
 export { BridgesBoardView } from './BridgesBoardView';
 export type { BridgesBoardViewProps, BridgesDrag } from './BridgesBoardView';
 export { renderBridgesIllustration } from './BridgesMechanicsIllustrations';
+export { renderFolioIllustration } from './FolioMechanicsIllustrations';
 export { SOLVE_CELEBRATION_MS, useSolveCelebration } from './useSolveCelebration';
 export { TesseraMark } from './TesseraMark';
 export type { TesseraMarkProps } from './TesseraMark';

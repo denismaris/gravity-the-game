@@ -409,7 +409,7 @@ export function AdjacentScreen({ puzzle, onExit, onNextPuzzle }: AdjacentScreenP
       )}
 
       <MechanicIntro intros={introsFor(puzzle)} accent={accentColorForKind('adjacent')} />
-      {showTutorial && <MechanicsCarousel slides={ADJACENT_MECHANICS_SLIDES} renderIllustration={renderAdjacentIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('adjacent')} />}
+      {showTutorial && <MechanicsCarousel slides={ADJACENT_MECHANICS_SLIDES} renderIllustration={renderAdjacentIllustration} onDone={dismissTutorial} kind="adjacent" accentColor={accentColorForKind('adjacent')} />}
     </View>
   );
 }

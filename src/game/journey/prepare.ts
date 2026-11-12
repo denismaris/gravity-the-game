@@ -4,6 +4,7 @@ import { getArukoneById } from '../arukone';
 import { getBinairoById } from '../binairo';
 import { getBloomById } from '../bloom';
 import { getBridgesById } from '../bridges';
+import { getFolioById } from '../folio';
 import { endlessName, parseEndlessId } from '../endlessId';
 import { getGlassWindow } from '../glass';
 import { getLevelById } from '../levels';
@@ -61,6 +62,9 @@ export function buildPuzzle(kind: GameKind, puzzleId: string): void {
       return;
     case 'bridges':
       getBridgesById(puzzleId);
+      return;
+    case 'folio':
+      getFolioById(puzzleId);
       return;
   }
 }

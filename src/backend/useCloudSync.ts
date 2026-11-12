@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { AppState } from 'react-native';
 import { dailyKeyOf, gameDisplayName, getDailyEntry } from '../game/journey';
-import { experienceOf, usePlayerProgress } from '../progression';
+import { levelsFinished, usePlayerProgress } from '../progression';
 import { getLevelStars } from '../progression/playerProgress';
 import { reportDaily } from './daily';
 import { backend } from './client';
 import { syncProgress } from './cloudSave';
 import { backendConfigured } from './config';
-import { publishXp } from './profile';
+import { publishLevels } from './profile';
 
 /** How long progress must sit still before it is sent - a burst of play
  * becomes one write, not one per move. */
@@ -23,7 +23,7 @@ export function useCloudSync(): void {
   const latest = useRef(progress);
   latest.current = progress;
   const hooks = useMemo(() => ({ getLocal: () => latest.current, adopt: adoptProgress }), [adoptProgress]);
-  // After each sync, the all-time board learns the player's experience,
+  // After each sync, the all-time board learns how many levels the player has finished,
   // and today's Daily board the player's time, if it never reached it
   // (solved offline, or before the backend existed). Posting twice is
   // harmless: the database keeps one result per player per day.
@@ -31,7 +31,7 @@ export function useCloudSync(): void {
     () => () =>
       syncProgress(hooks).then(async () => {
         const now = latest.current;
-        await publishXp(experienceOf(now));
+        await publishLevels(levelsFinished(now));
         const dayKey = dailyKeyOf(new Date());
         const ms = now.dailyTimes[dayKey];
         if (ms && now.daily.lastCompletedKey === dayKey) {

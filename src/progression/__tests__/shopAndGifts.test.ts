@@ -28,7 +28,7 @@ import { COIN_PACKS, PATRON_COINS, applyPurchase } from '../store';
 const ROOT = `${__dirname}/../../..`;
 const rich = (): PlayerProgress => ({ ...emptyProgress(), coins: 100000 });
 /** Rich, and far enough along the road (rank IV) to buy ad-free time. */
-const seasoned = (): PlayerProgress => ({ ...rich(), errandsClaimed: 40 });
+const seasoned = (): PlayerProgress => ({ ...rich(), currentLevel: 20 });
 
 /** Claims the gift on each of `keys` in turn. */
 function claimOn(progress: PlayerProgress, keys: string[]): PlayerProgress {

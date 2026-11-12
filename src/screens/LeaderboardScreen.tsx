@@ -63,7 +63,7 @@ function Row({ row, kind, index, hidden, onMore }: { row: BoardRow; kind: BoardK
     <Animated.View
       style={[styles.row, row.isMe && styles.rowMe, { opacity: enter, transform: [{ translateY: enter.interpolate({ inputRange: [0, 1], outputRange: [8, 0] }) }] }]}
     >
-      <View style={styles.rowMain} accessible accessibilityLabel={`${row.isMe ? 'You, ' : ''}place ${row.place}, ${name}${where ? `, ${where}` : ''}, ${kind === 'daily' ? formatDuration(row.score) : `${row.score} experience`}`}>
+      <View style={styles.rowMain} accessible accessibilityLabel={`${row.isMe ? 'You, ' : ''}place ${row.place}, ${name}${where ? `, ${where}` : ''}, ${kind === 'daily' ? formatDuration(row.score) : `${row.score} ${row.score === 1 ? 'level' : 'levels'} finished`}`}>
         <View style={[styles.place, metal ? { backgroundColor: metal } : null]}>
           <Text style={[styles.placeText, metal ? styles.placeTextMedal : null]}>{row.place}</Text>
         </View>
@@ -78,7 +78,7 @@ function Row({ row, kind, index, hidden, onMore }: { row: BoardRow; kind: BoardK
             </Text>
           ) : null}
         </View>
-        <Text style={styles.score}>{kind === 'daily' ? formatDuration(row.score) : `${row.score.toLocaleString('en-US')} XP`}</Text>
+        <Text style={styles.score}>{kind === 'daily' ? formatDuration(row.score) : `${row.score.toLocaleString('en-US')} ${row.score === 1 ? 'level' : 'levels'}`}</Text>
       </View>
       {!row.isMe && (
         <PressableScale accessibilityRole="button" accessibilityLabel={`Report or hide ${name}`} onPress={() => onMore(row)} hitSlop={10} style={({ pressed }) => [styles.more, pressed && styles.pressed]}>
@@ -210,7 +210,7 @@ function ProfileEditor({ profile, onClose, onSaved }: { profile: Profile; onClos
 }
 
 /**
- * The leaderboards: today's Daily (fastest first) and all-time experience,
+ * The leaderboards: today's Daily (fastest first) and all-time levels finished,
  * each for the world, the player's country and their city. The player's
  * own row is always shown, even far down the board.
  */
@@ -342,7 +342,7 @@ export function LeaderboardScreen({ onExit, onPlayDaily }: LeaderboardScreenProp
             ? board
               ? "Your games are still arriving, so today's Daily is one of your own. This board is everyone who played that same Daily, ranked by the time of their first solve."
               : "Ranked by the time of each player's first solve of today's Daily, from opening it to the last move. Replays don't count."
-            : 'Ranked by experience: every puzzle solved, errand run and streak day adds to it.'}
+            : 'Ranked by levels finished: every level you complete moves you up.'}
         </Text>
 
         {online && profile && (

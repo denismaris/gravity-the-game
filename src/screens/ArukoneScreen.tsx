@@ -287,7 +287,7 @@ export function ArukoneScreen({ puzzle, onExit, onNextPuzzle }: ArukoneScreenPro
         />
       )}
 
-      {showTutorial && <MechanicsCarousel slides={ARUKONE_MECHANICS_SLIDES} renderIllustration={renderArukoneIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('arukone')} />}
+      {showTutorial && <MechanicsCarousel slides={ARUKONE_MECHANICS_SLIDES} renderIllustration={renderArukoneIllustration} onDone={dismissTutorial} kind="arukone" accentColor={accentColorForKind('arukone')} />}
     </View>
   );
 }

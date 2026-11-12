@@ -1,5 +1,5 @@
 import { BINAIRO, emptyBinairoState, explainBinairoHint, isBinairoSolved, setValue } from '../binairo';
-import { GLASS_TEST_WINDOWS, glassHint, initialGlassState, isGlassSolved } from '../glass';
+import { glassTestWindows, glassHint, initialGlassState, isGlassSolved } from '../glass';
 import { MIRROR_MAZES, emptyMirrorMazeState, explainMirrorHint, isMirrorMazeSolved } from '../mirror';
 import { BRIDGES, emptyBridgesState, explainBridgesHint, isBridgesSolved } from '../bridges';
 import { LIGHTS_OUT, explainLightsOutHint, initialLightsOutState, isLightsOutSolved } from '../lightsout';
@@ -44,7 +44,7 @@ test('Binairo: reaches the answer, mostly by rules, and fixes a mistake first', 
 });
 
 test('Fill-a-Pix', () => {
-  for (const p of GLASS_TEST_WINDOWS) walk(initialGlassState(p), s => glassHint(p, s), s => isGlassSolved(p, s), 200);
+  for (const p of glassTestWindows()) walk(initialGlassState(p), s => glassHint(p, s), s => isGlassSolved(p, s), 200);
 });
 
 test('Mirror Maze follows the beam', () => {

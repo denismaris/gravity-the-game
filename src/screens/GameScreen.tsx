@@ -577,7 +577,7 @@ export function GameScreen({ level, onExit, onNextPuzzle }: GameScreenProps): Re
           slides={GRAVITY_MECHANICS_SLIDES}
           renderIllustration={renderGravityIllustration}
           onDone={dismissTutorial}
-          accentColor={accentColorForKind('gravity')}
+          kind="gravity" accentColor={accentColorForKind('gravity')}
         />
       ) : (
         tutorialToShow && <TutorialOverlay copy={copyForTutorial(tutorialToShow)} onDismiss={dismissTutorial} />

@@ -1069,7 +1069,7 @@ function HomeScreenImpl({
 
                 <PressableScale
                   accessibilityRole="button"
-                  accessibilityLabel={`Rank ${rank.number}, ${rank.title}. ${rank.to - rank.xp} experience to the next rank. Chapter ${chapterNow.chapter.number}, ${chapterNow.chapter.name}. Open your almanac.`}
+                  accessibilityLabel={`Rank ${rank.number}, ${rank.title}. ${rank.to - rank.levels} ${rank.to - rank.levels === 1 ? 'level' : 'levels'} to the next rank. Chapter ${chapterNow.chapter.number}, ${chapterNow.chapter.name}. Open your almanac.`}
                   onPress={onOpenJourney}
                   scaleTo={0.98}
                 unstable_pressDelay={110}
@@ -1083,7 +1083,7 @@ function HomeScreenImpl({
                         {rank.title}
                       </Text>
                       <Text style={styles.rankMeta}>
-                        {(rank.to - rank.xp).toLocaleString('en-US')} XP to {rankTitle(rank.number + 1)}
+                        {`${rank.to - rank.levels} ${rank.to - rank.levels === 1 ? 'level' : 'levels'} to ${rankTitle(rank.number + 1)}`}
                       </Text>
                       <XpBar share={rank.share} style={styles.rankBar} />
                     </View>

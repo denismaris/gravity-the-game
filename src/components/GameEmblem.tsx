@@ -15,9 +15,27 @@ export interface GameEmblemProps {
    * made opaque (its tint over the card's surface) so the lip never shows
    * through it. Adds the lip's height below `size`. */
   readonly raised?: boolean;
+  /** Cuts a round socket out of the plate's bottom-right corner, for a
+   * badge to sit down into (the level finish's check): a real hole, so
+   * whatever is behind shows through, with the plate's own wall visible
+   * at the top of it. See `emblemSocket` for where it is. */
+  readonly socket?: boolean;
 }
 
 const DEFAULT_SIZE = 64;
+
+/** Where a socketed emblem's socket is, and how big, in the emblem's own
+ * coordinates: for placing the badge that sits in it. */
+export function emblemSocket(size: number): { cx: number; cy: number; r: number } {
+  return { cx: size * 0.86, cy: size * 0.86, r: Math.round(size * 0.27) };
+}
+
+/** The socket's wall: the top of the hole, where the plate's depth shows. */
+function socketWall(cx: number, cy: number, r: number, depth: number): string {
+  const half = Math.sqrt(Math.max(0, r * r - (depth * depth) / 4));
+  const y = cy + depth / 2;
+  return `M ${cx - half} ${y} A ${r} ${r} 0 1 1 ${cx + half} ${y} A ${r} ${r} 0 0 0 ${cx - half} ${y} Z`;
+}
 
 /** The lip under a raised emblem, as a share of its size. */
 export function emblemLip(size: number): number {
@@ -57,16 +75,22 @@ export function tint(hex: string, alpha: number): string {
  * marks competing with gradients and highlights would read as clutter
  * rather than as a set.
  */
-export function GameEmblem({ kind, size = DEFAULT_SIZE, raised = false }: GameEmblemProps): React.JSX.Element {
+export function GameEmblem({ kind, size = DEFAULT_SIZE, raised = false, socket = false }: GameEmblemProps): React.JSX.Element {
   const accent = accentColorForKind(kind);
   const plate = raised ? mix(theme.colors.surface, accent, 0.16) : tint(accent, 0.16);
   const lip = raised ? emblemLip(size) : 0;
+  const wall = mix(theme.colors.surface, accent, 0.42);
+  const hole = emblemSocket(size);
   return (
     <View style={{ width: size, height: size + lip }} accessibilityRole="image" accessibilityLabel={`${kind} emblem`}>
       <Canvas style={StyleSheet.absoluteFill}>
-        {raised && <RoundedRect x={0} y={lip} width={size} height={size} r={size * 0.28} color={mix(theme.colors.surface, accent, 0.42)} />}
-        <RoundedRect x={0} y={0} width={size} height={size} r={size * 0.28} color={plate} />
-        {renderMark(kind, size, accent, plate)}
+        <Group layer={socket}>
+          {raised && <RoundedRect x={0} y={lip} width={size} height={size} r={size * 0.28} color={wall} />}
+          <RoundedRect x={0} y={0} width={size} height={size} r={size * 0.28} color={plate} />
+          {renderMark(kind, size, accent, plate)}
+          {socket && <Circle cx={hole.cx} cy={hole.cy} r={hole.r} color="#000000" blendMode="clear" />}
+          {socket && <Path path={socketWall(hole.cx, hole.cy, hole.r, Math.max(2, lip))} color={wall} />}
+        </Group>
       </Canvas>
     </View>
   );
@@ -117,6 +141,8 @@ function renderMark(kind: GameKind, size: number, accent: string, plate: string)
       return <MosaicMark size={size} accent={accent} plate={plate} />;
     case 'bridges':
       return <BridgesMark size={size} accent={accent} plate={plate} />;
+    case 'folio':
+      return <FolioMark size={size} accent={accent} plate={plate} />;
   }
 }
 
@@ -552,6 +578,33 @@ function BridgesMark({ size, accent }: MarkProps): React.JSX.Element {
       ].map(([x, y], i) => (
         <Circle key={`isle-${i}`} cx={x} cy={y} r={r - stroke / 2} color={accent} style="stroke" strokeWidth={stroke} />
       ))}
+    </Group>
+  );
+}
+
+/**
+ * A sheet folded along its middle crease, one corner turned up to show its
+ * back: the two things a Folio board asks you to read. The crease is
+ * knocked out of the paper, and the turned corner is the plate with an
+ * outline, so the mark stays one ink.
+ */
+function FolioMark({ size, accent, plate }: MarkProps): React.JSX.Element {
+  const x0 = size * 0.25;
+  const y0 = size * 0.23;
+  const x1 = size * 0.75;
+  const y1 = size * 0.77;
+  const ear = size * 0.19;
+  const stroke = size * 0.045;
+  const mid = (x0 + x1) / 2;
+  const dash = size * 0.075;
+  return (
+    <Group>
+      <Path path={`M ${x0} ${y0} L ${x1 - ear} ${y0} L ${x1} ${y0 + ear} L ${x1} ${y1} L ${x0} ${y1} Z`} color={accent} />
+      {[0, 1, 2].map(i => (
+        <RoundedRect key={`crease-${i}`} x={mid - stroke / 2} y={y0 + size * 0.07 + i * dash * 1.75} width={stroke} height={dash} r={stroke / 2} color={plate} />
+      ))}
+      <Path path={`M ${x1 - ear} ${y0} L ${x1 - ear} ${y0 + ear} L ${x1} ${y0 + ear} Z`} color={plate} />
+      <Path path={`M ${x1 - ear} ${y0} L ${x1 - ear} ${y0 + ear} L ${x1} ${y0 + ear} Z`} color={accent} style="stroke" strokeWidth={stroke} strokeJoin="round" />
     </Group>
   );
 }

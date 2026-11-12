@@ -10,12 +10,20 @@ import { buildPuzzle } from '../../game/journey/prepare';
  * a practice board that saves nothing. */
 describe('practice boards', () => {
   test('every game has six distinct boards that open', () => {
-    for (const kind of ROTATION) {
+    for (const kind of ROTATION.filter(k => k !== 'folio')) {
       const boards = practiceBoards(kind);
       expect(boards).toHaveLength(6);
       expect(new Set(boards).size).toBe(6);
       for (const id of boards) expect(() => buildPuzzle(kind, id)).not.toThrow();
     }
+  });
+
+  test('Folio is tried as a climb: five easy, five medium, five hard', () => {
+    const boards = practiceBoards('folio');
+    expect(boards).toHaveLength(15);
+    expect(new Set(boards).size).toBe(15);
+    expect(boards.map(id => id.split('-')[1])).toEqual([...Array(5).fill('easy'), ...Array(5).fill('medium'), ...Array(5).fill('hard')]);
+    for (const id of boards) expect(() => buildPuzzle('folio', id)).not.toThrow();
   });
 
   test('a practice solve pays nothing and leaves the save untouched', async () => {

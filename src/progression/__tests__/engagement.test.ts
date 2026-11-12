@@ -1,5 +1,5 @@
 import { emptyProgress, getDisplayDailyStreak, PlayerProgress, recordDaily } from '../playerProgress';
-import { RANKS, collectRanks, experienceOf, pendingRanks, rankAt, rankReward, toRoman } from '../rank';
+import { RANKS, collectRanks, levelsFinished, pendingRanks, rankAt, rankOf, rankReward, toRoman } from '../rank';
 import { chapterAt, chaptersFinished, claimChapter, currentChapter, unclaimedChapters } from '../chapters';
 import { advanceErrands, claimErrand, errandLogFor, errandsFor, unclaimedErrands } from '../errands';
 import { COSMETICS, DEFAULT_EQUIPPED, buyCosmetic, buyStreakFreeze, equipCosmetic, equipped, owns } from '../shop';
@@ -21,22 +21,28 @@ describe('ranks', () => {
     expect(rankAt(RANKS[1].at - 1).number).toBe(1);
     const last = RANKS[RANKS.length - 1];
     expect(rankAt(last.at).title).toBe('Luminary');
-    expect(rankAt(last.at + 6000).title).toBe('Luminary II');
-    // The first eight ranks never moved, and the ninth is where Grand
-    // Master II was, so no one's rank number changed under them.
-    expect(rankAt(4800).title).toBe('Grand Master');
-    expect(rankAt(6800).number).toBe(9);
-    expect(rankAt(500).share).toBeGreaterThan(0);
-    expect(rankAt(500).share).toBeLessThan(1);
+    expect(rankAt(last.at + 50).title).toBe('Luminary II');
+    expect(rankAt(45).title).toBe('Grand Master');
+    expect(rankAt(20).share).toBeGreaterThan(0);
+    expect(rankAt(20).share).toBeLessThan(1);
   });
 
-  test('experience is derived from stars, puzzles, errands and the best run', () => {
-    const p = { ...withStars(3, 1), errandsClaimed: 2, bestDailyStreak: 4 };
-    expect(experienceOf(p)).toBe(3 * 10 + 1 * 5 + 2 * 25 + 4 * 5);
+  test('the road is measured in levels finished', () => {
+    const p = { ...withStars(3, 1), currentLevel: 13 };
+    expect(levelsFinished(p)).toBe(12);
+    expect(rankOf(p)).toMatchObject({ title: 'Navigator', levels: 12 });
+    expect(levelsFinished({ ...p, currentLevel: 1 })).toBe(0);
   });
 
-  test('a save that earned ranks before they existed collects them all, once', () => {
-    const p = { ...withStars(90, 30), coins: 0 };
+  test('a rank already reached is never taken back', () => {
+    const p = { ...withStars(3, 1), currentLevel: 5, rankRewarded: 6 };
+    expect(rankOf(p).number).toBe(6);
+    expect(rankOf(p).share).toBe(0);
+    expect(pendingRanks(p)).toEqual([]);
+  });
+
+  test('a save that reached ranks before they were collected collects them all, once', () => {
+    const p = { ...withStars(90, 30), currentLevel: 30, coins: 0 };
     const pending = pendingRanks(p);
     expect(pending.length).toBeGreaterThan(1);
     const collected = collectRanks(p);

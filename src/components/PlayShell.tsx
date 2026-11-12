@@ -238,7 +238,7 @@ export function PlayShell({
         />
       )}
       {!showIntro && !lesson && intros.length > 0 && <MechanicIntro intros={intros} accent={accent} />}
-      {showHelp && <MechanicsCarousel slides={slides} renderIllustration={renderIllustration} onDone={() => setShowHelp(false)} accentColor={accent} />}
+      {showHelp && <MechanicsCarousel slides={slides} renderIllustration={renderIllustration} onDone={() => setShowHelp(false)} kind={kind} accentColor={accent} />}
     </View>
   );
 }

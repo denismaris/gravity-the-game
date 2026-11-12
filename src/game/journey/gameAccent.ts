@@ -46,5 +46,7 @@ export function accentColorForKind(kind: GameKind): string {
       return theme.colors.mosaicAccent;
     case 'bridges':
       return theme.colors.bridgesAccent;
+    case 'folio':
+      return theme.colors.folioAccent;
   }
 }

@@ -278,7 +278,7 @@ export function LightsOutScreen({ puzzle, onExit, onNextPuzzle }: LightsOutScree
         />
       )}
 
-      {showTutorial && <MechanicsCarousel slides={LIGHTSOUT_MECHANICS_SLIDES} renderIllustration={renderLightsOutIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('lightsout')} />}
+      {showTutorial && <MechanicsCarousel slides={LIGHTSOUT_MECHANICS_SLIDES} renderIllustration={renderLightsOutIllustration} onDone={dismissTutorial} kind="lightsout" accentColor={accentColorForKind('lightsout')} />}
     </View>
   );
 }

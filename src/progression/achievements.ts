@@ -6,6 +6,7 @@ import { ADJACENT } from '../game/adjacent';
 import { BLOOM } from '../game/bloom';
 import { MOSAIC } from '../game/mosaic';
 import { BRIDGES } from '../game/bridges';
+import { FOLIO } from '../game/folio';
 import { LEVELS } from '../game/levels';
 import { MIRROR_MAZES } from '../game/mirror';
 import { LILY_PONDS } from '../game/lilypads';
@@ -31,6 +32,7 @@ const ALL_PUZZLE_IDS: ReadonlyArray<string> = [
   ...BLOOM.map(puzzle => puzzle.id),
   ...MOSAIC.map(puzzle => puzzle.id),
   ...BRIDGES.map(puzzle => puzzle.id),
+  ...FOLIO.map(puzzle => puzzle.id),
 ];
 
 /** Every puzzle in every game, total - `HomeScreen`'s own "X of Y solved"
@@ -117,7 +119,7 @@ const TOTAL_STARS_POSSIBLE = ALL_PUZZLE_IDS.length * 3;
 function cleanSolves(progress: PlayerProgress): number {
   return Object.values(progress.levels).filter(level => level.completed && level.stars === 3).length;
 }
-const NOT_GRAVITY = [...MIRROR_MAZES, ...LILY_PONDS, ...VANE_ROOFS, ...BINAIRO, ...ARUKONE, ...GLASS_WINDOWS, ...LIGHTS_OUT, ...ADJACENT, ...BLOOM, ...MOSAIC, ...BRIDGES];
+const NOT_GRAVITY = [...MIRROR_MAZES, ...LILY_PONDS, ...VANE_ROOFS, ...BINAIRO, ...ARUKONE, ...GLASS_WINDOWS, ...LIGHTS_OUT, ...ADJACENT, ...BLOOM, ...MOSAIC, ...BRIDGES, ...FOLIO];
 
 /**
  * The fixed set of achievements. Order here is display order. Ids are
@@ -148,6 +150,7 @@ export const ACHIEVEMENTS: ReadonlyArray<Achievement> = [
   everyPuzzle('game:bloom', 'bloom', 'Walled Garden', 'Solve every Bloom puzzle.', BLOOM),
   everyPuzzle('game:mosaic', 'mosaic', 'Gallery Wall', 'Complete every Mosaic picture.', MOSAIC),
   everyPuzzle('game:bridges', 'bridges', 'Harbour Master', 'Connect every Bridges archipelago.', BRIDGES),
+  everyPuzzle('game:folio', 'folio', 'Bound Edition', 'Fold every Folio sheet.', FOLIO),
   {
     id: 'stars:100',
     title: 'Steady Hand',

@@ -76,6 +76,7 @@ const GAME_LINES: Record<GameKind, ReadonlyArray<string>> = {
   bloom: ['Every line joined.', 'In full bloom.', 'No loose ends.'],
   mosaic: ['Every piece set.', 'The picture is whole.', 'Nothing left in the tray.'],
   bridges: ['Every island reached.', 'Every number met.', 'The bridges hold.'],
+  folio: ['Folded just so.', 'Every square the right way up.', 'Neatly done, crease by crease.'],
 };
 
 /** A game's own lines - exported for the tests. */

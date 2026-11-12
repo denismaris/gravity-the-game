@@ -16,7 +16,7 @@ export const LEGAL = {
   /** Where the Supabase project's servers are (Dashboard > Project
    * Settings > General), e.g. 'Frankfurt, Germany'. */
   dataRegion: '',
-  updated: '6 October 2026',
+  updated: '29 October 2026',
 };
 
 const who = () => LEGAL.owner || 'the developer of Tessellatum';
@@ -71,6 +71,7 @@ export function privacyPolicy(): LegalDocument {
           'To show your name and city on the leaderboards: your consent (Article 6(1)(a)). You can remove them at any time, and you then appear as an anonymous player.',
           'To keep the leaderboards fair and free of offensive names: our legitimate interest in a safe game (Article 6(1)(f)).',
           'To show ads, which keep the game free: your consent where the law requires it (Article 6(1)(a)), given in the consent form and changeable in Settings.',
+          'To choose puzzles that suit how you play (adaptive difficulty, worked out on your phone only): our legitimate interest in a game you enjoy (Article 6(1)(f)). You can switch it off at any time in Settings.',
         ],
       },
       {
@@ -105,6 +106,7 @@ export function privacyPolicy(): LegalDocument {
         paragraphs: [
           'The game keeps your progress, settings and the list of players you have hidden on your phone, because it needs them to work. This is not used for tracking, so no consent prompt is needed for it.',
           'Daily reminders, if you turn them on, are scheduled on your phone and never pass through our server. The home screen widget reads your streak and today’s Daily from the game on your phone and sends nothing anywhere.',
+          'Adaptive difficulty, on unless you switch it off (Settings, Gameplay): the game learns from how you play, such as how quickly you solve, the hints and restarts you use, and the puzzles you leave or swap, to choose puzzles that suit you, easier or harder. It is worked out on your phone and kept only there: it is never sent to our server, never shared, and never used for ads. Switching it off stops it; deleting the app removes it.',
         ],
       },
       {

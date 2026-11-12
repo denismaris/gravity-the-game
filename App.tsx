@@ -22,6 +22,7 @@ import {
   BloomScreen,
   MosaicScreen,
   BridgesScreen,
+  FolioScreen,
   ArukoneScreen,
   LightsOutScreen,
   BinairoScreen,
@@ -54,15 +55,18 @@ import { getAdjacentById } from './src/game/adjacent';
 import { getBloomById } from './src/game/bloom';
 import { getMosaicById } from './src/game/mosaic';
 import { getBridgesById } from './src/game/bridges';
-import { GameKind, NextPuzzleOptions, ROTATION, getDailyEntry, usePrepareUpcoming } from './src/game/journey';
+import { getFolioById } from './src/game/folio';
+import { GameKind, NextPuzzleOptions, ROTATION, getDailyEntry, puzzleKindOf, usePrepareUpcoming } from './src/game/journey';
 import { CalmingInterstitialScreen } from './src/interstitial';
-import { PlayerProgressProvider, PracticeProvider, gamesPlayed, isAdFree, notePuzzleOpened, practiceBoards, usePlayerProgress } from './src/progression';
+import { PlayerProgressProvider, PracticeProvider, elapsedFor, gamesPlayed, isAdFree, notePuzzleOpened, practiceBoards, usePlayerProgress, wasResumed } from './src/progression';
 import { learnedTutorials } from './src/progression/learnedTutorials';
 import { AD_RULES, betweenSets, startAds } from './src/ads';
 import { AppearanceProvider, SettingsProvider, useAppearance, useHoldAppearance, useSettings } from './src/settings';
 import { motion, theme, themedStyles } from './src/theme';
 import { hasSavedBoard, loadBoardSaves } from './src/progression/boardSaves';
 import { loadGameArrivals } from './src/progression/gameArrivals';
+import { loadAdaptive, needsEasing, noteAbandoned, noteContinued, noteOpened, setAdaptiveEnabled } from './src/progression/adaptive';
+import { dealtTierOf } from './src/progression/batches';
 import { markContinuing, markRepaint } from './src/components/playContinuity';
 
 /** How long after a set rolls over, mid-game, before its first board is
@@ -99,9 +103,7 @@ function App(): React.JSX.Element {
       <SafeAreaProvider>
         <SettingsProvider>
           <AppearanceProvider>
-            <PlayerProgressProvider>
-              <Boot />
-            </PlayerProgressProvider>
+            <Launch />
           </AppearanceProvider>
         </SettingsProvider>
       </SafeAreaProvider>
@@ -110,39 +112,26 @@ function App(): React.JSX.Element {
 }
 
 /**
- * The cold start: the launch sequence over the app until it has both
- * played its beat and got a loaded app to hand off to.
- *
- * It lives *inside* both providers because it needs their `ready` flags,
- * and it renders over `AppRoutes` rather than instead of it, so the real
- * screen is already mounted and laid out by the time the cover lifts -
- * handing off to a blank frame would undo the whole point.
- *
- * This also covers a rough edge that was always there: both providers hand
- * out defaults until their async storage read resolves, so Home's first
- * frames show level 1's placeholder batch before snapping to the real save
- * (see `withBatch` in `PlayerProgressProvider`). The sequence is over that
- * window, so nobody sees it any more.
+ * The launch first, the app a frame later. The player's progress, the
+ * puzzle pools and the routes cost a few hundred milliseconds to load and
+ * build, and the launch used to wait behind all of it, so a cold start
+ * showed a blank page first. Now the launch draws on the first frame
+ * (it runs on the UI thread, so the work that follows cannot stall it)
+ * and the rest is built under it, one frame on.
  */
-function Boot(): React.JSX.Element {
-  const { ready: settingsReady, settings, markTutorialSeen } = useSettings();
-  const { ready: progressReady, progress } = usePlayerProgress();
-  // A game the player has already played needs no "how to play" - also
-  // after signing back in, on a new phone, or after a reinstall, when this
-  // phone's own memory of the guides is empty but the account is not.
+function Launch(): React.JSX.Element {
+  const [building, setBuilding] = useState(false);
   useEffect(() => {
-    if (!settingsReady || !progressReady) return;
-    for (const id of learnedTutorials(progress)) if (!settings.seenTutorials.includes(id)) markTutorialSeen(id);
-  }, [settingsReady, progressReady, progress, settings.seenTutorials, markTutorialSeen]);
-  // The daily reminder's schedule follows the save and the setting.
-  useReminderSync();
-  const scheme = useAppearance();
-  const [launched, setLaunched] = useState(false);
-  // Boards left half played, read once before the first board can open.
-  const [boardsReady, setBoardsReady] = useState(false);
-  useEffect(() => {
-    Promise.all([loadBoardSaves(), loadGameArrivals()]).finally(() => setBoardsReady(true));
+    let second = 0;
+    const first = requestAnimationFrame(() => {
+      second = requestAnimationFrame(() => setBuilding(true));
+    });
+    return () => {
+      cancelAnimationFrame(first);
+      cancelAnimationFrame(second);
+    };
   }, []);
+  const [launched, setLaunched] = useState(false);
   const finishLaunch = useCallback(() => setLaunched(true), []);
   // Home's first arrival waits for the launch tile to start lifting away,
   // then places itself under it.
@@ -165,12 +154,71 @@ function Boot(): React.JSX.Element {
     const timer = setTimeout(markHomeDrawn, 1500);
     return () => clearTimeout(timer);
   }, [launchSettled, markHomeDrawn]);
+  const [appReady, setAppReady] = useState(false);
+  return (
+    <>
+      {building && (
+        <PlayerProgressProvider>
+          <Boot launched={launched} launchSettled={launchSettled} onReady={setAppReady} onHomeDrawn={markHomeDrawn} />
+        </PlayerProgressProvider>
+      )}
+      {!launched && <LaunchSequence appReady={appReady && homeDrawn} onSettled={settleLaunch} onHandoff={releaseHomeEntrance} onDone={finishLaunch} />}
+    </>
+  );
+}
+
+/**
+ * The cold start: the launch sequence over the app until it has both
+ * played its beat and got a loaded app to hand off to.
+ *
+ * It lives *inside* both providers because it needs their `ready` flags,
+ * and it renders over `AppRoutes` rather than instead of it, so the real
+ * screen is already mounted and laid out by the time the cover lifts -
+ * handing off to a blank frame would undo the whole point.
+ *
+ * This also covers a rough edge that was always there: both providers hand
+ * out defaults until their async storage read resolves, so Home's first
+ * frames show level 1's placeholder batch before snapping to the real save
+ * (see `withBatch` in `PlayerProgressProvider`). The sequence is over that
+ * window, so nobody sees it any more.
+ */
+function Boot({
+  launched,
+  launchSettled,
+  onReady,
+  onHomeDrawn,
+}: {
+  launched: boolean;
+  launchSettled: boolean;
+  onReady: (ready: boolean) => void;
+  onHomeDrawn: () => void;
+}): React.JSX.Element {
+  const { ready: settingsReady, settings, markTutorialSeen } = useSettings();
+  const { ready: progressReady, progress } = usePlayerProgress();
+  // A game the player has already played needs no "how to play" - also
+  // after signing back in, on a new phone, or after a reinstall, when this
+  // phone's own memory of the guides is empty but the account is not.
+  useEffect(() => {
+    if (!settingsReady || !progressReady) return;
+    for (const id of learnedTutorials(progress)) if (!settings.seenTutorials.includes(id)) markTutorialSeen(id);
+  }, [settingsReady, progressReady, progress, settings.seenTutorials, markTutorialSeen]);
+  // The daily reminder's schedule follows the save and the setting.
+  useReminderSync();
+  // "Adapt difficulty to me", from Settings, for the dealer.
+  useEffect(() => setAdaptiveEnabled(settings.adaptiveDifficulty), [settings.adaptiveDifficulty]);
+  const scheme = useAppearance();
+  // Boards left half played, read once before the first board can open.
+  const [boardsReady, setBoardsReady] = useState(false);
+  useEffect(() => {
+    Promise.all([loadBoardSaves(), loadGameArrivals(), loadAdaptive()]).finally(() => setBoardsReady(true));
+  }, []);
+  const ready = settingsReady && progressReady && boardsReady;
+  useEffect(() => onReady(ready), [ready, onReady]);
 
   return (
     <>
       <StatusBar barStyle={scheme === 'dark' ? 'light-content' : 'dark-content'} />
-      <AppRoutes launched={launched} mountHome={launched || launchSettled} onHomeDrawn={markHomeDrawn} />
-      {!launched && <LaunchSequence appReady={settingsReady && progressReady && boardsReady && homeDrawn} onSettled={settleLaunch} onHandoff={releaseHomeEntrance} onDone={finishLaunch} />}
+      <AppRoutes launched={launched} mountHome={launched || launchSettled} onHomeDrawn={onHomeDrawn} />
     </>
   );
 }
@@ -191,7 +239,7 @@ function AppRoutes({
   onHomeDrawn: () => void;
 }): React.JSX.Element {
   const { settings, ready: settingsReady, markTutorialSeen } = useSettings();
-  const { progress, ready: progressReady, markIntroSeen, addInsights } = usePlayerProgress();
+  const { progress, ready: progressReady, markIntroSeen, addInsights, easeNextPuzzle } = usePlayerProgress();
   // A lesson replayed from Your games.
   const [replaying, setReplaying] = useState<GameKind | null>(null);
   const progressRef = useRef(progress);
@@ -236,6 +284,8 @@ function AppRoutes({
   useEffect(() => {
     // Timed from here; a board resumed half played is not timed whole.
     if (selected) notePuzzleOpened(selected.puzzleId, Date.now(), hasSavedBoard(selected.puzzleId));
+    // Adaptive play counts restarts per board (see `adaptive.ts`).
+    if (selected) noteOpened();
   }, [selected]);
 
   // The puzzles coming up, built ahead while nothing is moving (see
@@ -303,7 +353,23 @@ function AppRoutes({
     return () => subscription.remove();
   }, [openFromHome]);
 
-  const exit = useCallback(() => setSelected(null), []);
+  // Leaving a board unfinished is something adaptive play learns from
+  // (see `adaptive.ts`): a real try abandoned says it was too much, or not
+  // fun. A board already solved (a replay), or a practice run, says nothing.
+  const selectedRef = useRef(selected);
+  selectedRef.current = selected;
+  const exit = useCallback(() => {
+    const leaving = selectedRef.current;
+    const now = progressRef.current;
+    if (leaving && !leaving.practice && !now.levels[leaving.puzzleId]) {
+      const ref = now.currentBatch?.puzzles.find(p => p.puzzleId === leaving.puzzleId);
+      const tier = ref ? dealtTierOf(ref) : puzzleKindOf(leaving.puzzleId)?.difficulty ?? 'medium';
+      noteAbandoned({ puzzleId: leaving.puzzleId, kind: leaving.kind, tier, ms: wasResumed(leaving.puzzleId) ? null : elapsedFor(leaving.puzzleId) });
+      // A rough patch (gave up twice running, say): the next puzzle comes gentler.
+      if (needsEasing()) easeNextPuzzle();
+    }
+    setSelected(null);
+  }, [easeNextPuzzle]);
   // A practice run: one game's starter boards in turn, from Settings.
   const tryGame = useCallback((kind: GameKind) => {
     setOverlayRoute(null);
@@ -330,6 +396,8 @@ function AppRoutes({
   // Also closes Settings, in case this came from there.
   const openPuzzle = useCallback(
     (kind: GameKind, puzzleId: string, options?: NextPuzzleOptions) => {
+      // Straight on to the next puzzle: the last one was enjoyed.
+      noteContinued();
       const go = () => {
         setOverlayRoute(null);
         if (options?.showInterstitial && settings.calmingInterstitialEnabled) {
@@ -544,6 +612,16 @@ function AppRoutes({
           homeScreen
         );
         routeKey = puzzle ? `bridges:${puzzle.id}` : 'home';
+        break;
+      }
+      case 'folio': {
+        const puzzle = getFolioById(selected.puzzleId);
+        screen = puzzle ? (
+          <FolioScreen key={puzzle.id} puzzle={puzzle} onExit={playExit} onNextPuzzle={playNext} />
+        ) : (
+          homeScreen
+        );
+        routeKey = puzzle ? `folio:${puzzle.id}` : 'home';
         break;
       }
       case 'gravity': {

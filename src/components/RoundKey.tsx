@@ -5,6 +5,7 @@ import { isReducedMotion, triggerFeedback } from '../game/rendering';
 import { curve } from '../theme/motion';
 import { PressableScale } from './PressableScale';
 import { RaisedKey } from './RaisedKey';
+import { noteRestart } from '../progression/adaptive';
 import { Text } from './Text';
 
 /** The round key under every board - Undo, Restart - on its own edge. */
@@ -46,6 +47,8 @@ export function RoundKey({
   const spin = useRef(new Animated.Value(0)).current;
   const mode = turn ?? (accessibilityLabel.startsWith('Undo') ? 'swing' : accessibilityLabel.startsWith('Restart') ? 'spin' : 'none');
   const answer = () => {
+    // A restart is one of the things adaptive play reads (see `adaptive.ts`).
+    if (mode === 'spin') noteRestart();
     if (mode === 'none' || isReducedMotion()) return;
     spin.setValue(0);
     Animated.timing(spin, { toValue: 1, duration: mode === 'swing' ? 420 : 620, easing: mode === 'swing' ? curve.linear : curve.arrive, useNativeDriver: true }).start();

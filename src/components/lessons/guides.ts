@@ -90,6 +90,16 @@ export const LESSON_GUIDES: Record<GameKind, LessonGuide> = {
       'Bridges cannot cross. When every island is green, you win.',
     ],
   },
+  folio: {
+    kind: 'folio',
+    goal: 'Fold the sheet until it matches the target.',
+    gesture: 'tap',
+    recap: [
+      'Tap a dashed crease. The smaller side folds over.',
+      'The folded corner on a square shows its back. Folding turns it up.',
+      'Match the target\'s shape and colours, in the folds it shows.',
+    ],
+  },
   mirror: {
     kind: 'mirror',
     goal: 'Place mirrors to bend the light into the gold ring.',

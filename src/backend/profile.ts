@@ -55,10 +55,14 @@ export async function saveProfile(profile: Profile): Promise<boolean> {
 }
 
 /**
- * Publishes the player's experience for the all-time board. The first
- * time, this also makes their profile, in the phone's country.
+ * Publishes how many levels the player has finished, for the all-time
+ * board. The first time, this also makes their profile, in the phone's
+ * country. (The column is still called `xp`: the board ranked experience
+ * before it ranked levels, and renaming it would need a migration for no
+ * change in what it holds - one number per player, highest first.)
  */
-export async function publishXp(xp: number): Promise<void> {
+export async function publishLevels(levels: number): Promise<void> {
+  const xp = levels;
   const api = backend();
   if (!api) return;
   try {

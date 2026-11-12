@@ -1,29 +1,11 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { Animated, Image, Pressable, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { textScale } from './Text';;
-import Reanimated, { cancelAnimation, Easing as Curve, interpolateColor, SharedValue, useAnimatedStyle, useDerivedValue, useSharedValue, withTiming } from 'react-native-reanimated';
+import Reanimated, { cancelAnimation, Easing as Curve, interpolateColor, SharedValue, useAnimatedStyle, useSharedValue, withTiming } from 'react-native-reanimated';
 import { scheduleOnRN } from 'react-native-worklets';
-import { Canvas, Group, Path, RoundedRect, rect, rrect, Skia } from '@shopify/react-native-skia';
-import { shade, useReducedMotion } from '../game/rendering';
+import { useReducedMotion } from '../game/rendering';
 import { theme, themedStyles } from '../theme';
-import {
-  ACTS,
-  actProgress,
-  easeInOut,
-  easeOut,
-  launchPieces,
-  LaunchPiece,
-  letterProgress,
-  OCHRE,
-  pieceMoveAt,
-  pieceOpacity,
-  pieceProgress,
-  sheenBandPoints,
-  sheenOpacity,
-  sheenTravel,
-  tilePress,
-  TOTAL_MS,
-} from './launchChoreography';
+import { ACTS, actProgress, easeInOut, easeOut, letterProgress, OCHRE, tilePress, TOTAL_MS } from './launchChoreography';
 import { curve } from '../theme/motion';
 
 export interface LaunchSequenceProps {
@@ -42,6 +24,30 @@ export interface LaunchSequenceProps {
 }
 
 const WORDMARK = 'TESSELLATUM';
+
+/** The mark's layers, as the icon draws them (`tools/make_icon.py`). */
+const GROUND = require('../assets/brand/mark-ground.png');
+const GEM = require('../assets/brand/mark-gem.png');
+/** The four tiles, in the order they land: top left, bottom left, bottom
+ * right, then the top right one, lifted - each with the way it flies in. */
+const TILES = [
+  { source: require('../assets/brand/mark-tile-0.png'), from: [-1, -1], spin: -16 },
+  { source: require('../assets/brand/mark-tile-1.png'), from: [-1, 1], spin: 14 },
+  { source: require('../assets/brand/mark-tile-2.png'), from: [1, 1], spin: -12 },
+  { source: require('../assets/brand/mark-tile-3.png'), from: [1, -1], spin: 18 },
+] as const;
+const TILE_STAGGER_MS = 90;
+const TILE_FLIGHT_MS = 360;
+/** The gem drops in as the last tile seats. */
+const GEM_IN = { start: ACTS.assemble.start + 3 * TILE_STAGGER_MS + TILE_FLIGHT_MS - 120, end: ACTS.assemble.start + 3 * TILE_STAGGER_MS + TILE_FLIGHT_MS + 260 } as const;
+
+/** Out past its mark and back: a tile landing with a little give. */
+function overshoot(t: number): number {
+  'worklet';
+  const c = 1.55;
+  const x = t - 1;
+  return 1 + (c + 1) * x * x * x + c * x * x;
+}
 const LETTERS = WORDMARK.split('');
 
 /** The loading bar under the name: in once the tile has landed. */
@@ -55,11 +61,12 @@ const LINGER_MS = 800;
 /**
  * The app's mark, building itself.
  *
- * A tessera rises into place, eighteen pieces of tilework slide in and
- * lock into the star-and-cross of the app icon, the tile gives once as
- * the heart seats, the wordmark rolls up letter by letter into the name,
- * and the tile lifts away to Home. Timing and geometry live in
- * `launchChoreography.ts`; this file is only the rendering.
+ * The plum ground rises into place, the icon's four glazed tiles fly in
+ * from their corners and land each with its share of the star, the gold
+ * gem drops onto the meeting of the four and the mark gives once as it
+ * seats, the wordmark rolls up letter by letter into the name, and the
+ * mark lifts away to Home. The layers are the icon's own renders
+ * (`tools/make_icon.py`); the acts live in `launchChoreography.ts`.
  *
  * Every frame of it runs on the UI thread, off one shared clock: a cold
  * start is exactly when the JS thread is busiest (building Home behind
@@ -75,7 +82,6 @@ const LINGER_MS = 800;
 export function LaunchSequence({ appReady, onSettled, onHandoff, onDone }: LaunchSequenceProps): React.JSX.Element {
   const { width, height } = useWindowDimensions();
   const reducedMotion = useReducedMotion();
-  const pieces = useMemo(() => launchPieces(), []);
 
   /** Milliseconds into the sequence. Runs to the handoff and holds there
    * until the app behind is ready, then runs out. */
@@ -102,42 +108,23 @@ export function LaunchSequence({ appReady, onSettled, onHandoff, onDone }: Launc
 
   const side = Math.min(width, height) * 0.46;
   const half = side / 2;
-  const radius = side * 0.225;
-  /** The tile's lip: the darker edge below it that every card in the app
-   * stands on, and that it presses into as the heart seats. */
+  /** Room under the mark, for its tiles' shadows, before the name. */
   const lip = Math.max(5, side * 0.04);
   const cx = width / 2;
   const cy = height * 0.42;
 
-  const tileTransform = useDerivedValue(() => {
+  // Gone in the first part of the hand-off, before Home's pieces arrive,
+  // so the mark never hangs half-faded over them.
+  const markStyle = useAnimatedStyle(() => {
     const tile = easeOut(actProgress(t.value, ACTS.tileIn));
     const handoff = easeInOut(actProgress(t.value, ACTS.handoff));
-    return [
-      { translateX: cx },
-      // Arriving, it rises a little into place; leaving, it lifts up and
-      // away as it fades - a gentle rise, not a zoom at the viewer.
-      { translateY: cy + (1 - tile) * 18 - handoff * 26 },
-      { scale: 0.86 + 0.14 * tile + 0.05 * handoff },
-    ];
+    // The whole mark gives once as the gem seats.
+    const press = tilePress(t.value) * 0.035;
+    return {
+      opacity: tile * (1 - Math.min(1, handoff * 1.7)),
+      transform: [{ translateY: (1 - tile) * 18 - handoff * 26 }, { scale: (0.86 + 0.14 * tile + 0.05 * handoff) * (1 - press) }],
+    };
   });
-  // Gone in the first part of the hand-off, before Home's pieces arrive,
-  // so the tile never hangs half-faded over them.
-  const tileOpacity = useDerivedValue(() => easeOut(actProgress(t.value, ACTS.tileIn)) * (1 - Math.min(1, easeInOut(actProgress(t.value, ACTS.handoff)) * 1.7)));
-  const faceTransform = useDerivedValue(() => [{ translateY: tilePress(t.value) * lip * 0.6 }]);
-
-  // Square, not rounded: the sheen only ever brushes a corner while it is
-  // fading in or out, not worth a hand-written arc path.
-  const tileClipPath = useMemo(() => `M ${-half} ${-half} L ${half} ${-half} L ${half} ${half} L ${-half} ${half} Z`, [half]);
-  // The pieces are clipped to the true rounded silhouette: they slide in
-  // from under the tile's edge.
-  const tileClipRRect = useMemo(() => rrect(rect(-half, -half, side, side), radius, radius), [half, side, radius]);
-  const sheenPath = useDerivedValue(() => {
-    const points = sheenBandPoints(sheenTravel(t.value));
-    let d = '';
-    for (let i = 0; i < points.length; i += 1) d += `${i === 0 ? 'M' : 'L'} ${points[i][0] * half} ${points[i][1] * half} `;
-    return `${d}Z`;
-  });
-  const sheen = useDerivedValue(() => sheenOpacity(t.value));
 
   // The loading bar under the name. It fills toward most of the way as the
   // mark builds and the name sets, and finishes only once the app behind
@@ -205,24 +192,16 @@ export function LaunchSequence({ appReady, onSettled, onHandoff, onDone }: Launc
         accessibilityRole="button"
         accessibilityLabel="Skip the opening animation"
       >
-        <Canvas style={StyleSheet.absoluteFill}>
-          <Group transform={tileTransform} opacity={tileOpacity}>
-            <RoundedRect x={-half} y={-half + lip} width={side} height={side} r={radius} color={shade(theme.colors.brandTile, 0.6)} />
-            <Group transform={faceTransform}>
-              <RoundedRect x={-half} y={-half} width={side} height={side} r={radius} color={theme.colors.brandTile} />
-              <Group clip={tileClipRRect}>
-                {pieces.map((piece, i) => (
-                  <Piece key={i} piece={piece} half={half} t={t} />
-                ))}
-              </Group>
-              {/* The glow: once the star is built, the same diagonal light
-                  sweep every completion card plays once it has settled. */}
-              <Group clip={tileClipPath}>
-                <Path path={sheenPath} color="rgba(255,255,255,0.55)" opacity={sheen} />
-              </Group>
-            </Group>
-          </Group>
-        </Canvas>
+        {/* The mark building itself from the icon's own layers: the
+            ground rises, the four tiles fly in from their corners and land
+            with their shares of the star, and the gem drops in last. */}
+        <Reanimated.View pointerEvents="none" style={[styles.mark, { left: cx - half, top: cy - half, width: side, height: side }, markStyle]}>
+          <Image source={GROUND} style={styles.layerFill} fadeDuration={0} />
+          {TILES.map((tile, i) => (
+            <TileLayer key={i} index={i} source={tile.source} from={tile.from} spin={tile.spin} side={side} t={t} />
+          ))}
+          <GemLayer side={side} t={t} />
+        </Reanimated.View>
 
         {/* RN text, not Skia: no Skia font is bundled in this app. */}
         <View style={[styles.wordmarkRow, { top: cy + half + lip + theme.spacing.xl }]} pointerEvents="none">
@@ -271,28 +250,44 @@ function Letter({ letter, index, t }: { letter: string; index: number; t: Shared
   );
 }
 
-/**
- * One piece of tilework, sliding in along its own vector and turning
- * upright about its own centre as it lands. Its outline is built once;
- * each frame only moves it (see `pieceMoveAt`), on the UI thread.
- */
-function Piece({ piece, half, t }: { piece: LaunchPiece; half: number; t: SharedValue<number> }): React.JSX.Element {
-  const path = useMemo(() => {
-    const d = piece.points.map(([x, y], i) => `${i === 0 ? 'M' : 'L'} ${x * half} ${y * half}`).join(' ');
-    return Skia.Path.MakeFromSVGString(`${d} Z`) ?? Skia.Path.Make();
-  }, [piece, half]);
-  const transform = useDerivedValue(() => {
-    const m = pieceMoveAt(piece, pieceProgress(t.value, piece));
-    return [{ translateX: m.x * half }, { translateY: m.y * half }, { rotate: m.rotate }, { scale: m.scale }, { translateX: -m.cx * half }, { translateY: -m.cy * half }];
-  });
-  const opacity = useDerivedValue(() => {
-    const progress = pieceProgress(t.value, piece);
-    return progress <= 0 ? 0 : pieceOpacity(progress);
+/** One tile of the mark, flying in from its corner and landing. */
+function TileLayer({ index, source, from, spin, side, t }: { index: number; source: number; from: readonly number[]; spin: number; side: number; t: SharedValue<number> }): React.JSX.Element {
+  const style = useAnimatedStyle(() => {
+    const start = ACTS.assemble.start + index * TILE_STAGGER_MS;
+    const p = Math.min(1, Math.max(0, (t.value - start) / TILE_FLIGHT_MS));
+    const land = overshoot(p);
+    const away = 1 - land;
+    return {
+      opacity: Math.min(1, p * 3),
+      transform: [
+        { translateX: from[0] * side * 0.42 * away },
+        { translateY: from[1] * side * 0.42 * away },
+        { rotate: `${spin * away}deg` },
+        { scale: 0.72 + 0.28 * land },
+      ],
+    };
   });
   return (
-    <Group transform={transform} opacity={opacity}>
-      <Path path={path} color={piece.color} />
-    </Group>
+    <Reanimated.View style={[styles.layerFill, style]}>
+      <Image source={source} style={styles.layerFill} fadeDuration={0} />
+    </Reanimated.View>
+  );
+}
+
+/** The gold gem, dropping onto the meeting of the four as the last lands. */
+function GemLayer({ side, t }: { side: number; t: SharedValue<number> }): React.JSX.Element {
+  const style = useAnimatedStyle(() => {
+    const p = actProgress(t.value, GEM_IN);
+    const land = overshoot(p);
+    return {
+      opacity: Math.min(1, p * 4),
+      transform: [{ translateY: -(1 - Math.min(1, land)) * side * 0.12 }, { scale: Math.max(0, 0.3 + 0.7 * land) }],
+    };
+  });
+  return (
+    <Reanimated.View style={[styles.layerFill, style]}>
+      <Image source={GEM} style={styles.layerFill} fadeDuration={0} />
+    </Reanimated.View>
   );
 }
 
@@ -301,6 +296,8 @@ const styles = themedStyles(() => ({
     backgroundColor: theme.colors.background,
     zIndex: 100,
   },
+  mark: { position: 'absolute' },
+  layerFill: { ...StyleSheet.absoluteFill, width: '100%', height: '100%' },
   wordmarkRow: {
     position: 'absolute',
     left: 0,

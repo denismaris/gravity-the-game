@@ -7,7 +7,7 @@ export { useCloudSync } from './useCloudSync';
 export type { BoardKind, BoardRow, BoardScope } from './leaderboard';
 export { fetchBoard, hiddenPlayers, reportPlayer, setPlayerHidden } from './leaderboard';
 export type { Profile } from './profile';
-export { citySuggestions, deviceCountry, getProfile, publishXp, saveProfile } from './profile';
+export { citySuggestions, deviceCountry, getProfile, publishLevels, saveProfile } from './profile';
 export { COUNTRIES, countryName, flagOf } from './countries';
 export type { Account, Provider, SignInResult } from './account';
 export { accountNameSuggestion, availableProviders, boardNameFrom, currentAccount, knownAccount, deleteAccount, applyAccountName, signIn, signOut } from './account';

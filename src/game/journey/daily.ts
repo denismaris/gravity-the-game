@@ -53,7 +53,11 @@ function buildAllPuzzles(): ReadonlyArray<PuzzleRef> {
   const bloom: PuzzleRef[] = BLOOM.map(puzzle => ({ kind: 'bloom' as const, puzzleId: puzzle.id }));
   const mosaic: PuzzleRef[] = MOSAIC.map(puzzle => ({ kind: 'mosaic' as const, puzzleId: puzzle.id }));
   const bridges: PuzzleRef[] = BRIDGES.map(puzzle => ({ kind: 'bridges' as const, puzzleId: puzzle.id }));
-  const byKind: Record<GameKind, PuzzleRef[]> = { gravity, mirror, lilypads, vanes, binairo, arukone, glass, lightsout, adjacent, bloom, mosaic, bridges };
+  // Folio arrived after the shared Daily's pool was fixed: adding its
+  // boards would shift every day's Daily (see `bringsLaterRule`), so it
+  // stays out of the shared one and turns up in newcomers' own Dailies.
+  const folio: PuzzleRef[] = [];
+  const byKind: Record<GameKind, PuzzleRef[]> = { gravity, mirror, lilypads, vanes, binairo, arukone, glass, lightsout, adjacent, bloom, mosaic, bridges, folio };
   return ROTATION.flatMap(kind => byKind[kind]).filter(ref => !bringsLaterRule(ref.puzzleId));
 }
 

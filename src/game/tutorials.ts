@@ -319,6 +319,27 @@ export const MOSAIC_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   },
 ];
 
+export const FOLIO_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
+  {
+    title: 'Tap a crease to fold',
+    body: 'The dashed lines are creases. Tap one and the smaller side folds over onto the rest. If both sides are the same size, the left or top side folds.',
+    illustration: 'fold',
+    tip: 'A fold always does the same thing, so you can plan it before you tap.',
+  },
+  {
+    title: 'Every square has two sides',
+    body: 'The small folded corner on each square shows the colour on its back. When a square folds over, that colour faces up.',
+    illustration: 'corner',
+    tip: 'A square that does not fold keeps its colour. Only the side that turns over changes.',
+  },
+  {
+    title: 'Match the target',
+    body: 'Fold the sheet until it has the target\'s shape and shows the same colours. The target says how many folds it takes.',
+    illustration: 'target',
+    tip: 'Look for the squares that must change colour, and fold the side they are on. Stuck? Insight makes the next fold.',
+  },
+];
+
 export const BRIDGES_MECHANICS_SLIDES: ReadonlyArray<TutorialSlide> = [
   {
     title: 'Drag or tap to build',
@@ -501,6 +522,10 @@ const GAME_INTROS: Record<GameKind, TutorialCopy> = {
   mosaic: {
     title: 'Mosaic',
     body: 'Drag the pieces into the picture. Tap a piece to turn it. Fill every square to finish. Start with the small gaps.',
+  },
+  folio: {
+    title: 'Folio',
+    body: 'Tap a dashed crease to fold the smaller side over. Every square is painted on both sides, and its folded corner shows the back. Fold until the sheet matches the target.',
   },
 };
 

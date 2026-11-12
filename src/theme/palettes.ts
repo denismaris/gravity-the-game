@@ -87,6 +87,16 @@ export const lightColors = {
   bloomAccent: '#C8506A', // camellia rose
   mosaicAccent: '#2F5DAF', // lapis
   bridgesAccent: '#1683A6', // harbour blue
+  folioAccent: '#5E7A3C', // bookbinder's moss
+
+  // --- Folio: the sheet's four inks, and the board it is folded on ---
+  folioPaper: '#F6EFDF',
+  folioVermilion: '#C4553A',
+  folioIndigo: '#33508C',
+  folioSaffron: '#DDA53A',
+  folioBed: '#E4D8BE',
+  folioBedEdge: '#CBBB97',
+  folioCrease: '#3B1F52',
 
   // --- Lights Out's board (a night panel in both themes) ---
   lightsOutPanel: '#1C2038',
@@ -283,6 +293,15 @@ export const darkColors: Palette = {
   bloomAccent: '#D0959F',
   mosaicAccent: '#91A4CC',
   bridgesAccent: '#77ADBE',
+  folioAccent: '#9DB57A',
+
+  folioPaper: '#E2D8C3',
+  folioVermilion: '#D46A4E',
+  folioIndigo: '#6683C2',
+  folioSaffron: '#E2B65A',
+  folioBed: '#2A2621',
+  folioBedEdge: '#14110E',
+  folioCrease: '#F1E6D2',
 
   lightsOutPanel: '#11142A',
   lightsOutPanelCell: '#1C2140',

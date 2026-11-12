@@ -270,7 +270,7 @@ export function MosaicScreen({ puzzle, onExit, onNextPuzzle }: MosaicScreenProps
         />
       )}
 
-      {showTutorial && <MechanicsCarousel slides={MOSAIC_MECHANICS_SLIDES} renderIllustration={renderMosaicIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('mosaic')} />}
+      {showTutorial && <MechanicsCarousel slides={MOSAIC_MECHANICS_SLIDES} renderIllustration={renderMosaicIllustration} onDone={dismissTutorial} kind="mosaic" accentColor={accentColorForKind('mosaic')} />}
     </View>
   );
 }

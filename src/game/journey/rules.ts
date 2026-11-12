@@ -17,5 +17,6 @@ export const GAME_RULES: Record<GameKind, string> = {
   arukone: 'Join each pair of matching numbers with a path, and fill every square. The board is a mirror: each path draws its twin.',
   mosaic: 'Fill the picture with the pieces from the tray. Tap a piece to turn it, then drag it in.',
   lilypads: 'The frog jumps to the nearest pad up, down, left or right. A pad sinks when the frog leaves it. Visit every pad.',
+  folio: 'Tap a crease to fold the smaller side over. Each square is painted on both sides; its corner shows the back. Fold until the sheet matches the target.',
   gravity: 'Swipe and every ball rolls until something stops it. Put a ball on every ring.',
 };

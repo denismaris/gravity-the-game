@@ -8,6 +8,7 @@ import { ADJACENT } from '../../game/adjacent';
 import { BLOOM } from '../../game/bloom';
 import { MOSAIC } from '../../game/mosaic';
 import { BRIDGES } from '../../game/bridges';
+import { FOLIO } from '../../game/folio';
 import { MIRROR_MAZES } from '../../game/mirror';
 import { LILY_PONDS } from '../../game/lilypads';
 import { VANE_ROOFS } from '../../game/vanes';
@@ -239,6 +240,7 @@ function solveEverything(): PlayerProgress {
     ...BLOOM.map(puzzle => puzzle.id),
     ...MOSAIC.map(puzzle => puzzle.id),
     ...BRIDGES.map(puzzle => puzzle.id),
+    ...FOLIO.map(puzzle => puzzle.id),
   ];
   return solveMany(emptyProgress(), allIds, 3);
 }

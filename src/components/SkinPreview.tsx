@@ -194,6 +194,29 @@ function draw(game: string, s: number, c: (token: ColorToken) => string, paper: 
           })}
         </Group>
       );
+    case 'folio': {
+      // A 2x2 sheet in the set's inks, one corner turned to show its back.
+      const inks: ColorToken[] = ['folioVermilion', 'folioIndigo', 'folioSaffron', 'folioPaper'];
+      const u = s * 0.33;
+      const ear = u * 0.3;
+      return (
+        <Group>
+          <RoundedRect x={s * 0.1} y={s * 0.1} width={s * 0.8} height={s * 0.8} r={s * 0.12} color={c('folioBed')} />
+          {inks.map((t, i) => {
+            const x = s * 0.16 + (i % 2) * (u + s * 0.02);
+            const y = s * 0.15 + Math.floor(i / 2) * (u + s * 0.02);
+            return (
+              <Group key={t}>
+                <RoundedRect x={x} y={y + s * 0.025} width={u} height={u} r={u * 0.12} color={shade(c(t), 0.72)} />
+                <RoundedRect x={x} y={y} width={u} height={u} r={u * 0.12} color={c(t)} />
+              </Group>
+            );
+          })}
+          <Path path={`M ${s * 0.16 + u * 2 + s * 0.02 - ear} ${s * 0.15} L ${s * 0.16 + u * 2 + s * 0.02} ${s * 0.15} L ${s * 0.16 + u * 2 + s * 0.02} ${s * 0.15 + ear} Z`} color={c('folioBed')} />
+          <Path path={`M ${s * 0.16 + u * 2 + s * 0.02 - ear} ${s * 0.15} L ${s * 0.16 + u * 2 + s * 0.02} ${s * 0.15 + ear} L ${s * 0.16 + u * 2 + s * 0.02 - ear} ${s * 0.15 + ear} Z`} color={c('folioSaffron')} />
+        </Group>
+      );
+    }
     default:
       return <Group />;
   }

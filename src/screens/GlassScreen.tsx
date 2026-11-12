@@ -239,7 +239,7 @@ export function GlassScreen({ puzzle, onExit, onNextPuzzle }: GlassScreenProps):
       )}
 
       <MechanicIntro intros={[...(puzzle.vines?.length ? [mechanic('mechanic:glass-vines')] : []), ...(puzzle.counts ? [mechanic('mechanic:glass-counted')] : [])]} accent={accentColorForKind('glass')} />
-      {showHelp && <MechanicsCarousel slides={GLASS_MECHANICS_SLIDES} renderIllustration={renderGlassIllustration} onDone={dismissHelp} accentColor={accentColorForKind('glass')} />}
+      {showHelp && <MechanicsCarousel slides={GLASS_MECHANICS_SLIDES} renderIllustration={renderGlassIllustration} onDone={dismissHelp} kind="glass" accentColor={accentColorForKind('glass')} />}
     </View>
   );
 }

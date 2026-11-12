@@ -17,7 +17,7 @@ export const DEAL_STEP_MS = 32;
 /** The far corner never waits longer than this, however big the board. */
 export const DEAL_SPREAD_MS = 420;
 /** The whole deal, start to last piece settled. */
-const DEAL_TOTAL_MS = DEAL_BASE_MS + DEAL_SPREAD_MS + DEAL_MS;
+export const DEAL_TOTAL_MS = DEAL_BASE_MS + DEAL_SPREAD_MS + DEAL_MS;
 /** With reduced motion the board does not deal: it fades in, whole. */
 const REDUCED_FADE_MS = 240;
 

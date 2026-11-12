@@ -1,3 +1,4 @@
+import { Dealer, NEUTRAL_DEALER } from './adaptive';
 import { getGravityLevelsForTier, getLevelById } from '../game/levels';
 import { mechanicsOf } from '../game/tutorials';
 import { getMirrorMazesByDifficulty } from '../game/mirror';
@@ -10,6 +11,7 @@ import { getLightsOutByDifficulty } from '../game/lightsout';
 import { getBloomByDifficulty } from '../game/bloom';
 import { getMosaicByDifficulty } from '../game/mosaic';
 import { getBridgesByDifficulty } from '../game/bridges';
+import { getFolioByDifficulty } from '../game/folio';
 import { getAdjacentByDifficulty } from '../game/adjacent';
 import { GameKind, getDailyEntry, ROTATION, puzzleKindOf } from '../game/journey';
 import { endlessId, parseEndlessId } from '../game/endlessId';
@@ -157,6 +159,7 @@ const FAMILY: Readonly<Record<GameKind, 'logic' | 'shape' | 'motion'>> = {
   bloom: 'shape',
   mirror: 'shape',
   arukone: 'shape',
+  folio: 'shape',
   gravity: 'motion',
   lilypads: 'motion',
   adjacent: 'motion',
@@ -188,6 +191,7 @@ export const INTRO_ORDER: ReadonlyArray<GameKind> = [
   'bloom',
   'vanes',
   'arukone',
+  'folio',
 ];
 /**
  * Puzzles of the newest game to solve before the next one arrives, by how
@@ -196,12 +200,12 @@ export const INTRO_ORDER: ReadonlyArray<GameKind> = [
  * grows and each new game has more company (and the rules get richer).
  * With the game being learned dealt every other puzzle, that is a dozen
  * or more boards of each newcomer, about three levels of it, before the
- * next game knocks; all twelve arrive by about level 31. (Four or five, as it
+ * next game knocks; all thirteen arrive by about level 34. (Four or five, as it
  * was, brought a new game before the last one had settled in the hand.)
  * A game just past its introduction keeps coming round a little more
  * often until it has sixteen puzzles behind it (see `SETTLED`).
  */
-const INTRO_SOLVES_BY_POSITION: ReadonlyArray<number> = [8, 8, 9, 9, 10, 10, 10, 11, 11, 12, 12];
+const INTRO_SOLVES_BY_POSITION: ReadonlyArray<number> = [8, 8, 9, 9, 10, 10, 10, 11, 11, 12, 12, 12];
 
 /** Solves of the game at `position` in the order that bring the next one. */
 export function introSolvesAt(position: number): number {
@@ -373,11 +377,15 @@ function poolForKindAndTier(kind: GameKind, tier: PuzzleDifficulty): ReadonlyArr
       return getMosaicByDifficulty(tier).map(puzzle => puzzle.id);
     case 'bridges':
       return getBridgesByDifficulty(tier).map(puzzle => puzzle.id);
+    case 'folio':
+      return getFolioByDifficulty(tier).map(puzzle => puzzle.id);
   }
 }
 
 /** How many boards a game's practice run deals before it starts over. */
 export const PRACTICE_BOARDS = 6;
+/** Folio's practice climb: this many boards of each tier. */
+const FOLIO_PRACTICE_PER_TIER = 5;
 
 /**
  * The boards a game is tried out on from Settings: its first easy ones -
@@ -385,6 +393,10 @@ export const PRACTICE_BOARDS = 6;
  * where the curated pool is shorter.
  */
 export function practiceBoards(kind: GameKind): ReadonlyArray<string> {
+  // The newest game is tried as a climb instead: five boards a tier, easy
+  // to hard, so one sitting shows the whole game, from bare paper backs to
+  // four colours and four folds.
+  if (kind === 'folio') return (['easy', 'medium', 'hard'] as const).flatMap(tier => poolForKindAndTier(kind, tier).slice(0, FOLIO_PRACTICE_PER_TIER));
   const pool = poolForKindAndTier(kind, 'easy').slice(0, PRACTICE_BOARDS);
   const ids = [...pool];
   for (let index = 0; ids.length < PRACTICE_BOARDS; index += 1) ids.push(endlessId(kind, 'easy', index));
@@ -492,13 +504,24 @@ function availablePuzzleIds(kind: GameKind, tier: PuzzleDifficulty, progress: Pl
   return pool;
 }
 
+/** A slot moved `shift` steps along easy, medium, hard - never past hard
+ * by a step (an extreme is the dealer's own rare pick), and never to hard
+ * before hard puzzles are dealt at all. */
+function stepSlot(slot: Slot, shift: number, levelNumber: number): Slot {
+  const ladder: Slot[] = ['easy', 'medium', 'hard'];
+  const at = slot === 'extreme' ? 3 : ladder.indexOf(slot);
+  const top = levelNumber < HARD_TIER_FIRST_LEVEL ? 1 : 2;
+  const to = Math.max(0, Math.min(top, at + shift));
+  return slot === 'extreme' && shift >= 0 ? 'extreme' : ladder[Math.min(to, 2)];
+}
+
 /**
  * Builds the next batch for `levelNumber`. `previousBatch` (the batch just
  * completed, or `null` for level 1) feeds the soft cross-level anti-
  * repetition rule; `rng` defaults to `Math.random` and is only a parameter
  * so tests can pass a seeded/deterministic function instead.
  */
-export function generateBatch(levelNumber: number, progress: PlayerProgress, previousBatch: BatchState | null, rng: () => number = Math.random): BatchState {
+export function generateBatch(levelNumber: number, progress: PlayerProgress, previousBatch: BatchState | null, rng: () => number = Math.random, dealer: Dealer = NEUTRAL_DEALER): BatchState {
   const band = tierBandForLevel(levelNumber);
   const solved = solvedPerGame(progress);
   // What the player has just been playing, newest last: their recent
@@ -522,14 +545,20 @@ export function generateBatch(levelNumber: number, progress: PlayerProgress, pre
     // with its lesson, is the moment it is introduced.
     const debut = unlocked.find(kind => playedSoFar(kind) === 0);
     const learning = gameBeingLearned(progress, dealtHere);
-    const kind = debut ?? nextInRotation(unlocked, recent, learning, rng, playedSoFar);
+    const kind = debut ?? nextInRotation(unlocked, recent, learning, rng, playedSoFar, dealer.skipWeight);
     const played = (solved.get(kind) ?? 0) + (dealtHere.get(kind) ?? 0);
     const wanted = levelNumber < HARD_TIER_FIRST_LEVEL ? (rampSlot(played) === 'hard' ? 'medium' : rampSlot(played) ?? 'medium') : rampSlot(played);
     // Each game's own ramp (easy first, then medium, then a signposted
     // challenge) keeps a game gentle while it is new; there is no longer a
     // blanket wait for every game to arrive, which kept the first hundred
     // and more puzzles at one flat difficulty.
-    const dealt: Slot = calm(wanted, { last, hadEasy, hadExtreme, lastSlot: slot === band.batchSize - 1 }, rng);
+    // Adaptive play (see `adaptive.ts`): what this player's skill and
+    // enjoyment ask for moves the slot a step either way - never harder
+    // while the game is still being learned, never on the first set - and
+    // the guard rails below still have the last word.
+    const choice = dealer.choose && levelNumber > 1 && !debut ? dealer.choose(kind, played < GAME_EASY_MEDIUM || kind === learning, rng) : null;
+    const target = choice && choice.shift !== 0 ? stepSlot(wanted ?? weightedPick(RANDOM_WEIGHTS, rng), choice.shift, levelNumber) : wanted;
+    const dealt: Slot = calm(target, { last, hadEasy, hadExtreme, lastSlot: slot === band.batchSize - 1 }, rng);
     const extreme = dealt === 'extreme';
     const challenge = extreme || dealt === 'hard';
     const tier: PuzzleDifficulty = challenge ? 'hard' : dealt === 'easy' ? 'easy' : 'medium';
@@ -550,6 +579,7 @@ export function generateBatch(levelNumber: number, progress: PlayerProgress, pre
     const golden = rng() < 1 / GOLDEN_EVERY;
     puzzles.push({ kind, puzzleId, ...(challenge ? { challenge: true } : {}), ...(golden ? { golden: true } : {}), ...(extreme ? { extreme: true } : {}) });
     usedIds.add(puzzleId);
+    if (choice) dealer.record(puzzleId, choice.arm);
     dealtHere.set(kind, (dealtHere.get(kind) ?? 0) + 1);
     recent.push(kind);
   }
@@ -564,11 +594,19 @@ export function generateBatch(levelNumber: number, progress: PlayerProgress, pre
  * with a game of the same kind of play as the last waiting a little
  * longer. The game being learned, meanwhile, takes every other puzzle.
  */
-function nextInRotation(unlocked: ReadonlyArray<GameKind>, recent: ReadonlyArray<GameKind>, learning: GameKind | null, rng: () => number, played: (kind: GameKind) => number = () => SETTLED): GameKind {
+function nextInRotation(
+  unlocked: ReadonlyArray<GameKind>,
+  recent: ReadonlyArray<GameKind>,
+  learning: GameKind | null,
+  rng: () => number,
+  played: (kind: GameKind) => number = () => SETTLED,
+  skipWeight: (kind: GameKind) => number = () => 1,
+): GameKind {
   const last = recent[recent.length - 1];
   // The game being learned comes every other puzzle: whenever the last one
-  // was something else. Never twice running while there is a choice.
-  if (learning && learning !== last && unlocked.includes(learning)) return learning;
+  // was something else. Never twice running while there is a choice - and
+  // not while the player keeps swapping it away.
+  if (learning && learning !== last && unlocked.includes(learning) && skipWeight(learning) > 0.6) return learning;
   const candidates = unlocked.filter(kind => gameWeight(kind, 'easy') > 0 && (kind !== last || unlocked.length === 1));
   if (candidates.length === 0) return unlocked[0];
   const waited = (kind: GameKind) => {
@@ -579,6 +617,8 @@ function nextInRotation(unlocked: ReadonlyArray<GameKind>, recent: ReadonlyArray
     // the rotation like any other, before it can wear thin.
     if (played(kind) < SETTLED) wait += SETTLING_HEAD_START;
     if (last && FAMILY[kind] === FAMILY[last]) wait *= SAME_FAMILY_DELAY;
+    // A game the player keeps swapping away waits longer to come round.
+    wait *= skipWeight(kind);
     // A hair of noise, so equal waits are broken fairly.
     return wait + rng() * 0.01;
   };
@@ -630,7 +670,7 @@ export function dealtTierOf(ref: BatchPuzzleRef): PuzzleDifficulty {
  * never the same game, never a retired one, and prefers games not already
  * in the set. Finished slots are never touched.
  */
-export function replaceInBatch(batch: BatchState, puzzleIds: ReadonlyArray<string>, progress: PlayerProgress, rng: () => number = Math.random): BatchState {
+export function replaceInBatch(batch: BatchState, puzzleIds: ReadonlyArray<string>, progress: PlayerProgress, rng: () => number = Math.random, dealer: Dealer = NEUTRAL_DEALER): BatchState {
   const done = new Set(batch.completedPuzzleIds);
   const usedIds = new Set(batch.puzzles.map(p => p.puzzleId));
   const puzzles = batch.puzzles.map(p => ({ ...p }));
@@ -642,7 +682,7 @@ export function replaceInBatch(batch: BatchState, puzzleIds: ReadonlyArray<strin
     const unlocked = unlockedGames(progress);
     const weighted = ROTATION.map((kind): readonly [GameKind, number] => {
       if (kind === ref.kind || !unlocked.includes(kind)) return [kind, 0] as const;
-      const weight = gameWeight(kind, tier);
+      const weight = gameWeight(kind, tier) * dealer.skipWeight(kind);
       return [kind, inSet.has(kind) ? weight * SAME_LEVEL_PENALTY : weight] as const;
     });
     if (!weighted.some(([, w]) => w > 0)) continue;
@@ -652,5 +692,26 @@ export function replaceInBatch(batch: BatchState, puzzleIds: ReadonlyArray<strin
     usedIds.add(puzzleId);
     puzzles[slot] = { kind, puzzleId, ...(ref.challenge ? { challenge: true } : {}), ...(ref.golden ? { golden: true } : {}), ...(ref.extreme ? { extreme: true } : {}) };
   }
+  return { ...batch, puzzles };
+}
+
+/**
+ * A rough patch eased (see `adaptive.ts`): the next unfinished puzzle of the
+ * set is dealt again, the same game a step gentler - a hard one as a
+ * medium, a medium as an easy - keeping its golden coin. An easy one, or a
+ * set with nothing left, is left as it is.
+ */
+export function easeInBatch(batch: BatchState, progress: PlayerProgress): BatchState {
+  const ref = nextInBatch(batch);
+  if (!ref) return batch;
+  const tier = dealtTierOf(ref);
+  if (tier === 'easy') return batch;
+  const gentler: PuzzleDifficulty = tier === 'hard' ? 'medium' : 'easy';
+  const usedIds = new Set(batch.puzzles.map(p => p.puzzleId));
+  const ids = availablePuzzleIds(ref.kind, gentler, progress, usedIds);
+  if (ids.length === 0) return batch;
+  const slot = batch.puzzles.findIndex(p => p.puzzleId === ref.puzzleId);
+  const puzzles = batch.puzzles.map(p => ({ ...p }));
+  puzzles[slot] = { kind: ref.kind, puzzleId: ids[0], ...(ref.golden ? { golden: true } : {}) };
   return { ...batch, puzzles };
 }

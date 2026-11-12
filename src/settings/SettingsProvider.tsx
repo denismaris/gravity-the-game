@@ -20,7 +20,7 @@ import {
   withSoundEnabled,
   withMusicEnabled,
   withTutorialSeen,
-  withTutorialsCleared, withLargerText } from './settings';
+  withTutorialsCleared, withLargerText, withAdaptiveDifficulty } from './settings';
 import { loadSettings, saveSettings } from './settingsStore';
 import { setTextScale } from '../components/Text';
 
@@ -39,6 +39,7 @@ interface SettingsContextValue {
   setCalmingInterstitialEnabled(enabled: boolean): void;
   /** Text allowed to grow to 2x with the phone's text size. */
   setLargerText(enabled: boolean): void;
+  setAdaptiveDifficulty(enabled: boolean): void;
   /** Turns the daily reminder on or off, optionally at a new hour. */
   setReminders(enabled: boolean, hour?: number): void;
   /** Light, dark, or follow the phone. */
@@ -162,6 +163,13 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
     [applyMutation],
   );
 
+  const setAdaptiveDifficulty = useCallback(
+    (enabled: boolean) => {
+      applyMutation(current => withAdaptiveDifficulty(current, enabled));
+    },
+    [applyMutation],
+  );
+
   const setCalmingInterstitialEnabled = useCallback(
     (enabled: boolean) => {
       applyMutation(current => withCalmingInterstitialEnabled(current, enabled));
@@ -200,6 +208,7 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
       setMusicEnabled,
       setHapticsEnabled,
       setLargerText,
+      setAdaptiveDifficulty,
       setCalmingInterstitialEnabled,
       setReminders,
       setAppearance,
@@ -207,7 +216,7 @@ export function SettingsProvider({ children, backend }: SettingsProviderProps): 
       hasSeenTutorial: (tutorialId: string) => settings.seenTutorials.includes(tutorialId),
       resetTutorials,
     }),
-    [settings, ready, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setLargerText, setCalmingInterstitialEnabled, setReminders, setAppearance, markTutorialSeen, resetTutorials],
+    [settings, ready, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setLargerText, setAdaptiveDifficulty, setCalmingInterstitialEnabled, setReminders, setAppearance, markTutorialSeen, resetTutorials],
   );
 
   return <SettingsContext.Provider value={value}>{children}</SettingsContext.Provider>;

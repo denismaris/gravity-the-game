@@ -18,6 +18,8 @@ export { MosaicScreen } from './MosaicScreen';
 export type { MosaicScreenProps } from './MosaicScreen';
 export { BridgesScreen } from './BridgesScreen';
 export type { BridgesScreenProps } from './BridgesScreen';
+export { FolioScreen } from './FolioScreen';
+export type { FolioScreenProps } from './FolioScreen';
 export type { BloomScreenProps } from './BloomScreen';
 export type { AdjacentScreenProps } from './AdjacentScreen';
 export { SettingsScreen } from './SettingsScreen';

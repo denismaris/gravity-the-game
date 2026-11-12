@@ -163,4 +163,8 @@ const ENDLESS_WORDS: Readonly<Record<string, readonly [ReadonlyArray<string>, Re
     ['Quiet', 'Misty', 'Northern', 'Salt', 'Hidden', 'Windy', 'Coral', 'Sheltered', 'Sunken', 'Outer', 'Little', 'Tidal'],
     ['Harbour', 'Isles', 'Cove', 'Lagoon', 'Sound', 'Estuary', 'Reef', 'Channel', 'Inlet', 'Archipelago', 'Strait', 'Bay', 'Atoll', 'Skerries'],
   ],
+  folio: [
+    ['Folded', 'Pressed', 'Creased', 'Painted', 'Printed', 'Pocket', 'Rice', 'Parchment', 'Linen', 'Tissue', 'Marbled', 'Deckled'],
+    ['Letter', 'Leaf', 'Sheet', 'Card', 'Pamphlet', 'Envelope', 'Map', 'Fan', 'Kite', 'Crane', 'Note', 'Chapbook', 'Booklet', 'Ticket'],
+  ],
 };

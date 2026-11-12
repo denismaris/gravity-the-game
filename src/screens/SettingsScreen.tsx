@@ -43,7 +43,7 @@ let lastScrollY = 0;
 
 export function SettingsScreen({ onExit, onOpenAccount, onTryGame }: SettingsScreenProps): React.JSX.Element {
   const insets = useSafeAreaInsets();
-  const { settings, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setLargerText, setCalmingInterstitialEnabled, setReminders, setAppearance, resetTutorials } = useSettings();
+  const { settings, setSoundEnabled, setMusicEnabled, setHapticsEnabled, setLargerText, setAdaptiveDifficulty, setCalmingInterstitialEnabled, setReminders, setAppearance, resetTutorials } = useSettings();
   const { resetProgress } = usePlayerProgress();
   // The last known account at once, refreshed from the server behind it.
   const [account, setAccount] = useState<Account | null>(knownAccount);
@@ -169,6 +169,14 @@ export function SettingsScreen({ onExit, onOpenAccount, onTryGame }: SettingsScr
 
         <Text style={styles.sectionLabel}>Gameplay</Text>
         <View style={styles.card}>
+          <Row
+            label="Adapt Difficulty to Me"
+            value={settings.adaptiveDifficulty}
+            onValueChange={setAdaptiveDifficulty}
+            accessibilityLabel="Adapt difficulty to me. The game learns how you play, on your phone, and picks puzzles that suit you"
+          />
+          <Text style={styles.rowNote}>The game learns how you play, on this phone only, and picks puzzles that suit you. Nothing about it leaves your phone.</Text>
+          <View style={styles.divider} />
           <Row
             label="Calming Break Between Levels"
             value={settings.calmingInterstitialEnabled}
@@ -386,6 +394,15 @@ const styles = themedStyles(() => ({
     fontSize: theme.typography.sizes.body,
     color: theme.colors.textPrimary,
     fontWeight: theme.typography.weights.medium,
+  },
+  /** A line under a switch saying what it does. */
+  rowNote: {
+    marginTop: -theme.spacing.sm,
+    paddingHorizontal: theme.spacing.lg,
+    paddingBottom: theme.spacing.md,
+    fontSize: theme.typography.sizes.caption,
+    lineHeight: 18,
+    color: theme.colors.textSecondary,
   },
   divider: {
     marginLeft: theme.spacing.lg,

@@ -13,7 +13,8 @@ import { dailyKeyOf, getDailyEntry, puzzleKindOf, setDailyRoster } from '../game
 import { computeStars, LevelResult, StarRating } from '../game/scoring';
 import { getWorldForLevel } from '../game/worlds';
 import { createDefaultBackend, StorageBackend } from '../storage';
-import { BatchPuzzleRef, BatchState, generateBatch, isBatchComplete, kindOfId, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from './batches';
+import { BatchPuzzleRef, BatchState, dealtTierOf, easeInBatch, generateBatch, isBatchComplete, kindOfId, markPuzzleCompleted, nextGameToArrive, nextInBatch, replaceInBatch, unlockedGames } from './batches';
+import { liveDealer, needsEasing, noteEased, noteSkipped, noteSolved, resetAdaptive } from './adaptive';
 import { GameKind } from '../game/journey';
 import {
   emptyProgress,
@@ -89,7 +90,7 @@ function onBatchComplete(): void {
  */
 function ensureBatch(progress: PlayerProgress): PlayerProgress {
   if (progress.currentBatch) return progress;
-  return { ...progress, currentBatch: generateBatch(progress.currentLevel, progress, null) };
+  return { ...progress, currentBatch: generateBatch(progress.currentLevel, progress, null, Math.random, liveDealer()) };
 }
 
 /**
@@ -224,6 +225,8 @@ interface PlayerProgressContextValue {
   /** Swaps the current set's next puzzle for another game's; returns the
    * new puzzle, or null if it could not (no coins, nothing to swap). */
   swapPuzzle(): BatchPuzzleRef | null;
+  /** Deals the set's next unfinished puzzle a step gentler (adaptive play). */
+  easeNextPuzzle(): void;
   /** Whether the latest solve's coins were doubled by the lucky charm -
    * for the solved card to say so. */
   readonly lastCharmed: boolean;
@@ -345,6 +348,13 @@ export function PlayerProgressProvider({
     return next;
   }, []);
 
+  /** Deals the set's next unfinished puzzle a step gentler, for a rough
+   * patch (see `adaptive.ts`). */
+  const easeNextPuzzle = useCallback((): void => {
+    applyMutation(current => (current.currentBatch ? { ...current, currentBatch: easeInBatch(current.currentBatch, current) } : current));
+    noteEased();
+  }, [applyMutation]);
+
   const recordCompletion = useCallback((levelId: string, moves: number, options?: { maxStars?: StarRating }): CompletionOutcome => {
     const maxStars = options?.maxStars ?? 3;
     const level = getLevelById(levelId);
@@ -378,6 +388,12 @@ export function PlayerProgressProvider({
     // Read the Daily's clock now and stop it, so a later replay is timed
     // from its own opening.
     const dailyElapsed = isDaily ? elapsedFor(levelId) : null;
+    // For adaptive play (see `adaptive.ts`): the tier it was dealt at and
+    // how long it took - unknown for a board resumed from a save.
+    const adaptFound = puzzleKindOf(levelId);
+    const adaptRef = progressRef.current.currentBatch?.puzzles.find(p => p.puzzleId === levelId);
+    const adaptTier = adaptRef ? dealtTierOf(adaptRef) : adaptFound?.difficulty ?? 'medium';
+    const adaptMs = wasResumed(levelId) ? null : isDaily ? dailyElapsed : elapsedFor(levelId);
     if (isDaily) clearPuzzleTimer(levelId);
     const next = applyMutation(current => {
       const previousStars = getLevelStars(current, levelId);
@@ -420,7 +436,7 @@ export function PlayerProgressProvider({
         if (updatedBatch.puzzles.some(p => p.puzzleId === levelId)) solvedIn = updatedBatch;
         setCompleted = isBatchComplete(updatedBatch);
         result = setCompleted
-          ? { ...result, currentLevel: result.currentLevel + 1, currentBatch: generateBatch(result.currentLevel + 1, result, updatedBatch) }
+          ? { ...result, currentLevel: result.currentLevel + 1, currentBatch: generateBatch(result.currentLevel + 1, result, updatedBatch, Math.random, liveDealer()) }
           : { ...result, currentBatch: updatedBatch };
       }
 
@@ -472,6 +488,12 @@ export function PlayerProgressProvider({
       return result;
     });
 
+    // Adaptive play learns from the solve - from here, not inside the
+    // mutation above, which can be replayed.
+    if (adaptFound) noteSolved({ puzzleId: levelId, kind: adaptFound.kind, tier: adaptTier, stars: Math.min(computeStars(scored, thresholds), maxStars), ms: adaptMs });
+    // A rough patch (restart after restart): the next puzzle comes gentler.
+    if (needsEasing()) easeNextPuzzle();
+
     // Fired from here, not from inside the mutation above - see
     // `onBatchComplete`'s own comment for why.
     const batchCompleted = next.currentLevel > levelBefore;
@@ -499,7 +521,7 @@ export function PlayerProgressProvider({
       dailyReplayMs,
       solvedIn,
     };
-  }, [applyMutation]);
+  }, [applyMutation, easeNextPuzzle]);
 
   // Recorded after the fact, outside the updater, for the solved card.
   const recordAndMark = useCallback(
@@ -629,16 +651,21 @@ export function PlayerProgressProvider({
   }, [applyMutation]);
   const swapPuzzle = useCallback((): BatchPuzzleRef | null => {
     let swapped: BatchPuzzleRef | null = null;
+    let skipped: BatchPuzzleRef | null = null;
     applyMutation(current => {
       const batch = current.currentBatch;
       const target = batch ? nextInBatch(batch) : null;
       if (!batch || !target || current.coins < SWAP_PRICE) return current;
-      const replaced = replaceInBatch(batch, [target.puzzleId], current);
+      const replaced = replaceInBatch(batch, [target.puzzleId], current, Math.random, liveDealer());
       const slot = batch.puzzles.findIndex(p => p.puzzleId === target.puzzleId);
       if (replaced.puzzles[slot].puzzleId === target.puzzleId) return current;
       swapped = replaced.puzzles[slot];
+      skipped = target;
       return { ...current, coins: current.coins - SWAP_PRICE, currentBatch: replaced };
     });
+    // A swap is a skip: that game is held back for a while (see `adaptive.ts`).
+    const gone = skipped as BatchPuzzleRef | null;
+    if (gone) noteSkipped({ puzzleId: gone.puzzleId, kind: gone.kind });
     return swapped;
   }, [applyMutation]);
 
@@ -753,8 +780,10 @@ export function PlayerProgressProvider({
   );
 
   const resetProgress = useCallback((): void => {
-    // A fresh start leaves no board half played behind it.
+    // A fresh start leaves no board half played behind it, and nothing
+    // learned about how the last player played.
     forgetAllBoards();
+    resetAdaptive();
     // A new player's save, with its first level set dealt - as a fresh
     // install gets on load. Without one, Home (mounted under Settings or
     // the account screen) throws on its next render.
@@ -808,6 +837,7 @@ export function PlayerProgressProvider({
       claimSet,
       completePurchase,
       swapPuzzle,
+      easeNextPuzzle,
       lastCharmed,
       lastBonus,
       levelResult: (levelId: string) => getLevelResult(progress, levelId),
@@ -817,7 +847,7 @@ export function PlayerProgressProvider({
       dailyStreak: getDisplayDailyStreak(progress, dailyKeyOf(new Date())),
       dailyCompletedToday: isDailyCompleted(progress, dailyKeyOf(new Date())),
     }),
-    [progress, ready, recordAndMark, markLevelOpened, resetProgress, adoptProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, setShopGoal, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, buyAdFree, rewardVideo, spendInsightCharge, addInsights, claimGift, claimSet, completePurchase, swapPuzzle, lastCharmed, lastBonus],
+    [progress, ready, recordAndMark, markLevelOpened, resetProgress, adoptProgress, spendCoins, claimErrand, claimChapter, claimStamp, markIntroSeen, setShopGoal, collectRanks, buyCosmetic, equipCosmetic, buyStreakFreeze, retireGame, reinstateGame, buyLuckyCharm, buyAdFree, rewardVideo, spendInsightCharge, addInsights, claimGift, claimSet, completePurchase, swapPuzzle, easeNextPuzzle, lastCharmed, lastBonus],
   );
 
   return (

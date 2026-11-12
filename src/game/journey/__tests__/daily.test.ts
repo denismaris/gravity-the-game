@@ -6,6 +6,7 @@ import { getAdjacentById } from '../../adjacent';
 import { getBloomById } from '../../bloom';
 import { getMosaicById } from '../../mosaic';
 import { getBridgesById } from '../../bridges';
+import { getFolioById } from '../../folio';
 import { getLevelById } from '../../levels';
 import { getMirrorMazeById } from '../../mirror';
 import { lilyCuratedInfo } from '../../lilypads';
@@ -58,6 +59,8 @@ function realPuzzleExists(entry: ReturnType<typeof getDailyEntry>): boolean {
       return getMosaicById(entry.puzzleId) !== undefined;
     case 'bridges':
       return getBridgesById(entry.puzzleId) !== undefined;
+    case 'folio':
+      return getFolioById(entry.puzzleId) !== undefined;
   }
 }
 

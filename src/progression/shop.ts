@@ -15,7 +15,7 @@ import { PATRON_SEASON_DISCOUNT } from './store';
 
 /** A game's own look: its pieces, lamps, beams or glazes. */
 export type SkinGame = Exclude<GameKind, 'bridges'>;
-export const SKIN_GAMES: ReadonlyArray<SkinGame> = ['gravity', 'mirror', 'lilypads', 'vanes', 'binairo', 'arukone', 'glass', 'lightsout', 'adjacent', 'bloom', 'mosaic'];
+export const SKIN_GAMES: ReadonlyArray<SkinGame> = ['gravity', 'mirror', 'lilypads', 'vanes', 'binairo', 'arukone', 'glass', 'lightsout', 'adjacent', 'bloom', 'mosaic', 'folio'];
 /** Bridges' look is its chart (the `chart` slot) - it had one first. */
 export type CosmeticSlot = 'confetti' | 'ball' | 'chart' | 'garden' | 'chime' | `skin-${SkinGame}`;
 export const COSMETIC_SLOTS: ReadonlyArray<CosmeticSlot> = ['confetti', 'ball', 'chart', 'garden', 'chime', ...SKIN_GAMES.map(g => `skin-${g}` as const)];
@@ -209,6 +209,10 @@ export const COSMETICS: ReadonlyArray<Cosmetic> = [
     { id: 'skin-mosaic-marble', name: 'Marble Bed', blurb: 'Tiles set in white stone.', price: fine, colors: ['#ECE8E2', '#D6D0C8'], tokens: { mosaicSocket: '#EEEAE4', mosaicGrout: '#D8D2CA', mosaicSlabEdge: '#B9B1A7', mosaicSocketWall: '#D1CAC1' }, darkTokens: { mosaicSocket: '#34313B', mosaicGrout: '#28252E', mosaicSlabEdge: '#121016', mosaicSocketWall: '#211E27' } },
     { id: 'skin-mosaic-slate', name: 'Slate Bed', blurb: 'Tiles set in blue-grey slate.', price: rare, colors: ['#E8E9EC', '#C4CAD2'], tokens: { mosaicSocket: '#E8E9EC', mosaicGrout: '#C4CAD2', mosaicSlabEdge: '#8D98A4', mosaicSocketWall: '#BCC3CC' }, darkTokens: { mosaicSocket: '#262C36', mosaicGrout: '#1D222A', mosaicSlabEdge: '#0B0E12', mosaicSocketWall: '#181C23' } },
   ]),
+  ...skins('folio', 'Vermilion, indigo and saffron.', [
+    { id: 'skin-folio-meadow', name: 'Meadow Paper', blurb: 'Poppy, cornflower and buttercup.', price: common, colors: ['#D9483B', '#4C74C9', '#E8C23A'], tokens: { folioVermilion: '#D9483B', folioIndigo: '#4C74C9', folioSaffron: '#E8C23A' }, darkTokens: { folioVermilion: '#E2675A', folioIndigo: '#7194DE', folioSaffron: '#EDCE5C' } },
+    { id: 'skin-folio-kraft', name: 'Kraft & Ink', blurb: 'Brown paper, printed by hand.', price: fine, colors: ['#8C5A3C', '#2F3F4F', '#C9A15C'], tokens: { folioVermilion: '#8C5A3C', folioIndigo: '#2F3F4F', folioSaffron: '#C9A15C', folioPaper: '#E9DCC2' }, darkTokens: { folioVermilion: '#B07A58', folioIndigo: '#5D7388', folioSaffron: '#D8B472', folioPaper: '#D9CBAE' } },
+  ]),
 
   // --- Masterworks: every game's finest set. ---
   ...masterworks([
@@ -222,6 +226,7 @@ export const COSMETICS: ReadonlyArray<Cosmetic> = [
     { game: 'lightsout', id: 'skin-lightsout-firefly', name: 'Firefly', blurb: 'Green-gold lamps in the dusk.', colors: ['#C9F26B', '#F7FFE0'], tokens: { lightsOutLit: '#C9F26B', lightsOutLitCore: '#F7FFE0' } },
     { game: 'adjacent', id: 'skin-adjacent-ember', name: 'Ember Kiln', blurb: 'Five glazes from the hottest fire.', colors: ['#9E3B2B', '#C7682B', '#D9A032', '#6E7B3A', '#4A3B57'], tokens: { adjacentTile0: '#9E3B2B', adjacentTile1: '#C7682B', adjacentTile2: '#D9A032', adjacentTile3: '#6E7B3A', adjacentTile4: '#4A3B57' } },
     { game: 'bloom', id: 'skin-bloom-iris', name: 'Midnight Iris', blurb: 'Flowers that open after dark.', colors: ['#4B4FB5'], tokens: { bloomAccent: '#4B4FB5' }, darkTokens: { bloomAccent: '#8C90E8' } },
+    { game: 'folio', id: 'skin-folio-washi', name: 'Washi', blurb: 'Plum, sea green and gold on rice paper.', colors: ['#9A3B6E', '#2E7D72', '#C9952E'], tokens: { folioVermilion: '#9A3B6E', folioIndigo: '#2E7D72', folioSaffron: '#C9952E', folioPaper: '#F8F3E8' }, darkTokens: { folioVermilion: '#C2638F', folioIndigo: '#55A799', folioSaffron: '#DDB050', folioPaper: '#E5DECF' } },
     { game: 'mosaic', id: 'skin-mosaic-gold', name: 'Gold Leaf Bed', blurb: 'Tiles set in gilded grout.', colors: ['#F4E7C2', '#D9C384'], tokens: { mosaicSocket: '#F4E7C2', mosaicGrout: '#E3CF95', mosaicSlabEdge: '#B99A4E', mosaicSocketWall: '#D9C384' }, darkTokens: { mosaicSocket: '#3A3122', mosaicGrout: '#2B2418', mosaicSlabEdge: '#120E08', mosaicSocketWall: '#241D12' } },
   ]),
 ];

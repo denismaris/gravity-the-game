@@ -31,6 +31,9 @@ export interface Settings {
   /** Lets text follow the phone's text size much further (to 2x rather
    * than 1.3x), for players who need it larger; see `components/Text`. */
   readonly largerText: boolean;
+  /** Adaptive play: the dealer learns how this player plays and what they
+   * enjoy, on the phone, and leans each set toward it (see `adaptive.ts`). */
+  readonly adaptiveDifficulty: boolean;
 }
 
 export type AppearancePreference = 'system' | 'light' | 'dark';
@@ -58,6 +61,7 @@ export function defaultSettings(): Settings {
     reminderHour: DEFAULT_REMINDER_HOUR,
     appearance: 'system',
     largerText: false,
+    adaptiveDifficulty: true,
   };
 }
 
@@ -88,6 +92,11 @@ export function withHapticsEnabled(settings: Settings, enabled: boolean): Settin
 export function withLargerText(settings: Settings, enabled: boolean): Settings {
   if (settings.largerText === enabled) return settings;
   return { ...settings, largerText: enabled };
+}
+
+export function withAdaptiveDifficulty(settings: Settings, enabled: boolean): Settings {
+  if (settings.adaptiveDifficulty === enabled) return settings;
+  return { ...settings, adaptiveDifficulty: enabled };
 }
 
 export function withCalmingInterstitialEnabled(settings: Settings, enabled: boolean): Settings {

@@ -1,88 +1,89 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, View } from 'react-native';
+import { Animated, NativeScrollEvent, NativeSyntheticEvent, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { Canvas, Group } from '@shopify/react-native-skia';
 import { Text } from './Text';
-import { Canvas } from '@shopify/react-native-skia';
 import { DialogActions } from './dialog';
-import { isReducedMotion, triggerFeedback } from '../game/rendering';
+import { announce, isReducedMotion, readableOn, triggerFeedback } from '../game/rendering';
 import { TutorialSlide } from '../game/tutorials';
-import { motion, theme, themedStyles } from '../theme';
+import { GameKind, gameDisplayName } from '../game/journey';
+import { theme, themedStyles } from '../theme';
+import { curve } from '../theme/motion';
 import { ModalLayer } from './ModalLayer';
+import { Frosted } from './Frosted';
+import { GameEmblem, mix } from './GameEmblem';
 
-/** The card's own fixed width - paging needs an exact known slide width,
- * not a `maxWidth` that could vary per device the way `TutorialOverlay`'s
- * does. 328 comfortably fits with margin on every phone this app targets
- * (even the smallest, ~375pt wide) without needing to measure layout. */
-const CARD_WIDTH = 328;
-const CARD_PADDING_H = theme.spacing.lg;
-
-/** The fixed size every slide's illustration canvas renders into -
- * exported so each game's own illustration set (`BinairoMechanicsIllustrations.tsx`,
- * `TentsMechanicsIllustrations.tsx`, ...) can centre its own diagram
- * against the same box without duplicating these numbers. */
+/** The size every slide's illustration is drawn at. Each game's set
+ * (`BinairoMechanicsIllustrations.tsx`, ...) centres its diagram in this
+ * box; the carousel scales the whole box up to the phone it is on. */
 export const ILLUSTRATION_WIDTH = 260;
 export const ILLUSTRATION_HEIGHT = 140;
 
+/** The reading column, the same width the finish page uses. */
+const COLUMN_MAX = 420;
+const PAGE_GUTTER = theme.spacing.xl;
+/** Room inside the plate around the drawing. */
+const PLATE_INSET = 18;
+/** Never blown up past this: the diagrams are drawn for a small box. */
+const MAX_SCALE = 1.4;
+
 export interface MechanicsCarouselProps {
   slides: ReadonlyArray<TutorialSlide>;
-  /** Draws one slide's illustration, keyed by `TutorialSlide.illustration`
-   * - the one game-specific piece of an otherwise fully generic carousel.
-   * Each game supplies its own (see `renderBinairoIllustration`/
-   * `renderTentsIllustration`), built from that game's own real board-
-   * rendering functions so a slide's tree/circle/badge is pixel-identical
-   * to the one a player will actually see. */
+  /** Draws one slide's illustration, keyed by `TutorialSlide.illustration`,
+   * from that game's own board drawing, so a slide's pieces look exactly
+   * like the ones on the board. */
   renderIllustration: (kind: string) => React.ReactNode;
   onDone: () => void;
-  /** Colour for the "HOW TO PLAY" eyebrow and the active pagination dot -
-   * defaults the same way `TutorialOverlay`'s `accentColor` does. */
+  /** The game being taught: its emblem and name head the page. */
+  kind?: GameKind;
+  /** The game's colour, for the name, the plates and the page marker. */
   accentColor?: string;
 }
 
 /**
- * A horizontally-paged "how this works" carousel, one slide per mechanic -
- * the multi-page counterpart to `TutorialOverlay` for a game whose rules
- * don't fit in one overlay's body text. Fully game-agnostic: every game
- * supplies its own `slides` (from `src/game/tutorials.ts`) and its own
- * `renderIllustration` (from that game's own illustration module) - this
- * component only owns the paging/chrome/dots/buttons every game shares.
- * Reused verbatim for both the first-time auto-open and a manual reopen
- * (see each screen's own "?" icon) - the caller just mounts/unmounts the
- * same component either way, so "always starts at slide 1" is free: this
- * component's own `index` state is fresh on every mount, never persisted
- * or resumed.
+ * How a game plays, one rule per page, laid over the board the way a
+ * finish is: the board frosted behind, the game's emblem and name at the
+ * head, the rule's picture large in the middle, the way on at the thumb.
+ * Shown on a game's first open and again from its "?" key; always starts
+ * at page one, since its state is fresh on every mount.
  *
- * Paging is a plain `ScrollView` with `pagingEnabled`, not a hand-rolled
- * `PanResponder` - there's no gesture need here (no velocity handoff, no
- * mid-drag decision) that a `ScrollView` doesn't already give for free,
- * and this app has no other carousel to match a hand-rolled gesture to.
- * Explicit Skip/Next controls exist alongside the swipe for anyone who'd
- * rather tap through.
+ * Paging is a plain `ScrollView` with `pagingEnabled`; Next and Skip are
+ * there for anyone who would rather tap.
  */
-export function MechanicsCarousel({
-  slides,
-  renderIllustration,
-  onDone,
-  accentColor = theme.colors.secondary,
-}: MechanicsCarouselProps): React.JSX.Element {
-  const progress = useRef(new Animated.Value(isReducedMotion() ? 1 : 0)).current;
+export function MechanicsCarousel({ slides, renderIllustration, onDone, kind, accentColor = theme.colors.secondary }: MechanicsCarouselProps): React.JSX.Element {
+  const insets = useSafeAreaInsets();
+  const { width: screenWidth } = useWindowDimensions();
+  const pageWidth = screenWidth;
+  const columnWidth = Math.min(COLUMN_MAX, pageWidth - PAGE_GUTTER * 2);
+  const scale = Math.min(MAX_SCALE, (columnWidth - PLATE_INSET * 2) / ILLUSTRATION_WIDTH);
+  const artW = Math.round(ILLUSTRATION_WIDTH * scale);
+  const artH = Math.round(ILLUSTRATION_HEIGHT * scale);
+
+  // Text in the game's colour, never fainter than 4.5:1 on the paper.
+  const ink = readableOn(accentColor, theme.colors.background, theme.colors.textPrimary);
+  const plate = safeMix(theme.colors.surfaceAlt, accentColor, 0.14);
+  const plateEdge = safeMix(theme.colors.surfaceAlt, accentColor, 0.32);
+
+  const appear = useRef(new Animated.Value(isReducedMotion() ? 1 : 0)).current;
   const scrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
   const [index, setIndex] = useState(0);
-  // Where the pages are, read on the native thread: the dot pill and each
+  // Where the pages are, read on the native thread: the marker and each
   // picture's drift follow the finger with no JavaScript per frame.
   const scrollX = useRef(new Animated.Value(0)).current;
   const onScroll = useMemo(() => Animated.event([{ nativeEvent: { contentOffset: { x: scrollX } } }], { useNativeDriver: true }), [scrollX]);
-  // A picture is drawn once its page is near: every slide's canvas made at
-  // once was the heavy frame as the card opened. Kept once drawn, so
-  // paging back never redraws it from blank.
+  // A picture is drawn once its page is near, and kept once drawn: every
+  // canvas made at once was the heavy frame as the page opened.
   const [drawn, setDrawn] = useState<ReadonlySet<number>>(() => new Set([0, 1]));
 
   useEffect(() => {
-    Animated.timing(progress, {
-      toValue: 1,
-      duration: motion.cardEnter.duration,
-      easing: motion.cardEnter.easing,
-      useNativeDriver: true,
-    }).start();
-  }, [progress]);
+    Animated.timing(appear, { toValue: 1, duration: 420, easing: curve.arrive, useNativeDriver: true }).start();
+  }, [appear]);
+
+  useEffect(() => {
+    announce(`${kind ? `${gameDisplayName(kind)}. ` : ''}How to play. ${slides[0]?.title ?? ''}`, 500);
+    // Once, as it opens.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const settleOn = useCallback((i: number) => {
     // A light tick as a page lands, the way a page turns under a thumb.
@@ -95,72 +96,100 @@ export function MechanicsCarousel({
 
   const goTo = useCallback(
     (i: number) => {
-      scrollRef.current?.scrollTo({ x: i * CARD_WIDTH, animated: true });
+      scrollRef.current?.scrollTo({ x: i * pageWidth, animated: true });
       settleOn(i);
     },
-    [settleOn],
+    [settleOn, pageWidth],
   );
 
   const onMomentumScrollEnd = useCallback(
     (e: NativeSyntheticEvent<NativeScrollEvent>) => {
-      settleOn(Math.round(e.nativeEvent.contentOffset.x / CARD_WIDTH));
+      settleOn(Math.max(0, Math.min(slides.length - 1, Math.round(e.nativeEvent.contentOffset.x / pageWidth))));
     },
-    [settleOn],
+    [settleOn, pageWidth, slides.length],
   );
 
   const isLast = index === slides.length - 1;
-  const span = Math.max(1, slides.length - 1) * CARD_WIDTH;
-  const pillX = scrollX.interpolate({ inputRange: [0, span], outputRange: [0, Math.max(1, slides.length - 1) * (DOT + DOT_GAP)], extrapolate: 'clamp' });
+  const steps = Math.max(1, slides.length - 1);
+  const pillX = scrollX.interpolate({ inputRange: [0, steps * pageWidth], outputRange: [0, steps * (DOT + DOT_GAP)], extrapolate: 'clamp' });
 
   return (
     <ModalLayer zIndex={10}>
-      <Animated.View style={[styles.overlay, { opacity: progress }]}>
-        <Animated.View style={[styles.card, { transform: [{ scale: progress.interpolate({ inputRange: [0, 1], outputRange: [motion.cardEnter.scaleFrom, 1] }) }, { translateY: progress.interpolate({ inputRange: [0, 1], outputRange: [16, 0] }) }] }]}>
-          <Text style={[styles.eyebrow, { color: accentColor }]}>How to play</Text>
+      {/* The whole screen takes the touch: the board waits behind. */}
+      <View style={styles.overlay} onStartShouldSetResponder={() => true} accessibilityViewIsModal>
+        <Animated.View style={[StyleSheet.absoluteFill, { opacity: appear }]} pointerEvents="none">
+          <Frosted />
+        </Animated.View>
 
-          <Animated.ScrollView
-            ref={scrollRef as never}
-            horizontal
-            pagingEnabled
-            showsHorizontalScrollIndicator={false}
-            onScroll={onScroll}
-            scrollEventThrottle={16}
-            onMomentumScrollEnd={onMomentumScrollEnd}
-            style={{ width: CARD_WIDTH }}
-          >
-            {slides.map((slide, i) => {
-              const around = [(i - 1) * CARD_WIDTH, i * CARD_WIDTH, (i + 1) * CARD_WIDTH];
-              return (
-                <View key={i} style={styles.slide} accessibilityElementsHidden={i !== index} importantForAccessibility={i === index ? 'auto' : 'no-hide-descendants'}>
-                  {/* The picture drifts a little behind the swipe and
-                      fades at the edge of its page: depth, not a slide. */}
-                  <Animated.View
-                    style={[
-                      styles.plate,
-                      {
-                        opacity: scrollX.interpolate({ inputRange: around, outputRange: [0.15, 1, 0.15], extrapolate: 'clamp' }),
-                        transform: [{ translateX: scrollX.interpolate({ inputRange: around, outputRange: [CARD_WIDTH * 0.22, 0, -CARD_WIDTH * 0.22], extrapolate: 'clamp' }) }],
-                      },
-                    ]}
+        <Animated.View
+          style={[
+            styles.page,
+            { paddingTop: insets.top + theme.spacing.lg, paddingBottom: insets.bottom + theme.spacing.md },
+            { opacity: appear, transform: [{ translateY: appear.interpolate({ inputRange: [0, 1], outputRange: [18, 0] }) }] },
+          ]}
+        >
+          <View style={styles.head}>
+            {kind && <GameEmblem kind={kind} size={52} raised />}
+            <Text style={[styles.kicker, { color: ink }]}>{kind ? `${gameDisplayName(kind)} · How to play` : 'How to play'}</Text>
+          </View>
+
+          <View style={styles.pages}>
+            <Animated.ScrollView
+              ref={scrollRef as never}
+              horizontal
+              pagingEnabled
+              showsHorizontalScrollIndicator={false}
+              onScroll={onScroll}
+              scrollEventThrottle={16}
+              onMomentumScrollEnd={onMomentumScrollEnd}
+              style={[styles.scroller, { width: pageWidth }]}
+            >
+              {slides.map((slide, i) => {
+                const around = [(i - 1) * pageWidth, i * pageWidth, (i + 1) * pageWidth];
+                return (
+                  <View
+                    key={i}
+                    style={[styles.slide, { width: pageWidth }]}
+                    accessibilityElementsHidden={i !== index}
+                    importantForAccessibility={i === index ? 'auto' : 'no-hide-descendants'}
                   >
-                    {drawn.has(i) ? (
-                      <Canvas style={{ width: ILLUSTRATION_WIDTH, height: ILLUSTRATION_HEIGHT }}>{renderIllustration(slide.illustration)}</Canvas>
-                    ) : (
-                      <View style={{ width: ILLUSTRATION_WIDTH, height: ILLUSTRATION_HEIGHT }} />
-                    )}
-                  </Animated.View>
-                  <Text style={styles.title}>{slide.title}</Text>
-                  <Text style={styles.body}>{slide.body}</Text>
-                  {slide.tip ? (
-                    <View style={styles.tip}>
-                      <View style={[styles.tipMark, { backgroundColor: accentColor }]} />
-                      <Text style={styles.tipText}>{slide.tip}</Text>
+                    <View style={{ width: columnWidth }}>
+                      {/* The picture drifts a little behind the swipe and
+                          fades at the edge of its page: depth, not a slide. */}
+                      <Animated.View
+                        style={[
+                          styles.plate,
+                          { height: artH + PLATE_INSET * 2, backgroundColor: plate, borderColor: plateEdge },
+                          {
+                            opacity: scrollX.interpolate({ inputRange: around, outputRange: [0.2, 1, 0.2], extrapolate: 'clamp' }),
+                            transform: [{ translateX: scrollX.interpolate({ inputRange: around, outputRange: [pageWidth * 0.2, 0, -pageWidth * 0.2], extrapolate: 'clamp' }) }],
+                          },
+                        ]}
+                      >
+                        {drawn.has(i) ? (
+                          <Canvas style={{ width: artW, height: artH }}>
+                            <Group transform={[{ scale }]}>{renderIllustration(slide.illustration)}</Group>
+                          </Canvas>
+                        ) : (
+                          <View style={{ width: artW, height: artH }} />
+                        )}
+                      </Animated.View>
+
+                      <Text style={[styles.step, { color: ink }]}>{`${i + 1} of ${slides.length}`}</Text>
+                      <Text style={styles.title}>{slide.title}</Text>
+                      <Text style={styles.body}>{slide.body}</Text>
+                      {slide.tip ? (
+                        <View style={styles.tip}>
+                          <View style={[styles.tipMark, { backgroundColor: accentColor }]} />
+                          <Text style={styles.tipText}>{slide.tip}</Text>
+                        </View>
+                      ) : null}
                     </View>
-                  ) : null}
-                </View>
-              );
-            })}
-          </Animated.ScrollView>
+                  </View>
+                );
+              })}
+            </Animated.ScrollView>
+          </View>
 
           {slides.length > 1 && (
             <View style={styles.dots} accessibilityLabel={`Page ${index + 1} of ${slides.length}`}>
@@ -172,16 +201,24 @@ export function MechanicsCarousel({
             </View>
           )}
 
-          <View style={styles.actions}>
+          {/* The way on, docked where the thumb is, as on the finish page.
+              The second choice is always there, so the buttons never jump. */}
+          <View style={{ width: columnWidth }}>
             <DialogActions
               primary={isLast ? { label: 'Start playing', onPress: onDone, onward: true } : { label: 'Next', onPress: () => goTo(index + 1), onward: true }}
-              secondary={isLast ? undefined : { label: 'Skip', onPress: onDone }}
+              secondary={isLast && slides.length > 1 ? { label: 'Back', onPress: () => goTo(index - 1) } : isLast ? undefined : { label: 'Skip', onPress: onDone }}
             />
           </View>
         </Animated.View>
-      </Animated.View>
+      </View>
     </ModalLayer>
   );
+}
+
+/** `mix`, falling back to the plain colour if either is not `#rrggbb`. */
+function safeMix(a: string, b: string, t: number): string {
+  const hex = /^#[0-9a-f]{6}$/i;
+  return hex.test(a) && hex.test(b) ? mix(a, b, t) : a;
 }
 
 /** The dots under the pages, and the pill that runs over them. */
@@ -190,72 +227,54 @@ const DOT_GAP = 8;
 const PILL = 18;
 
 const styles = themedStyles(() => ({
-  /** The page's paper over the board, as every finish screen has it. */
-  overlay: {
-    ...StyleSheet.absoluteFill,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: `${theme.colors.background}EB`,
-    zIndex: 10,
-  },
-  card: {
-    width: CARD_WIDTH,
-    alignItems: 'center',
-    paddingTop: theme.spacing.lg,
-    paddingBottom: theme.spacing.lg,
-    borderRadius: 28,
-    backgroundColor: theme.colors.surface,
-    borderWidth: 1,
-    borderColor: theme.colors.border,
-    shadowColor: theme.colors.shadow,
-    shadowOpacity: 0.14,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 8,
-  },
-  eyebrow: {
+  overlay: { ...StyleSheet.absoluteFill },
+  page: { flex: 1, alignItems: 'center' },
+  head: { alignItems: 'center', gap: theme.spacing.sm },
+  kicker: {
     fontSize: theme.typography.sizes.caption,
     fontWeight: theme.typography.weights.bold,
     letterSpacing: 1.8,
     textTransform: 'uppercase',
-    marginBottom: theme.spacing.md,
-  },
-  slide: {
-    width: CARD_WIDTH,
-    alignItems: 'center',
-    paddingHorizontal: CARD_PADDING_H,
-  },
-  /** The picture's plate: a quiet inset of paper, so the drawing sits in a
-   * place rather than floating on the card. */
-  plate: {
-    width: ILLUSTRATION_WIDTH + 24,
-    height: ILLUSTRATION_HEIGHT + 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderRadius: 20,
-    backgroundColor: theme.colors.surfaceAlt,
-  },
-  title: {
-    fontFamily: theme.typography.families.display,
-    fontSize: theme.typography.sizes.title,
-    lineHeight: theme.typography.lineHeights.title,
-    fontWeight: theme.typography.weights.bold,
-    color: theme.colors.textPrimary,
-    marginTop: theme.spacing.lg,
-    marginBottom: theme.spacing.xs,
     textAlign: 'center',
   },
+  /** The pages sit in the room between the head and the keys. */
+  pages: { flex: 1, justifyContent: 'center' },
+  scroller: { flexGrow: 0 },
+  slide: { alignItems: 'center' },
+  /** The picture's plate: paper with a little of the game's colour in it,
+   * so the drawing sits in a place rather than floating on the page. */
+  plate: {
+    alignSelf: 'stretch',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 24,
+    borderWidth: 1,
+  },
+  step: {
+    marginTop: theme.spacing.lg,
+    fontSize: theme.typography.sizes.micro,
+    fontWeight: theme.typography.weights.bold,
+    letterSpacing: 1.2,
+    textTransform: 'uppercase',
+  },
+  title: {
+    marginTop: 4,
+    fontFamily: theme.typography.families.display,
+    fontSize: 30,
+    lineHeight: 36,
+    fontWeight: theme.typography.weights.bold,
+    color: theme.colors.textPrimary,
+  },
   body: {
+    marginTop: theme.spacing.sm,
     fontSize: theme.typography.sizes.body,
     lineHeight: theme.typography.lineHeights.body,
     color: theme.colors.textSecondary,
-    textAlign: 'center',
   },
-  tip: { flexDirection: 'row', alignItems: 'flex-start', gap: 10, alignSelf: 'stretch', marginTop: theme.spacing.md, paddingHorizontal: 4 },
-  tipMark: { width: 3, alignSelf: 'stretch', borderRadius: 1.5, opacity: 0.8 },
-  tipText: { flex: 1, fontSize: theme.typography.sizes.caption, lineHeight: theme.typography.lineHeights.caption, color: theme.colors.textPrimary },
-  dots: { flexDirection: 'row', gap: DOT_GAP, height: DOT, marginTop: theme.spacing.lg, alignItems: 'center' },
+  tip: { flexDirection: 'row', alignItems: 'flex-start', gap: 12, marginTop: theme.spacing.md },
+  tipMark: { width: 3, alignSelf: 'stretch', borderRadius: 1.5, opacity: 0.85 },
+  tipText: { flex: 1, fontSize: theme.typography.sizes.body, lineHeight: theme.typography.lineHeights.body, color: theme.colors.textPrimary },
+  dots: { flexDirection: 'row', gap: DOT_GAP, height: DOT, marginTop: theme.spacing.md, marginBottom: theme.spacing.lg, alignItems: 'center' },
   dot: { width: DOT, height: DOT, borderRadius: DOT / 2, backgroundColor: theme.colors.borderStrong },
   pill: { position: 'absolute', left: -(PILL - DOT) / 2, width: PILL, height: DOT, borderRadius: DOT / 2 },
-  actions: { alignSelf: 'stretch', marginTop: theme.spacing.lg, paddingHorizontal: CARD_PADDING_H },
 }));

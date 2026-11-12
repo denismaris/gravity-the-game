@@ -6,6 +6,7 @@ import { ADJACENT } from '../../game/adjacent';
 import { BLOOM } from '../../game/bloom';
 import { MOSAIC } from '../../game/mosaic';
 import { BRIDGES } from '../../game/bridges';
+import { FOLIO } from '../../game/folio';
 import { LEVELS } from '../../game/levels';
 import { MIRROR_MAZES } from '../../game/mirror';
 import { GameKind, ROTATION } from '../../game/journey';
@@ -35,6 +36,7 @@ const ALL_ENTRIES: ReadonlyArray<{ kind: GameKind; puzzleId: string }> = [
   ...BLOOM.map(puzzle => ({ kind: 'bloom' as const, puzzleId: puzzle.id })),
   ...MOSAIC.map(puzzle => ({ kind: 'mosaic' as const, puzzleId: puzzle.id })),
   ...BRIDGES.map(puzzle => ({ kind: 'bridges' as const, puzzleId: puzzle.id })),
+  ...FOLIO.map(puzzle => ({ kind: 'folio' as const, puzzleId: puzzle.id })),
 ];
 
 function firstPuzzleOfKind(kind: GameKind): string {

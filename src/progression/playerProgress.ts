@@ -90,7 +90,7 @@ export interface PlayerProgress {
    * until the first solve of a day. Every field from here down was added
    * without a version bump - a save without one reads as its default. */
   readonly errands: ErrandLog | null;
-  /** Errands claimed, ever - part of the rank's experience. */
+  /** Errands claimed, ever. */
   readonly errandsClaimed: number;
   /** The highest rank already celebrated and paid (see `rank.ts`). */
   readonly rankRewarded: number;

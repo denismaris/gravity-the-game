@@ -14,10 +14,6 @@ import {
   Chapter,
   LEVELS_PER_CHAPTER,
   RANKS,
-  XP_PER_ERRAND,
-  XP_PER_PUZZLE,
-  XP_PER_STAR,
-  XP_PER_STREAK_DAY,
   chapterAt,
   chaptersFinished,
   cosmeticById,
@@ -94,7 +90,7 @@ function ChapterRow({ chapter, claimed, onClaim }: { chapter: Chapter; claimed: 
 
 /**
  * The player's almanac: where they stand and where the road goes - their
- * rank and experience, the chapter under way and its reward, finished
+ * rank and levels finished, the chapter under way and its reward, finished
  * chapters to claim, and the ranks ahead.
  */
 export function JourneyScreen({ onExit, onOpenShop }: JourneyScreenProps): React.JSX.Element {
@@ -137,26 +133,25 @@ export function JourneyScreen({ onExit, onOpenShop }: JourneyScreenProps): React
         <Animated.View style={[styles.hero, rise(0)]}>
           <RankMedal rank={rank.number} size={124} />
           <Text style={styles.heroKicker}>
-            Rank {toRoman(rank.number)} · {fmt(rank.xp)} XP
+            Rank {toRoman(rank.number)} · {fmt(rank.levels)} {rank.levels === 1 ? 'level' : 'levels'} finished
           </Text>
           <Text style={styles.heroTitle}>{rank.title}</Text>
           <XpBar share={rank.share} style={styles.heroBar} />
           <Text style={styles.heroNext}>
-            {fmt(rank.to - rank.xp)} XP to {nextTitle}
+            {fmt(rank.to - rank.levels)} {rank.to - rank.levels === 1 ? 'level' : 'levels'} to {nextTitle}
           </Text>
-          {/* How experience is earned, as a small table rather than a row
-              of codes. */}
+          {/* The road in plain numbers: where you are, and the one thing
+              that moves you along it. */}
           <View style={styles.earnTable}>
             {(
               [
-                ['A puzzle solved', XP_PER_PUZZLE + XP_PER_STAR],
-                ['Solved without a hint', XP_PER_STAR * 2],
-                ['An errand done', XP_PER_ERRAND],
-                ['A day on your streak', XP_PER_STREAK_DAY],
+                [fmt(rank.levels), rank.levels === 1 ? 'Level finished' : 'Levels finished'],
+                [fmt(Object.keys(progress.levels).length), 'Puzzles solved'],
+                [fmt(progress.bestDailyStreak), 'Best Daily run'],
               ] as const
-            ).map(([label, xp]) => (
+            ).map(([value, label]) => (
               <View key={label} style={styles.earnCell}>
-                <Text style={styles.earnValue}>{`+${xp} XP`}</Text>
+                <Text style={styles.earnValue}>{value}</Text>
                 <Text style={styles.earnLabel}>{label}</Text>
               </View>
             ))}
@@ -216,7 +211,7 @@ export function JourneyScreen({ onExit, onOpenShop }: JourneyScreenProps): React
                   <RankMedal rank={n} size={44} />
                   <View style={styles.rungBody}>
                     <Text style={styles.rungTitle}>{rankTitle(n)}</Text>
-                    <Text style={styles.rungMeta}>{current ? 'You are here' : reached ? 'Reached' : `At ${fmt(at)} XP`}</Text>
+                    <Text style={styles.rungMeta}>{current ? 'You are here' : reached ? 'Reached' : `After ${fmt(at)} levels`}</Text>
                   </View>
                   {reward > 0 && (
                     <View style={[styles.rungReward, reached && styles.rungRewardDone]}>
@@ -263,7 +258,7 @@ const styles = themedStyles(() => ({
   heroBar: { marginTop: theme.spacing.md },
   heroNext: { marginTop: 6, fontSize: theme.typography.sizes.caption, color: theme.colors.textSecondary, fontWeight: theme.typography.weights.semibold },
   earnTable: { flexDirection: 'row', flexWrap: 'wrap', alignSelf: 'stretch', marginTop: theme.spacing.lg, paddingTop: theme.spacing.md, borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: theme.colors.border, rowGap: theme.spacing.sm },
-  earnCell: { width: '50%', alignItems: 'center' },
+  earnCell: { width: '33.33%', alignItems: 'center' },
   earnValue: { fontSize: theme.typography.sizes.body, fontWeight: theme.typography.weights.bold, color: theme.colors.textPrimary },
   earnLabel: { fontSize: theme.typography.sizes.caption, color: theme.colors.textTertiary },
   sectionTitle: { fontSize: theme.typography.sizes.caption, color: theme.colors.secondary, marginBottom: theme.spacing.sm, fontWeight: theme.typography.weights.semibold },

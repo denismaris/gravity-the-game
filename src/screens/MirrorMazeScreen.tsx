@@ -305,7 +305,7 @@ export function MirrorMazeScreen({ puzzle, onExit, onNextPuzzle }: MirrorMazeScr
       )}
 
       <MechanicIntro intros={[...(puzzle.filters?.length ? [mechanic('mechanic:mirror-ruby')] : []), ...(puzzle.splitters?.length ? [mechanic('mechanic:mirror-splitter')] : [])]} accent={accentColorForKind('mirror')} />
-      {showTutorial && <MechanicsCarousel slides={MIRROR_MECHANICS_SLIDES} renderIllustration={renderMirrorMazeIllustration} onDone={dismissTutorial} accentColor={accentColorForKind('mirror')} />}
+      {showTutorial && <MechanicsCarousel slides={MIRROR_MECHANICS_SLIDES} renderIllustration={renderMirrorMazeIllustration} onDone={dismissTutorial} kind="mirror" accentColor={accentColorForKind('mirror')} />}
     </View>
   );
 }

@@ -10,6 +10,7 @@ import { getAdjacentById } from '../adjacent';
 import { getBloomById } from '../bloom';
 import { getMosaicById } from '../mosaic';
 import { getBridgesById } from '../bridges';
+import { folioCuratedInfo } from '../folio';
 import { PuzzleDifficulty } from '../puzzleDifficulty';
 import { endlessName, parseEndlessId } from '../endlessId';
 import { getWorldForLevel } from '../worlds';
@@ -24,7 +25,7 @@ import { getWorldForLevel } from '../worlds';
  * module that outlived that replacement, because they're about game
  * identity, not about any one ordering of puzzles).
  */
-export type GameKind = 'gravity' | 'mirror' | 'lilypads' | 'vanes' | 'binairo' | 'arukone' | 'glass' | 'lightsout' | 'adjacent' | 'bloom' | 'mosaic' | 'bridges';
+export type GameKind = 'gravity' | 'mirror' | 'lilypads' | 'vanes' | 'binairo' | 'arukone' | 'glass' | 'lightsout' | 'adjacent' | 'bloom' | 'mosaic' | 'bridges' | 'folio';
 
 /** Passed by every game screen's own "Next" action alongside the target
  * puzzle - `App.tsx`'s `openPuzzle` reads `showInterstitial` to decide
@@ -40,7 +41,7 @@ export interface NextPuzzleOptions {
 /** The fixed lineup, in the app's own canonical game order - used anywhere
  * something needs to enumerate "every game" in one stable order (the batch
  * generator's own weighted sampling, Browse's old section order, etc.). */
-export const ROTATION: ReadonlyArray<GameKind> = ['gravity', 'mirror', 'lilypads', 'vanes', 'binairo', 'arukone', 'glass', 'lightsout', 'adjacent', 'bloom', 'mosaic', 'bridges'];
+export const ROTATION: ReadonlyArray<GameKind> = ['gravity', 'mirror', 'lilypads', 'vanes', 'binairo', 'arukone', 'glass', 'lightsout', 'adjacent', 'bloom', 'mosaic', 'bridges', 'folio'];
 
 /** What each game is called, in one place. `puzzleDisplayInfo` below reads
  * these for its `chapter` field, so a game renamed here is renamed
@@ -58,6 +59,7 @@ const DISPLAY_NAMES: Readonly<Record<GameKind, string>> = {
   bloom: 'Bloom',
   mosaic: 'Mosaic',
   bridges: 'Bridges',
+  folio: 'Folio',
 };
 
 /** A game's own display name - for anywhere that names the game itself
@@ -90,6 +92,7 @@ export function gameShortName(kind: GameKind): string {
     case 'bloom':
     case 'mosaic':
     case 'bridges':
+    case 'folio':
       return DISPLAY_NAMES[kind];
   }
 }
@@ -195,6 +198,11 @@ export function puzzleDisplayInfo(kind: GameKind, puzzleId: string): PuzzleDispl
       const puzzle = getBridgesById(puzzleId);
       if (!puzzle) return undefined;
       return { name: puzzle.name ?? puzzle.id, chapter: DISPLAY_NAMES.bridges, difficulty: puzzle.difficulty };
+    }
+    case 'folio': {
+      const info = folioCuratedInfo(puzzleId);
+      if (!info) return undefined;
+      return { name: info.name, chapter: DISPLAY_NAMES.folio, difficulty: info.difficulty };
     }
   }
 }

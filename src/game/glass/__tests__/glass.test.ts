@@ -1,8 +1,8 @@
-import { clashes, getCuratedGlass, GLASS_TEST_WINDOWS, GLASS_WINDOWS, generateGlass, glassHint, initialGlassState, isGlassSolved, paint, panesLeft, reasoned, solveGlass } from '..';
+import { clashes, getCuratedGlass, glassTestWindows, GLASS_WINDOWS, generateGlass, glassHint, initialGlassState, isGlassSolved, paint, panesLeft, reasoned, solveGlass } from '..';
 
 describe('Stained Glass', () => {
   test('every window has exactly one way to finish it, and its clues are part of it', () => {
-    for (const w of GLASS_TEST_WINDOWS) {
+    for (const w of glassTestWindows()) {
       const answers = solveGlass(w.touching, w.given, 2);
       expect(answers).toHaveLength(1);
       expect(answers[0]).toEqual(w.solution);
@@ -19,14 +19,14 @@ describe('Stained Glass', () => {
 
   test('harder windows give away fewer of their panes', () => {
     const share = (d: string) => {
-      const ws = GLASS_TEST_WINDOWS.filter(w => w.difficulty === d);
+      const ws = glassTestWindows().filter(w => w.difficulty === d);
       return ws.reduce((t, w) => t + w.given.filter(c => c !== null).length / w.panes, 0) / ws.length;
     };
     expect(share('hard')).toBeLessThan(share('easy'));
   });
 
   test('a clash is two touching panes alike; givens cannot be repainted; hints walk to the end', () => {
-    const w = GLASS_TEST_WINDOWS[0];
+    const w = glassTestWindows()[0];
     let s = initialGlassState(w);
     const given = w.given.findIndex(c => c !== null);
     expect(paint(w, s, given, ((w.given[given]! + 1) % 3) as 0 | 1 | 2)).toBe(s);
